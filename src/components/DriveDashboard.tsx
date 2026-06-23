@@ -38,6 +38,7 @@ import {
   Copy,
   Check
 } from "lucide-react";
+import { SummaryDebugger } from "./SummaryDebugger";
 
 interface DriveDashboardProps {
   userId: string;
@@ -46,14 +47,15 @@ interface DriveDashboardProps {
   logs: DriveLog[];
   onAddLog: (level: "info" | "success" | "warn" | "error", message: string, details?: string) => void;
   onSessionExpiry?: () => void;
+  activeTab: string;
+  setActiveTab: (tab: any) => void;
 }
 
-export default function DriveDashboard({ userId, token, config, logs, onAddLog, onSessionExpiry }: DriveDashboardProps) {
+export default function DriveDashboard({ userId, token, config, logs, onAddLog, onSessionExpiry, activeTab, setActiveTab }: DriveDashboardProps) {
   const [dirs, setDirs] = useState<Directory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "debugger">("dashboard");
   
   // Job 1 State (Scanning)
   const [isCrawlActive, setIsCrawlActive] = useState<boolean>(false);
@@ -908,67 +910,69 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
   return (
     <div className="space-y-6">
       {/* Bento Grid Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="stats-bento">
-        {/* Stat 1: Connection */}
-        <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Drive Workspace</span>
-            <div className="text-xs font-bold text-indigo-600 mt-1 flex items-center gap-1.5 font-display">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              接続中 (My Drive)
+      {activeTab !== "summary-debugger" && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="stats-bento">
+          {/* Stat 1: Connection */}
+          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Drive Workspace</span>
+              <div className="text-xs font-bold text-indigo-600 mt-1 flex items-center gap-1.5 font-display">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                接続中 (My Drive)
+              </div>
+            </div>
+            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
+              <Database className="w-4 h-4" />
             </div>
           </div>
-          <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-            <Database className="w-4 h-4" />
-          </div>
-        </div>
 
-        {/* Stat 2: Total Scanned Folders */}
-        <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">同期済みフォルダ数</span>
-            <p className="text-xl font-mono font-bold text-slate-800 tracking-tighter mt-1">
-              {isInitialSyncing && dirs.length === 0 ? <span className="animate-pulse text-slate-300">...</span> : dirs.length} <span className="text-xs font-normal text-slate-400">dirs</span>
-            </p>
+          {/* Stat 2: Total Scanned Folders */}
+          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">同期済みフォルダ数</span>
+              <p className="text-xl font-mono font-bold text-slate-800 tracking-tighter mt-1">
+                {isInitialSyncing && dirs.length === 0 ? <span className="animate-pulse text-slate-300">...</span> : dirs.length} <span className="text-xs font-normal text-slate-400">dirs</span>
+              </p>
+            </div>
+            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
+              <Folder className="w-4 h-4" />
+            </div>
           </div>
-          <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-            <Folder className="w-4 h-4" />
-          </div>
-        </div>
 
-        {/* Stat 3: Indexed OKF Files */}
-        <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">インデックス生成数</span>
-            <p className="text-xl font-mono font-bold text-indigo-600 tracking-tighter mt-1">
-              {isInitialSyncing && dirs.length === 0 ? (
-                <span className="animate-pulse text-slate-300">...</span>
-              ) : (
-                <>
-                  {dirs.filter(d => d.index_status === "indexed").length} 
-                  <span className="text-xs font-normal text-slate-400"> / {dirs.length}</span>
-                </>
-              )}
-            </p>
+          {/* Stat 3: Indexed OKF Files */}
+          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">インデックス生成数</span>
+              <p className="text-xl font-mono font-bold text-indigo-600 tracking-tighter mt-1">
+                {isInitialSyncing && dirs.length === 0 ? (
+                  <span className="animate-pulse text-slate-300">...</span>
+                ) : (
+                  <>
+                    {dirs.filter(d => d.index_status === "indexed").length} 
+                    <span className="text-xs font-normal text-slate-400"> / {dirs.length}</span>
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
+              <FileText className="w-4 h-4" />
+            </div>
           </div>
-          <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-            <FileText className="w-4 h-4" />
-          </div>
-        </div>
 
-        {/* Stat 4: Navigation Status */}
-        <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">最終走査時刻</span>
-            <p className="text-[10px] font-mono text-slate-600 font-bold uppercase mt-2.5 leading-none break-all">
-              {isInitialSyncing && dirs.length === 0 ? <span className="animate-pulse text-slate-300">同期中...</span> : (lastTraversedAt ? new Date(lastTraversedAt).toLocaleString() : "未スキャン")}
-            </p>
-          </div>
-          <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-            <FolderSync className="w-4 h-4" />
+          {/* Stat 4: Navigation Status */}
+          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">最終走査時刻</span>
+              <p className="text-[10px] font-mono text-slate-600 font-bold uppercase mt-2.5 leading-none break-all">
+                {isInitialSyncing && dirs.length === 0 ? <span className="animate-pulse text-slate-300">同期中...</span> : (lastTraversedAt ? new Date(lastTraversedAt).toLocaleString() : "未スキャン")}
+              </p>
+            </div>
+            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
+              <FolderSync className="w-4 h-4" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* View Mode Tabs */}
       <div className="flex border-b border-slate-200" id="tabs-navigation">
@@ -996,10 +1000,22 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
           <Bug className="w-4 h-4" />
           フォルダ列挙デバッガー
         </button>
+        <button
+          onClick={() => setActiveTab("summary-debugger")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "summary-debugger"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-summary-debugger"
+        >
+          <FileText className="w-4 h-4" />
+          要約デバッガー
+        </button>
       </div>
 
       {/* Progress Monitor if running */}
-      {(isCrawlActive || isIndexActive) && (
+      {activeTab !== "summary-debugger" && (isCrawlActive || isIndexActive) && (
         <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 shadow-lg text-white space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1069,7 +1085,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         </div>
       )}
 
-      {activeTab === "debugger" ? (
+      {activeTab === "debugger" && (
         <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm space-y-6 animate-fade-in">
           {/* Debug Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 gap-3">
@@ -1297,7 +1313,9 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab === "dashboard" && (
         <div className="bg-white border border-slate-200 p-4 rounded-lg shadow-sm space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2.5">
@@ -1518,6 +1536,10 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === "summary-debugger" && (
+        <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} />
       )}
     </div>
   );

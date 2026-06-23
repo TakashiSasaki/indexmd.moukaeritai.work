@@ -1,8 +1,10 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { parseOffice } from "officeparser";
 
 dotenv.config();
 
@@ -20,9 +22,48 @@ function getGeminiClient() {
     if (!key) {
       throw new Error("GEMINI_API_KEY environment variable is required.");
     }
-    _ai = new GoogleGenAI({ apiKey: key });
+    _ai = new GoogleGenAI({ 
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
   return _ai;
+}
+
+/**
+ * Helper to call Gemini with exponential backoff for 503/429 errors
+ */
+async function generateContentWithRetry(modelName: string, contents: any, maxRetries = 2) {
+  const client = getGeminiClient();
+  let lastError: any = null;
+  
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const model = client.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(contents);
+      const response = await result.response;
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      const statusCode = err.status || (err.response?.status);
+      const isRetryable = statusCode === 503 || statusCode === 429 || 
+                         err.message?.includes("503") || err.message?.includes("429") ||
+                         err.message?.includes("high demand");
+                         
+      if (isRetryable && i < maxRetries) {
+        const delay = Math.pow(2, i + 1) * 1000 + Math.random() * 1000;
+        console.log(`Gemini API retryable error (${statusCode || 'unknown'}). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastError;
 }
 
 // 1. Health check endpoint
@@ -422,6 +463,220 @@ ${autoGenStartMarker}${autoGenSectionContent}${autoGenEndMarker}`;
     console.error("Index generation error:", err);
     const statusCode = err.status || 500;
     res.status(statusCode).json({ error: err.message || "Failed to generate index files." });
+  }
+});
+
+app.get("/api/drive/debug/sample-files", async (req, res) => {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Missing x-google-drive-token header" });
+    return;
+  }
+
+  const mimeTypes = [
+    { type: "application/pdf", name: "PDF" },
+    { type: "application/vnd.google-apps.document", name: "Google ドキュメント" },
+    { type: "application/vnd.google-apps.spreadsheet", name: "Google スプレッドシート" },
+    { type: "application/vnd.google-apps.presentation", name: "Google スライド" },
+    { type: "text/plain", name: "プレーンテキスト" },
+    { type: "text/markdown", name: "Markdown" },
+    { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", name: "MS Word" },
+    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name: "MS Excel" },
+    { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation", name: "MS PowerPoint" },
+    { type: "application/json", name: "JSON" },
+    { type: "text/csv", name: "CSV" },
+    { type: "image/jpeg", name: "画像 (JPEG)" },
+    { type: "image/png", name: "画像 (PNG)" }
+  ];
+
+  try {
+    const results = [];
+    for (const mime of mimeTypes) {
+      const q = `mimeType = '${mime.type}' and trashed = false`;
+      const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType)&pageSize=1`;
+      const driveRes = await fetchGoogleDrive(url, token);
+      const data = await driveRes.json();
+      
+      if (data.files && data.files.length > 0) {
+        results.push({
+          category: mime.name,
+          file: data.files[0]
+        });
+      }
+    }
+    res.json({ samples: results });
+  } catch (err: any) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Missing x-google-drive-token header" });
+    return;
+  }
+
+  const { fileId, modelName } = req.body;
+  if (!fileId) {
+    return res.status(400).json({ error: "fileId is required" });
+  }
+
+  const targetModel = modelName || "gemini-3.5-flash"; // default fallback if empty
+
+  try {
+    // 1. Get file metadata
+    const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`;
+    const metaRes = await fetchGoogleDrive(metaUrl, token);
+    const fileMeta = await metaRes.json();
+    
+    // 2. Export / Download content
+    const mimeType = fileMeta.mimeType || "";
+    let contentUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+    let isReadable = false;
+
+    if (mimeType === "application/vnd.google-apps.document") {
+      contentUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`;
+      isReadable = true;
+    } else if (mimeType === "application/vnd.google-apps.spreadsheet") {
+      contentUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv`;
+      isReadable = true;
+    } else if (mimeType === "application/vnd.google-apps.presentation") {
+      contentUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`;
+      isReadable = true;
+    } else if (mimeType === "application/pdf") {
+      // For PDF, we can try alt=media download but standard full-text decode might need a library. 
+      // We will attempt raw download and Gemini multimodal if that model supports it. But Gemma might need raw text.
+      // We'll pass text to Gemini/Gemma. Raw PDF binary string isn't readable text directly.
+      isReadable = true;
+    } else if (["text/plain", "text/markdown", "application/json", "text/csv"].includes(mimeType)) {
+      isReadable = true;
+    } else if (mimeType.startsWith("application/vnd.openxmlformats-officedocument")) {
+      isReadable = true;
+    } else if (mimeType.startsWith("image/")) {
+      isReadable = true;
+    }
+
+    let fullText = "";
+    
+    if (isReadable) {
+      if (mimeType === "application/pdf" || mimeType.startsWith("image/")) {
+         // For PDF and Images, we can pass them as inlineData
+         try {
+           const fileRes = await fetchGoogleDrive(contentUrl, token);
+           const arrBuffer = await fileRes.arrayBuffer();
+           const base64Data = Buffer.from(arrBuffer).toString("base64");
+           
+           // Query Gemini with binary part directly
+           const aiClient = getGeminiClient();
+           const filePrompt = `以下のファイル内容を分析し、何が記載・描写されているか要約してください。日本語で出力してください。
+           
+ファイル名: ${fileMeta.name}
+MIMEタイプ: ${fileMeta.mimeType}`;
+           
+           const aiRes = await aiClient.models.generateContent({
+             model: targetModel,
+             contents: {
+               parts: [
+                 { inlineData: { data: base64Data, mimeType: mimeType } },
+                 { text: filePrompt }
+               ]
+             }
+           });
+           
+           const summary = aiRes.text?.trim() || "No summary generated";
+           
+           return res.json({
+             success: true,
+             metadata: fileMeta,
+             summary: summary,
+             contentSampleSnippet: `(${mimeType.split('/')[0].toUpperCase()} binary data was passed directly to the model)`
+           });
+         } catch(e: any) {
+           return res.status(500).json({ error: `${mimeType.startsWith('image') ? 'Image' : 'PDF'} generation failed: ${e.message}` });
+         }
+      } else if (mimeType.startsWith("application/vnd.openxmlformats-officedocument")) {
+         try {
+           const officeRes = await fetchGoogleDrive(contentUrl, token);
+           const arrBuffer = await officeRes.arrayBuffer();
+           // officeparser.parseOffice returns the text directly as a string if no callback is provided
+           const parsedText = await parseOffice(Buffer.from(arrBuffer));
+           if (typeof parsedText === 'string') {
+             fullText = parsedText;
+           } else if (parsedText && typeof parsedText === 'object') {
+             fullText = (parsedText as any).text || JSON.stringify(parsedText);
+           } else {
+             fullText = String(parsedText);
+           }
+         } catch(e: any) {
+           console.error("Office parsing error:", e);
+           fullText = `Office parsing failed: ${e.message}`;
+         }
+      } else {
+        const contentRes = await fetchGoogleDrive(contentUrl, token);
+        fullText = await contentRes.text();
+      }
+    } else {
+      fullText = "This file type is not natively extractable as text in this debug tool.";
+    }
+
+    // 3. Query Model for standard text
+    const contentSample = fullText.substring(0, 100000); // 100k chars max
+    const aiClient = getGeminiClient();
+    const filePrompt = `以下のファイル内容（最大10万文字のスニペット）を分析し、主な内容の要約を日本語で出力してください。
+    
+ファイル名: ${fileMeta.name}
+MIMEタイプ: ${fileMeta.mimeType}
+
+ファイル内容:
+${contentSample}`;
+
+    const aiRes = await aiClient.models.generateContent({
+      model: targetModel,
+      contents: filePrompt,
+    });
+
+    const summary = aiRes.text?.trim() || "No summary generated";
+
+    res.json({
+      success: true,
+      metadata: fileMeta,
+      summary: summary,
+      contentSampleSnippet: contentSample.substring(0, 200) + (contentSample.length > 200 ? "..." : "")
+    });
+  } catch (err: any) {
+    console.error("Debug file summary error:", err);
+    let errorMessage = "要約の生成に失敗しました。";
+    
+    // Attempt meta fetch if it failed late
+    let failName = "Unknown File";
+    let failMime = "unknown";
+    try {
+      const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`;
+      const metaRes = await fetchGoogleDrive(metaUrl, token);
+      const fileMeta = await metaRes.json();
+      failName = fileMeta.name;
+      failMime = fileMeta.mimeType;
+    } catch(e) {}
+    
+    // Extract message from ApiError or standard Error
+    const rawMessage = err.message || "";
+    const errorBody = err.response?.error || err.error || {};
+    
+    if (rawMessage.includes("503") || rawMessage.includes("high demand") || errorBody.code === 503) {
+      errorMessage = "選択したモデルが混み合っています (503)。しばらく待ってから再試行するか、別のモデル（gemini-3.1-flash-lite など）をお試しください。";
+    } else if (rawMessage.includes("API key not valid")) {
+      errorMessage = "Gemini APIキーが無効です。設定をご確認ください。";
+    } else if (rawMessage.includes("RESOURCE_EXHAUSTED") || rawMessage.includes("quota") || errorBody.status === "RESOURCE_EXHAUSTED") {
+      errorMessage = "Gemini APIの利用制限（リクエスト過多・クォータ不足）に達しました。時間を置いてください。";
+    } else if (rawMessage.includes("SAFETY")) {
+      errorMessage = "安全性のフィルタリングにより要約を生成できませんでした。";
+    } else {
+      errorMessage = err.message || "Failed to generate file summary.";
+    }
+
+    const statusCode = (err.status || err.response?.status) === 503 ? 503 : 500;
+    res.status(statusCode).json({ error: errorMessage });
   }
 });
 

@@ -1,0 +1,157 @@
+[
+  {
+    "id": "gemini-3.5-flash",
+    "apiIdentifier": "gemini-3.5-flash",
+    "label": "3.5 Flash",
+    "description": "推奨: 最新・高速バランス",
+    "primary": true,
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$1.50 / 1M tokens",
+      "outputPrice": "$9.00 / 1M tokens"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio", "PDF", "Files"]
+  },
+  {
+    "id": "gemini-3.5-pro",
+    "apiIdentifier": "gemini-3.5-pro",
+    "label": "3.5 Pro",
+    "description": "最高性能・1Mコンテキスト",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$7.00 / 1M tokens (<128k)",
+      "outputPrice": "$21.00 / 1M tokens (<128k)"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio", "PDF", "Files"]
+  },
+  {
+    "id": "gemini-3.1-pro-preview",
+    "apiIdentifier": "gemini-3.1-pro-preview",
+    "label": "3.1 Pro Prev",
+    "description": "Vibe coding・高性能",
+    "pricing": {
+      "freeTier": false,
+      "inputPrice": "$2.00 / 1M tokens (<=200k)",
+      "outputPrice": "$12.00 / 1M tokens (<=200k)"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio"]
+  },
+  {
+    "id": "gemini-3.1-flash-lite",
+    "apiIdentifier": "gemini-3.1-flash-lite",
+    "label": "3.1 Flash Lite",
+    "description": "高密度エージェント・最安価",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$0.25 (text/img/vid) / 1M tokens",
+      "outputPrice": "$1.50 / 1M tokens"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio"]
+  },
+  {
+    "id": "gemini-3-flash-preview",
+    "apiIdentifier": "gemini-3-flash-preview",
+    "label": "3 Flash Prev",
+    "description": "次世代アーキテクチャ Preview",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$0.50 (text/img/vid) / 1M tokens",
+      "outputPrice": "$3.00 / 1M tokens"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio"]
+  },
+  {
+    "id": "gemini-2.5-pro",
+    "apiIdentifier": "gemini-2.5-pro",
+    "label": "2.5 Pro",
+    "description": "最高峰の推論・マルチモーダル",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$1.25 / 1M tokens (<=200k)",
+      "outputPrice": "$10.00 / 1M tokens (<=200k)"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio", "PDF", "Files"]
+  },
+  {
+    "id": "gemini-2.5-flash",
+    "apiIdentifier": "gemini-2.5-flash",
+    "label": "2.5 Flash",
+    "description": "2.5世代 高速ハイブリッド推論",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$0.30 (text/img/vid) / 1M tokens",
+      "outputPrice": "$2.50 / 1M tokens"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio", "PDF", "Files"],
+    "knowledgeCutOff": "1月 2025",
+    "releaseDate": "4月 3, 2026"
+  },
+  {
+    "id": "gemini-2.5-flash-lite",
+    "apiIdentifier": "gemini-2.5-flash-lite",
+    "label": "2.5 Flash Lite",
+    "description": "2.5世代 最小・最高効率",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$0.10 (text/img/vid) / 1M tokens",
+      "outputPrice": "$0.40 / 1M tokens"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio", "PDF", "Files"],
+    "knowledgeCutOff": "1月 2025",
+    "releaseDate": "4月 3, 2026"
+  },
+  {
+    "id": "gemini-2.5-flash-lite-preview-09-2025",
+    "apiIdentifier": "gemini-2.5-flash-lite-preview-09-2025",
+    "label": "2.5 Lite 09 Prev",
+    "description": "2.5世代 評価版 09-2025",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$0.10 (text/img/vid) / 1M tokens",
+      "outputPrice": "$0.40 / 1M tokens"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio", "PDF", "Files"],
+    "knowledgeCutOff": "1月 2025",
+    "releaseDate": "4月 3, 2026"
+  },
+  {
+    "id": "gemini-flash-latest",
+    "apiIdentifier": "gemini-flash-latest",
+    "label": "Flash Stable",
+    "description": "Gemini 1.5 Flash 安定版",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "$0.075 / 1M tokens",
+      "outputPrice": "$0.30 / 1M tokens"
+    },
+    "modalities": ["Text", "Image", "Video", "Audio", "PDF", "Files"]
+  },
+  {
+    "id": "gemma-4-31b-it",
+    "apiIdentifier": "gemma-4-31b-it",
+    "label": "Gemma 4 31B",
+    "description": "最上位高密度モデル (256Kコンテキスト)",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "無料 (Free of charge)",
+      "outputPrice": "無料 (Free of charge)"
+    },
+    "modalities": ["Text", "Image"],
+    "knowledgeCutOff": "1月 2025",
+    "releaseDate": "4月 3, 2026"
+  },
+  {
+    "id": "gemma-4-26b-a4b-it",
+    "apiIdentifier": "gemma-4-26b-a4b-it",
+    "label": "Gemma 4 26B",
+    "description": "MoEモデル (256Kコンテキスト)。4Bパラメータのみを有効化し効率的",
+    "pricing": {
+      "freeTier": true,
+      "inputPrice": "無料 (Free of charge)",
+      "outputPrice": "無料 (Free of charge)"
+    },
+    "modalities": ["Text", "Image"],
+    "knowledgeCutOff": "1月 2025",
+    "releaseDate": "4月 3, 2026"
+  }
+]

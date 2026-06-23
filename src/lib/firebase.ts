@@ -42,15 +42,15 @@ try {
   db = initializeFirestore(app, {
     localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()}),
     experimentalForceLongPolling: true
-  }, firebaseConfig.firestoreDatabaseId || "(default)");
+  }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
 } catch (e: any) {
   console.warn("Firestore initialization error (falling back)", e);
   try {
     db = initializeFirestore(app, {
       experimentalForceLongPolling: true
-    }, firebaseConfig.firestoreDatabaseId || "(default)");
+    }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
   } catch (e2) {
-    db = getFirestore(app, firebaseConfig.firestoreDatabaseId || "(default)");
+    db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId || "(default)");
   }
 }
 

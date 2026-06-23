@@ -38,6 +38,8 @@ import {
   FolderOpen
 } from "lucide-react";
 
+const ACTIVE_TAB_KEY = "indexmd_active_tab";
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
@@ -45,12 +47,23 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig>(defaultAppConfig);
   const [logs, setLogs] = useState<DriveLog[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try {
+      return localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
+    } catch (e) {
+      return "dashboard";
+    }
+  });
 
   // Monitor auth state
   useEffect(() => {
-    const cachedToken = localStorage.getItem("drive_access_token");
-    if (cachedToken) {
-      setGoogleAccessToken(cachedToken);
+    try {
+      const cachedToken = localStorage.getItem("drive_access_token");
+      if (cachedToken) {
+        setGoogleAccessToken(cachedToken);
+      }
+    } catch (e) {
+      console.warn("localStorage access failed during initialization", e);
     }
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -65,6 +78,15 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  // Sync active tab to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+    } catch (e) {
+      console.warn("Failed to save active tab to localStorage", e);
+    }
+  }, [activeTab]);
 
   // Fetch / Sync historical logs from Firestore
   const syncUserLogs = async (uid: string) => {
@@ -122,7 +144,11 @@ export default function App() {
 
       if (accessToken) {
         setGoogleAccessToken(accessToken);
-        localStorage.setItem("drive_access_token", accessToken);
+        try {
+          localStorage.setItem("drive_access_token", accessToken);
+        } catch (e) {
+          console.warn("Failed to save token to localStorage", e);
+        }
         handleAddLog("success", `Google Drive OAuth 認証に成功しました。ログインアカウント: ${result.user.email}`);
       } else {
         throw new Error("Google Drive Token did not register successfully.");
@@ -148,7 +174,11 @@ export default function App() {
       setAuthError(null);
       await signOut(auth);
       setGoogleAccessToken(null);
-      localStorage.removeItem("drive_access_token");
+      try {
+        localStorage.removeItem("drive_access_token");
+      } catch (e) {
+        console.warn("Failed to remove token from localStorage", e);
+      }
       setUser(null);
     } catch (e: any) {
       console.error(e);
@@ -158,7 +188,11 @@ export default function App() {
   // Token recovery redirecter - checks 401 exceptions on calls
   const handleSessionExpiry = () => {
     handleAddLog("error", "Google API アクセストークン期限切れを検知しました。セッションをリセットし再認証を要求します。");
-    localStorage.removeItem("drive_access_token");
+    try {
+      localStorage.removeItem("drive_access_token");
+    } catch (e) {
+      console.warn("Failed to remove token from localStorage", e);
+    }
     setGoogleAccessToken(null);
     setAuthError("Google認証の有効期限が切れました。安全のため再度ログインしてください。");
   };
@@ -319,20 +353,24 @@ export default function App() {
               logs={logs}
               onAddLog={handleAddLog}
               onSessionExpiry={handleSessionExpiry}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
             />
 
             {/* Double section layout: Configuration Tuning and Real-Time Log Auditor */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <SettingsPanel 
-                config={config} 
-                onSaveConfig={updateConfig} 
-              />
-              
-              <DriveLogs 
-                logs={logs} 
-                onClearLogs={handleClearLogs} 
-              />
-            </div>
+            {activeTab !== "summary-debugger" && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SettingsPanel 
+                  config={config} 
+                  onSaveConfig={updateConfig} 
+                />
+                
+                <DriveLogs 
+                  logs={logs} 
+                  onClearLogs={handleClearLogs} 
+                />
+              </div>
+            )}
           </div>
         )}
 

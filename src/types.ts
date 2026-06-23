@@ -27,6 +27,34 @@ export interface DriveLog {
   details?: string;
 }
 
+export interface ValidationRecord {
+  id: string;
+  timestamp: string;
+  status: "success" | "error";
+  fileName: string;
+  mimeType: string;
+  model: string;
+  details?: string;
+}
+
+export interface ModelPricing {
+  freeTier: boolean;
+  inputPrice: string; // e.g. "$1.50 / 1M tokens"
+  outputPrice: string; // e.g. "$9.00 / 1M tokens"
+}
+
+export interface ModelInfo {
+  id: string;
+  apiIdentifier: string;
+  label: string;
+  description: string;
+  primary?: boolean;
+  pricing: ModelPricing;
+  modalities: string[]; // e.g. ["text", "image", "audio", "video", "pdf"]
+  knowledgeCutOff?: string;
+  releaseDate?: string;
+}
+
 export interface AppConfig {
   rate_limit_delay_ms: number;
   max_logs_count: number;
