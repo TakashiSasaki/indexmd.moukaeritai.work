@@ -1,5 +1,158 @@
 [
   {
+    "id": "auto-88",
+    "timestamp": "2026-06-23T12:30:24Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-87",
+    "timestamp": "2026-06-23T12:28:58Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたファイルは、YouTube動画のタイトル、説明文、動画ID、公開日などが記録されたリスト（スニペット）です。"
+  },
+  {
+    "id": "auto-86",
+    "timestamp": "2026-06-23T12:27:14Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-2.5-pro",
+    "details": "提供されたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際に消費される「Copilot Credits」と、それに基づくコストを見積もるためのシミュレーションツールです。"
+  },
+  {
+    "id": "auto-85",
+    "timestamp": "2026-06-23T12:26:14Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた「CustomerCoworkEstimator.xlsx」は、企業が「Cowork」を利用する際に必要となる「Copilot Credits（クレジット）」の消費量と、それに基づくコストを試算するためのシミュレーション用ツールです。"
+  },
+  {
+    "id": "auto-84",
+    "timestamp": "2026-06-23T12:24:44Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた「Google Compute Engine Free Tier に関する詳細レポート」の内容を要約します。"
+  },
+  {
+    "id": "auto-83",
+    "timestamp": "2026-06-23T12:14:45Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3.5-pro",
+    "details": "提供されたファイルは、情報セキュリティの講義（第9回「電子署名」）のスライド資料です。主な内容は、電子署名の必要性、代表的なアルゴリズムであるDSAの仕組みと計算例、最新の署名技術の動向、および信頼性を担保するPKI（公開鍵基盤）について解説しています。"
+  },
+  {
+    "id": "auto-82",
+    "timestamp": "2026-06-23T12:13:27Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-3.5-flash",
+    "details": "提供されたJSONファイル `applet_access_history.json` は、開発または利用された複数の「アプレット（アプリケーション/ツール）」のアクセス履歴を記録したデータです。"
+  },
+  {
+    "id": "auto-81",
+    "timestamp": "2026-06-23T10:57:05Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたファイル『applet_access_history.json』は、ユーザーが利用した複数のアプリケーション（アプレット）のアクセス履歴および各アプリの概要を記録したJSONデータです。"
+  },
+  {
+    "id": "auto-80",
+    "timestamp": "2026-06-23T10:55:31Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-79",
+    "timestamp": "2026-06-23T10:55:30Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたプレゼンテーション資料「動物心拍の非接触計測に関する研究」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-78",
+    "timestamp": "2026-06-23T10:54:10Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた画像には、青い手帳型スマートフォンのケースの上に置かれた、金色のアルミ包装（PTPシート）に入った錠剤が写っています。"
+  },
+  {
+    "id": "auto-77",
+    "timestamp": "2026-06-23T10:53:07Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたファイルは、Google Geminiのユーザーインターフェース（設定画面やサイドバーなど）を構成するDOM要素のテキストデータです。"
+  },
+  {
+    "id": "auto-76",
+    "timestamp": "2026-06-23T10:53:06Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいた画像には、以下の内容が写っています。"
+  },
+  {
+    "id": "auto-75",
+    "timestamp": "2026-06-23T10:46:19Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいた画像には、青い手帳型スマートフォンのケースの上に置かれた、金色の包装の錠剤シートが写っています。"
+  },
+  {
+    "id": "auto-74",
+    "timestamp": "2026-06-23T10:46:18Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいた講義資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-73",
+    "timestamp": "2026-06-23T10:46:17Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提供いただいたファイル内容は、YouTube動画のタイトル、説明文、動画ID、公開日時をまとめたリストです。このデータには約60件の動画情報が含まれており、主な内容は以下の通り要約できます。"
+  },
+  {
+    "id": "auto-72",
+    "timestamp": "2026-06-23T10:46:16Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいた研究提案書「動物心拍の非接触計測に関する研究」の内容を要約します。"
+  },
+  {
     "id": "auto-71",
     "timestamp": "2026-06-23T10:40:15Z",
     "status": "success",

@@ -263,7 +263,7 @@ export default function App() {
                   title="Logout Account"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>閉じる</span>
+                  <span>Logout</span>
                 </button>
               </div>
             ) : (

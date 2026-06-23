@@ -118,12 +118,12 @@ export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({
                 return (
                   <td 
                     key={model.id} 
-                    className={`p-3 border-b border-slate-100 text-center cursor-pointer hover:bg-indigo-50/50 transition-all group ${
-                      isActive ? 'bg-indigo-50 ring-2 ring-indigo-500 ring-inset z-20' : ''
+                    className={`p-3 border-b relative border-slate-100 text-center cursor-pointer hover:bg-indigo-50/50 transition-all group ${
+                      isActive ? 'bg-indigo-100/80 z-20 shadow-[inset_0px_0px_0px_2px_#6366f1]' : ''
                     }`}
                     onClick={() => onCellClick?.(model.id, mime.type)}
                   >
-                    <div className={`flex justify-center transition-transform ${isActive ? 'scale-125' : 'group-hover:scale-125'}`}>
+                    <div className={`flex justify-center items-center w-full h-full transition-transform ${isActive ? 'scale-125' : 'group-hover:scale-125'}`}>
                       {renderIcon(status)}
                     </div>
                   </td>

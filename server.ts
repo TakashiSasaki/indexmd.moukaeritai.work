@@ -144,7 +144,7 @@ async function generateContentWithRetry(modelName: string, contents: any, maxRet
         }
         
         if (fallback && !attemptedModels.has(fallback)) {
-          console.log(`Model ${currentModel} failed (isNotFound: ${isNotFound}, isQuotaExceeded: ${isQuotaExceeded}). Falling back to alternative model: ${fallback}...`);
+          // console.log(`Model ${currentModel} failed (isNotFound: ${isNotFound}, isQuotaExceeded: ${isQuotaExceeded}). Falling back to alternative model: ${fallback}...`);
           attemptedModels.add(fallback);
           currentModel = fallback;
           client = getGeminiClient(currentModel);

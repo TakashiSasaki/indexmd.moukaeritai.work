@@ -432,36 +432,43 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
             setCurrentTaskName(file.name);
             setCurrentTaskPath(fullPath);
 
-            const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
-            
-            folderBatch.set(folderDocRef, {
-              drive_id: resolvedId,
-              path: fullPath,
-              depth: computedDepth,
-              sync_status: "scanned",
-              index_status: "pending",
-              last_traversed_at: null, // Scanned folders have last_traversed_at = null, making them next traverse queue item candidates!
-              last_updated_at: null,
-              parent_id: parentId
-            }, { merge: true });
+            const existingDir = localDirsMap.get(resolvedId);
+            const needsUpdate = !existingDir || existingDir.path !== fullPath || existingDir.parent_id !== parentId;
+
+            if (needsUpdate) {
+              const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
+              
+              folderBatch.set(folderDocRef, {
+                drive_id: resolvedId,
+                path: fullPath,
+                depth: computedDepth,
+                sync_status: existingDir ? existingDir.sync_status : "scanned",
+                index_status: existingDir ? existingDir.index_status : "pending",
+                last_traversed_at: existingDir ? existingDir.last_traversed_at : null, // Preserve traversed state to avoid infinite rescans
+                last_updated_at: existingDir ? existingDir.last_updated_at : null,
+                parent_id: parentId
+              }, { merge: true });
+
+              folderBatchCount++;
+              scannedCount++;
+
+              if (folderBatchCount === 450) {
+                await folderBatch.commit();
+                folderBatch = writeBatch(db);
+                folderBatchCount = 0;
+              }
+            }
 
             localDirsMap.set(resolvedId, {
+              ...existingDir,
               drive_id: resolvedId,
               name: file.name,
               parents: [parentId],
+              parent_id: parentId,
               depth: computedDepth,
               path: fullPath,
-              last_traversed_at: null
+              last_traversed_at: existingDir ? existingDir.last_traversed_at : null
             });
-
-            folderBatchCount++;
-            scannedCount++;
-
-            if (folderBatchCount === 450) {
-              await folderBatch.commit();
-              folderBatch = writeBatch(db);
-              folderBatchCount = 0;
-            }
           }
 
           if (folderBatchCount > 0) {
@@ -1399,7 +1406,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                         </span>
                       ))}
                     </div>
-                    <p className="text-[10px] font-mono text-slate-400 select-all">
+                    <p className="text-[10px] font-mono text-slate-400 select-all break-all">
                       ID: {oldestTraversedFolder.drive_id}
                     </p>
                   </div>
@@ -1435,7 +1442,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                         </span>
                       ))}
                     </div>
-                    <p className="text-[10px] font-mono text-slate-400 select-all">
+                    <p className="text-[10px] font-mono text-slate-400 select-all break-all">
                       ID: {newestTraversedFolder.drive_id}
                     </p>
                   </div>
@@ -1487,7 +1494,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       <div key={dir.drive_id} className="grid grid-cols-12 gap-2 p-2.5 items-center hover:bg-slate-50/50 transition-colors text-xs text-slate-650">
                       <div className="col-span-5 md:col-span-6 flex items-center gap-2">
                         <Folder className="w-3.5 h-3.5 text-indigo-500/70 shrink-0" />
-                        <span className="font-semibold text-slate-800 truncate" title={dir.path}>
+                        <span className="font-semibold text-slate-800 break-all md:truncate leading-tight" title={dir.path}>
                           {dir.path}
                         </span>
                       </div>
@@ -1503,8 +1510,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                         </span>
                       </div>
 
-                      <div className="col-span-2 text-right font-mono text-[10px] text-slate-400 flex items-center justify-end gap-1">
-                        <span className="truncate w-16 md:w-24">{dir.drive_id}</span>
+                      <div className="col-span-2 text-right font-mono text-[10px] text-slate-400 flex items-start justify-end gap-1">
+                        <span className="break-all md:truncate md:w-24 leading-tight">{dir.drive_id}</span>
                         <a 
                           href={`https://drive.google.com/drive/folders/${dir.drive_id}`} 
                           target="_blank" 
