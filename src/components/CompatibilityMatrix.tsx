@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ModelInfo, ValidationRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
 import VALIDATION_HISTORY from '../data/validation_history.json';
@@ -26,23 +26,90 @@ interface CompatibilityMatrixProps {
   currentMimeType?: string;
 }
 
-export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({ 
+export const CompatibilityMatrix = React.memo(({ 
   history: historyProp,
   onCellClick, 
   currentModelId, 
   currentMimeType 
-}) => {
+}: CompatibilityMatrixProps) => {
 
   const displayHistory = historyProp || VALIDATION_HISTORY;
 
+  // Cache/Index validation status per model and mimeType
+  const statusMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const groups = new Map<string, {
+      hasSuccess: boolean;
+      hasUnsupported: boolean;
+      hasAuthError: boolean;
+    }>();
+
+    // Mapping function equivalent to the filter conditions
+    const getMimeKeys = (hMime: string | undefined): string[] => {
+      if (!hMime) return [];
+      const keys: string[] = [];
+      
+      // Check structural types
+      if (hMime.startsWith('text/') && hMime !== 'application/json') {
+         keys.push('text');
+      }
+      if (hMime.startsWith('image/')) {
+         keys.push('image');
+      }
+      
+      // Exact matches for other supported MIME types
+      keys.push(hMime);
+      return keys;
+    };
+
+    // Iterate once over history (O(N))
+    for (const record of displayHistory) {
+      if (!record.model) continue;
+      
+      const mappedMimes = getMimeKeys(record.mimeType);
+      for (const mappedMime of mappedMimes) {
+        const key = `${record.model}::${mappedMime}`;
+        
+        if (!groups.has(key)) {
+          groups.set(key, { hasSuccess: false, hasUnsupported: false, hasAuthError: false });
+        }
+        const g = groups.get(key)!;
+        
+        if (record.status === 'success') {
+          g.hasSuccess = true;
+        } else {
+          const details = record.details || '';
+          if (details.includes('[object Object]') || details.includes('unsupported')) {
+            g.hasUnsupported = true;
+          } else if (details.includes('401') || details.includes('auth')) {
+            g.hasAuthError = true;
+          } else {
+            g.hasUnsupported = true; // default error
+          }
+        }
+      }
+    }
+
+    // Convert groups to simple status strings
+    for (const [key, g] of groups.entries()) {
+      if (g.hasSuccess) {
+        map.set(key, 'success');
+      } else if (g.hasUnsupported) {
+        map.set(key, 'error');
+      } else if (g.hasAuthError) {
+        map.set(key, 'auth_error');
+      } else {
+        map.set(key, 'error');
+      }
+    }
+
+    return map;
+  }, [displayHistory]);
+
   const getStatus = (modelId: string, mimeType: string) => {
-    const history = displayHistory.filter(h => h.model === modelId && (h.mimeType === mimeType || (mimeType === 'text' && !!h.mimeType && h.mimeType.startsWith('text/')) || (mimeType === 'image' && !!h.mimeType && h.mimeType.startsWith('image/'))));
-    
-    if (history.length > 0) {
-      if (history.some(h => h.status === 'success')) return 'success';
-      if (history.some(h => h.details?.includes('[object Object]') || h.details?.includes('unsupported'))) return 'error';
-      if (history.some(h => h.details?.includes('401') || h.details?.includes('auth'))) return 'auth_error';
-      return 'error';
+    const key = `${modelId}::${mimeType}`;
+    if (statusMap.has(key)) {
+      return statusMap.get(key)!;
     }
 
     // Fallback to model modalities
@@ -107,7 +174,7 @@ export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({
         <tbody>
           {MIME_TYPES.map((mime, idx) => (
             <tr key={mime.type} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-              <td className={`p-3 text-xs font-medium border-b border-slate-100 sticky left-0 z-10 transition-colors ${
+              <td className={`p-3 text-xs font-semibold border-b border-slate-100 sticky left-0 z-10 transition-colors ${
                 isCurrentCell(currentModelId || '', mime.type) ? 'text-indigo-600 bg-indigo-50' : 'text-slate-700 bg-inherit'
               }`}>
                 {mime.label}
@@ -153,4 +220,4 @@ export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({
       </div>
     </div>
   );
-};
+});

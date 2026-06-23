@@ -1,5 +1,77 @@
 [
   {
+    "id": "auto-97",
+    "timestamp": "2026-06-23T12:49:41Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたファイルは、和歌山県の「奥熊野 川湯温泉 山水館 川湯みどりや・まつや・きのくに」による宿泊の請求明細書および領収書です。"
+  },
+  {
+    "id": "auto-96",
+    "timestamp": "2026-06-23T12:48:45Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」は、Google Compute Engine（GCE）の無料枠（Free Tier）に関する詳細な解説レポートです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-94",
+    "timestamp": "2026-06-23T12:46:57Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたファイルは、Geminiのウェブインターフェースにおける「パーソナルコンテキスト（個人用設定）」画面の構造データ（DOM要素）をテキスト化したものです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-93",
+    "timestamp": "2026-06-23T12:45:41Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいた`applet_access_history.json`は、ユーザーが利用した複数の「Applet（アプリケーションやツール）」のアクセス履歴と詳細情報を記録したログデータです。"
+  },
+  {
+    "id": "auto-92",
+    "timestamp": "2026-06-23T12:44:34Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたファイルは、GoogleのAIサービス「Gemini」の画面構成や設定情報を記録したテキストデータのようです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-91",
+    "timestamp": "2026-06-23T12:43:41Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた講義資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-90",
+    "timestamp": "2026-06-23T12:42:30Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいた資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-89",
+    "timestamp": "2026-06-23T12:39:52Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいた「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際に消費される「Copilotクレジット」のコストを試算するためのシミュレーションツールです。"
+  },
+  {
     "id": "auto-88",
     "timestamp": "2026-06-23T12:30:24Z",
     "status": "success",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle } from 'lucide-react';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
 import { ModelInfo, ValidationRecord } from '../types';
@@ -37,6 +37,37 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const [usedModel, setUsedModel] = useState<string | null>(null);
   const [validationHistory, setValidationHistory] = useState<ValidationRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const currentMimeType = useMemo(() => {
+    return samples.find(s => s.file.id === fileId)?.file.mimeType;
+  }, [samples, fileId]);
+
+  const handleCellClick = useCallback((selectedModelId: string, mimeType: string) => {
+    // Select Model
+    setModelName(selectedModelId);
+    try {
+      localStorage.setItem(SELECTED_MODEL_KEY, selectedModelId);
+    } catch (e) {
+      // Silent
+    }
+
+    // Find matching sample file
+    const matchingSample = samples.find(s => {
+      const fileMime = s.file.mimeType || "";
+      if (mimeType === 'text') return fileMime.startsWith('text/') || fileMime === 'application/json';
+      if (mimeType === 'image') return fileMime.startsWith('image/');
+      return fileMime === mimeType;
+    });
+
+    if (matchingSample) {
+      setFileId(matchingSample.file.id);
+      try {
+        localStorage.setItem(SELECTED_FILE_ID_KEY, matchingSample.file.id);
+      } catch (e) {
+        // Silent
+      }
+    }
+  }, [samples]);
 
   const fetchValidationHistory = async () => {
     try {
@@ -546,33 +577,8 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
         <CompatibilityMatrix 
           history={validationHistory}
           currentModelId={modelName}
-          currentMimeType={samples.find(s => s.file.id === fileId)?.file.mimeType}
-          onCellClick={(selectedModelId, mimeType) => {
-            // Select Model
-            setModelName(selectedModelId);
-            try {
-              localStorage.setItem(SELECTED_MODEL_KEY, selectedModelId);
-            } catch (e) {
-              // Silent
-            }
-
-            // Find matching sample file
-            const matchingSample = samples.find(s => {
-              const fileMime = s.file.mimeType || "";
-              if (mimeType === 'text') return fileMime.startsWith('text/') || fileMime === 'application/json';
-              if (mimeType === 'image') return fileMime.startsWith('image/');
-              return fileMime === mimeType;
-            });
-
-            if (matchingSample) {
-              setFileId(matchingSample.file.id);
-              try {
-                localStorage.setItem(SELECTED_FILE_ID_KEY, matchingSample.file.id);
-              } catch (e) {
-                // Silent
-              }
-            }
-          }}
+          currentMimeType={currentMimeType}
+          onCellClick={handleCellClick}
         />
 
         <button

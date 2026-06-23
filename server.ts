@@ -789,7 +789,8 @@ ${contentSample}`;
       errorMessage = err.message || "Failed to generate file summary.";
     }
 
-    const statusCode = (err.status || err.response?.status) === 503 ? 503 : 500;
+    const rawStatus = err.status || err.response?.status;
+    const statusCode = rawStatus ? Number(rawStatus) : 500;
     res.status(statusCode).json({ error: errorMessage });
   }
 });
