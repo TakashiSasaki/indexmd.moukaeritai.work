@@ -10,8 +10,7 @@ import {
   orderBy, 
   limit,
   writeBatch,
-  onSnapshot,
-  getCountFromServer
+  onSnapshot
 } from "../lib/firebase";
 import { Directory, SyncState, DriveLog, AppConfig } from "../types";
 import { writeLog } from "../lib/logger";
@@ -97,32 +96,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }
   });
   const [syncProgress, setSyncProgress] = useState<{ current: number; lastPath: string } | null>(null);
-
-  const [firestoreDirsCount, setFirestoreDirsCount] = useState<number | null>(null);
-  const [isCountingDirs, setIsCountingDirs] = useState<boolean>(false);
-
-  const countFirestoreDirectories = async () => {
-    if (!userId) return;
-    setIsCountingDirs(true);
-    try {
-      const q = query(collection(db, "users", userId, "directories"));
-      const snapshot = await getCountFromServer(q);
-      const count = snapshot.data().count;
-      setFirestoreDirsCount(count);
-      onAddLog("success", `📊 [Firestore] サーバー上の directories ドキュメント総数: ${count} 件 (同期済みフォルダ実数)`);
-    } catch (error: any) {
-      const msg = error.message || String(error);
-      if (msg.includes("Firestore in Datastore Mode") || msg.includes("Cloud Firestore API is not available") || msg.includes("databases/(default)")) {
-        console.warn("Failed to count firestore directories (Datastore Mode compatibility):", error);
-        onAddLog("warn", `📊 [Firestore] ドキュメント数集計は現在のデータベース設定では利用できません。`);
-      } else {
-        console.error("Failed to count firestore directories:", error);
-        onAddLog("error", `📊 [Firestore] ドキュメント数集計エラー: ${msg}`);
-      }
-    } finally {
-      setIsCountingDirs(false);
-    }
-  };
+  const [debugSaveStatus, setDebugSaveStatus] = useState<"pending" | "confirmed" | "timeout" | "failed" | null>(null);
 
   // Job 2 State (Indexing)
   const [isIndexActive, setIsIndexActive] = useState<boolean>(false);
@@ -133,7 +107,6 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
   useEffect(() => {
     setLoading(true);
     setIsInitialSyncing(true);
-    countFirestoreDirectories();
     
     setTimeout(() => {
       onAddLog("info", "Firestore データベースに接続しています。フォルダ構造のリアルタイム同期を開始しました...");
@@ -1061,6 +1034,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       const parentId = file.parents?.[0] || null;
       const { path: fullPath, depth: computedDepth } = resolvePathAndDepth(resolvedId);
 
+      onAddLog("success", `🔧 [デバッグ走査] Google Drive APIから1件のフォルダ情報を取得しました: "${fullPath || file.name}" (ID: ${resolvedId})`);
+
       const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
       const newFolderObj = {
         drive_id: resolvedId,
@@ -1072,21 +1047,32 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         parent_id: parentId
       };
 
-      onAddLog("info", "🔧 [デバッグ走査] データベース(Firestore)に新しいフォルダ情報を登録中...");
-      await runWithTimeout(
-        setDoc(folderDocRef, newFolderObj, { merge: true }),
-        4000,
-        null,
-        "Firestoreへのフォルダ情報の保存応答が遅延しています。キャッシュ同期/オフライン優先のバックグラウンド保存として継続します。"
-      );
+      onAddLog("info", "🔧 [デバッグ走査] Firestoreへフォルダ情報の保存を開始しました...");
+      setDebugSaveStatus("pending");
+
+      try {
+        const result = await runWithTimeout<"confirmed" | "timeout">(
+          setDoc(folderDocRef, newFolderObj, { merge: true }).then(() => "confirmed" as const),
+          4500,
+          "timeout"
+        );
+
+        if (result === "timeout") {
+          setDebugSaveStatus("timeout");
+          onAddLog("warn", "⚠️ [デバッグ走査] Firestore保存確認がタイムアウトしました。取得結果は画面に表示していますが、永続化は未確認です。");
+        } else {
+          setDebugSaveStatus("confirmed");
+          onAddLog("success", `🔧 [デバッグ走査] Firestore保存確認済み: "${newFolderObj.path}" (ID: ${resolvedId})`);
+        }
+      } catch (saveErr: any) {
+        setDebugSaveStatus("failed");
+        onAddLog("error", `❌ [デバッグ走査] Firestore保存に失敗しました。取得したフォルダ情報は永続化されていません。: ${saveErr.message || saveErr}`);
+      }
 
       // Save page token for subsequent single steps
-      // Update lastTraversedAt to the file's modifiedTime or current ISO string to move forward on next scan
       const nextTraversedTime = file.modifiedTime || new Date().toISOString();
       await saveSyncStateToDb(returnedNextToken, "idle", nextTraversedTime);
 
-      onAddLog("success", `🔧 [デバッグ走査完了] 1件追加成功: "${newFolderObj.path}" (ID: ${resolvedId})`);
-      
       setLastDebugFolder({
         ...newFolderObj,
         name: file.name,
@@ -1221,13 +1207,9 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
           {/* Stat 3: Firestore Collections Count */}
           <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm" id="stat-firestore-count">
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Firestore 登録総数</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Firestore 同期済み件数</span>
               <div className="text-lg font-extrabold text-indigo-600 mt-1 font-mono">
-                {firestoreDirsCount !== null ? (
-                  <span>{firestoreDirsCount} <span className="text-xs font-normal text-indigo-400">件</span></span>
-                ) : (
-                  <span className="text-xs font-normal text-slate-400">集計未実行</span>
-                )}
+                {dirs.length} <span className="text-xs font-normal text-indigo-400">件</span>
               </div>
             </div>
             <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
@@ -1351,43 +1333,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
               </div>
             </div>
 
-            {/* コレクション内の directories ドキュメント集計UI (User Request) */}
-            <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm" id="firestore-collection-counter">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Database className="w-4 h-4 text-indigo-500" />
-                    Firestore directories コレクション集計
-                  </h3>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Firestore サーバー上の <code>directories</code> コレクション内に実際に登録されているドキュメントの正確な総数を取得・表示します。
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 self-start sm:self-center">
-                  <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono font-bold text-slate-700 min-w-[120px] text-center">
-                    {isCountingDirs ? (
-                      <span className="flex items-center justify-center gap-1 text-indigo-600">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        集計中...
-                      </span>
-                    ) : firestoreDirsCount !== null ? (
-                      <span>{firestoreDirsCount} <span className="text-xs font-normal text-indigo-400">件</span></span>
-                    ) : (
-                      <span className="text-slate-400">未取得</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={countFirestoreDirectories}
-                    disabled={isCountingDirs}
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded text-xs cursor-pointer shadow-sm transition-all"
-                    id="btn-count-firestore-dirs"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isCountingDirs ? "animate-spin" : ""}`} />
-                    集計を実行
-                  </button>
-                </div>
-              </div>
-            </div>
 
             <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4" id="token-init-panel">
               <div className="space-y-1">
@@ -1611,7 +1556,29 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-indigo-400 font-bold uppercase tracking-wider text-[10px]">
                       <span>Diagnostic Readout</span>
                       <div className="flex items-center gap-2">
-                        <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[8px]">LIVE FIRESTORE INDEXED</span>
+                        {debugSaveStatus === "confirmed" && (
+                          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
+                            <CheckCircle className="w-2.5 h-2.5" /> 保存確認済み
+                          </span>
+                        )}
+                        {debugSaveStatus === "pending" && (
+                          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
+                            <RefreshCw className="w-2.5 h-2.5 animate-spin" /> 保存確認中
+                          </span>
+                        )}
+                        {debugSaveStatus === "timeout" && (
+                          <span className="bg-slate-500/10 text-slate-400 border border-slate-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
+                            <HelpCircle className="w-2.5 h-2.5" /> 保存未確認
+                          </span>
+                        )}
+                        {debugSaveStatus === "failed" && (
+                          <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
+                            <AlertCircle className="w-2.5 h-2.5" /> 保存失敗
+                          </span>
+                        )}
+                        {!debugSaveStatus && (
+                          <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded text-[8px]">DRIVE FETCHED</span>
+                        )}
                         <button
                           onClick={handleCopyDiagnostics}
                           className="flex items-center gap-1 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white px-1.5 py-0.5 rounded border border-slate-700 font-sans font-medium text-[9px] transition-colors cursor-pointer"

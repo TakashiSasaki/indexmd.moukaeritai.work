@@ -28,8 +28,7 @@ import {
   updateDoc,
   runTransaction,
   writeBatch,
-  onSnapshot,
-  getCountFromServer
+  onSnapshot
 } from "firebase/firestore";
 
 // Read configuration from dynamic firebase-applet-config
@@ -171,7 +170,6 @@ export {
   updateDoc,
   runTransaction,
   writeBatch,
-  onSnapshot,
-  getCountFromServer
+  onSnapshot
 };
 export type { User };
