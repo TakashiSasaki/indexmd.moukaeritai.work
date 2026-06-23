@@ -1,0 +1,17 @@
+{
+  "name": "indexmd (Drive Indexer)",
+  "short_name": "indexmd",
+  "description": "Google Drive Folder recursion indexer generating OKF-compliant index.md files with AI summaries.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

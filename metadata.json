@@ -1,0 +1,6 @@
+{
+  "name": "Drive Indexer",
+  "description": "Scans your Google Drive folder structure bottom-up to build, update, and persist OKF-compliant index.md files with AI-generated summaries and navigation paths.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

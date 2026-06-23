@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["uid"]
+    },
+    "Directory": {
+      "title": "Directory",
+      "description": "Google Drive scanned directory state",
+      "type": "object",
+      "properties": {
+        "drive_id": { "type": "string" },
+        "path": { "type": "string" },
+        "depth": { "type": "integer" },
+        "sync_status": { "type": "string" },
+        "index_status": { "type": "string" },
+        "last_traversed_at": { "type": "string" },
+        "last_updated_at": { "type": "string" },
+        "parent_id": { "type": "string" },
+        "ai_summary": { "type": "string" }
+      },
+      "required": ["drive_id", "path", "depth", "sync_status", "index_status"]
+    },
+    "SyncState": {
+      "title": "SyncState",
+      "description": "State tracking for incremental Drive traverse",
+      "type": "object",
+      "properties": {
+        "nextPageToken": { "type": "string" },
+        "sync_status": { "type": "string" },
+        "last_traversed_at": { "type": "string" }
+      },
+      "required": ["sync_status"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "App log logs",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string" },
+        "level": { "type": "string" },
+        "message": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["timestamp", "level", "message"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User specific meta"
+    },
+    "/users/{userId}/directories/{directoryId}": {
+      "schema": "Directory",
+      "description": "Directories indexed for this user"
+    },
+    "/users/{userId}/state/{stateId}": {
+      "schema": "SyncState",
+      "description": "Traversing tracking state"
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": "Log",
+      "description": "Execution log collection"
+    }
+  }
+}
