@@ -35,6 +35,8 @@ import {
 // Read configuration from dynamic firebase-applet-config
 import firebaseConfig from "../../firebase-applet-config.json";
 
+export const firestoreDatabaseId = (firebaseConfig as any).firestoreDatabaseId || "(default)";
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
@@ -42,18 +44,23 @@ const auth = getAuth(app);
 let db: Firestore;
 const isIframe = typeof window !== "undefined" && window.self !== window.top;
 
+console.log(`[Firestore] Initializing with database ID: ${firestoreDatabaseId}`);
+if (firestoreDatabaseId === "(default)") {
+  console.warn(`[Firestore] Using "(default)" database ID. Note: If the default database is configured in Datastore Mode, count aggregations will fail. Native Mode database ID should be configured if possible.`);
+}
+
 try {
   if (isIframe) {
     console.info("Running in iframe - initializing Firestore with memoryLocalCache to prevent offline queue blockage and tab-lock timeouts.");
     db = initializeFirestore(app, {
       localCache: memoryLocalCache(),
       experimentalForceLongPolling: true
-    }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+    }, firestoreDatabaseId);
   } else {
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()}),
       experimentalForceLongPolling: true
-    }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+    }, firestoreDatabaseId);
   }
 } catch (e: any) {
   console.warn("Firestore initialization error (falling back)", e);
@@ -61,14 +68,14 @@ try {
     db = initializeFirestore(app, {
       localCache: memoryLocalCache(),
       experimentalForceLongPolling: true
-    }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+    }, firestoreDatabaseId);
   } catch (e2) {
     try {
       db = initializeFirestore(app, {
         experimentalForceLongPolling: true
-      }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+      }, firestoreDatabaseId);
     } catch (e3) {
-      db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+      db = getFirestore(app, firestoreDatabaseId);
     }
   }
 }

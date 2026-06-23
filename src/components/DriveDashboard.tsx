@@ -6,7 +6,6 @@ import {
   doc, 
   setDoc, 
   updateDoc, 
-  deleteDoc, 
   query, 
   orderBy, 
   limit,
@@ -112,8 +111,14 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
       setFirestoreDirsCount(count);
       onAddLog("success", `📊 [Firestore] サーバー上の directories ドキュメント総数: ${count} 件 (同期済みフォルダ実数)`);
     } catch (error: any) {
-      console.error("Failed to count firestore directories:", error);
-      onAddLog("error", `📊 [Firestore] ドキュメント数集計エラー: ${error.message || error}`);
+      const msg = error.message || String(error);
+      if (msg.includes("Firestore in Datastore Mode") || msg.includes("Cloud Firestore API is not available") || msg.includes("databases/(default)")) {
+        console.warn("Failed to count firestore directories (Datastore Mode compatibility):", error);
+        onAddLog("warn", `📊 [Firestore] ドキュメント数集計は現在のデータベース設定では利用できません。`);
+      } else {
+        console.error("Failed to count firestore directories:", error);
+        onAddLog("error", `📊 [Firestore] ドキュメント数集計エラー: ${msg}`);
+      }
     } finally {
       setIsCountingDirs(false);
     }
@@ -472,7 +477,6 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
               drive_id: resolvedId,
               path: fullPath || `/${file.name}`,
               depth: computedDepth || 1,
-              sync_status: "scanned",
               index_status: "pending",
               last_traversed_at: null, // Initial discovery does not mark it traversed, queue it up
               last_updated_at: null,
@@ -623,7 +627,6 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
                 drive_id: resolvedId,
                 path: fullPath,
                 depth: computedDepth,
-                sync_status: existingDir ? existingDir.sync_status : "scanned",
                 index_status: existingDir ? existingDir.index_status : "pending",
                 last_traversed_at: existingDir ? existingDir.last_traversed_at : null, // Preserve traversed state to avoid infinite rescans
                 last_updated_at: existingDir ? existingDir.last_updated_at : null,
@@ -881,35 +884,53 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
   const executeFullReset = async () => {
     try {
-      const batch = writeBatch(db);
-      dirs.forEach((d) => {
-        batch.delete(doc(db, "users", userId, "directories", d.drive_id));
-      });
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      
+      for (const d of dirs) {
+        batch.set(doc(db, "users", userId, "directories", d.drive_id), {
+          index_status: "pending",
+          last_traversed_at: null,
+          next_page_token: null
+        }, { merge: true });
+        
+        batchCount++;
+        
+        if (batchCount === 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
+      }
       
       // Also reset Firestore global sync state
       const stateDocRef = doc(db, "users", userId, "state", "global_sync");
-      batch.delete(stateDocRef);
+      batch.set(stateDocRef, {
+        nextPageToken: null,
+        sync_status: "idle",
+        last_traversed_at: null
+      }, { merge: true });
       
       await batch.commit();
 
       // Clear client-side states
       setNextPageToken(null);
       setLastTraversedAt(null);
-      setDirs([]);
 
       // Clear localStorage cache to allow fresh full scan
       try {
-        localStorage.removeItem(`indexmd_sync_state_${userId}`);
-        localStorage.removeItem(`indexmd_total_folders_${userId}`);
+        localStorage.setItem(`indexmd_sync_state_${userId}`, JSON.stringify({
+          nextPageToken: null,
+          last_traversed_at: null
+        }));
       } catch (e) {
-        console.warn("Failed to clear localStorage items:", e);
+        console.warn("Failed to update localStorage sync state:", e);
       }
 
-      onAddLog("warn", "全同期状態を完全にリセットしました。初期状態（全件走査）から再スキャンが可能です。");
-      setLastDebugFolder(null);
+      onAddLog("success", "フォルダIDと階層情報を保持したまま、再走査・再生成のための処理状態を初期化しました。");
     } catch (e: any) {
       console.error(e);
-      onAddLog("error", "リセットに失敗しました。", e.message);
+      onAddLog("error", "状態初期化に失敗しました。", e.message);
     }
   };
 
@@ -1045,7 +1066,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         drive_id: resolvedId,
         path: fullPath || `/${file.name}`,
         depth: computedDepth || 1,
-        sync_status: "scanned",
         index_status: "pending",
         last_traversed_at: new Date().toISOString(),
         last_updated_at: null,
@@ -1728,13 +1748,13 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                 disabled={isCrawlActive || isIndexActive || dirs.length === 0}
                 className={`inline-flex items-center gap-1.5 transition-all px-3 py-2 rounded-md text-xs cursor-pointer ${
                   resetConfirming
-                    ? "bg-red-500 hover:bg-red-650 text-white border-transparent font-bold animate-pulse shadow-sm"
-                    : "text-slate-500 hover:text-red-650 hover:bg-red-50 border border-slate-200 hover:border-red-200"
+                    ? "bg-amber-500 hover:bg-amber-600 text-white border-transparent font-bold animate-pulse shadow-sm"
+                    : "text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200"
                 }`}
                 id="btn-reset-data"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                {resetConfirming ? "本当にリセット？ (あと5秒)" : "状態リセット"}
+                <FolderSync className="w-3.5 h-3.5" />
+                {resetConfirming ? "状態を初期化？ (あと5秒)" : "再走査・再生成状態を初期化"}
               </button>
             </div>
 

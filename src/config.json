@@ -2,7 +2,5 @@
   "rate_limit_delay_ms": 500,
   "max_logs_count": 200,
   "logs_cleanup_threshold": 100,
-  "max_concurrent_tasks": 3,
-  "retry_delay_ms": 2000,
   "gemini_model": "gemini-2.5-flash"
 }

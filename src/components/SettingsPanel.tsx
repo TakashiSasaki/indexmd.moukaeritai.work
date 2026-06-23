@@ -51,7 +51,7 @@ export default function SettingsPanel({ config, onSaveConfig }: SettingsPanelPro
 
       {isExpanded && (
         <div className="mt-4 pt-3 border-t border-slate-100 space-y-5 animate-fadeIn">
-          {/* Rate limit & Concurrency */}
+          {/* Rate limit */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold text-indigo-500 uppercase tracking-widest flex items-center gap-1.5 border-l-2 border-indigo-500 pl-2">
               <Zap className="w-3.5 h-3.5" /> Performance Params
@@ -69,21 +69,6 @@ export default function SettingsPanel({ config, onSaveConfig }: SettingsPanelPro
                 step="100"
                 value={localConfig.rate_limit_delay_ms}
                 onChange={(e) => handleChange("rate_limit_delay_ms", parseInt(e.target.value))}
-                className="w-full h-1 bg-slate-200 rounded-full appearance-none cursor-pointer"
-              />
-            </div>
-
-            <div className="bg-slate-50 border border-slate-100 rounded p-3">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between">
-                <span>Max Concurrent Tasks</span>
-                <span className="font-mono text-indigo-600 font-bold">{localConfig.max_concurrent_tasks}</span>
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={localConfig.max_concurrent_tasks}
-                onChange={(e) => handleChange("max_concurrent_tasks", parseInt(e.target.value))}
                 className="w-full h-1 bg-slate-200 rounded-full appearance-none cursor-pointer"
               />
             </div>
