@@ -38,31 +38,28 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const extractTextFromHtml = (html: string) => {
     try {
       const parser = new DOMParser();
-      // Use text/html to handle tag stripping reliably
       const doc = parser.parseFromString(html, 'text/html');
 
       // Explicitly remove style and script tags to ensure clean extraction
       doc.querySelectorAll('style, script').forEach(el => el.remove());
 
-      // Look for title or heavy text elements that might contain error messages
-      const title = doc.querySelector('title')?.textContent || null;
-      const h1 = doc.querySelector('h1')?.textContent || null;
-      
-      // Get the full text content
-      const fullText = doc.body?.innerText || doc.documentElement.textContent || "";
-      const cleanFullText = fullText.replace(/\s+/g, ' ').trim();
+      // Get the full text content, and perform final cleanup to ensure no tags remain
+      const fullText = (doc.body?.innerText || doc.documentElement.textContent || "")
+        .replace(/<[^>]+>/g, ' ') // Final safety tag removal
+        .replace(/\s+/g, ' ')
+        .trim();
       
       // Snippet for clipboard/preview
-      const bodyTextSnippet = cleanFullText.slice(0, 500);
+      const bodyTextSnippet = fullText.slice(0, 500);
       
+      const title = doc.querySelector('title')?.textContent || null;
       let refined = "";
       if (title) refined += `[Title: ${title}] `;
-      if (h1 && h1 !== title) refined += `[H1: ${h1}] `;
       if (bodyTextSnippet) refined += bodyTextSnippet;
       
       return {
         refined: refined || null,
-        fullText: cleanFullText || null,
+        fullText: fullText || null,
         title: title
       };
     } catch (e) {

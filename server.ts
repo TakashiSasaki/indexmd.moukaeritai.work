@@ -8,37 +8,84 @@ import { parseOffice } from "officeparser";
 
 dotenv.config();
 
-const app = express();
+const HISTORY_PATH = path.join(process.cwd(), "src/data/validation_history.json");
+
+function saveToHistory(entry: {
+  status: "success" | "error";
+  fileName: string;
+  mimeType: string;
+  model: string;
+  details?: string;
+}) {
+  try {
+    let history = [];
+    if (fs.existsSync(HISTORY_PATH)) {
+      const content = fs.readFileSync(HISTORY_PATH, "utf-8");
+      try {
+        history = JSON.parse(content);
+      } catch (e) {
+        history = [];
+      }
+    }
+    
+    // Ensure we have an array
+    if (!Array.isArray(history)) history = [];
+
+    const newEntry = {
+      id: `auto-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      ...entry
+    };
+    
+    history.unshift(newEntry);
+    
+    // Limit history size to 100 entries to avoid massive files
+    if (history.length > 100) {
+      history = history.slice(0, 100);
+    }
+
+    fs.writeFileSync(HISTORY_PATH, JSON.stringify(history, null, 2));
+    return newEntry;
+  } catch (e) {
+    console.error("Failed to save history:", e);
+    return null;
+  }
+}
 const PORT = 3000;
 
 // Apply JSON parsing middleware
 app.use(express.json());
 
-// Lazy-initialized Gemini SDK client to prevent startup crashes when API key is missing
-let _ai: any = null;
-function getGeminiClient() {
-  if (!_ai) {
+// Lazy-initialized Gemini SDK clients mapping apiVersion to client
+let _clients: Record<string, any> = {};
+function getGeminiClient(modelName: string) {
+  const apiVersion = modelName.includes('-preview') || modelName.includes('-experimental') || modelName.includes('beta') 
+    ? 'v1beta' 
+    : 'v1';
+
+  if (!_clients[apiVersion]) {
     const key = process.env.GEMINI_API_KEY;
     if (!key) {
       throw new Error("GEMINI_API_KEY environment variable is required.");
     }
-    _ai = new GoogleGenAI({ 
+    _clients[apiVersion] = new GoogleGenAI({ 
       apiKey: key,
       httpOptions: {
+        apiVersion: apiVersion,
         headers: {
           'User-Agent': 'aistudio-build',
         }
       }
     });
   }
-  return _ai;
+  return _clients[apiVersion];
 }
 
 /**
  * Helper to call Gemini with exponential backoff for 503/429 errors
  */
 async function generateContentWithRetry(modelName: string, contents: any, maxRetries = 2) {
-  const client = getGeminiClient();
+  const client = getGeminiClient(modelName);
   let lastError: any = null;
   
   for (let i = 0; i <= maxRetries; i++) {
@@ -69,6 +116,19 @@ async function generateContentWithRetry(modelName: string, contents: any, maxRet
 // 1. Health check endpoint
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// API to fetch history
+app.get("/api/validation-history", (req, res) => {
+  try {
+    if (fs.existsSync(HISTORY_PATH)) {
+      const content = fs.readFileSync(HISTORY_PATH, "utf-8");
+      return res.json(JSON.parse(content));
+    }
+    res.json([]);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to read history" });
+  }
 });
 
 // Helper: safe fetch with error details
@@ -289,7 +349,7 @@ app.post("/api/drive/generate-index-step", async (req, res) => {
 
       // Query Gemini for single file summary
       try {
-        const aiClient = getGeminiClient();
+        const aiClient = getGeminiClient(geminiModel);
         const filePrompt = `Based on the metadata and optional content sample of this file, provide a 1-sentence Japanese description of what it contains. Avoid technical jargon.
 FileName: ${file.name}
 MimeType: ${file.mimeType}
@@ -321,7 +381,7 @@ ContentSample: ${contentSample || "No content available"}`;
     // Step 3: Combine into a single Directory Summary
     let folderSummary = "";
     try {
-      const aiClient = getGeminiClient();
+      const aiClient = getGeminiClient(geminiModel);
       const combinedPrompt = `You are a professional documentation archivist for Google Drive. Summarize the contents and main theme of this directory named "${folderName}" based on its items list, individual item descriptions, and pre-computed subfolder summaries.
 Write a concise overview in Japanese (3-4 sentences maximum). Do not mention placeholder indicators like "Auto backup", give real structure summary in a natural human way.
 
@@ -568,7 +628,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
            const base64Data = Buffer.from(arrBuffer).toString("base64");
            
            // Query Gemini with binary part directly
-           const aiClient = getGeminiClient();
+           const aiClient = getGeminiClient(targetModel);
            const filePrompt = `以下のファイル内容を分析し、何が記載・描写されているか要約してください。日本語で出力してください。
            
 ファイル名: ${fileMeta.name}
@@ -622,7 +682,7 @@ MIMEタイプ: ${fileMeta.mimeType}`;
 
     // 3. Query Model for standard text
     const contentSample = fullText.substring(0, 100000); // 100k chars max
-    const aiClient = getGeminiClient();
+    const aiClient = getGeminiClient(targetModel);
     const filePrompt = `以下のファイル内容（最大10万文字のスニペット）を分析し、主な内容の要約を日本語で出力してください。
     
 ファイル名: ${fileMeta.name}

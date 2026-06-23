@@ -2,7 +2,7 @@ import React from 'react';
 import { ModelInfo, ValidationRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
 import VALIDATION_HISTORY from '../data/validation_history.json';
-import { Check, X, AlertCircle, HelpCircle } from 'lucide-react';
+import { Check, X, HelpCircle, AlertCircle } from 'lucide-react';
 
 const MODELS = MODELS_INFO as ModelInfo[];
 
@@ -24,23 +24,12 @@ interface CompatibilityMatrixProps {
 }
 
 export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({ 
-  history: historyProp,
   onCellClick, 
   currentModelId, 
   currentMimeType 
 }) => {
-  const displayHistory = historyProp || VALIDATION_HISTORY;
 
   const getStatus = (modelId: string, mimeType: string) => {
-    const history = displayHistory.filter(h => h.model === modelId && (h.mimeType === mimeType || (mimeType === 'text' && h.mimeType.startsWith('text/')) || (mimeType === 'image' && h.mimeType.startsWith('image/'))));
-    
-    if (history.length > 0) {
-      if (history.some(h => h.status === 'success')) return 'success';
-      if (history.some(h => h.details?.includes('[object Object]') || h.details?.includes('unsupported'))) return 'error';
-      if (history.some(h => h.details?.includes('401') || h.details?.includes('auth'))) return 'auth_error';
-      return 'error';
-    }
-
     // Fallback to model modalities
     const model = MODELS.find(m => m.id === modelId);
     if (!model) return 'unknown';
