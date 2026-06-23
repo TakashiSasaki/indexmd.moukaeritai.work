@@ -18,7 +18,8 @@ if (typeof window !== "undefined") {
       src.includes("google") ||
       msg.includes("vite") ||
       msg.includes("WebSocket") ||
-      msg.includes("401 ") ||
+      msg.includes("401") ||
+      msg.includes("authError") ||
       msg.includes("Google API") ||
       msg.includes("Cloud Firestore") ||
       msg.includes("Falling back to alternative model")
@@ -39,7 +40,8 @@ if (typeof window !== "undefined") {
       event.message?.includes("Script error") ||
       event.message?.includes("vite") ||
       event.message?.includes("WebSocket") ||
-      event.message?.includes("401 エラー") ||
+      event.message?.includes("401") ||
+      event.message?.includes("authError") ||
       event.message?.includes("Google API") ||
       event.message?.includes("Could not reach Cloud Firestore") ||
       String(event.error)?.includes("Could not reach Cloud Firestore") ||
@@ -59,7 +61,8 @@ if (typeof window !== "undefined") {
       reason.includes("WebSocket") || 
       reason.includes("HMR") || 
       reason.includes("Script error") ||
-      reason.includes("401 エラー") ||
+      reason.includes("401") ||
+      reason.includes("authError") ||
       reason.includes("Google API アクセストークンが無効") ||
       reason.includes("Could not reach Cloud Firestore") ||
       reason.includes("Falling back to alternative model")
@@ -77,7 +80,8 @@ if (typeof window !== "undefined") {
     if (
       msg.includes("Could not reach Cloud Firestore backend") ||
       msg.includes("Google API アクセストークンが無効") ||
-      msg.includes("401 ") ||
+      msg.includes("401") ||
+      msg.includes("authError") ||
       msg.includes("Falling back to alternative model")
     ) {
       // Just warn instead of error

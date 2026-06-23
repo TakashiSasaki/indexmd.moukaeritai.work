@@ -1,12 +1,52 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { promises as fsPromises } from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { parseOffice } from "officeparser";
 
 dotenv.config();
+
+const CACHE_DIR = path.join(process.cwd(), "cache", "snippets");
+if (!fs.existsSync(CACHE_DIR)) {
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+}
+
+const SUMMARIES_CACHE_DIR = path.join(process.cwd(), "cache", "summaries");
+if (!fs.existsSync(SUMMARIES_CACHE_DIR)) {
+  fs.mkdirSync(SUMMARIES_CACHE_DIR, { recursive: true });
+}
+
+async function getCachedSnippet(fileId: string): Promise<string | null> {
+  const filePath = path.join(CACHE_DIR, `${fileId}.txt`);
+  try {
+    return await fsPromises.readFile(filePath, "utf-8");
+  } catch (err) {
+    return null;
+  }
+}
+
+async function setCachedSnippet(fileId: string, content: string): Promise<void> {
+  const filePath = path.join(CACHE_DIR, `${fileId}.txt`);
+  await fsPromises.writeFile(filePath, content, "utf-8");
+}
+
+async function getCachedSummary(key: string): Promise<any | null> {
+  const filePath = path.join(SUMMARIES_CACHE_DIR, key);
+  try {
+    const content = await fsPromises.readFile(filePath, "utf-8");
+    return JSON.parse(content);
+  } catch (err) {
+    return null;
+  }
+}
+
+async function setCachedSummary(key: string, content: any): Promise<void> {
+  const filePath = path.join(SUMMARIES_CACHE_DIR, key);
+  await fsPromises.writeFile(filePath, JSON.stringify(content), "utf-8");
+}
 
 const HISTORY_PATH = path.join(process.cwd(), "src/data/validation_history.json");
 
@@ -94,7 +134,12 @@ const MODEL_FALLBACKS: Record<string, string> = {
  * with automatic fallback to alternative resilient models on both 404 (Not Found)
  * and 429 (Resource Exhausted / Quota Exceeded) errors.
  */
-async function generateContentWithRetry(modelName: string, contents: any, maxRetries = 4) {
+async function generateContentWithRetry(
+  modelName: string, 
+  contents: any, 
+  maxRetries = 4, 
+  configOption?: { temperature?: number; topP?: number; topK?: number }
+) {
   let currentModel = modelName;
   let client = getGeminiClient(currentModel);
   let lastError: any = null;
@@ -102,10 +147,25 @@ async function generateContentWithRetry(modelName: string, contents: any, maxRet
   
   for (let i = 0; i <= maxRetries; i++) {
     try {
-      const response = await client.models.generateContent({
+      const callParams: any = {
         model: currentModel,
         contents: contents
-      });
+      };
+      
+      if (configOption) {
+        callParams.config = {};
+        if (typeof configOption.temperature === "number" && configOption.temperature !== 0) {
+          callParams.config.temperature = configOption.temperature;
+        }
+        if (typeof configOption.topP === "number" && configOption.topP !== 0) {
+          callParams.config.topP = configOption.topP;
+        }
+        if (typeof configOption.topK === "number" && configOption.topK !== 0) {
+          callParams.config.topK = configOption.topK;
+        }
+      }
+
+      const response = await client.models.generateContent(callParams);
       return response;
     } catch (err: any) {
       lastError = err;
@@ -641,14 +701,25 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
     return;
   }
 
-  const { fileId, modelName } = req.body;
+  const { fileId, modelName, temperature, topP, topK } = req.body;
   if (!fileId) {
     return res.status(400).json({ error: "fileId is required" });
   }
 
   const targetModel = modelName || "gemini-3.5-flash"; // default fallback if empty
+  const temp = temperature || 0;
+  const tP = topP || 0;
+  const tK = topK || 0;
+  
+  // Sanitize model name so it is safe to use in a filename (e.g. replacing 'models/gemini-...' with 'models_gemini-...')
+  const safeModel = targetModel.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const cacheKey = `${fileId}__${safeModel}__${temp}__${tP}__${tK}.json`;
 
   try {
+    // 0. Check cache
+    const cachedSummary = await getCachedSummary(cacheKey);
+    if (cachedSummary) return res.json(cachedSummary);
+
     // 1. Get file metadata
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`;
     const metaRes = await fetchGoogleDrive(metaUrl, token);
@@ -683,9 +754,13 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
 
     let fullText = "";
     
-    if (isReadable) {
+    // Check if we can use cached text snippet
+    const cachedSnippet = await getCachedSnippet(fileId);
+    if (cachedSnippet) {
+      fullText = cachedSnippet;
+    } else if (isReadable) {
       if (mimeType === "application/pdf" || mimeType.startsWith("image/")) {
-         // For PDF and Images, we can pass them as inlineData
+         // ... (Binary data, don't cache as text snippet)
          try {
            const fileRes = await fetchGoogleDrive(contentUrl, token);
            const arrBuffer = await fileRes.arrayBuffer();
@@ -700,16 +775,19 @@ MIMEタイプ: ${fileMeta.mimeType}`;
            const aiRes = await generateContentWithRetry(targetModel, [
              { inlineData: { data: base64Data, mimeType: mimeType } },
              { text: filePrompt }
-           ]);
+           ], 4, { temperature: temp, topP: tP, topK: tK });
            
            const summary = aiRes.text?.trim() || "No summary generated";
            
-           return res.json({
+           const result = {
              success: true,
              metadata: fileMeta,
              summary: summary,
              contentSampleSnippet: `(${mimeType.split('/')[0].toUpperCase()} binary data was passed directly to the model)`
-           });
+           };
+
+           await setCachedSummary(cacheKey, result);
+           return res.json(result);
          } catch(e: any) {
            return res.status(500).json({ error: `${mimeType.startsWith('image') ? 'Image' : 'PDF'} generation failed: ${e.message}` });
          }
@@ -726,6 +804,7 @@ MIMEタイプ: ${fileMeta.mimeType}`;
            } else {
              fullText = String(parsedText);
            }
+           await setCachedSnippet(fileId, fullText);
          } catch(e: any) {
            console.error("Office parsing error:", e);
            fullText = `Office parsing failed: ${e.message}`;
@@ -733,6 +812,7 @@ MIMEタイプ: ${fileMeta.mimeType}`;
       } else {
         const contentRes = await fetchGoogleDrive(contentUrl, token);
         fullText = await contentRes.text();
+        await setCachedSnippet(fileId, fullText);
       }
     } else {
       fullText = "This file type is not natively extractable as text in this debug tool.";
@@ -748,16 +828,20 @@ MIMEタイプ: ${fileMeta.mimeType}
 ファイル内容:
 ${contentSample}`;
 
-    const aiRes = await generateContentWithRetry(targetModel, filePrompt);
+    const aiRes = await generateContentWithRetry(targetModel, filePrompt, 4, { temperature: temp, topP: tP, topK: tK });
 
     const summary = aiRes.text?.trim() || "No summary generated";
 
-    res.json({
+    const result = {
       success: true,
       metadata: fileMeta,
       summary: summary,
       contentSampleSnippet: contentSample.substring(0, 200) + (contentSample.length > 200 ? "..." : "")
-    });
+    };
+
+    await setCachedSummary(cacheKey, result);
+    
+    res.json(result);
   } catch (err: any) {
     console.error("Debug file summary error:", err);
     let errorMessage = "要約の生成に失敗しました。";
