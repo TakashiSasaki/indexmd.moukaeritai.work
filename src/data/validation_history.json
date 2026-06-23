@@ -1,5 +1,149 @@
 [
   {
+    "id": "auto-71",
+    "timestamp": "2026-06-23T10:40:15Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」の内容を分析し、要約しました。"
+  },
+  {
+    "id": "auto-70",
+    "timestamp": "2026-06-23T10:40:16Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-3-flash-preview",
+    "details": "提供されたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」ツールを利用する際に必要となる「Copilot Credits（クレジット）」の消費量とコストを予測するためのシミュレーション用スプレッドシートです。"
+  },
+  {
+    "id": "auto-69",
+    "timestamp": "2026-06-23T10:40:17Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたプレゼンテーション資料「動物心拍の非接触計測に関する研究」（作成者：平本宗大氏）の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-68",
+    "timestamp": "2026-06-23T10:40:18Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたファイルは、和歌山県の「奥熊野 川湯温泉 山水館 川湯みどりや・まつや・きのくに」で発行された宿泊の「請求・明細書」および「領収書」の画像です。"
+  },
+  {
+    "id": "auto-67",
+    "timestamp": "2026-06-23T10:40:19Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-2.5-flash-lite",
+    "details": "ご提示いただいたYouTubeの動画タイトルと概要欄（スニペット）を分析した結果、主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-66",
+    "timestamp": "2026-06-23T10:35:38Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいた研究提案書「動物心拍の非接触計測に関する研究」の内容を要約しました。"
+  },
+  {
+    "id": "auto-65",
+    "timestamp": "2026-06-23T10:34:25Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたPDFファイルは、和歌山県の「奥熊野 川湯温泉」にある宿泊施設（山水館 川湯みどりや・まつや・きのくに）の「請求明細書」および「領収書」です。"
+  },
+  {
+    "id": "auto-64",
+    "timestamp": "2026-06-23T10:34:24Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいた画像には、以下の内容が写っています。"
+  },
+  {
+    "id": "auto-63",
+    "timestamp": "2026-06-23T10:34:23Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたYouTubeの動画タイトルと概要欄（スニペット）を分析した結果、主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-62",
+    "timestamp": "2026-06-23T10:34:22Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-61",
+    "timestamp": "2026-06-23T10:34:21Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたファイル内容は、主にYouTubeチャンネルの動画リスト（メタデータおよび概要欄）です。分析した主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-60",
+    "timestamp": "2026-06-23T10:31:46Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた研究提案書（PowerPointファイル）の内容を要約しました。"
+  },
+  {
+    "id": "auto-59",
+    "timestamp": "2026-06-23T10:28:24Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-2.5-flash-lite",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-58",
+    "timestamp": "2026-06-23T10:28:23Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたファイルは、Gemini（GoogleのAIサービス）のWebインターフェースにおける「パーソナルコンテキスト（個人設定・履歴）」および「アカウント管理画面」のHTML構造からテキスト情報を抽出したものと見受けられます。"
+  },
+  {
+    "id": "auto-57",
+    "timestamp": "2026-06-23T10:28:22Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-56",
+    "timestamp": "2026-06-23T10:28:21Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいた研究提案書「動物心拍の非接触計測に関する研究」（作成者：平本宗大氏）の要約は以下の通りです。"
+  },
+  {
     "id": "auto-55",
     "timestamp": "2026-06-23T10:17:36Z",
     "status": "success",
