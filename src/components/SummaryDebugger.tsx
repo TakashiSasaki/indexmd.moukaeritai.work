@@ -34,18 +34,49 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const [fullErrorText, setFullErrorText] = useState<string | null>(null);
   const [responseTitle, setResponseTitle] = useState<string | null>(null);
   const [errorViewTab, setErrorViewTab] = useState<'raw' | 'text'>('raw');
+  const [usedModel, setUsedModel] = useState<string | null>(null);
+  const [validationHistory, setValidationHistory] = useState<ValidationRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchValidationHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      const res = await fetch('/api/validation-history');
+      if (res.ok) {
+        const data = await res.json();
+        setValidationHistory(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch validation history", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchValidationHistory();
+  }, []);
 
   const extractTextFromHtml = (html: string) => {
     try {
+      // 1. Regex to remove all style and script tags very aggressively before DOM parsing
+      let cleanHtml = html
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, ''); // remove comments
+
       const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
+      const doc = parser.parseFromString(cleanHtml, 'text/html');
 
-      // Explicitly remove style and script tags to ensure clean extraction
-      doc.querySelectorAll('style, script').forEach(el => el.remove());
+      // 2. Remove any remaining noisy tags
+      doc.querySelectorAll('style, script, svg, symbol, defs').forEach(el => el.remove());
 
-      // Get the full text content, and perform final cleanup to ensure no tags remain
-      const fullText = (doc.body?.innerText || doc.documentElement.textContent || "")
-        .replace(/<[^>]+>/g, ' ') // Final safety tag removal
+      // 3. Fallback safely to textContent
+      let fullText = doc.body?.textContent || doc.documentElement.textContent || "";
+      
+      // 4. Strip any remaining tags, normalize whitespace
+      fullText = fullText
+        .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
       
@@ -131,6 +162,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
     setResult(null);
     setError(null);
     setRawErrorResponse(null);
+    setUsedModel(modelName);
 
     // Extract ID from full URL if user pasted a URL instead
     let parsedId = fileId.trim();
@@ -166,17 +198,28 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
       if (!response.ok) {
         setRawErrorResponse(text);
         
-        // Try to refine if it looks like HTML
+        // Try to refine error text based on content type
         if (text.trim().startsWith('<') || text.toLowerCase().includes('<!doctype html>')) {
           const { refined, fullText, title } = extractTextFromHtml(text);
           setRefinedErrorText(refined);
           setFullErrorText(fullText);
           setResponseTitle(title);
         } else {
-          setRefinedErrorText(null);
-          setFullErrorText(null);
-          setResponseTitle(null);
+          try {
+            // If it's JSON, try to extract the error message nicely
+            const jsonObj = JSON.parse(text);
+            const extractedText = jsonObj.error?.message || jsonObj.message || jsonObj.error || JSON.stringify(jsonObj, null, 2);
+            setFullErrorText(typeof extractedText === 'string' ? extractedText : JSON.stringify(extractedText, null, 2));
+            setRefinedErrorText(null);
+            setResponseTitle("JSON Error Response");
+          } catch (e) {
+            // Plain text
+            setRefinedErrorText(null);
+            setFullErrorText(text);
+            setResponseTitle(null);
+          }
         }
+
 
         if (response.status === 401) {
            onSessionExpiry?.();
@@ -206,6 +249,16 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
         setResult(data);
       } catch (e) {
         setRawErrorResponse(text);
+        if (text.trim().startsWith('<') || text.toLowerCase().includes('<!doctype html>')) {
+          const { refined, fullText, title } = extractTextFromHtml(text);
+          setRefinedErrorText(refined);
+          setFullErrorText(fullText);
+          setResponseTitle(title);
+        } else {
+          setRefinedErrorText(null);
+          setFullErrorText(text); // show raw text as text also
+          setResponseTitle(null);
+        }
         throw new Error("Failed to parse response as JSON");
       }
     } catch (err: any) {
@@ -221,7 +274,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
 失敗
 File: ${selectedFile?.file.name || 'Unknown'}
 MIME: ${selectedFile?.file.mimeType || 'unknown'}
-Model: ${modelName}
+Model: ${usedModel || modelName}
 Error: ${error}
 ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Response Preview (Text): ${refinedErrorText.slice(0, 100)}${refinedErrorText.length > 100 ? '...' : ''}\n` : ''}Raw Response Preview: ${rawErrorResponse?.slice(0, 1000) || 'None'}
     `.trim();
@@ -253,7 +306,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
     const lines = ["成功。"];
     if (result.metadata?.name) lines.push(`File: ${result.metadata.name}`);
     if (result.metadata?.mimeType) lines.push(`MIME: ${result.metadata.mimeType}`);
-    lines.push(`Model: ${modelName}`);
+    lines.push(`Model: ${usedModel || modelName}`);
     if (result.summary) {
       const firstLine = result.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0)[0];
       if (firstLine) {
@@ -476,11 +529,22 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
 
       {/* Compatibility Matrix Section */}
       <div className="space-y-4">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-          <Settings className="w-4 h-4 text-indigo-500" />
-          モデル別ファイル形式対応状況 (検証マトリクス)
-        </h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+            <Settings className="w-4 h-4 text-indigo-500" />
+            モデル別ファイル形式対応状況 (検証マトリクス)
+          </h3>
+          <button
+            onClick={fetchValidationHistory}
+            disabled={loadingHistory}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${loadingHistory ? 'animate-spin' : ''}`} />
+            更新
+          </button>
+        </div>
         <CompatibilityMatrix 
+          history={validationHistory}
           currentModelId={modelName}
           currentMimeType={samples.find(s => s.file.id === fileId)?.file.mimeType}
           onCellClick={(selectedModelId, mimeType) => {
@@ -652,7 +716,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                 </span>
               )}
               <span className="text-[10px] text-indigo-300 font-mono bg-slate-950 px-2 py-1 rounded border border-indigo-900/50">
-                モデル: {modelName}
+                モデル: {usedModel || modelName}
               </span>
               <button
                 onClick={copyMetadata}

@@ -12,7 +12,10 @@ const MIME_TYPES = [
   { label: 'PDF', type: 'application/pdf' },
   { label: 'Word (docx)', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
   { label: 'Excel (xlsx)', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-  { label: 'PowerPoint (pptx)', type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+  { label: 'PowerPoint', type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+  { label: 'Google ドキュメント', type: 'application/vnd.google-apps.document' },
+  { label: 'Google スプレッドシート', type: 'application/vnd.google-apps.spreadsheet' },
+  { label: 'Google スライド', type: 'application/vnd.google-apps.presentation' },
   { label: '画像 (jpg/png)', type: 'image' },
 ];
 
@@ -24,12 +27,24 @@ interface CompatibilityMatrixProps {
 }
 
 export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({ 
+  history: historyProp,
   onCellClick, 
   currentModelId, 
   currentMimeType 
 }) => {
 
+  const displayHistory = historyProp || VALIDATION_HISTORY;
+
   const getStatus = (modelId: string, mimeType: string) => {
+    const history = displayHistory.filter(h => h.model === modelId && (h.mimeType === mimeType || (mimeType === 'text' && !!h.mimeType && h.mimeType.startsWith('text/')) || (mimeType === 'image' && !!h.mimeType && h.mimeType.startsWith('image/'))));
+    
+    if (history.length > 0) {
+      if (history.some(h => h.status === 'success')) return 'success';
+      if (history.some(h => h.details?.includes('[object Object]') || h.details?.includes('unsupported'))) return 'error';
+      if (history.some(h => h.details?.includes('401') || h.details?.includes('auth'))) return 'auth_error';
+      return 'error';
+    }
+
     // Fallback to model modalities
     const model = MODELS.find(m => m.id === modelId);
     if (!model) return 'unknown';
@@ -43,7 +58,7 @@ export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({
     if (mimeType === 'image') {
        return model.modalities.includes('Image') ? 'likely' : 'unlikely';
     }
-    if (mimeType.includes('officedocument')) {
+    if (mimeType.includes('officedocument') || mimeType.includes('google-apps')) {
        return model.modalities.includes('Files') ? 'likely' : 'unlikely';
     }
 
@@ -55,7 +70,7 @@ export const CompatibilityMatrix: React.FC<CompatibilityMatrixProps> = ({
     if (modelId !== currentModelId) return false;
 
     // MIME type matching logic to correspond with currentMimeType mapping
-    if (mimeType === 'text') return currentMimeType.startsWith('text/') || currentMimeType === 'application/json';
+    if (mimeType === 'text') return currentMimeType.startsWith('text/') && currentMimeType !== 'application/json';
     if (mimeType === 'image') return currentMimeType.startsWith('image/');
     return mimeType === currentMimeType;
   };

@@ -185,7 +185,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
       dirs.forEach(d => {
         localDirsMap.set(d.drive_id, {
           drive_id: d.drive_id,
-          name: d.path.split("/").pop() || d.drive_id,
+          name: (d.path || "").split("/").pop() || d.drive_id,
           parents: d.parent_id ? [d.parent_id] : [],
           depth: d.depth || 1,
           path: d.path,
@@ -576,7 +576,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
         const childDirs = dirs.filter(d => d.parent_id === item.drive_id);
         const subdirsWithSummaries = childDirs.map(child => ({
           id: child.drive_id,
-          name: child.path.split("/").pop() || "",
+          name: (child.path || "").split("/").pop() || "",
           summary: child.ai_summary || "要約未生成"
         }));
 
@@ -726,7 +726,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       dirs.forEach((d) => {
         localDirsMap.set(d.drive_id, {
           drive_id: d.drive_id,
-          name: d.path.split("/").pop() || d.drive_id,
+          name: (d.path || "").split("/").pop() || d.drive_id,
           parents: d.parent_id ? [d.parent_id] : []
         });
       });
@@ -838,8 +838,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
   };
 
   const filteredDirs = dirs.filter((d) => 
-    d.path.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    d.drive_id.includes(searchTerm)
+    (d.path || "").toLowerCase().includes((searchTerm || "").toLowerCase()) || 
+    (d.drive_id || "").includes(searchTerm)
   );
 
   // Find oldest and newest traversed folders

@@ -51,6 +51,7 @@ function saveToHistory(entry: {
     return null;
   }
 }
+const app = express();
 const PORT = 3000;
 
 // Apply JSON parsing middleware
@@ -59,9 +60,8 @@ app.use(express.json());
 // Lazy-initialized Gemini SDK clients mapping apiVersion to client
 let _clients: Record<string, any> = {};
 function getGeminiClient(modelName: string) {
-  const apiVersion = modelName.includes('-preview') || modelName.includes('-experimental') || modelName.includes('beta') 
-    ? 'v1beta' 
-    : 'v1';
+  // Always use v1beta for newer models (3.5, gemma, preview) as many are not in v1 yet
+  const apiVersion = 'v1beta';
 
   if (!_clients[apiVersion]) {
     const key = process.env.GEMINI_API_KEY;
@@ -81,29 +81,101 @@ function getGeminiClient(modelName: string) {
   return _clients[apiVersion];
 }
 
+const MODEL_FALLBACKS: Record<string, string> = {
+  "gemini-3.5-pro": "gemini-3.1-pro-preview",
+  "gemini-3.5-flash": "gemini-2.5-flash",
+  "gemini-2.5-flash-lite-preview-09-2025": "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite": "gemini-3.1-flash-lite",
+  "gemini-2.5-flash": "gemini-3.1-flash-lite"
+};
+
 /**
  * Helper to call Gemini with exponential backoff for 503/429 errors
+ * with automatic fallback to alternative resilient models on both 404 (Not Found)
+ * and 429 (Resource Exhausted / Quota Exceeded) errors.
  */
-async function generateContentWithRetry(modelName: string, contents: any, maxRetries = 2) {
-  const client = getGeminiClient(modelName);
+async function generateContentWithRetry(modelName: string, contents: any, maxRetries = 4) {
+  let currentModel = modelName;
+  let client = getGeminiClient(currentModel);
   let lastError: any = null;
+  const attemptedModels = new Set<string>([currentModel]);
   
   for (let i = 0; i <= maxRetries; i++) {
     try {
-      const model = client.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(contents);
-      const response = await result.response;
+      const response = await client.models.generateContent({
+        model: currentModel,
+        contents: contents
+      });
       return response;
     } catch (err: any) {
       lastError = err;
-      const statusCode = err.status || (err.response?.status);
-      const isRetryable = statusCode === 503 || statusCode === 429 || 
-                         err.message?.includes("503") || err.message?.includes("429") ||
-                         err.message?.includes("high demand");
+      let statusCode = err.status || (err.response?.status) || (err.error?.code);
+      if (!statusCode && err.message) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error && parsed.error.code) {
+             statusCode = parsed.error.code;
+          }
+        } catch(e) {}
+      }
+      
+      const rawMessage = err.message || "";
+      const errorBody = err.response?.error || err.error || {};
+      const isQuotaExceeded = statusCode === 429 && (
+        rawMessage.includes("RESOURCE_EXHAUSTED") || 
+        rawMessage.includes("quota") || 
+        rawMessage.includes("Quota exceeded") ||
+        errorBody.status === "RESOURCE_EXHAUSTED" ||
+        rawMessage.includes("exceeded your current quota")
+      );
+
+      const isNotFound = statusCode === 404 || rawMessage.includes("404") || rawMessage.includes("NOT_FOUND");
+
+      if (isNotFound || isQuotaExceeded) {
+        let fallback = MODEL_FALLBACKS[currentModel];
+        if (!fallback) {
+          if (currentModel.includes("pro")) {
+            fallback = "gemini-3.1-pro-preview";
+          } else if (currentModel === "gemini-2.5-flash" || currentModel === "gemini-3.5-flash") {
+            fallback = "gemini-3.1-flash-lite";
+          } else {
+            fallback = "gemini-2.5-flash-lite";
+          }
+        }
+        
+        if (fallback && !attemptedModels.has(fallback)) {
+          console.log(`Model ${currentModel} failed (isNotFound: ${isNotFound}, isQuotaExceeded: ${isQuotaExceeded}). Falling back to alternative model: ${fallback}...`);
+          attemptedModels.add(fallback);
+          currentModel = fallback;
+          client = getGeminiClient(currentModel);
+          continue; 
+        } else {
+          // If the fallback has already been tried, inspect remaining pool items
+          const modelPool = [
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-flash",
+            "gemini-flash-latest"
+          ];
+          const nextUntried = modelPool.find(m => !attemptedModels.has(m));
+          if (nextUntried) {
+            console.log(`All primary fallbacks exhausted. Trying untried model from pool: ${nextUntried}...`);
+            attemptedModels.add(nextUntried);
+            currentModel = nextUntried;
+            client = getGeminiClient(currentModel);
+            continue;
+          }
+        }
+      }
+
+      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || 
+                         rawMessage.includes("503") || rawMessage.includes("429") ||
+                         rawMessage.includes("high demand") || rawMessage.includes("Internal error");
                          
       if (isRetryable && i < maxRetries) {
-        const delay = Math.pow(2, i + 1) * 1000 + Math.random() * 1000;
-        console.log(`Gemini API retryable error (${statusCode || 'unknown'}). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
+        const delay = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
+        console.log(`Gemini API retryable status (${statusCode || 'unknown'}). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -349,17 +421,13 @@ app.post("/api/drive/generate-index-step", async (req, res) => {
 
       // Query Gemini for single file summary
       try {
-        const aiClient = getGeminiClient(geminiModel);
         const filePrompt = `Based on the metadata and optional content sample of this file, provide a 1-sentence Japanese description of what it contains. Avoid technical jargon.
 FileName: ${file.name}
 MimeType: ${file.mimeType}
 Size: ${file.size} bytes
 ContentSample: ${contentSample || "No content available"}`;
         
-        const aiRes = await aiClient.models.generateContent({
-          model: geminiModel,
-          contents: filePrompt,
-        });
+        const aiRes = await generateContentWithRetry(geminiModel, filePrompt);
 
         const singleSummary = aiRes.text?.trim() || "ファイルの記述がありません。";
         fileSummariesList.push(`- **${file.name}**: ${singleSummary}`);
@@ -381,7 +449,6 @@ ContentSample: ${contentSample || "No content available"}`;
     // Step 3: Combine into a single Directory Summary
     let folderSummary = "";
     try {
-      const aiClient = getGeminiClient(geminiModel);
       const combinedPrompt = `You are a professional documentation archivist for Google Drive. Summarize the contents and main theme of this directory named "${folderName}" based on its items list, individual item descriptions, and pre-computed subfolder summaries.
 Write a concise overview in Japanese (3-4 sentences maximum). Do not mention placeholder indicators like "Auto backup", give real structure summary in a natural human way.
 
@@ -395,10 +462,7 @@ ${subdirs.map(d => {
 Files inside with brief details:
 ${fileSummariesList.join("\n") || "(No files)"}`;
 
-      const combinedAiRes = await aiClient.models.generateContent({
-        model: geminiModel,
-        contents: combinedPrompt,
-      });
+      const combinedAiRes = await generateContentWithRetry(geminiModel, combinedPrompt);
 
       folderSummary = combinedAiRes.text?.trim() || `フォルダ「${folderName}」のコンテンツの概要です。`;
     } catch (summaryErr: any) {
@@ -628,21 +692,15 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
            const base64Data = Buffer.from(arrBuffer).toString("base64");
            
            // Query Gemini with binary part directly
-           const aiClient = getGeminiClient(targetModel);
            const filePrompt = `以下のファイル内容を分析し、何が記載・描写されているか要約してください。日本語で出力してください。
            
 ファイル名: ${fileMeta.name}
 MIMEタイプ: ${fileMeta.mimeType}`;
-           
-           const aiRes = await aiClient.models.generateContent({
-             model: targetModel,
-             contents: {
-               parts: [
-                 { inlineData: { data: base64Data, mimeType: mimeType } },
-                 { text: filePrompt }
-               ]
-             }
-           });
+
+           const aiRes = await generateContentWithRetry(targetModel, [
+             { inlineData: { data: base64Data, mimeType: mimeType } },
+             { text: filePrompt }
+           ]);
            
            const summary = aiRes.text?.trim() || "No summary generated";
            
@@ -681,9 +739,8 @@ MIMEタイプ: ${fileMeta.mimeType}`;
     }
 
     // 3. Query Model for standard text
-    const contentSample = fullText.substring(0, 100000); // 100k chars max
-    const aiClient = getGeminiClient(targetModel);
-    const filePrompt = `以下のファイル内容（最大10万文字のスニペット）を分析し、主な内容の要約を日本語で出力してください。
+    const contentSample = fullText.substring(0, 50000); // 50k chars max to avoid 500 error on gemma models
+    const filePrompt = `以下のファイル内容（最大5万文字のスニペット）を分析し、主な内容の要約を日本語で出力してください。
     
 ファイル名: ${fileMeta.name}
 MIMEタイプ: ${fileMeta.mimeType}
@@ -691,10 +748,7 @@ MIMEタイプ: ${fileMeta.mimeType}
 ファイル内容:
 ${contentSample}`;
 
-    const aiRes = await aiClient.models.generateContent({
-      model: targetModel,
-      contents: filePrompt,
-    });
+    const aiRes = await generateContentWithRetry(targetModel, filePrompt);
 
     const summary = aiRes.text?.trim() || "No summary generated";
 
