@@ -10,6 +10,11 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - **Backend**: Node.js (Express), `@google/genai` (Gemini SDK).
 - **Storage**: 
   - **Firestore**: Tracks directory traversal state and metadata.
+    - **Project ID**: `moukaeritaid`
+    - **Database ID**: `indexmd-db` (Native mode)
+    - **Collections**:
+      - `users/{userId}/state/global_sync`: Tracks global sync tokens.
+      - `users/{userId}/directories/{directoryId}`: Stores metadata for each directory.
   - **Local Filesystem**: `src/data/validation_history.json` tracks processing success/fails.
 - **APIs**: Google Drive API (Advanced scope required for file manipulation).
 

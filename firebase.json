@@ -1,0 +1,12 @@
+{
+  "firestore": [
+    {
+      "database": "indexmd-db",
+      "rules": "firestore.rules"
+    },
+    {
+      "database": "(default)",
+      "rules": "firestore.rules"
+    }
+  ]
+}

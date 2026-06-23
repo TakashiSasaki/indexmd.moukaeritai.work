@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { parseOffice } from "officeparser";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -17,6 +18,31 @@ if (!fs.existsSync(CACHE_DIR)) {
 const SUMMARIES_CACHE_DIR = path.join(process.cwd(), "cache", "summaries");
 if (!fs.existsSync(SUMMARIES_CACHE_DIR)) {
   fs.mkdirSync(SUMMARIES_CACHE_DIR, { recursive: true });
+}
+
+const SCAN_CACHE_DIR = path.join(process.cwd(), "cache", "scan");
+if (!fs.existsSync(SCAN_CACHE_DIR)) {
+  fs.mkdirSync(SCAN_CACHE_DIR, { recursive: true });
+}
+
+function getScanCacheKey(parentFolderId: string | undefined, nextPageToken: string | undefined, lastTraversedAt: string | undefined): string {
+  const input = `p_${parentFolderId || "root"}_t_${nextPageToken || "none"}_l_${lastTraversedAt || "none"}`;
+  return crypto.createHash("md5").update(input).digest("hex") + ".json";
+}
+
+async function getCachedScan(key: string): Promise<any | null> {
+  const filePath = path.join(SCAN_CACHE_DIR, key);
+  try {
+    const content = await fsPromises.readFile(filePath, "utf-8");
+    return JSON.parse(content);
+  } catch (err) {
+    return null;
+  }
+}
+
+async function setCachedScan(key: string, data: any): Promise<void> {
+  const filePath = path.join(SCAN_CACHE_DIR, key);
+  await fsPromises.writeFile(filePath, JSON.stringify(data), "utf-8");
 }
 
 async function getCachedSnippet(fileId: string): Promise<string | null> {
@@ -347,9 +373,18 @@ app.post("/api/drive/scan", async (req, res) => {
 
   const { lastTraversedAt, nextPageToken, pageSize, parentFolderId } = req.body;
   const targetPageSize = pageSize || 100;
+  const cacheKey = getScanCacheKey(parentFolderId, nextPageToken, lastTraversedAt);
 
   try {
-    // We only fetch folders, or folders that are shortcuts
+    // 1. Try reading from disk cache
+    const cachedData = await getCachedScan(cacheKey);
+    if (cachedData) {
+      console.log(`[Cache Hit] Serving scan result from disk cache for key: ${cacheKey}`);
+      res.json({ ...cachedData, cached: true });
+      return;
+    }
+
+    // 2. Fetch from Google API on cache miss
     let q = "(mimeType = 'application/vnd.google-apps.folder' or (mimeType = 'application/vnd.google-apps.shortcut' and shortcutDetails.targetMimeType = 'application/vnd.google-apps.folder')) and trashed = false";
     
     if (parentFolderId) {
@@ -364,12 +399,67 @@ app.post("/api/drive/scan", async (req, res) => {
       url += `&pageToken=${encodeURIComponent(nextPageToken)}`;
     }
 
+    console.log(`[Cache Miss] Fetching scan result from Google Drive API: ${url}`);
     const response = await fetchGoogleDrive(url, token);
     const data = await response.json();
-    res.json(data);
+
+    // 3. Save to disk cache if it's a successful response (has no error key)
+    if (data && !data.error) {
+      await setCachedScan(cacheKey, data);
+    }
+
+    res.json({ ...data, cached: false });
   } catch (err: any) {
     const statusCode = err.status || 500;
     res.status(statusCode).json({ error: err.message || "Drive scan failed" });
+  }
+});
+
+// Endpoint to manually or programmatically clear the folder scan disk cache
+app.post("/api/drive/clear-scan-cache", async (req, res) => {
+  try {
+    const files = await fsPromises.readdir(SCAN_CACHE_DIR);
+    for (const file of files) {
+      await fsPromises.unlink(path.join(SCAN_CACHE_DIR, file));
+    }
+    console.log("[Cache Reset] Cleared all folder scan files from disk cache.");
+    res.json({ success: true, message: "Folder scan cache cleared successfully." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to clear scan cache" });
+  }
+});
+
+// Endpoint to manually clear specific or all caches individually
+app.post("/api/drive/clear-cache", async (req, res) => {
+  const { type } = req.body; // "scan" | "snippets" | "summaries" | "all"
+  try {
+    const clearDir = async (dirPath: string) => {
+      if (!fs.existsSync(dirPath)) return;
+      const files = await fsPromises.readdir(dirPath);
+      for (const file of files) {
+        await fsPromises.unlink(path.join(dirPath, file));
+      }
+    };
+
+    const clearedTypes: string[] = [];
+
+    if (type === "scan" || type === "all" || !type) {
+      await clearDir(SCAN_CACHE_DIR);
+      clearedTypes.push("フォルダ走査結果(scan)");
+    }
+    if (type === "snippets" || type === "all") {
+      await clearDir(CACHE_DIR);
+      clearedTypes.push("ファイルテキストスニペット(snippets)");
+    }
+    if (type === "summaries" || type === "all") {
+      await clearDir(SUMMARIES_CACHE_DIR);
+      clearedTypes.push("AI要約(summaries)");
+    }
+
+    console.log(`[Cache Reset] Cleared caches: ${clearedTypes.join(", ")}`);
+    res.json({ success: true, message: `${clearedTypes.join(", ")} キャッシュが正常にクリアされました。` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to clear cache" });
   }
 });
 

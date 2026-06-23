@@ -13,6 +13,7 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  memoryLocalCache,
   Firestore,
   collection, 
   doc, 
@@ -27,7 +28,8 @@ import {
   updateDoc,
   runTransaction,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  getCountFromServer
 } from "firebase/firestore";
 
 // Read configuration from dynamic firebase-applet-config
@@ -38,19 +40,36 @@ const auth = getAuth(app);
 
 // Use custom Firestore Database ID if present in config to avoid connection timeouts or database mismatches.
 let db: Firestore;
+const isIframe = typeof window !== "undefined" && window.self !== window.top;
+
 try {
-  db = initializeFirestore(app, {
-    localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()}),
-    experimentalForceLongPolling: true
-  }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+  if (isIframe) {
+    console.info("Running in iframe - initializing Firestore with memoryLocalCache to prevent offline queue blockage and tab-lock timeouts.");
+    db = initializeFirestore(app, {
+      localCache: memoryLocalCache(),
+      experimentalForceLongPolling: true
+    }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+  } else {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()}),
+      experimentalForceLongPolling: true
+    }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+  }
 } catch (e: any) {
   console.warn("Firestore initialization error (falling back)", e);
   try {
     db = initializeFirestore(app, {
+      localCache: memoryLocalCache(),
       experimentalForceLongPolling: true
     }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
   } catch (e2) {
-    db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+    try {
+      db = initializeFirestore(app, {
+        experimentalForceLongPolling: true
+      }, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+    } catch (e3) {
+      db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId || "(default)");
+    }
   }
 }
 
@@ -145,6 +164,7 @@ export {
   updateDoc,
   runTransaction,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  getCountFromServer
 };
 export type { User };
