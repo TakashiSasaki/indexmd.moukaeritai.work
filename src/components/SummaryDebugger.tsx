@@ -17,6 +17,7 @@ const MODELS = MODELS_INFO as ModelInfo[];
 
 export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry }) => {
   const [fileId, setFileId] = useState("");
+  const [outputMode, setOutputMode] = useState<"text" | "structured">("text");
   const [modelName, setModelName] = useState(() => {
     try {
       return localStorage.getItem(SELECTED_MODEL_KEY) || "gemini-3.5-flash";
@@ -236,6 +237,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
           modelName,
           token: token || "", // Passed in body to handle proxy stripping
           customInstruction: customPrompt,
+          outputMode,
         }),
       });
 
@@ -596,10 +598,31 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
           onCellClick={handleCellClick}
         />
 
-        <div className="mt-6">
-          <label className="block text-sm font-semibold text-slate-700 mb-2">
-            システムプロンプト (API送信時に付与される指示)
+        <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4">
+          <label className="text-sm font-semibold text-slate-700">
+            出力モード:
           </label>
+          <div className="flex bg-slate-100 p-1 rounded-lg">
+            <button
+              onClick={() => setOutputMode("text")}
+              className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${outputMode === "text" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              自由文要約
+            </button>
+            <button
+              onClick={() => setOutputMode("structured")}
+              className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${outputMode === "structured" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              構造化分析(JSON)
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <label className="block text-sm font-semibold text-slate-700 mb-1">
+            カスタム要約指示
+          </label>
+          <p className="text-xs text-slate-500 mb-2">この指示はAPIレベルのsystemInstructionではなく、要約タスク用の追加指示として本文・メタデータと一緒に送信されます。</p>
           <textarea
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
@@ -768,18 +791,131 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
           
           <div className="p-4 space-y-6">
             
-            {/* Summary Box */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                 <FileText className="w-4 h-4 text-emerald-400" />
-                 生成された要約
-              </h4>
-              <div className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50">
-                <p className="whitespace-pre-wrap text-emerald-50 leading-relaxed text-sm">
-                  {result.summary}
-                </p>
+            {result.outputMode === "structured" && result.structured ? (
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                       <FileText className="w-4 h-4 text-emerald-400" />
+                       index.md候補 (1行要約)
+                    </h4>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(result.structured.oneLineSummary)}
+                      className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
+                    >
+                      コピー
+                    </button>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50">
+                    <p className="whitespace-pre-wrap text-emerald-50 leading-relaxed text-sm font-bold">
+                      {result.structured.oneLineSummary}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                     詳細な要約
+                  </h4>
+                  <div className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50">
+                    <p className="whitespace-pre-wrap text-slate-200 leading-relaxed text-sm">
+                      {result.structured.detailedSummary}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">キーワード</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {result.structured.keywords.length > 0 ? result.structured.keywords.map((kw: string, i: number) => (
+                        <span key={i} className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300">{kw}</span>
+                      )) : <span className="text-xs text-slate-500">なし</span>}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">文書情報</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs text-slate-300 grid grid-cols-2 gap-2">
+                      <div>種類: <span className="text-white font-medium">{result.structured.documentType}</span></div>
+                      <div>言語: <span className="text-white font-medium">{result.structured.language}</span></div>
+                      <div>信頼度: <span className="text-white font-medium">{(result.structured.confidence * 100).toFixed(1)}%</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">固有表現</h4>
+                  <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-slate-300">
+                      <div><span className="text-slate-500 block mb-1">人物:</span> {result.structured.namedEntities.people.join(", ") || "-"}</div>
+                      <div><span className="text-slate-500 block mb-1">組織:</span> {result.structured.namedEntities.organizations.join(", ") || "-"}</div>
+                      <div><span className="text-slate-500 block mb-1">場所:</span> {result.structured.namedEntities.places.join(", ") || "-"}</div>
+                      <div><span className="text-slate-500 block mb-1">製品:</span> {result.structured.namedEntities.products.join(", ") || "-"}</div>
+                      <div className="sm:col-span-2"><span className="text-slate-500 block mb-1">プロジェクト:</span> {result.structured.namedEntities.projects.join(", ") || "-"}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {result.structured.urls.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">URL</h4>
+                    <ul className="list-disc pl-5 text-xs text-blue-400 space-y-1">
+                      {result.structured.urls.map((url: string, i: number) => (
+                        <li key={i}><a href={url} target="_blank" rel="noreferrer" className="hover:underline">{url}</a></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+                      Raw JSON
+                    </h4>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(JSON.stringify(result.structured, null, 2))}
+                      className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
+                    >
+                      JSONをコピー
+                    </button>
+                  </div>
+                  <pre className="bg-black/50 p-3 rounded-md border border-slate-800 text-[10px] text-emerald-300 font-mono overflow-x-auto">
+                    {JSON.stringify(result.structured, null, 2)}
+                  </pre>
+                </div>
               </div>
-            </div>
+            ) : result.structuredParseFailed ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-amber-950/30 border border-amber-900/50 rounded-lg shadow-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-sm text-amber-400">構造化データの解析に失敗しました</h4>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(result.rawText || "")}
+                      className="px-2 py-1 text-[9px] text-amber-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-amber-800 rounded bg-amber-900/40"
+                    >
+                      失敗出力をコピー
+                    </button>
+                  </div>
+                  <p className="text-amber-200 text-xs mb-2">{result.error}</p>
+                  <pre className="bg-black/40 p-3 rounded text-[10px] text-amber-300 font-mono overflow-x-auto whitespace-pre-wrap">
+                    {result.rawText}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                   <FileText className="w-4 h-4 text-emerald-400" />
+                   生成された要約 (自由文)
+                </h4>
+                <div className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50">
+                  <p className="whitespace-pre-wrap text-emerald-50 leading-relaxed text-sm">
+                    {result.summary}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Metadata Box */}
              <div className="space-y-2">

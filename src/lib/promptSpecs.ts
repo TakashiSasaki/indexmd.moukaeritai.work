@@ -1,4 +1,29 @@
 export const PROMPT_SPEC_VERSION = "1.0.0";
+export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.0.0";
+export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.0.0";
+
+export function buildSummaryDebugSystemInstruction(): string {
+  return `You are an expert document analyzer. 
+Analyze the provided document based on the metadata and content.
+Requirements:
+1. Always output your analysis in Japanese.
+2. Only extract named entities and URLs if they are explicitly present in the content. Do not invent facts or hallucinate details.
+3. Your 'oneLineSummary' must be concise and suitable for injection into an index.md file.
+4. If outputting structured JSON, ensure it strictly matches the requested schema.`;
+}
+
+export function buildStructuredSummaryTaskPrompt(input: DebugTextFileInput | DebugBinaryFileInput, customInstruction?: string): string {
+  const instructionPart = customInstruction ? `\nユーザー追加指示:\n${customInstruction}` : "";
+  let contentPart = "";
+  if ('contentSample' in input) {
+    contentPart = `\n\nファイル内容:\n${input.contentSample}`;
+  }
+
+  return `このファイルを詳細に分析し、指定されたJSON構造で結果を出力してください。${instructionPart}
+  
+ファイル名: ${input.name}
+MIMEタイプ: ${input.mimeType}${contentPart}`;
+}
 
 export interface FileSummaryInput {
   name: string;
