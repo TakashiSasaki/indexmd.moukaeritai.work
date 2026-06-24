@@ -2434,7 +2434,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       )}
 
       {activeTab === "summary-debugger" && (
-        <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} />
+        <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} userId={userId} setActiveTab={setActiveTab} />
       )}
 
       {activeTab === "logs" && (
