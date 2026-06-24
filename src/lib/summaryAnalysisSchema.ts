@@ -209,82 +209,131 @@ export function normalizeSummaryAnalysisResult(value: any): any {
   return result;
 }
 
-export function validateSummaryAnalysisResult(value: any): boolean {
-  if (!value || typeof value !== "object") return false;
+export function getSummaryAnalysisValidationErrors(value: any): string[] {
+  const errors: string[] = [];
+  if (!value || typeof value !== "object") {
+    errors.push("Result is not an object");
+    return errors;
+  }
   
-  if (typeof value.oneLineSummary !== "string") return false;
-  if (typeof value.detailedSummary !== "string") return false;
-  if (typeof value.title !== "string") return false;
-  if (typeof value.inferredTitle !== "string") return false;
-  if (typeof value.documentIntent !== "string" || !DOCUMENT_INTENTS.includes(value.documentIntent)) return false;
-  if (typeof value.primaryLanguage !== "string") return false;
-  if (typeof value.confidence !== "number" || value.confidence < 0 || value.confidence > 1) return false;
+  if (typeof value.oneLineSummary !== "string" || value.oneLineSummary.trim() === "") errors.push("oneLineSummary must be a non-empty string");
+  if (typeof value.detailedSummary !== "string") errors.push("detailedSummary must be a string");
+  if (typeof value.title !== "string") errors.push("title must be a string");
+  if (typeof value.inferredTitle !== "string") errors.push("inferredTitle must be a string");
+  if (typeof value.documentIntent !== "string" || !DOCUMENT_INTENTS.includes(value.documentIntent)) errors.push(`documentIntent is invalid: ${value.documentIntent}`);
+  if (typeof value.primaryLanguage !== "string" || value.primaryLanguage.trim() === "") errors.push("primaryLanguage must be a non-empty string");
+  if (typeof value.confidence !== "number" || !Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) errors.push("confidence must be a number between 0 and 1");
 
-  if (!Array.isArray(value.documentTypes)) return false;
-  for (const dt of value.documentTypes) {
-    if (typeof dt !== "string" || !DOCUMENT_TYPES.includes(dt)) return false;
-  }
-
-  if (!Array.isArray(value.topics)) return false;
-  for (const t of value.topics) {
-    if (typeof t !== "string") return false;
-  }
-
-  if (!Array.isArray(value.keywords)) return false;
-  for (const k of value.keywords) {
-    if (typeof k !== "string") return false;
-  }
-
-  if (!Array.isArray(value.languages)) return false;
-  for (const l of value.languages) {
-    if (typeof l !== "string") return false;
-  }
-
-  if (!Array.isArray(value.warnings)) return false;
-  for (const w of value.warnings) {
-    if (typeof w !== "string") return false;
-  }
-
-  if (!Array.isArray(value.namedEntities)) return false;
-  for (const ne of value.namedEntities) {
-    if (!ne || typeof ne !== "object") return false;
-    if (typeof ne.name !== "string" || typeof ne.type !== "string" || !NAMED_ENTITY_TYPES.includes(ne.type)) return false;
-  }
-
-  if (!Array.isArray(value.resourceReferences)) return false;
-  for (const rr of value.resourceReferences) {
-    if (!rr || typeof rr !== "object") return false;
-    if (typeof rr.uri !== "string" || rr.uri.trim() === "" || !rr.uri.includes(":")) return false; // Basic URI check
-    if (rr.raw !== undefined && typeof rr.raw !== "string") return false;
-  }
-
-  if (!Array.isArray(value.temporalReferences)) return false;
-  for (const tr of value.temporalReferences) {
-    if (!tr || typeof tr !== "object") return false;
-    if (typeof tr.date !== "string" || typeof tr.role !== "string" || !TEMPORAL_REFERENCE_ROLES.includes(tr.role) || typeof tr.raw !== "string") return false;
-  }
-
-  if (!Array.isArray(value.parties)) return false;
-  for (const pt of value.parties) {
-    if (!pt || typeof pt !== "object") return false;
-    if (typeof pt.name !== "string" || typeof pt.role !== "string" || !PARTY_ROLES.includes(pt.role) || typeof pt.kind !== "string" || !PARTY_KINDS.includes(pt.kind)) return false;
-  }
-
-  if (!Array.isArray(value.monetaryAmounts)) return false;
-  for (const ma of value.monetaryAmounts) {
-    if (!ma || typeof ma !== "object") return false;
-    if (typeof ma.amount !== "number" || typeof ma.currency !== "string" || typeof ma.role !== "string" || !MONETARY_AMOUNT_ROLES.includes(ma.role) || typeof ma.raw !== "string") return false;
-  }
-
-  if (!value.subjectAreas || typeof value.subjectAreas !== "object") return false;
-  for (const key of Object.keys(value.subjectAreas)) {
-    if (!SUBJECT_AREAS_MAP[key]) return false;
-    const arr = value.subjectAreas[key];
-    if (!Array.isArray(arr) || arr.length === 0) return false;
-    for (const item of arr) {
-      if (typeof item !== "string" || !SUBJECT_AREAS_MAP[key].includes(item)) return false;
+  if (!Array.isArray(value.documentTypes) || value.documentTypes.length === 0) {
+    errors.push("documentTypes must be a non-empty array");
+  } else {
+    for (const dt of value.documentTypes) {
+      if (typeof dt !== "string" || !DOCUMENT_TYPES.includes(dt)) errors.push(`Invalid documentType: ${dt}`);
+    }
+    if (value.documentTypes.includes("unknown") && value.documentTypes.length > 1) {
+      errors.push("If documentTypes contains 'unknown', it must be the only value");
     }
   }
 
-  return true;
+  if (!Array.isArray(value.topics)) errors.push("topics must be an array");
+  else {
+    for (const t of value.topics) if (typeof t !== "string") errors.push("Topic items must be strings");
+  }
+
+  if (!Array.isArray(value.keywords)) errors.push("keywords must be an array");
+  else {
+    for (const k of value.keywords) if (typeof k !== "string") errors.push("Keyword items must be strings");
+  }
+
+  if (!Array.isArray(value.languages)) errors.push("languages must be an array");
+  else {
+    for (const l of value.languages) if (typeof l !== "string") errors.push("Language items must be strings");
+  }
+
+  if (!Array.isArray(value.warnings)) errors.push("warnings must be an array");
+  else {
+    for (const w of value.warnings) if (typeof w !== "string") errors.push("Warning items must be strings");
+  }
+
+  if (!Array.isArray(value.namedEntities)) errors.push("namedEntities must be an array");
+  else {
+    for (const ne of value.namedEntities) {
+      if (!ne || typeof ne !== "object") errors.push("namedEntities item must be an object");
+      else {
+        if (typeof ne.name !== "string" || ne.name.trim() === "") errors.push("namedEntity name must be a non-empty string");
+        if (typeof ne.type !== "string" || !NAMED_ENTITY_TYPES.includes(ne.type)) errors.push(`namedEntity type invalid: ${ne.type}`);
+      }
+    }
+  }
+
+  const uriRegex = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+  if (!Array.isArray(value.resourceReferences)) errors.push("resourceReferences must be an array");
+  else {
+    for (const rr of value.resourceReferences) {
+      if (!rr || typeof rr !== "object") errors.push("resourceReferences item must be an object");
+      else {
+        if (typeof rr.uri !== "string" || rr.uri.trim() === "" || !uriRegex.test(rr.uri)) errors.push(`resourceReference uri invalid: ${rr.uri}`);
+        if (rr.raw !== undefined && typeof rr.raw !== "string") errors.push("resourceReference raw must be a string if provided");
+      }
+    }
+  }
+
+  if (!Array.isArray(value.temporalReferences)) errors.push("temporalReferences must be an array");
+  else {
+    for (const tr of value.temporalReferences) {
+      if (!tr || typeof tr !== "object") errors.push("temporalReferences item must be an object");
+      else {
+        if (typeof tr.date !== "string") errors.push("temporalReference date must be a string");
+        if (typeof tr.role !== "string" || !TEMPORAL_REFERENCE_ROLES.includes(tr.role)) errors.push(`temporalReference role invalid: ${tr.role}`);
+        if (typeof tr.raw !== "string" || tr.raw.trim() === "") errors.push("temporalReference raw must be a non-empty string");
+      }
+    }
+  }
+
+  if (!Array.isArray(value.parties)) errors.push("parties must be an array");
+  else {
+    for (const pt of value.parties) {
+      if (!pt || typeof pt !== "object") errors.push("parties item must be an object");
+      else {
+        if (typeof pt.name !== "string" || pt.name.trim() === "") errors.push("party name must be a non-empty string");
+        if (typeof pt.role !== "string" || !PARTY_ROLES.includes(pt.role)) errors.push(`party role invalid: ${pt.role}`);
+        if (typeof pt.kind !== "string" || !PARTY_KINDS.includes(pt.kind)) errors.push(`party kind invalid: ${pt.kind}`);
+      }
+    }
+  }
+
+  if (!Array.isArray(value.monetaryAmounts)) errors.push("monetaryAmounts must be an array");
+  else {
+    for (const ma of value.monetaryAmounts) {
+      if (!ma || typeof ma !== "object") errors.push("monetaryAmounts item must be an object");
+      else {
+        if (typeof ma.amount !== "number" || !Number.isFinite(ma.amount)) errors.push("monetaryAmount amount must be a finite number");
+        if (typeof ma.currency !== "string") errors.push("monetaryAmount currency must be a string");
+        if (typeof ma.role !== "string" || !MONETARY_AMOUNT_ROLES.includes(ma.role)) errors.push(`monetaryAmount role invalid: ${ma.role}`);
+        if (typeof ma.raw !== "string" || ma.raw.trim() === "") errors.push("monetaryAmount raw must be a non-empty string");
+      }
+    }
+  }
+
+  if (!value.subjectAreas || typeof value.subjectAreas !== "object") errors.push("subjectAreas must be an object");
+  else {
+    for (const key of Object.keys(value.subjectAreas)) {
+      if (!SUBJECT_AREAS_MAP[key]) errors.push(`subjectAreas unknown domain: ${key}`);
+      else {
+        const arr = value.subjectAreas[key];
+        if (!Array.isArray(arr) || arr.length === 0) errors.push(`subjectAreas domain ${key} must have a non-empty array`);
+        else {
+          for (const item of arr) {
+            if (typeof item !== "string" || !SUBJECT_AREAS_MAP[key].includes(item)) errors.push(`subjectAreas invalid topic in ${key}: ${item}`);
+          }
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
+export function validateSummaryAnalysisResult(value: any): boolean {
+  return getSummaryAnalysisValidationErrors(value).length === 0;
 }

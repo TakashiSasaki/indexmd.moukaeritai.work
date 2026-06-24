@@ -24,9 +24,18 @@ The core of the "Hybrid-Merge" logic:
 - If they don't exist, it appends the AI section to the bottom of the existing content.
 - This ensures users can add manual notes to any folder without fear of deletion.
 
-## 4. History Logging (`src/data/validation_history.json`)
+## 4. History Logging
+
+### 4.1 Production Logs (`src/data/validation_history.json`)
 A local JSON audit log for the developer/user to monitor:
 - Timestamp of successful processing.
 - The specific Gemini model used (handling fallbacks).
 - MIME types and file names processed.
 - Truncated to 100 entries to prevent oversized payloads.
+
+### 4.2 Experiment History (`cache/experiment-history/experiment_history.json`)
+Used for AI Summary Test workbench:
+- Stores experimental runs of draft schemas (e.g., `v1.1.0-draft.1`).
+- Saved in the ignored `cache/` directory to prevent accidental commits of private data.
+- **Privacy/Safety Constraints**: Raw model output texts are NOT persisted by default. Only normalized structured JSON, validation diagnostics, schema versions, and metadata are saved.
+- Provides detailed validation errors for structured schema tests without retaining PII in raw text.

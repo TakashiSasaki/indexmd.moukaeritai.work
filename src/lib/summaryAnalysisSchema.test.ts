@@ -31,7 +31,8 @@ test("validateSummaryAnalysisResult passes valid object", () => {
       { amount: 1000, currency: "JPY", role: "total", raw: "1,000円" }
     ],
     subjectAreas: {
-      computerScience: ["softwareEngineering"]
+      computerScience: ["softwareEngineering"],
+      mathematics: ["categoryTheory", "topology"]
     },
     confidence: 0.95,
     warnings: []
@@ -39,22 +40,34 @@ test("validateSummaryAnalysisResult passes valid object", () => {
   assert.ok(validateSummaryAnalysisResult(validObj));
 });
 
-test("validateSummaryAnalysisResult fails on missing required field", () => {
-  const invalidObj = {
+test("validateSummaryAnalysisResult fails on old v1.0-like object", () => {
+  const oldObj = {
     oneLineSummary: "テストです。",
-    detailedSummary: "これはテストのための詳細な要約です。"
+    detailedSummary: "詳細",
+    title: "",
+    documentType: "specification", // v1.0 format
+    urls: ["https://example.com"], // v1.0 format
+    language: "ja" // v1.0 format
+  };
+  assert.ok(!validateSummaryAnalysisResult(oldObj));
+});
+
+test("validateSummaryAnalysisResult fails on invalid documentTypes", () => {
+  const invalidObj = {
+    ...getValidBase(),
+    documentTypes: ["unknown_type"]
   };
   assert.ok(!validateSummaryAnalysisResult(invalidObj));
 });
 
-test("validateSummaryAnalysisResult fails on invalid documentIntent", () => {
-  const invalidObj = {
+function getValidBase() {
+  return {
     oneLineSummary: "テストです。",
     detailedSummary: "詳細",
     title: "",
     inferredTitle: "",
     documentTypes: ["note"],
-    documentIntent: "invalid_intent", // invalid
+    documentIntent: "inform",
     topics: [],
     keywords: [],
     namedEntities: [],
@@ -67,6 +80,109 @@ test("validateSummaryAnalysisResult fails on invalid documentIntent", () => {
     subjectAreas: {},
     confidence: 0.9,
     warnings: []
+  };
+}
+
+test("validateSummaryAnalysisResult fails on missing required field", () => {
+  const invalidObj = {
+    oneLineSummary: "テストです。",
+    detailedSummary: "これはテストのための詳細な要約です。"
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj));
+});
+
+test("validateSummaryAnalysisResult fails on invalid documentIntent", () => {
+  const invalidObj = {
+    ...getValidBase(),
+    documentIntent: "invalid_intent"
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj));
+});
+
+test("validateSummaryAnalysisResult fails on invalid namedEntities[].type", () => {
+  const invalidObj = {
+    ...getValidBase(),
+    namedEntities: [{ name: "test", type: "invalid_type" }]
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj));
+});
+
+test("validateSummaryAnalysisResult fails on invalid parties[].role or kind", () => {
+  const invalidObj1 = {
+    ...getValidBase(),
+    parties: [{ name: "test", role: "invalid_role", kind: "person" }]
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj1));
+
+  const invalidObj2 = {
+    ...getValidBase(),
+    parties: [{ name: "test", role: "author", kind: "invalid_kind" }]
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj2));
+});
+
+test("validateSummaryAnalysisResult fails on resourceReferences[].uri without scheme", () => {
+  const invalidObj = {
+    ...getValidBase(),
+    resourceReferences: [{ uri: "example.com" }] // Missing http:// or similar
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj));
+});
+
+test("validateSummaryAnalysisResult fails on unknown subjectAreas key", () => {
+  const invalidObj = {
+    ...getValidBase(),
+    subjectAreas: {
+      unknownDomain: ["some_topic"]
+    }
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj));
+});
+
+test("validateSummaryAnalysisResult fails on invalid confidence", () => {
+  const invalidObj1 = {
+    ...getValidBase(),
+    confidence: -0.1
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj1));
+
+  const invalidObj2 = {
+    ...getValidBase(),
+    confidence: 1.1
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj2));
+});
+
+test("validateSummaryAnalysisResult fails on empty documentTypes or unknown with others", () => {
+  const invalidObj1 = { ...getValidBase(), documentTypes: [] };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj1));
+
+  const invalidObj2 = { ...getValidBase(), documentTypes: ["unknown", "report"] };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj2));
+});
+
+test("validateSummaryAnalysisResult fails on blank names or raw strings", () => {
+  const invalidObj1 = { ...getValidBase(), namedEntities: [{ name: " ", type: "person" }] };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj1));
+
+  const invalidObj2 = { ...getValidBase(), parties: [{ name: "", role: "author", kind: "person" }] };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj2));
+
+  const invalidObj3 = { ...getValidBase(), temporalReferences: [{ date: "2026", role: "publication_date", raw: "  " }] };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj3));
+});
+
+test("validateSummaryAnalysisResult passes multi-language and warnings", () => {
+  const validObj = {
+    ...getValidBase(),
+    languages: ["ja", "en"],
+    warnings: ["Some part was illegible"]
+  };
+  assert.ok(validateSummaryAnalysisResult(validObj));
+
+  const invalidObj = {
+    ...getValidBase(),
+    warnings: [123] // Not a string
   };
   assert.ok(!validateSummaryAnalysisResult(invalidObj));
 });

@@ -120,3 +120,37 @@ test("buildStructuredSummaryTaskPrompt constructs valid prompt without custom in
   assert.ok(!result.includes("undefined"));
   assert.ok(!result.includes("null"));
 });
+
+test("buildSummaryDebugSystemInstruction and TaskPrompt adhere to v1.1.0-draft.1 constraints", () => {
+  const sysInst = buildSummaryDebugSystemInstruction();
+  const taskPrompt = buildStructuredSummaryTaskPrompt({
+    name: "test.md",
+    mimeType: "text/markdown",
+    contentSample: "# Hello\nworld"
+  });
+
+  const combined = sysInst + taskPrompt;
+
+  // Mention resourceReferences
+  assert.ok(combined.includes("resourceReferences"));
+
+  // Mention documentTypes
+  assert.ok(combined.includes("documentTypes"));
+
+  // Mention primaryLanguage and languages
+  assert.ok(combined.includes("primaryLanguage"));
+  assert.ok(combined.includes("languages"));
+
+  // JSON only, no markdown fences
+  assert.ok(combined.toLowerCase().includes("json"));
+  assert.ok(combined.includes("markdown")); // usually "do not use markdown fences" or similar
+
+  // Distinguishes topics, keywords, subjectAreas
+  assert.ok(combined.includes("topics"));
+  assert.ok(combined.includes("keywords"));
+  assert.ok(combined.includes("subjectAreas"));
+
+  // Distinguishes namedEntities and parties
+  assert.ok(combined.includes("named entities") || combined.includes("namedEntities"));
+  assert.ok(combined.includes("parties"));
+});

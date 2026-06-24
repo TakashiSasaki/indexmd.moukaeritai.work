@@ -16,6 +16,12 @@ const SELECTED_MODEL_KEY = 'gemini_selected_model';
 
 const MODELS = MODELS_INFO as ModelInfo[];
 
+export function canGenerateSummary(inputMode: 'drive' | 'manual', fileId: string, manualText: string, loading: boolean): boolean {
+  if (loading) return false;
+  if (inputMode === 'drive') return !!fileId.trim();
+  return !!manualText.trim();
+}
+
 export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry }) => {
   const [inputMode, setInputMode] = useState<"drive" | "manual">("drive");
   const [manualText, setManualText] = useState("");
@@ -713,7 +719,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
 
         <button
           onClick={handleGenerate}
-          disabled={loading || !fileId}
+          disabled={loading || (inputMode === 'drive' ? !fileId.trim() : !manualText.trim())}
           className="w-full mt-2 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-4 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98]"
         >
           {loading ? (
@@ -796,10 +802,11 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                             outputMode: item.outputMode,
                             metadata: item.fileMetadata,
                             structured: item.structuredResult,
-                            summary: item.outputMode !== 'structured' ? item.rawOutput : (item.structuredResult?.oneLineSummary || "No summary"),
+                            summary: item.outputMode !== 'structured' ? (item.rawOutput || item.summary || "No summary (raw output not persisted)") : (item.structuredResult?.oneLineSummary || "No summary"),
                             rawText: item.rawOutput,
                             schemaVersion: item.schemaVersion,
                             error: item.error,
+                            validationErrors: item.validationErrors,
                             structuredParseFailed: !item.parseSuccess,
                           });
                           setUsedModel(item.model);
@@ -1194,6 +1201,24 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                     </button>
                   </div>
                   <p className="text-amber-200 text-xs mb-2">{result.error}</p>
+                  
+                  {result.validationErrors && result.validationErrors.length > 0 && (
+                    <div className="mb-4 space-y-1">
+                      <h5 className="text-xs font-bold text-rose-400">バリデーションエラー:</h5>
+                      <ul className="list-disc list-inside text-xs text-rose-300">
+                        {result.validationErrors.map((err: string, i: number) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(result.validationErrors.join('\n'))}
+                        className="mt-2 px-2 py-1 text-[9px] text-rose-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-rose-800 rounded bg-rose-900/40 inline-block"
+                      >
+                        エラー一覧をコピー
+                      </button>
+                    </div>
+                  )}
+
                   <pre className="bg-black/40 p-3 rounded text-[10px] text-amber-300 font-mono overflow-x-auto whitespace-pre-wrap">
                     {result.rawText}
                   </pre>
