@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle, History, Trash2 } from 'lucide-react';
+import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle, History, Trash2, FolderPlus } from 'lucide-react';
 import { getDriveAuthHeaders } from '../lib/driveToken';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
 import { ModelInfo, ValidationRecord, ExperimentHistoryRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
+import { SUMMARY_FIXTURES } from '../lib/__fixtures__/summary-schema';
 
 interface SummaryDebuggerProps {
   token: string | null;
@@ -25,6 +26,7 @@ export function canGenerateSummary(inputMode: 'drive' | 'manual', fileId: string
 export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry }) => {
   const [inputMode, setInputMode] = useState<"drive" | "manual">("drive");
   const [manualText, setManualText] = useState("");
+  const [manualInputLabel, setManualInputLabel] = useState<string | null>(null);
   const [fileId, setFileId] = useState("");
   const [outputMode, setOutputMode] = useState<"text" | "structured">("text");
   const [modelName, setModelName] = useState(() => {
@@ -291,6 +293,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
             modelName,
             customInstruction: customPrompt,
             outputMode,
+            inputLabel: manualInputLabel,
           }),
         });
       }
@@ -493,17 +496,48 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
             </div>
           </div>
         ) : (
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">
-              テスト用テキスト
-              <span className="ml-2 text-xs text-rose-500 font-normal bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">※スキーマ評価専用</span>
-            </label>
-            <textarea
-              value={manualText}
-              onChange={(e) => setManualText(e.target.value)}
-              placeholder="テスト用のテキストをここに貼り付けてください。"
-              className="w-full h-32 bg-slate-50 border border-slate-200 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-            />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                テスト用テキスト
+                <span className="ml-2 text-xs text-rose-500 font-normal bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">※スキーマ評価専用</span>
+              </label>
+              <textarea
+                value={manualText}
+                onChange={(e) => {
+                  setManualText(e.target.value);
+                  setManualInputLabel(null); // Reset label if manually edited
+                }}
+                placeholder="テスト用のテキストをここに貼り付けてください。"
+                className="w-full h-32 bg-slate-50 border border-slate-200 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+              />
+            </div>
+
+            {/* Synthetic Fixtures Loader */}
+            <div className="bg-amber-50/50 border border-amber-200 rounded-md p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <FolderPlus className="w-4 h-4 text-amber-600" />
+                <label className="text-xs font-bold text-amber-800">Synthetic Fixtures (テスト用データセット)</label>
+              </div>
+              <p className="text-[10px] text-amber-700 mb-2">
+                安全にスキーマ評価を行うための架空のダミーデータです。クリックするとテキストエリアに読み込まれます。
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {SUMMARY_FIXTURES.map(fixture => (
+                  <button
+                    key={fixture.id}
+                    onClick={() => {
+                      setManualText(fixture.content);
+                      setManualInputLabel(`Fixture: ${fixture.label}`);
+                    }}
+                    className="text-[10px] bg-white border border-amber-300 text-amber-700 hover:bg-amber-100 hover:text-amber-900 px-2 py-1 rounded transition-colors font-medium flex items-center gap-1"
+                  >
+                    <FileText className="w-3 h-3" />
+                    {fixture.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -771,18 +805,25 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                   <th className="p-2 border-b border-slate-200">Time</th>
                   <th className="p-2 border-b border-slate-200">Input</th>
                   <th className="p-2 border-b border-slate-200">Model</th>
-                  <th className="p-2 border-b border-slate-200">Mode/Schema</th>
+                  <th className="p-2 border-b border-slate-200">Schema/Mode</th>
                   <th className="p-2 border-b border-slate-200">Status</th>
+                  <th className="p-2 border-b border-slate-200">Preview / Classifications</th>
                   <th className="p-2 border-b border-slate-200">Action</th>
                 </tr>
               </thead>
-              <tbody className="text-xs text-slate-600">
-                {experimentHistory.map((item) => (
+              <tbody className="text-[10px] sm:text-xs text-slate-600">
+                {experimentHistory.map((item) => {
+                  const summaryPreview = item.structuredResult?.oneLineSummary || (item.outputMode !== 'structured' && item.rawOutput) || '-';
+                  const docTypes = item.structuredResult?.documentTypes?.join(', ') || '-';
+                  const docIntent = item.structuredResult?.documentIntent || '-';
+                  const subjects = item.structuredResult?.subjectAreas ? Object.keys(item.structuredResult.subjectAreas).join(', ') : '-';
+                  
+                  return (
                   <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="p-2 whitespace-nowrap">{new Date(item.timestamp).toLocaleTimeString()}</td>
-                    <td className="p-2 max-w-[150px] truncate" title={item.inputLabel}>{item.inputLabel}</td>
+                    <td className="p-2 max-w-[120px] truncate" title={item.inputLabel}>{item.inputLabel}</td>
                     <td className="p-2 whitespace-nowrap">{item.model}</td>
-                    <td className="p-2 whitespace-nowrap">{item.outputMode} {item.schemaVersion ? `(${item.schemaVersion})` : ''}</td>
+                    <td className="p-2 whitespace-nowrap">{item.outputMode === 'structured' ? item.schemaVersion : item.outputMode}</td>
                     <td className="p-2 whitespace-nowrap">
                       {item.error ? (
                         <span className="text-rose-600 flex items-center gap-1"><XCircle className="w-3 h-3"/> Error</span>
@@ -792,6 +833,14 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                         ) : (
                           <span className="text-amber-600 flex items-center gap-1"><XCircle className="w-3 h-3"/> Invalid</span>
                         )
+                      )}
+                    </td>
+                    <td className="p-2 max-w-[200px]">
+                      <div className="truncate font-medium text-slate-800 mb-0.5" title={summaryPreview}>{summaryPreview}</div>
+                      {item.outputMode === 'structured' && item.parseSuccess && (
+                        <div className="text-[9px] text-slate-400 truncate" title={`Type: ${docTypes} | Intent: ${docIntent} | Areas: ${subjects}`}>
+                          <span className="text-slate-500">T:</span> {docTypes} / <span className="text-slate-500">I:</span> {docIntent} / <span className="text-slate-500">A:</span> {subjects}
+                        </div>
                       )}
                     </td>
                     <td className="p-2 whitespace-nowrap">
@@ -812,13 +861,13 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                           setUsedModel(item.model);
                           setError(item.error || null);
                         }}
-                        className="text-indigo-600 hover:underline"
+                        className="text-indigo-600 hover:underline flex items-center gap-1"
                       >
                         表示
                       </button>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

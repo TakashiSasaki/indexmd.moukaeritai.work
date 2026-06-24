@@ -1209,7 +1209,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
 
 app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
   try {
-    const { text, customInstruction, modelName, outputMode } = req.body;
+    const { text, customInstruction, modelName, outputMode, inputLabel } = req.body;
     if (!text || typeof text !== "string") {
       return res.status(400).json({ error: "Missing or invalid 'text' field" });
     }
@@ -1290,7 +1290,7 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
 
     saveExperimentHistory({
       inputKind: "manualText",
-      inputLabel: `Manual Text (${text.length} chars)`,
+      inputLabel: inputLabel || `Manual Text (${text.length} chars)`,
       model: targetModel,
       outputMode: mode,
       schemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,

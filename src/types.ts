@@ -54,6 +54,7 @@ export interface ExperimentHistoryRecord {
   structuredResult?: any;
   rawOutput?: string;
   error?: string;
+  validationErrors?: string[];
   warnings?: string[];
   manualTextHash?: string; // Only if we want to store it
 }
