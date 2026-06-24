@@ -4,7 +4,9 @@ import {
   buildFileSummaryPrompt, 
   buildFolderSummaryPrompt, 
   buildDebugTextFileSummaryPrompt, 
-  buildDebugBinaryFileSummaryPrompt 
+  buildDebugBinaryFileSummaryPrompt,
+  buildSummaryDebugSystemInstruction,
+  buildStructuredSummaryTaskPrompt
 } from "./promptSpecs.js";
 
 test("buildFileSummaryPrompt constructs valid prompt", () => {
@@ -79,4 +81,42 @@ test("buildDebugBinaryFileSummaryPrompt constructs valid prompt", () => {
   assert.ok(result.includes("日本語で"));
   assert.ok(result.includes("要約"));
   assert.ok(!result.includes("undefined"));
+});
+
+test("buildSummaryDebugSystemInstruction returns correct string", () => {
+  const result = buildSummaryDebugSystemInstruction();
+  assert.ok(result.includes("Japanese"));
+  assert.ok(result.includes("oneLineSummary"));
+});
+
+test("buildStructuredSummaryTaskPrompt constructs valid prompt with custom instruction", () => {
+  const result = buildStructuredSummaryTaskPrompt({
+    name: "test.md",
+    mimeType: "text/markdown",
+    contentSample: "# Hello\nworld"
+  }, "Important text");
+
+  assert.ok(result.includes("test.md"));
+  assert.ok(result.includes("text/markdown"));
+  assert.ok(result.includes("# Hello\nworld"));
+  assert.ok(result.includes("Important text"));
+  assert.ok(result.includes("JSON"));
+  assert.ok(!result.includes("undefined"));
+  assert.ok(!result.includes("null"));
+});
+
+test("buildStructuredSummaryTaskPrompt constructs valid prompt without custom instruction", () => {
+  const result = buildStructuredSummaryTaskPrompt({
+    name: "test.md",
+    mimeType: "text/markdown",
+    contentSample: "# Hello\nworld"
+  });
+
+  assert.ok(result.includes("test.md"));
+  assert.ok(result.includes("text/markdown"));
+  assert.ok(result.includes("# Hello\nworld"));
+  assert.ok(!result.includes("ユーザー追加指示"));
+  assert.ok(result.includes("JSON"));
+  assert.ok(!result.includes("undefined"));
+  assert.ok(!result.includes("null"));
 });

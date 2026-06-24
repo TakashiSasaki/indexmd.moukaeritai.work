@@ -4,6 +4,24 @@ This document defines the prompt text and output formats used by the Drive Index
 
 **Prompt Spec Version:** `1.0.0`
 **Format Version:** `1.0.0`
+**Structured Schema Version:** `1.0.0`
+**System Instruction Version:** `1.0.0`
+
+---
+
+## Output Modes
+
+The application supports multiple output modes for summarizing files in the debug workbench:
+
+1.  **Free-Text Mode (自由文要約)**: The default behavior. Generates an unstructured text summary.
+2.  **Structured JSON Mode (構造化分析(JSON))**: An optional mode that forces the model to extract specific structured entities (`oneLineSummary`, `detailedSummary`, `keywords`, `urls`, `namedEntities`, `documentType`, `language`, `confidence`) according to a strict JSON schema.
+
+### Native Structured Output vs Prompt-Based Fallback
+If the installed `@google/genai` SDK and target model support native structured output (`responseMimeType: "application/json"`, `responseSchema`), the API utilizes it directly. If the model or SDK does not support it, a prompt-based fallback approach is used to request JSON formatting, which is then parsed and validated server-side.
+
+### System Instructions vs Custom Instructions
+- **Fixed System Instruction**: When the API supports it, a fixed system instruction is attached to the API call. This instruction sets base policies (e.g., output in Japanese, do not hallucinate entities, `oneLineSummary` must be concise).
+- **Custom Task Instruction (カスタム要約指示)**: An optional user-provided text appended to the prompt. It is intended to guide the specific summary task, not to overwrite the core fixed policies. It is appended as a regular text prompt rather than an API-level `systemInstruction`.
 
 ---
 
@@ -58,7 +76,7 @@ ${input.fileSummariesList.join("\n") || "(No files)"}
 
 ---
 
-## 3. Debug Text File Summary Prompt
+## 3. Debug Text File Summary Prompt (Free-Text Mode)
 **Purpose:** Generate a summary of up to a 50,000 character text snippet in the File Debug view.
 
 **Expected Language:** Japanese
@@ -76,7 +94,7 @@ ${input.contentSample}
 
 ---
 
-## 4. Debug Binary File Summary Prompt
+## 4. Debug Binary File Summary Prompt (Free-Text Mode)
 **Purpose:** Directly ask Gemini to analyze an image or PDF passed via the native multimodal binary payload in the File Debug view.
 
 **Expected Language:** Japanese
@@ -91,7 +109,27 @@ MIMEタイプ: ${input.mimeType}
 
 ---
 
-## 5. `index.md` Generated Format Specification
+## 5. Structured Analysis Task Prompt (Structured Mode)
+**Purpose:** Extract structured JSON information from text or binary documents.
+
+**Expected Language:** Japanese
+
+**Template:**
+```
+このファイルを詳細に分析し、指定されたJSON構造で結果を出力してください。
+ユーザー追加指示:
+${customInstruction}
+  
+ファイル名: ${input.name}
+MIMEタイプ: ${input.mimeType}
+
+ファイル内容:
+${input.contentSample}
+```
+
+---
+
+## 6. `index.md` Generated Format Specification
 
 The generated `index.md` has two primary zones:
 1. **User Notes** (Protected) - Any text outside the auto-generated markers is considered human-authored and will **never** be overwritten.
@@ -112,4 +150,5 @@ ${input.mdSubdirsText || "*このディレクトリにはサブディレクト�
 ```
 
 **Marker Contract:**
-The hybrid-merge process requires exact matching of the start and end HTML comments. The server will isolate that section, replace it entirely, and stitch it back with the user notes intact.
+The hybrid-merge process requires exact matching of the start and end HTML comments. The server will isolate that section, replace it entirely, and stitch it back with the user notes intact. The extracted `oneLineSummary` from structured analysis may be used as a candidate for the `index.md` summary.
+
