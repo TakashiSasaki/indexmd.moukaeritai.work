@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle } from 'lucide-react';
+import { getDriveAuthHeaders } from '../lib/driveToken';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
 import { ModelInfo, ValidationRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
@@ -171,10 +172,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
     setError(null);
     try {
       const res = await fetch(`/api/drive/debug/sample-files`, {
-        headers: { 
-          "x-google-drive-token": token || "",
-          "Authorization": `Bearer ${token}`
-        }
+        headers: getDriveAuthHeaders(token || "")
       });
       const data = await res.json();
       if (!res.ok) {
@@ -229,13 +227,11 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-google-drive-token": token || "",
-          "Authorization": `Bearer ${token}`
+          ...getDriveAuthHeaders(token || "")
         },
         body: JSON.stringify({
           fileId: parsedId,
           modelName,
-          token: token || "", // TODO(deprecated): Remove body token transport. Passed in body to handle proxy stripping
           customInstruction: customPrompt,
           outputMode,
         }),

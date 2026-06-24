@@ -56,11 +56,14 @@ import {
   Sparkles,
   ShieldAlert,
   Terminal,
+  Settings,
+  ListFilter,
   ClipboardCopy
 } from "lucide-react";
 import DriveLogs from "./DriveLogs";
 import { SummaryDebugger } from "./SummaryDebugger";
 import { motion } from "motion/react";
+import { getDriveAuthHeaders } from "../lib/driveToken";
 import { 
   isIgnoredFolderName, 
   isIgnoredPath, 
@@ -111,6 +114,8 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
   const [debugLoading, setDebugLoading] = useState<boolean>(false);
   const [lastDebugFolder, setLastDebugFolder] = useState<any>(null);
   const [isTokenInitializing, setIsTokenInitializing] = useState<boolean>(false);
+  const [debugPageSize, setDebugPageSize] = useState<number>(1);
+  const [showDebugSettings, setShowDebugSettings] = useState<boolean>(false);
   const [isCacheClearing, setIsCacheClearing] = useState<boolean>(false);
   const [selectedCacheType, setSelectedCacheType] = useState<string>("all");
   const [copiedDiagnostics, setCopiedDiagnostics] = useState<boolean>(false);
@@ -657,11 +662,9 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-google-drive-token": token,
-              "Authorization": `Bearer ${token}`
+              ...getDriveAuthHeaders(token)
             },
             body: JSON.stringify({
-              token: token, // TODO(deprecated): Remove body token transport
               lastTraversedAt: baselineTime,
               nextPageToken: currentToken,
               scanMode: "flat-scan",
@@ -880,11 +883,9 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-google-drive-token": token,
-              "Authorization": `Bearer ${token}`
+              ...getDriveAuthHeaders(token)
             },
             body: JSON.stringify({
-              token: token, // TODO(deprecated): Remove body token transport
               parentFolderId: activeOldestFolder.drive_id,
               nextPageToken: folderToken,
               pageSize: 50,
@@ -1139,11 +1140,9 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-google-drive-token": token,
-            "Authorization": `Bearer ${token}`
+            ...getDriveAuthHeaders(token)
           },
           body: JSON.stringify({
-            token: token, // TODO(deprecated): Remove body token transport
             folderId: item.drive_id,
             folderName: (item.path || "").split("/").pop() || "マイドライブ",
             config: config,
@@ -1278,14 +1277,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-google-drive-token": token,
-          "Authorization": `Bearer ${token}`
+          ...getDriveAuthHeaders(token)
         },
         body: JSON.stringify({
-          token: token, // TODO(deprecated): Remove body token transport
           lastTraversedAt: lastGlobalSyncAt,
           nextPageToken: nextPageToken,
-          pageSize: 1,
+          pageSize: debugPageSize,
           scanMode: "debug-step",
           bypassCache: true,
           cacheScope: userId
@@ -1332,58 +1329,70 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         return;
       }
 
-      const file = filesReceived[0];
-      let resolvedId = file.id;
-      if (file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails) {
-        resolvedId = file.shortcutDetails.targetId;
-      }
+      onAddLog("success", `🔧 [デバッグ走査] Google Drive APIから${filesReceived.length}件のフォルダ情報を取得しました。`);
 
-      // Add to local mapping for resolving tree depth paths
-      localDirsMap.set(resolvedId, {
-        drive_id: resolvedId,
-        name: file.name,
-        parents: file.parents || []
-      });
-
-      const resolvePathAndDepth = (folderId: string): { path: string; depth: number } => {
-        return resolvePathAndDepthHelper(folderId, localDirsMap);
-      };
-
-      const parentId = file.parents?.[0] || null;
-      const { path: fullPath, depth: computedDepth } = resolvePathAndDepth(resolvedId);
-
-      onAddLog("success", `🔧 [デバッグ走査] Google Drive APIから1件のフォルダ情報を取得しました: "${fullPath || file.name}" (ID: ${resolvedId})`);
-
-      const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
-      const newFolderObj = {
-        drive_id: resolvedId,
-        name: file.name,
-        path: fullPath || `/${file.name}`,
-        depth: computedDepth || 1,
-        index_status: "pending",
-        last_traversed_at: new Date().toISOString(),
-        last_updated_at: null,
-        parent_id: parentId
-      };
-
-      onAddLog("info", "🔧 [デバッグ走査] Firestoreへフォルダ情報の保存を開始しました...");
+      onAddLog("info", "🔧 [デバッグ走査] Firestoreへフォルダ情報の保存を開始します...");
       setDebugSaveStatus("pending");
 
       try {
-        const result = await runWithExplicitResult(
-          setDoc(folderDocRef, newFolderObj, { merge: true }),
-          4500
-        );
+        const batch = writeBatch(db);
+        let validFoldersCount = 0;
+        let lastProcessedFile: any = null;
+        let lastFolderObj: any = null;
 
-        if (result.status === "failed") {
-          setDebugSaveStatus("failed");
-          onAddLog("error", `❌ [デバッグ走査] Firestore保存に失敗しました。取得したフォルダ情報は永続化されていません。: ${result.error}`);
-        } else if (result.status === "timeout") {
-          setDebugSaveStatus("timeout");
-          onAddLog("warn", "⚠️ [デバッグ走査] Firestore保存確認がタイムアウトしました。取得結果は画面に表示していますが、永続化は未確認です。");
+        for (const file of filesReceived) {
+          let resolvedId = file.id;
+          if (file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails) {
+            resolvedId = file.shortcutDetails.targetId;
+          }
+
+          // Add to local mapping for resolving tree depth paths
+          localDirsMap.set(resolvedId, {
+            drive_id: resolvedId,
+            name: file.name,
+            parents: file.parents || []
+          });
+
+          const resolvePathAndDepth = (folderId: string): { path: string; depth: number } => {
+            return resolvePathAndDepthHelper(folderId, localDirsMap);
+          };
+
+          const parentId = file.parents?.[0] || null;
+          const { path: fullPath, depth: computedDepth } = resolvePathAndDepth(resolvedId);
+
+          const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
+          const newFolderObj = {
+            drive_id: resolvedId,
+            name: file.name,
+            path: fullPath || `/${file.name}`,
+            depth: computedDepth || 1,
+            index_status: "pending",
+            last_traversed_at: new Date().toISOString(),
+            last_updated_at: null,
+            parent_id: parentId
+          };
+
+          batch.set(folderDocRef, newFolderObj, { merge: true });
+          validFoldersCount++;
+          lastProcessedFile = file;
+          lastFolderObj = newFolderObj;
+        }
+
+        if (validFoldersCount > 0) {
+          const result = await runWithExplicitResult(batch.commit(), 10000);
+
+          if (result.status === "failed") {
+            setDebugSaveStatus("failed");
+            onAddLog("error", `❌ [デバッグ走査] Firestore保存に失敗しました。取得したフォルダ情報は永続化されていません。: ${result.error}`);
+          } else if (result.status === "timeout") {
+            setDebugSaveStatus("timeout");
+            onAddLog("warn", "⚠️ [デバッグ走査] Firestore保存確認がタイムアウトしました。取得結果は画面に表示していますが、永続化は未確認です。");
+          } else {
+            setDebugSaveStatus("confirmed");
+            onAddLog("success", `🔧 [デバッグ走査] Firestore保存確認済み (${validFoldersCount}件): 最終処理フォルダ "${lastFolderObj?.path}"`);
+          }
         } else {
-          setDebugSaveStatus("confirmed");
-          onAddLog("success", `🔧 [デバッグ走査] Firestore保存確認済み: "${newFolderObj.path}" (ID: ${resolvedId})`);
+            setDebugSaveStatus("confirmed");
         }
       } catch (saveErr: any) {
         setDebugSaveStatus("failed");
@@ -1392,7 +1401,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
       // Page token persistence with more error info
       try {
-        const nextTraversedTime = file.modifiedTime || new Date().toISOString();
+        const nextTraversedTime = filesReceived[filesReceived.length - 1].modifiedTime || new Date().toISOString();
         await saveSyncStateToDb(returnedNextToken, "idle", nextTraversedTime, false);
       } catch (tokenErr: any) {
         const msg = tokenErr.message || String(tokenErr);
@@ -1401,13 +1410,28 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         }
       }
 
-      setLastDebugFolder({
-        ...newFolderObj,
-        name: file.name,
-        originalMimeType: file.mimeType,
-        modifiedTime: file.modifiedTime,
-        nextToken: returnedNextToken
-      });
+      if (filesReceived.length > 0) {
+        const file = filesReceived[filesReceived.length - 1];
+        let resolvedId = file.id;
+        if (file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails) {
+          resolvedId = file.shortcutDetails.targetId;
+        }
+        const { path: fullPath, depth: computedDepth } = resolvePathAndDepthHelper(resolvedId, localDirsMap);
+        
+        setLastDebugFolder({
+          drive_id: resolvedId,
+          name: file.name,
+          path: fullPath || `/${file.name}`,
+          depth: computedDepth || 1,
+          index_status: "pending",
+          last_traversed_at: new Date().toISOString(),
+          last_updated_at: null,
+          parent_id: file.parents?.[0] || null,
+          originalMimeType: file.mimeType,
+          modifiedTime: file.modifiedTime,
+          nextToken: returnedNextToken
+        });
+      }
 
     } catch (e: any) {
       clearTimeout(timeoutId);
@@ -1737,7 +1761,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm" title="新規/更新">
                       <Database className="w-2.5 h-2.5 text-indigo-500" />
-                      <span className="text-[10px] font-mono font-bold text-slate-700">{crawlStats.discovered}</span>
+                      <span className="text-[10px] font-mono font-bold text-slate-700">{crawlStats.discovered} {scanLimit > 0 ? `/ ${scanLimit}` : ""}</span>
                     </div>
                     <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 shadow-sm" title="既存スキップ">
                       <FastForward className="w-2.5 h-2.5 text-amber-500" />
@@ -1752,6 +1776,19 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       <span className="text-[10px] font-mono font-bold text-rose-700">{crawlStats.removed}</span>
                     </div>
                   </div>
+                </div>
+
+                <div className="w-full h-1 bg-indigo-100 rounded-full overflow-hidden mb-2 relative">
+                  {scanLimit > 0 ? (
+                    <div 
+                      className="h-full bg-indigo-500 transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.round((crawlStats.discovered / scanLimit) * 100))}%` }}
+                    />
+                  ) : (
+                    <div 
+                      className="h-full bg-indigo-400/50 absolute inset-0 animate-pulse"
+                    />
+                  )}
                 </div>
                 
                 <div className="space-y-1.5">
@@ -1967,11 +2004,55 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   <span className="w-2 h-2 rounded-full bg-indigo-500"></span> 1ステップ走査制御
                 </h4>
                 
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  下のボタンをクリックすると、Google Driveから現在の同期位置（Page Token）に続く <strong>次の1つのフォルダ</strong> だけを取得し、パス・深度を再帰算出（BFS風にメモリマッピング構築）して、リアルタイムにFirestoreへ登録します。
-                </p>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <p className="text-xs text-slate-600 leading-relaxed sm:max-w-[75%]">
+                    下のボタンをクリックすると、Google Driveから現在の同期位置（Page Token）に続く <strong>次の{debugPageSize}つのフォルダ</strong> を取得し、パス・深度を再帰算出（BFS風にメモリマッピング構築）して、リアルタイムにFirestoreへ登録します。
+                  </p>
+                  <button
+                    onClick={() => setShowDebugSettings(!showDebugSettings)}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded shadow-sm transition-all text-[10px] font-bold shrink-0 ${
+                      showDebugSettings 
+                      ? "bg-slate-700 text-white border-slate-700" 
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                    title="取得設定"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    設定
+                  </button>
+                </div>
 
-                <div className="space-y-2">
+                {showDebugSettings && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    className="bg-slate-100 border border-slate-200 rounded-lg p-3 mb-2 overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-slate-700">
+                        <ListFilter className="w-3.5 h-3.5 text-slate-500" />
+                        <h3 className="text-[10px] font-bold uppercase tracking-wider">最大取得件数</h3>
+                      </div>
+                      <select
+                        value={debugPageSize}
+                        onChange={(e) => setDebugPageSize(Number(e.target.value))}
+                        className="bg-white border border-slate-300 text-slate-800 text-[10px] font-bold rounded px-2 py-1 outline-none cursor-pointer"
+                        disabled={debugLoading}
+                      >
+                        <option value={1}>1件 (ステップ)</option>
+                        <option value={5}>5件</option>
+                        <option value={10}>10件</option>
+                        <option value={50}>50件</option>
+                        <option value={100}>100件</option>
+                        <option value={250}>250件</option>
+                        <option value={500}>500件</option>
+                        <option value={1000}>1000件 (最大)</option>
+                      </select>
+                    </div>
+                  </motion.div>
+                )}
+
+                <div className="space-y-2 pt-2">
                   <button
                     onClick={fetchSingleFolderDebug}
                     disabled={debugLoading || isCrawlActive || isIndexActive}
@@ -1987,7 +2068,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                     ) : (
                       <>
                         <Bug className="w-4 h-4" />
-                        フォルダを1つ追加取得・検証
+                        フォルダを{debugPageSize}件取得・検証
                       </>
                     )}
                   </button>
@@ -2278,8 +2359,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                           method: "POST",
                           headers: {
                             "Content-Type": "application/json",
-                            "x-google-drive-token": token,
-                            "Authorization": `Bearer ${token}`
+                            ...getDriveAuthHeaders(token)
                           }
                         });
                       } catch (e) {}
