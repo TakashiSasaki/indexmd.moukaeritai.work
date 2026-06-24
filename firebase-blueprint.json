@@ -49,6 +49,31 @@
         "details": { "type": "string" }
       },
       "required": ["timestamp", "level", "message"]
+    },
+    "FileSummaryMetadata": {
+      "title": "FileSummaryMetadata",
+      "description": "Durable structured summary and metadata for a Drive file",
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "mimeType": { "type": "string" },
+        "modifiedTime": { "type": "string" },
+        "schemaVersion": { "type": "string" },
+        "promptVersion": { "type": "string" },
+        "systemInstructionVersion": { "type": "string" },
+        "model": { "type": "string" },
+        "outputMode": { "type": "string" },
+        "summary": { "type": "string" },
+        "structured": { "type": "object" },
+        "validationErrors": { "type": "array" },
+        "parseSuccess": { "type": "boolean" },
+        "validationSuccess": { "type": "boolean" },
+        "generatedAt": { "type": "string" },
+        "source": { "type": "string" },
+        "cacheKey": { "type": "string" }
+      },
+      "required": ["fileId", "schemaVersion", "promptVersion", "systemInstructionVersion", "model", "outputMode", "summary", "structured", "parseSuccess", "validationSuccess", "generatedAt", "source"]
     }
   },
   "firestore": {
@@ -67,6 +92,10 @@
     "/users/{userId}/logs/{logId}": {
       "schema": "Log",
       "description": "Execution log collection"
+    },
+    "/users/{userId}/file_summaries/{fileId}": {
+      "schema": "FileSummaryMetadata",
+      "description": "AI-generated structured summaries of Google Drive files"
     }
   }
 }

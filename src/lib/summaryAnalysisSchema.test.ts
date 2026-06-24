@@ -151,6 +151,12 @@ test("validateSummaryAnalysisResult fails on invalid confidence", () => {
     confidence: 1.1
   };
   assert.ok(!validateSummaryAnalysisResult(invalidObj2));
+
+  const invalidObj3 = {
+    ...getValidBase(),
+    confidence: NaN
+  };
+  assert.ok(!validateSummaryAnalysisResult(invalidObj3));
 });
 
 test("validateSummaryAnalysisResult fails on empty documentTypes or unknown with others", () => {
