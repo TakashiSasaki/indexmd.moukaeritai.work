@@ -3,6 +3,9 @@
  * Avoids direct node-specific imports at the top level to prevent bundling issues on the client.
  */
 
+import { PROMPT_SPEC_VERSION } from "./promptSpecs";
+import { INDEX_MD_FORMAT_VERSION } from "./indexMdFormat";
+
 export interface ScanCacheParts {
   parentFolderId: string;
   nextPageToken: string;
@@ -10,6 +13,8 @@ export interface ScanCacheParts {
   pageSize: number;
   scanMode: string;
   cacheScope: string;
+  promptSpecVersion: string;
+  formatVersion: string;
   normalizedString: string;
 }
 
@@ -30,8 +35,10 @@ export function buildScanCacheKeyParts(
   const size = pageSize || 100;
   const mode = scanMode || "none";
   const scope = cacheScope || "none";
+  const promptVer = PROMPT_SPEC_VERSION.replace(/\./g, '_');
+  const formatVer = INDEX_MD_FORMAT_VERSION.replace(/\./g, '_');
 
-  const normalizedString = `p_${pId}_t_${token}_l_${traversed}_s_${size}_m_${mode}_c_${scope}`;
+  const normalizedString = `p_${pId}_t_${token}_l_${traversed}_s_${size}_m_${mode}_c_${scope}_pv_${promptVer}_fv_${formatVer}`;
 
   return {
     parentFolderId: pId,
@@ -40,6 +47,8 @@ export function buildScanCacheKeyParts(
     pageSize: size,
     scanMode: mode,
     cacheScope: scope,
+    promptSpecVersion: PROMPT_SPEC_VERSION,
+    formatVersion: INDEX_MD_FORMAT_VERSION,
     normalizedString
   };
 }

@@ -7,7 +7,7 @@ test("buildScanCacheKeyParts normalizes and produces correct outputs", () => {
   const res1 = buildScanCacheKeyParts("folder123", "token123", "2026-06-24", 50, "flat-scan", "user123");
   const res2 = buildScanCacheKeyParts("folder123", "token123", "2026-06-24", 50, "flat-scan", "user123");
   assert.strictEqual(res1.normalizedString, res2.normalizedString);
-  assert.strictEqual(res1.normalizedString, "p_folder123_t_token123_l_2026-06-24_s_50_m_flat-scan_c_user123");
+  assert.strictEqual(res1.normalizedString, "p_folder123_t_token123_l_2026-06-24_s_50_m_flat-scan_c_user123_pv_1_0_0_fv_1_0_0");
 
   // different pageSize yields different normalized strings
   const resDiffPageSize = buildScanCacheKeyParts("folder123", "token123", "2026-06-24", 100, "flat-scan", "user123");
@@ -23,7 +23,7 @@ test("buildScanCacheKeyParts normalizes and produces correct outputs", () => {
 
   // missing values normalize deterministically
   const resMissing = buildScanCacheKeyParts(undefined, undefined, undefined, undefined, undefined, undefined);
-  assert.strictEqual(resMissing.normalizedString, "p_root_t_none_l_none_s_100_m_none_c_none");
+  assert.strictEqual(resMissing.normalizedString, "p_root_t_none_l_none_s_100_m_none_c_none_pv_1_0_0_fv_1_0_0");
 
   // verifies that OAuth tokens (like 'ya29.xxxx') are not accidentally in the key string
   assert.ok(!res1.normalizedString.includes("ya29."));

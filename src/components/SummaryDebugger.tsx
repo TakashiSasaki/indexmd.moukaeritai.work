@@ -37,10 +37,24 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const [usedModel, setUsedModel] = useState<string | null>(null);
   const [validationHistory, setValidationHistory] = useState<ValidationRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
 
   const currentMimeType = useMemo(() => {
     return samples.find(s => s.file.id === fileId)?.file.mimeType;
   }, [samples, fileId]);
+
+  useEffect(() => {
+    if (!currentMimeType) {
+      setCustomPrompt("以下のファイル内容（最大5万文字のスニペット）を分析し、主な内容の要約を日本語で出力してください。");
+      return;
+    }
+    const isBinary = currentMimeType.startsWith("image/") || currentMimeType === "application/pdf";
+    if (isBinary) {
+      setCustomPrompt("以下のファイル内容を分析し、何が記載・描写されているか要約してください。日本語で出力してください。");
+    } else {
+      setCustomPrompt("以下のファイル内容（最大5万文字のスニペット）を分析し、主な内容の要約を日本語で出力してください。");
+    }
+  }, [currentMimeType, fileId]);
 
   const handleCellClick = useCallback((selectedModelId: string, mimeType: string) => {
     // Select Model
@@ -221,6 +235,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
           fileId: parsedId,
           modelName,
           token: token || "", // Passed in body to handle proxy stripping
+          customInstruction: customPrompt,
         }),
       });
 
@@ -580,6 +595,18 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
           currentMimeType={currentMimeType}
           onCellClick={handleCellClick}
         />
+
+        <div className="mt-6">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            システムプロンプト (API送信時に付与される指示)
+          </label>
+          <textarea
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-md text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors resize-y"
+            placeholder="プロンプトを入力してください"
+          />
+        </div>
 
         <button
           onClick={handleGenerate}

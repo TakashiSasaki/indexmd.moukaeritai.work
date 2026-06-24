@@ -31,4 +31,14 @@ Some handwritten notes without markers.`;
   const resMissingMarkers = mergeIndexMd(legacyFile, folderName, aiContent);
   assert.ok(resMissingMarkers.startsWith(legacyFile));
   assert.ok(resMissingMarkers.endsWith(AUTO_GENERATED_START + aiContent + AUTO_GENERATED_END));
+
+  // 4. appending auto-generated block when markers are malformed (end before start)
+  const malformedFile = `# ${folderName}
+${AUTO_GENERATED_END}
+Some handwritten notes.
+${AUTO_GENERATED_START}
+More notes.`;
+  const resMalformed = mergeIndexMd(malformedFile, folderName, aiContent);
+  assert.ok(resMalformed.includes("Some handwritten notes."));
+  assert.ok(resMalformed.endsWith(AUTO_GENERATED_START + aiContent + AUTO_GENERATED_END));
 });
