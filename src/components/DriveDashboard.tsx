@@ -688,6 +688,10 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
           const data = await response.json();
           const filesReceived = data.files || [];
           
+          if (data.pageTokenRecovered) {
+            onAddLog("warn", "⚠️ Google Drive APIから無効なページトークンが返却されましたが、サーバー側で自動的にトークンをリセットしてリカバリしました。処理を続行します。");
+          }
+
           if (data.cached) {
             setLastCacheHit(true);
             setTotalCacheHits(prev => prev + 1);
@@ -1307,6 +1311,10 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       const data = await response.json();
       const filesReceived = data.files || [];
       const returnedNextToken = data.nextPageToken || null;
+
+      if (data.pageTokenRecovered) {
+        onAddLog("warn", "⚠️ Google Drive APIから無効なページトークンが返却されましたが、サーバー側で自動的にトークンをリセットしてリカバリしました。処理を続行します。");
+      }
 
       if (data.cached) {
         setLastCacheHit(true);
@@ -2118,6 +2126,25 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
       {activeTab === "firestore-test" && (
         <div className="space-y-6" id="firestore-test-container">
+          
+          {/* Smoke Test Checklist Panel */}
+          <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-lg shadow-sm space-y-4">
+            <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs uppercase tracking-wider mb-2">
+              <Check className="w-4 h-4" />
+              Smoke Test Checklist
+            </div>
+            <div className="text-[11px] text-indigo-900 leading-relaxed space-y-2">
+              <p>この環境が正常に動作するかを確認するスモークテストの手順です。</p>
+              <ul className="list-disc list-inside space-y-1 ml-1">
+                <li><strong>Firestore権限チェック:</strong> 下部の「Firestoreへのアクセス権を診断」ボタンを押し、緑色の「成功」が出るか確認します（失敗時はルール適用漏れの可能性があります）。</li>
+                <li><strong>Drive APIテスト:</strong> 「フォルダ情報取得テスト」タブへ移動し、「1ステップ走査」を実行します。システムログタブで1件のみ処理され、キャッシュバイパスが機能しているか確認してください。</li>
+                <li><strong>境界走査テスト:</strong> ダッシュボードタブに戻り、設定の「スキャン上限数」を小規模（例: 5件）に設定し、同期を実行。上限でピタリと止まるか確認します。</li>
+                <li><strong>ルーティングテスト:</strong> 現在のURLでブラウザをリロード（F5）し、同じタブが維持されるか確認します。</li>
+              </ul>
+              <p className="font-bold text-indigo-800 mt-2">※ このテスト中はGoogle Driveのファイル削除や自動要約生成を実行しないでください。</p>
+            </div>
+          </div>
+
           {/* Connection Info Panel */}
           <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm space-y-4" id="stat-connection-info">
             <div className="flex items-center gap-2 text-slate-700 font-bold text-xs uppercase tracking-wider mb-2">
