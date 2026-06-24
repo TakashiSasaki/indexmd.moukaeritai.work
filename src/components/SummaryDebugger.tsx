@@ -4,6 +4,7 @@ import { getDriveAuthHeaders } from '../lib/driveToken';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
 import { ModelInfo, ValidationRecord, ExperimentHistoryRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
+// @ts-ignore - TS test runner fails on ?raw imports, but vite handles it correctly in prod
 import { SUMMARY_FIXTURES } from '../lib/__fixtures__/summary-schema';
 
 interface SummaryDebuggerProps {

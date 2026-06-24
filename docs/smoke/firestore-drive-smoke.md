@@ -13,7 +13,11 @@ This document provides a safe, repeatable manual smoke procedure to verify that 
 - A user account with a valid Google login.
 - Valid Firestore Security Rules deployed (`indexmd-db`).
 
-## 1. Routing Smoke
+## 1. Safe Smoke Test Procedures
+- **Drive Re-Auth Flow**: Revoke token or force expiration, then verify the "Drive Access Required" screen appears instead of a full logout.
+- **AI Summary Test**: Use the `/summary-debugger` route to safely test structured schema validation using **manual synthetic input** without writing `index.md` files or running Drive scans.
+
+## 2. Routing Smoke
 **Goal:** Verify basic client-side routing and fallback works.
 - Open the app and verify you land on the dashboard (or login page, then dashboard).
 - Visit the following URLs directly (or refresh the browser while on them):
