@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
 import { 
   auth, 
   GoogleAuthProvider, 
@@ -41,19 +42,38 @@ import {
 const ACTIVE_TAB_KEY = "indexmd_active_tab";
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig>(defaultAppConfig);
   const [logs, setLogs] = useState<DriveLog[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    try {
-      return localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
-    } catch (e) {
-      return "dashboard";
+
+  const validTabs = ["dashboard", "debugger", "summary-debugger", "firestore-test", "logs"];
+  const activeTab = validTabs.includes(location.pathname.substring(1)) 
+    ? location.pathname.substring(1) 
+    : "dashboard";
+
+  // Redirect root to dashboard or last active tab
+  useEffect(() => {
+    if (location.pathname === "/" && user && !authLoading) {
+      const lastTab = localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
+      navigate(`/${lastTab}`, { replace: true });
     }
-  });
+  }, [location.pathname, user, authLoading]);
+
+  // Persist current tab to localStorage for session recovery
+  useEffect(() => {
+    if (validTabs.includes(activeTab)) {
+      localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+    }
+  }, [activeTab]);
+
+  const handleTabChange = (tab: string) => {
+    navigate(`/${tab}`);
+  };
 
   // Monitor auth state
   useEffect(() => {
@@ -78,15 +98,6 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
-
-  // Sync active tab to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
-    } catch (e) {
-      console.warn("Failed to save active tab to localStorage", e);
-    }
-  }, [activeTab]);
 
   // Fetch / Sync historical logs from Firestore
   const syncUserLogs = async (uid: string) => {
@@ -352,25 +363,52 @@ export default function App() {
               config={config}
               logs={logs}
               onAddLog={handleAddLog}
+              onClearLogs={handleClearLogs}
               onSessionExpiry={handleSessionExpiry}
               activeTab={activeTab}
-              setActiveTab={setActiveTab}
+              setActiveTab={handleTabChange}
             />
 
             {/* Double section layout: Configuration Tuning and Real-Time Log Auditor */}
-            {activeTab !== "summary-debugger" && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SettingsPanel 
-                  config={config} 
-                  onSaveConfig={updateConfig} 
-                />
-                
-                <DriveLogs 
-                  logs={logs} 
-                  onClearLogs={handleClearLogs} 
-                />
-              </div>
-            )}
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <SettingsPanel config={config} onSaveConfig={updateConfig} />
+                  <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2 text-slate-700 font-bold text-xs uppercase tracking-wider mb-2">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      インデックス生成のヒント
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      フォルダ内のファイル数が多い場合、AI要約の生成に時間がかかることがあります。
+                      大規模な構造を同期する場合は、設定から「スキャン上限」を調整して少しずつ進めることをお勧めします。
+                    </p>
+                    <div className="pt-2 border-t border-slate-100">
+                      <p className="text-[10px] text-slate-400 italic">
+                        ※ ログは上部の「システムログ」タブから確認できます。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              } />
+              <Route path="/debugger" element={
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <SettingsPanel config={config} onSaveConfig={updateConfig} />
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 shadow-inner">
+                    <h4 className="text-xs font-bold text-slate-600 mb-2 uppercase">Debugger Mode Active</h4>
+                    <p className="text-[11px] text-slate-500 italic">設定パネルを使用してデバッグ時の挙動（スキャン上限など）を調整できます。</p>
+                  </div>
+                </div>
+              } />
+              <Route path="/summary-debugger" element={null} />
+              <Route path="/firestore-test" element={
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                   <SettingsPanel config={config} onSaveConfig={updateConfig} />
+                </div>
+              } />
+              <Route path="/logs" element={null} />
+            </Routes>
           </div>
         )}
 

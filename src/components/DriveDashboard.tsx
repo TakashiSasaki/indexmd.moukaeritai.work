@@ -54,10 +54,20 @@ import {
   Check,
   Zap,
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  Terminal
 } from "lucide-react";
+import DriveLogs from "./DriveLogs";
 import { SummaryDebugger } from "./SummaryDebugger";
 import { motion } from "motion/react";
+import { 
+  isIgnoredFolderName, 
+  isIgnoredPath, 
+  shouldIgnoreDirectory, 
+  selectIgnoredDirectoryIdsForPrune 
+} from "../lib/ignoreRules";
+import { resolvePathAndDepth as resolvePathAndDepthHelper } from "../lib/driveTree";
+import { runWithExplicitResult as runWithExplicitResultHelper } from "../lib/firestoreResult";
 
 interface DriveDashboardProps {
   userId: string;
@@ -65,12 +75,13 @@ interface DriveDashboardProps {
   config: AppConfig;
   logs: DriveLog[];
   onAddLog: (level: "info" | "success" | "warn" | "error", message: string, details?: string) => void;
+  onClearLogs: () => void;
   onSessionExpiry?: () => void;
   activeTab: string;
   setActiveTab: (tab: any) => void;
 }
 
-export default function DriveDashboard({ userId, token, config, logs, onAddLog, onSessionExpiry, activeTab, setActiveTab }: DriveDashboardProps) {
+export default function DriveDashboard({ userId, token, config, logs, onAddLog, onClearLogs, onSessionExpiry, activeTab, setActiveTab }: DriveDashboardProps) {
   const [dirs, setDirs] = useState<Directory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
@@ -128,10 +139,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
   // Filtered directories based on user-defined ignored names
   const filteredDirs = useMemo(() => {
-    return dirs.filter(d => {
-      const folderName = d.name || (d.path || "").split('/').pop() || "";
-      return !ignoredFolderNames.includes(folderName);
-    });
+    return dirs.filter(d => !shouldIgnoreDirectory({ name: d.name, path: d.path }, ignoredFolderNames));
   }, [dirs, ignoredFolderNames]);
 
   const [scanLimit, setScanLimit] = useState<number>(() => {
@@ -489,22 +497,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     promise: Promise<void>,
     timeoutMs: number = 3500
   ): Promise<FirestoreResult> => {
-    let timeoutId: any;
-    const timeoutPromise = new Promise<{ status: "timeout" }>((resolve) => {
-      timeoutId = setTimeout(() => resolve({ status: "timeout" }), timeoutMs);
-    });
-
-    try {
-      const result = await Promise.race([
-        promise.then(() => ({ status: "confirmed" as const })),
-        timeoutPromise
-      ]);
-      clearTimeout(timeoutId);
-      return result;
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      return { status: "failed", error: err.message || String(err) };
-    }
+    return runWithExplicitResultHelper(promise, timeoutMs);
   };
 
   const saveSyncStateToDb = async (
@@ -719,22 +712,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
           // Compute path recursion helper
           const resolvePathAndDepth = (folderId: string): { path: string; depth: number } => {
-            if (!folderId || folderId === "root" || folderId === "undefined") {
-              return { path: "", depth: 0 };
-            }
-            const folderObj = localDirsMap.get(folderId);
-            if (!folderObj) {
-              return { path: `/${folderId}`, depth: 1 };
-            }
-            const pId = folderObj.parents?.[0] || "root";
-            if (pId === "root") {
-              return { path: `/${folderObj.name}`, depth: 1 };
-            }
-            const parentRes = resolvePathAndDepth(pId);
-            return {
-              path: parentRes.path === "" ? `/${folderObj.name}` : `${parentRes.path}/${folderObj.name}`,
-              depth: parentRes.depth + 1
-            };
+            return resolvePathAndDepthHelper(folderId, localDirsMap);
           };
 
           // Write batch metadata directly to Firestore
@@ -751,8 +729,8 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
             // Ignored folder check
             const { path: resolvedFullPath } = resolvePathAndDepth(resolvedId); // 変数名変更
-            const isNameIgnored = ignoredFolderNames.includes(file.name);
-            const isPathIgnored = ignoredFolderNames.some(ignored => resolvedFullPath.split('/').includes(ignored));
+            const isNameIgnored = isIgnoredFolderName(file.name, ignoredFolderNames);
+            const isPathIgnored = isIgnoredPath(resolvedFullPath, ignoredFolderNames);
 
             if (isNameIgnored || isPathIgnored) {
               if (isNameIgnored) {
@@ -947,8 +925,8 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
             // Ignored folder check
             const pathForCheck = `${parentCleanPath}/${file.name}`;
-            const isNameIgnored = ignoredFolderNames.includes(file.name);
-            const isPathIgnored = ignoredFolderNames.some(ignored => pathForCheck.split('/').includes(ignored));
+            const isNameIgnored = isIgnoredFolderName(file.name, ignoredFolderNames);
+            const isPathIgnored = isIgnoredPath(pathForCheck, ignoredFolderNames);
 
             if (isNameIgnored || isPathIgnored) {
               if (isNameIgnored) {
@@ -1361,22 +1339,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       });
 
       const resolvePathAndDepth = (folderId: string): { path: string; depth: number } => {
-        if (!folderId || folderId === "root" || folderId === "undefined") {
-          return { path: "", depth: 0 };
-        }
-        const folderObj = localDirsMap.get(folderId);
-        if (!folderObj) {
-          return { path: `/${folderId}`, depth: 1 };
-        }
-        const pId = folderObj.parents?.[0] || "root";
-        if (pId === "root") {
-          return { path: `/${folderObj.name}`, depth: 1 };
-        }
-        const parentRes = resolvePathAndDepth(pId);
-        return {
-          path: parentRes.path === "" ? `/${folderObj.name}` : `${parentRes.path}/${folderObj.name}`,
-          depth: parentRes.depth + 1
-        };
+        return resolvePathAndDepthHelper(folderId, localDirsMap);
       };
 
       const parentId = file.parents?.[0] || null;
@@ -1585,6 +1548,18 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         >
           <Database className="w-4 h-4" />
           Firestoreテスト
+        </button>
+        <button
+          onClick={() => setActiveTab("logs")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "logs"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-logs"
+        >
+          <Terminal className="w-4 h-4" />
+          システムログ
         </button>
       </div>
 
@@ -2309,6 +2284,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
       {activeTab === "summary-debugger" && (
         <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} />
+      )}
+
+      {activeTab === "logs" && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <DriveLogs logs={logs} onClearLogs={onClearLogs} />
+        </div>
       )}
       </div>
     </div>

@@ -7,6 +7,8 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { parseOffice } from "officeparser";
 import crypto from "crypto";
+import { buildScanCacheKeyParts } from "./src/lib/scanCache";
+import { mergeIndexMd } from "./src/lib/indexMdMerge";
 
 dotenv.config();
 
@@ -33,8 +35,8 @@ function getScanCacheKey(
   scanMode: string | undefined,
   cacheScope: string | undefined
 ): string {
-  const input = `p_${parentFolderId || "root"}_t_${nextPageToken || "none"}_l_${lastTraversedAt || "none"}_s_${pageSize || 100}_m_${scanMode || "none"}_c_${cacheScope || "none"}`;
-  return crypto.createHash("md5").update(input).digest("hex") + ".json";
+  const parts = buildScanCacheKeyParts(parentFolderId, nextPageToken, lastTraversedAt, pageSize, scanMode, cacheScope);
+  return crypto.createHash("md5").update(parts.normalizedString).digest("hex") + ".json";
 }
 
 async function getCachedScan(key: string): Promise<any | null> {
@@ -421,6 +423,37 @@ app.post("/api/drive/scan", async (req, res) => {
 
     res.json({ ...data, cached: false });
   } catch (err: any) {
+    // If the pageToken is stale, expired, or invalid, Google Drive API returns status 400 with 'pageToken' in the error details.
+    // We can auto-recover by retrying the request without the pageToken to fetch page 1 fresh.
+    if (err.status === 400 && nextPageToken && err.message && err.message.includes("pageToken")) {
+      console.warn(`[PageToken Recovery] Stale/invalid pageToken detected for folder ${parentFolderId || "root"}. Auto-recovering by requesting page 1 fresh...`);
+      try {
+        let q = "(mimeType = 'application/vnd.google-apps.folder' or (mimeType = 'application/vnd.google-apps.shortcut' and shortcutDetails.targetMimeType = 'application/vnd.google-apps.folder')) and trashed = false";
+        if (parentFolderId) {
+          q = `'${parentFolderId}' in parents and ${q}`;
+        } else if (lastTraversedAt) {
+          q += ` and modifiedTime > '${lastTraversedAt}'`;
+        }
+
+        const fields = "nextPageToken,files(id,name,mimeType,parents,modifiedTime,shortcutDetails)";
+        const urlWithoutToken = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=${targetPageSize}`;
+        
+        console.log(`[PageToken Recovery] Re-fetching page 1 from Google Drive API without pageToken`);
+        const recoveryResponse = await fetchGoogleDrive(urlWithoutToken, token);
+        const recoveryData = await recoveryResponse.json();
+
+        // Save to disk cache under the original key so subsequent scans can hit it
+        if (!bypassCache && recoveryData && !recoveryData.error) {
+          await setCachedScan(cacheKey, recoveryData);
+        }
+
+        res.json({ ...recoveryData, cached: false, pageTokenRecovered: true });
+        return;
+      } catch (recoveryErr: any) {
+        console.error(`[PageToken Recovery Failed]`, recoveryErr);
+      }
+    }
+
     const statusCode = err.status || 500;
     res.status(statusCode).json({ error: err.message || "Drive scan failed" });
   }
@@ -678,29 +711,7 @@ ${mdSubdirsText || "*このディレクトリにはサブディレクトリが�
 `;
 
     // Process Hybrid Merge
-    let mergedContent = "";
-    if (currentFileContent.trim()) {
-      const startIdx = currentFileContent.indexOf(autoGenStartMarker);
-      const endIdx = currentFileContent.indexOf(autoGenEndMarker);
-
-      if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-        const preSection = currentFileContent.substring(0, startIdx);
-        const postSection = currentFileContent.substring(endIdx + autoGenEndMarker.length);
-        mergedContent = preSection + autoGenStartMarker + autoGenSectionContent + autoGenEndMarker + postSection;
-      } else {
-        // Markers missing in existing file, append at the end as instructed
-        mergedContent = currentFileContent.trim() + "\n\n" + autoGenStartMarker + autoGenSectionContent + autoGenEndMarker;
-      }
-    } else {
-      // Complete brand new file
-      mergedContent = `# ${folderName}
-
-<!-- USER_NOTES_START -->
-<!-- ここに自由なメモを追記してください。このエリアは自動更新で保護されます。 -->
-<!-- USER_NOTES_END -->
-
-${autoGenStartMarker}${autoGenSectionContent}${autoGenEndMarker}`;
-    }
+    const mergedContent = mergeIndexMd(currentFileContent, folderName, autoGenSectionContent);
 
     // Step 5: Save/Update in Google Drive
     if (existingIndexId) {
