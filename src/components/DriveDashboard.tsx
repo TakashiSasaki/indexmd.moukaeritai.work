@@ -75,6 +75,8 @@ import {
 import { resolvePathAndDepth as resolvePathAndDepthHelper } from "../lib/driveTree";
 import { runWithExplicitResult as runWithExplicitResultHelper } from "../lib/firestoreResult";
 
+import { AppTabId } from "../lib/appTabs";
+
 interface DriveDashboardProps {
   userId: string;
   token: string;
@@ -83,8 +85,8 @@ interface DriveDashboardProps {
   onAddLog: (level: "info" | "success" | "warn" | "error", message: string, details?: string) => void;
   onClearLogs: () => void;
   onSessionExpiry?: () => void;
-  activeTab: string;
-  setActiveTab: (tab: any) => void;
+  activeTab: AppTabId;
+  setActiveTab: (tab: AppTabId) => void;
 }
 
 export default function DriveDashboard({ userId, token, config, logs, onAddLog, onClearLogs, onSessionExpiry, activeTab, setActiveTab }: DriveDashboardProps) {
@@ -1541,7 +1543,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         <select
           id="mobile-tab-select"
           value={activeTab}
-          onChange={(e) => setActiveTab(e.target.value as any)}
+          onChange={(e) => setActiveTab(e.target.value as AppTabId)}
           className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
         >
           {APP_TABS.map((tab) => (

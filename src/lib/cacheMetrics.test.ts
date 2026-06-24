@@ -1,5 +1,7 @@
 import test, { describe, beforeEach } from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 import { 
   initCacheMetrics, 
   resetCacheMetrics, 
@@ -80,5 +82,42 @@ describe('cacheMetrics', () => {
     assert.ok(response.uptimeHuman !== undefined);
     assert.ok(response.process.pid !== undefined);
     assert.ok(response.process.nodeVersion !== undefined);
+  });
+
+  test('inventory helper handles non-existing directories safely', async () => {
+    const response = await getCacheMetricsResponse({ testCache: './non-existent-dir-for-test-123' });
+    const cache = response.caches['testCache'];
+    assert.strictEqual(cache.entryCount, 0);
+    assert.strictEqual(cache.totalBytes, 0);
+  });
+
+  test('inventory helper handles empty directories', async () => {
+    const tmpDir = './tmp-empty-cache';
+    try {
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+      const response = await getCacheMetricsResponse({ testCache: tmpDir });
+      assert.strictEqual(response.caches['testCache'].entryCount, 0);
+    } finally {
+      if (fs.existsSync(tmpDir)) fs.rmdirSync(tmpDir);
+    }
+  });
+
+  test('inventory helper does not expose file contents', async () => {
+    const tmpDir = './tmp-cache-content';
+    try {
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+      fs.writeFileSync(path.join(tmpDir, 'test.txt'), 'secret cache data');
+      const response = await getCacheMetricsResponse({ testCache: tmpDir });
+      const cache = response.caches['testCache'];
+      assert.strictEqual(cache.entryCount, 1);
+      assert.ok(cache.totalBytes > 0);
+      // Ensure no raw content in the response
+      assert.strictEqual(JSON.stringify(response).includes('secret cache data'), false);
+    } finally {
+      if (fs.existsSync(tmpDir)) {
+        fs.unlinkSync(path.join(tmpDir, 'test.txt'));
+        fs.rmdirSync(tmpDir);
+      }
+    }
   });
 });

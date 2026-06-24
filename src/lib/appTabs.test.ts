@@ -1,6 +1,6 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert';
-import { APP_TABS, VALID_TAB_IDS, isValidTabId } from './appTabs';
+import { APP_TABS, VALID_TAB_IDS, isValidTabId, resolveActiveTab } from './appTabs';
 
 describe('appTabs', () => {
   test('APP_TABS has all required tabs', () => {
@@ -32,5 +32,15 @@ describe('appTabs', () => {
   test('No duplicate tab IDs', () => {
     const ids = new Set(VALID_TAB_IDS);
     assert.strictEqual(ids.size, VALID_TAB_IDS.length);
+  });
+
+  test('resolveActiveTab resolves paths correctly', () => {
+    assert.strictEqual(resolveActiveTab('/dashboard'), 'dashboard');
+    assert.strictEqual(resolveActiveTab('/summary-debugger'), 'summary-debugger');
+    assert.strictEqual(resolveActiveTab('/cache-stats'), 'cache-stats');
+    assert.strictEqual(resolveActiveTab('dashboard'), 'dashboard'); // without slash
+    assert.strictEqual(resolveActiveTab('/'), 'dashboard'); // fallback
+    assert.strictEqual(resolveActiveTab('/unknown'), 'dashboard'); // fallback
+    assert.strictEqual(resolveActiveTab(''), 'dashboard'); // fallback
   });
 });

@@ -29,3 +29,11 @@ export const VALID_TAB_IDS = APP_TABS.map(tab => tab.id);
 export function isValidTabId(id: string): id is AppTabId {
   return VALID_TAB_IDS.includes(id as AppTabId);
 }
+
+export function resolveActiveTab(pathname: string): AppTabId {
+  const maybeTab = pathname.replace(/^\//, '');
+  if (isValidTabId(maybeTab)) {
+    return maybeTab;
+  }
+  return "dashboard";
+}

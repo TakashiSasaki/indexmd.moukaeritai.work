@@ -28,7 +28,7 @@ import {
 
 import { AppConfig, DriveLog } from "./types";
 import defaultAppConfig from "./config.json";
-import { VALID_TAB_IDS } from "./lib/appTabs";
+import { VALID_TAB_IDS, resolveActiveTab, AppTabId } from "./lib/appTabs";
 
 import DriveDashboard from "./components/DriveDashboard";
 import DriveLogs from "./components/DriveLogs";
@@ -59,9 +59,7 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const validTabs = VALID_TAB_IDS;
-  const activeTab = validTabs.includes(location.pathname.substring(1) as any) 
-    ? location.pathname.substring(1) 
-    : "dashboard";
+  const activeTab = resolveActiveTab(location.pathname);
 
   // Redirect root to dashboard or last active tab
   useEffect(() => {
@@ -73,12 +71,10 @@ export default function App() {
 
   // Persist current tab to localStorage for session recovery
   useEffect(() => {
-    if (validTabs.includes(activeTab as any)) {
-      localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
-    }
+    localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
   }, [activeTab]);
 
-  const handleTabChange = (tab: string) => {
+  const handleTabChange = (tab: AppTabId) => {
     navigate(`/${tab}`);
   };
 
