@@ -1,58 +1,290 @@
-export const SUMMARY_ANALYSIS_SCHEMA_VERSION = "1.0.0";
+export const SUMMARY_ANALYSIS_SCHEMA_VERSION = "1.1.0-draft.1";
+
+// This is an experimental schema intended for AI Summary Test validation,
+// not a final stable schema.
+
+export const DOCUMENT_TYPES = [
+  "note", "report", "specification", "manual", "academicPaper", "abstract",
+  "summary", "receipt", "invoice", "contract", "cancellationNotice",
+  "applicationForm", "certificate", "bookmark", "correspondence",
+  "meetingNotes", "taskList", "sourceCode", "dataset", "log", "config", "unknown"
+];
+
+export const DOCUMENT_INTENTS = [
+  "inform", "record", "request", "apply", "cancel", "confirm",
+  "pay", "claim", "report", "explain", "specify", "summarize", "bookmark", "unknown"
+];
+
+export const NAMED_ENTITY_TYPES = [
+  "person", "organization", "location", "artifact", "initiative", "unclassified"
+];
+
+export const TEMPORAL_REFERENCE_ROLES = [
+  "created", "updated", "issued", "submitted", "due", "effective",
+  "expires", "eventDate", "published", "accessed", "unknown"
+];
+
+export const PARTY_ROLES = [
+  "author", "issuer", "recipient", "applicant", "approver", "payer",
+  "payee", "seller", "buyer", "contractParty", "publisher", "unknown"
+];
+
+export const PARTY_KINDS = [
+  "person", "organization", "unknown"
+];
+
+export const MONETARY_AMOUNT_ROLES = [
+  "total", "subtotal", "tax", "fee", "discount", "unitPrice", "unknown"
+];
+
+export const SUBJECT_AREAS_MAP: Record<string, string[]> = {
+  mathematics: ["analysis", "algebra", "foundations", "logic", "categoryTheory", "topology", "geometry", "numberTheory", "probability", "statistics", "appliedMathematics", "other"],
+  physics: ["classicalMechanics", "quantumMechanics", "relativity", "statisticalMechanics", "thermodynamics", "electromagnetism", "condensedMatter", "particlePhysics", "astrophysics", "other"],
+  biology: ["molecularBiology", "genetics", "cellBiology", "ecology", "evolution", "neuroscience", "physiology", "bioinformatics", "other"],
+  computerScience: ["algorithms", "programmingLanguages", "softwareEngineering", "databases", "ai", "machineLearning", "networks", "security", "humanComputerInteraction", "formalMethods", "other"],
+  socialSciences: ["sociology", "economics", "politicalScience", "anthropology", "psychology", "education", "law", "other"],
+  humanities: ["philosophy", "history", "linguistics", "literature", "religiousStudies", "artHistory", "ethics", "other"],
+  engineering: ["electricalEngineering", "mechanicalEngineering", "civilEngineering", "chemicalEngineering", "systemsEngineering", "materialsEngineering", "other"]
+};
 
 export const SUMMARY_ANALYSIS_SCHEMA = {
   type: "object",
   properties: {
-    oneLineSummary: { type: "string", description: "1-sentence Japanese description suitable for index.md" },
-    detailedSummary: { type: "string", description: "Detailed summary in Japanese" },
-    keywords: { type: "array", items: { type: "string" }, description: "Important keywords extracted from the document" },
-    urls: { type: "array", items: { type: "string" }, description: "URLs explicitly present in the document" },
+    oneLineSummary: { type: "string" },
+    detailedSummary: { type: "string" },
+    title: { type: "string" },
+    inferredTitle: { type: "string" },
+    documentTypes: { type: "array", items: { type: "string", enum: DOCUMENT_TYPES } },
+    documentIntent: { type: "string", enum: DOCUMENT_INTENTS },
+    topics: { type: "array", items: { type: "string" } },
+    keywords: { type: "array", items: { type: "string" } },
     namedEntities: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          type: { type: "string", enum: NAMED_ENTITY_TYPES }
+        },
+        required: ["name", "type"]
+      }
+    },
+    resourceReferences: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          uri: { type: "string" },
+          raw: { type: "string" }
+        },
+        required: ["uri"]
+      }
+    },
+    primaryLanguage: { type: "string" },
+    languages: { type: "array", items: { type: "string" } },
+    temporalReferences: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          date: { type: "string" },
+          role: { type: "string", enum: TEMPORAL_REFERENCE_ROLES },
+          raw: { type: "string" }
+        },
+        required: ["date", "role", "raw"]
+      }
+    },
+    parties: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          role: { type: "string", enum: PARTY_ROLES },
+          kind: { type: "string", enum: PARTY_KINDS }
+        },
+        required: ["name", "role", "kind"]
+      }
+    },
+    monetaryAmounts: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          amount: { type: "number" },
+          currency: { type: "string" },
+          role: { type: "string", enum: MONETARY_AMOUNT_ROLES },
+          raw: { type: "string" }
+        },
+        required: ["amount", "currency", "role", "raw"]
+      }
+    },
+    subjectAreas: {
       type: "object",
       properties: {
-        people: { type: "array", items: { type: "string" } },
-        organizations: { type: "array", items: { type: "string" } },
-        places: { type: "array", items: { type: "string" } },
-        products: { type: "array", items: { type: "string" } },
-        projects: { type: "array", items: { type: "string" } }
-      },
-      required: ["people", "organizations", "places", "products", "projects"]
+        mathematics: { type: "array", items: { type: "string", enum: SUBJECT_AREAS_MAP.mathematics } },
+        physics: { type: "array", items: { type: "string", enum: SUBJECT_AREAS_MAP.physics } },
+        biology: { type: "array", items: { type: "string", enum: SUBJECT_AREAS_MAP.biology } },
+        computerScience: { type: "array", items: { type: "string", enum: SUBJECT_AREAS_MAP.computerScience } },
+        socialSciences: { type: "array", items: { type: "string", enum: SUBJECT_AREAS_MAP.socialSciences } },
+        humanities: { type: "array", items: { type: "string", enum: SUBJECT_AREAS_MAP.humanities } },
+        engineering: { type: "array", items: { type: "string", enum: SUBJECT_AREAS_MAP.engineering } }
+      }
     },
-    documentType: { type: "string", description: "Estimated document type (e.g., meeting notes, invoice, code, image)" },
-    language: { type: "string", description: "Primary language of the document" },
-    confidence: { type: "number", description: "Confidence score from 0.0 to 1.0" }
+    confidence: { type: "number" },
+    warnings: { type: "array", items: { type: "string" } }
   },
   required: [
     "oneLineSummary", 
     "detailedSummary", 
+    "title", 
+    "inferredTitle", 
+    "documentTypes", 
+    "documentIntent", 
+    "topics", 
     "keywords", 
-    "urls", 
     "namedEntities", 
-    "documentType", 
-    "language", 
-    "confidence"
+    "resourceReferences", 
+    "primaryLanguage", 
+    "languages", 
+    "temporalReferences", 
+    "parties", 
+    "monetaryAmounts", 
+    "subjectAreas", 
+    "confidence", 
+    "warnings"
   ]
 };
+
+export function normalizeSummaryAnalysisResult(value: any): any {
+  if (!value || typeof value !== "object") return value;
+
+  const result = { ...value };
+
+  // Helper to deduplicate string arrays
+  const dedup = (arr: any) => {
+    if (!Array.isArray(arr)) return arr;
+    return Array.from(new Set(arr.filter(x => typeof x === "string" && x.trim() !== "").map(x => x.trim())));
+  };
+
+  if (typeof result.oneLineSummary === "string") result.oneLineSummary = result.oneLineSummary.trim();
+  if (typeof result.detailedSummary === "string") result.detailedSummary = result.detailedSummary.trim();
+  if (typeof result.title === "string") result.title = result.title.trim();
+  if (typeof result.inferredTitle === "string") result.inferredTitle = result.inferredTitle.trim();
+  if (typeof result.documentIntent === "string") result.documentIntent = result.documentIntent.trim();
+  if (typeof result.primaryLanguage === "string") result.primaryLanguage = result.primaryLanguage.trim();
+
+  if (Array.isArray(result.documentTypes)) result.documentTypes = dedup(result.documentTypes);
+  if (Array.isArray(result.topics)) result.topics = dedup(result.topics);
+  if (Array.isArray(result.keywords)) result.keywords = dedup(result.keywords);
+  if (Array.isArray(result.languages)) result.languages = dedup(result.languages);
+  if (Array.isArray(result.warnings)) result.warnings = dedup(result.warnings);
+
+  if (Array.isArray(result.resourceReferences)) {
+    result.resourceReferences = result.resourceReferences.map((r: any) => {
+      if (!r || typeof r !== "object") return r;
+      const cleanR = { ...r };
+      if (typeof cleanR.uri === "string") cleanR.uri = cleanR.uri.trim();
+      if (typeof cleanR.raw === "string") cleanR.raw = cleanR.raw.trim();
+      if (cleanR.raw === "") delete cleanR.raw;
+      return cleanR;
+    });
+  }
+
+  if (result.subjectAreas && typeof result.subjectAreas === "object") {
+    const cleanSA: Record<string, string[]> = {};
+    for (const key of Object.keys(result.subjectAreas)) {
+      if (SUBJECT_AREAS_MAP[key]) {
+        const arr = dedup(result.subjectAreas[key]);
+        if (arr.length > 0) {
+          cleanSA[key] = arr;
+        }
+      }
+    }
+    result.subjectAreas = cleanSA;
+  } else {
+    result.subjectAreas = {};
+  }
+
+  return result;
+}
 
 export function validateSummaryAnalysisResult(value: any): boolean {
   if (!value || typeof value !== "object") return false;
   
   if (typeof value.oneLineSummary !== "string") return false;
   if (typeof value.detailedSummary !== "string") return false;
-  if (!Array.isArray(value.keywords)) return false;
-  if (!Array.isArray(value.urls)) return false;
-  
-  const ne = value.namedEntities;
-  if (!ne || typeof ne !== "object") return false;
-  if (!Array.isArray(ne.people) || !Array.isArray(ne.organizations) || 
-      !Array.isArray(ne.places) || !Array.isArray(ne.products) || 
-      !Array.isArray(ne.projects)) {
-    return false;
+  if (typeof value.title !== "string") return false;
+  if (typeof value.inferredTitle !== "string") return false;
+  if (typeof value.documentIntent !== "string" || !DOCUMENT_INTENTS.includes(value.documentIntent)) return false;
+  if (typeof value.primaryLanguage !== "string") return false;
+  if (typeof value.confidence !== "number" || value.confidence < 0 || value.confidence > 1) return false;
+
+  if (!Array.isArray(value.documentTypes)) return false;
+  for (const dt of value.documentTypes) {
+    if (typeof dt !== "string" || !DOCUMENT_TYPES.includes(dt)) return false;
   }
 
-  if (typeof value.documentType !== "string") return false;
-  if (typeof value.language !== "string") return false;
-  if (typeof value.confidence !== "number") return false;
+  if (!Array.isArray(value.topics)) return false;
+  for (const t of value.topics) {
+    if (typeof t !== "string") return false;
+  }
+
+  if (!Array.isArray(value.keywords)) return false;
+  for (const k of value.keywords) {
+    if (typeof k !== "string") return false;
+  }
+
+  if (!Array.isArray(value.languages)) return false;
+  for (const l of value.languages) {
+    if (typeof l !== "string") return false;
+  }
+
+  if (!Array.isArray(value.warnings)) return false;
+  for (const w of value.warnings) {
+    if (typeof w !== "string") return false;
+  }
+
+  if (!Array.isArray(value.namedEntities)) return false;
+  for (const ne of value.namedEntities) {
+    if (!ne || typeof ne !== "object") return false;
+    if (typeof ne.name !== "string" || typeof ne.type !== "string" || !NAMED_ENTITY_TYPES.includes(ne.type)) return false;
+  }
+
+  if (!Array.isArray(value.resourceReferences)) return false;
+  for (const rr of value.resourceReferences) {
+    if (!rr || typeof rr !== "object") return false;
+    if (typeof rr.uri !== "string" || rr.uri.trim() === "" || !rr.uri.includes(":")) return false; // Basic URI check
+    if (rr.raw !== undefined && typeof rr.raw !== "string") return false;
+  }
+
+  if (!Array.isArray(value.temporalReferences)) return false;
+  for (const tr of value.temporalReferences) {
+    if (!tr || typeof tr !== "object") return false;
+    if (typeof tr.date !== "string" || typeof tr.role !== "string" || !TEMPORAL_REFERENCE_ROLES.includes(tr.role) || typeof tr.raw !== "string") return false;
+  }
+
+  if (!Array.isArray(value.parties)) return false;
+  for (const pt of value.parties) {
+    if (!pt || typeof pt !== "object") return false;
+    if (typeof pt.name !== "string" || typeof pt.role !== "string" || !PARTY_ROLES.includes(pt.role) || typeof pt.kind !== "string" || !PARTY_KINDS.includes(pt.kind)) return false;
+  }
+
+  if (!Array.isArray(value.monetaryAmounts)) return false;
+  for (const ma of value.monetaryAmounts) {
+    if (!ma || typeof ma !== "object") return false;
+    if (typeof ma.amount !== "number" || typeof ma.currency !== "string" || typeof ma.role !== "string" || !MONETARY_AMOUNT_ROLES.includes(ma.role) || typeof ma.raw !== "string") return false;
+  }
+
+  if (!value.subjectAreas || typeof value.subjectAreas !== "object") return false;
+  for (const key of Object.keys(value.subjectAreas)) {
+    if (!SUBJECT_AREAS_MAP[key]) return false;
+    const arr = value.subjectAreas[key];
+    if (!Array.isArray(arr) || arr.length === 0) return false;
+    for (const item of arr) {
+      if (typeof item !== "string" || !SUBJECT_AREAS_MAP[key].includes(item)) return false;
+    }
+  }
 
   return true;
 }

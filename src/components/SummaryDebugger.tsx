@@ -170,7 +170,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
     setFetchingSamples(true);
     setError(null);
     try {
-      const res = await fetch(`/api/drive/debug/sample-files?token=${encodeURIComponent(token || "")}`, {
+      const res = await fetch(`/api/drive/debug/sample-files`, {
         headers: { 
           "x-google-drive-token": token || "",
           "Authorization": `Bearer ${token}`
@@ -235,7 +235,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
         body: JSON.stringify({
           fileId: parsedId,
           modelName,
-          token: token || "", // Passed in body to handle proxy stripping
+          token: token || "", // TODO(deprecated): Remove body token transport. Passed in body to handle proxy stripping
           customInstruction: customPrompt,
           outputMode,
         }),
@@ -824,45 +824,149 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {result.structured.title && (
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">キーワード</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {result.structured.keywords.length > 0 ? result.structured.keywords.map((kw: string, i: number) => (
-                        <span key={i} className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300">{kw}</span>
-                      )) : <span className="text-xs text-slate-500">なし</span>}
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">タイトル</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-sm text-white">
+                      {result.structured.title}
+                      {result.structured.inferredTitle && <span className="ml-2 text-xs text-slate-400">(推論: {result.structured.inferredTitle})</span>}
                     </div>
                   </div>
-                  
+                )}
+                {!result.structured.title && result.structured.inferredTitle && (
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">文書情報</h4>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">推論タイトル</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-sm text-white">
+                      {result.structured.inferredTitle}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">分類情報</h4>
                     <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs text-slate-300 grid grid-cols-2 gap-2">
-                      <div>種類: <span className="text-white font-medium">{result.structured.documentType}</span></div>
-                      <div>言語: <span className="text-white font-medium">{result.structured.language}</span></div>
-                      <div>信頼度: <span className="text-white font-medium">{(result.structured.confidence * 100).toFixed(1)}%</span></div>
+                      <div>種類: <span className="text-white font-medium">{result.structured.documentTypes?.join(", ")}</span></div>
+                      <div>意図: <span className="text-white font-medium">{result.structured.documentIntent}</span></div>
+                      <div>主言語: <span className="text-white font-medium">{result.structured.primaryLanguage}</span></div>
+                      <div>言語リスト: <span className="text-white font-medium">{result.structured.languages?.join(", ")}</span></div>
+                      <div className="col-span-2">信頼度: <span className="text-white font-medium">{result.structured.confidence ? (result.structured.confidence * 100).toFixed(1) : "-"}%</span></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">トピック & キーワード</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50">
+                      <div className="mb-2">
+                        <div className="text-[10px] text-slate-500 mb-1">トピック:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {result.structured.topics?.length > 0 ? result.structured.topics.map((t: string, i: number) => (
+                            <span key={i} className="px-2 py-0.5 bg-indigo-900/50 border border-indigo-700/50 text-indigo-300 rounded text-[10px]">{t}</span>
+                          )) : <span className="text-xs text-slate-500">なし</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500 mb-1">キーワード:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {result.structured.keywords?.length > 0 ? result.structured.keywords.map((kw: string, i: number) => (
+                            <span key={i} className="px-2 py-0.5 bg-slate-700/50 border border-slate-600/50 text-slate-300 rounded text-[10px]">{kw}</span>
+                          )) : <span className="text-xs text-slate-500">なし</span>}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">固有表現</h4>
-                  <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-slate-300">
-                      <div><span className="text-slate-500 block mb-1">人物:</span> {result.structured.namedEntities.people.join(", ") || "-"}</div>
-                      <div><span className="text-slate-500 block mb-1">組織:</span> {result.structured.namedEntities.organizations.join(", ") || "-"}</div>
-                      <div><span className="text-slate-500 block mb-1">場所:</span> {result.structured.namedEntities.places.join(", ") || "-"}</div>
-                      <div><span className="text-slate-500 block mb-1">製品:</span> {result.structured.namedEntities.products.join(", ") || "-"}</div>
-                      <div className="sm:col-span-2"><span className="text-slate-500 block mb-1">プロジェクト:</span> {result.structured.namedEntities.projects.join(", ") || "-"}</div>
+                {result.structured.subjectAreas && Object.keys(result.structured.subjectAreas).length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">ドメイン分類 (Subject Areas)</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                      {Object.keys(result.structured.subjectAreas).map((key) => (
+                        <div key={key} className="mb-1 flex items-start">
+                          <span className="text-slate-400 w-32 shrink-0">{key}:</span>
+                          <span className="text-white">{result.structured.subjectAreas[key].join(", ")}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {result.structured.namedEntities?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">固有表現</h4>
+                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                        <ul className="space-y-1">
+                          {result.structured.namedEntities.map((ne: any, i: number) => (
+                            <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{ne.type}:</span> <span className="text-slate-200">{ne.name}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {result.structured.parties?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">関係者 (Parties)</h4>
+                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                        <ul className="space-y-1">
+                          {result.structured.parties.map((pt: any, i: number) => (
+                            <li key={i} className="flex"><span className="text-slate-500 w-20 shrink-0">{pt.role}:</span> <span className="text-slate-200">{pt.name} <span className="text-[10px] text-slate-500">({pt.kind})</span></span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {result.structured.temporalReferences?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">時間参照</h4>
+                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                        <ul className="space-y-1">
+                          {result.structured.temporalReferences.map((tr: any, i: number) => (
+                            <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{tr.role}:</span> <span className="text-slate-200">{tr.date || "-"} <span className="text-[10px] text-slate-500">({tr.raw})</span></span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {result.structured.monetaryAmounts?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">金額</h4>
+                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                        <ul className="space-y-1">
+                          {result.structured.monetaryAmounts.map((ma: any, i: number) => (
+                            <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{ma.role}:</span> <span className="text-slate-200">{ma.amount} {ma.currency} <span className="text-[10px] text-slate-500">({ma.raw})</span></span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
-                {result.structured.urls.length > 0 && (
+                {result.structured.resourceReferences?.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">URL</h4>
-                    <ul className="list-disc pl-5 text-xs text-blue-400 space-y-1">
-                      {result.structured.urls.map((url: string, i: number) => (
-                        <li key={i}><a href={url} target="_blank" rel="noreferrer" className="hover:underline">{url}</a></li>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">リソース参照</h4>
+                    <ul className="list-disc pl-5 text-xs text-blue-400 space-y-1 bg-slate-800/50 rounded-md p-3 border border-slate-700/50">
+                      {result.structured.resourceReferences.map((rr: any, i: number) => (
+                        <li key={i}>
+                          <a href={rr.uri} target="_blank" rel="noreferrer" className="hover:underline break-all">{rr.uri}</a>
+                          {rr.raw && rr.raw !== rr.uri && <span className="text-slate-500 ml-2">({rr.raw})</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {result.structured.warnings?.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-amber-500 uppercase tracking-wider">警告</h4>
+                    <ul className="list-disc pl-5 text-xs text-amber-200 space-y-1 bg-amber-950/30 rounded-md p-3 border border-amber-900/50">
+                      {result.structured.warnings.map((w: string, i: number) => (
+                        <li key={i}>{w}</li>
                       ))}
                     </ul>
                   </div>

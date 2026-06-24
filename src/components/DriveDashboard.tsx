@@ -661,7 +661,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
               "Authorization": `Bearer ${token}`
             },
             body: JSON.stringify({
-              token: token,
+              token: token, // TODO(deprecated): Remove body token transport
               lastTraversedAt: baselineTime,
               nextPageToken: currentToken,
               scanMode: "flat-scan",
@@ -884,7 +884,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
               "Authorization": `Bearer ${token}`
             },
             body: JSON.stringify({
-              token: token,
+              token: token, // TODO(deprecated): Remove body token transport
               parentFolderId: activeOldestFolder.drive_id,
               nextPageToken: folderToken,
               pageSize: 50,
@@ -1143,7 +1143,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
             "Authorization": `Bearer ${token}`
           },
           body: JSON.stringify({
-            token: token,
+            token: token, // TODO(deprecated): Remove body token transport
             folderId: item.drive_id,
             folderName: (item.path || "").split("/").pop() || "マイドライブ",
             config: config,
@@ -1282,7 +1282,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          token: token,
+          token: token, // TODO(deprecated): Remove body token transport
           lastTraversedAt: lastGlobalSyncAt,
           nextPageToken: nextPageToken,
           pageSize: 1,

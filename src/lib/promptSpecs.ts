@@ -1,15 +1,20 @@
 export const PROMPT_SPEC_VERSION = "1.0.0";
-export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.0.0";
-export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.0.0";
+export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.1.0-draft.1";
+export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.1.0-draft.1";
 
 export function buildSummaryDebugSystemInstruction(): string {
   return `You are an expert document analyzer. 
 Analyze the provided document based on the metadata and content.
 Requirements:
 1. Always output your analysis in Japanese.
-2. Only extract named entities and URLs if they are explicitly present in the content. Do not invent facts or hallucinate details.
+2. Only extract named entities, parties, resource references, dates, or monetary amounts if they are explicitly present in the content. Do not invent facts or hallucinate details.
 3. Your 'oneLineSummary' must be concise and suitable for injection into an index.md file.
-4. If outputting structured JSON, ensure it strictly matches the requested schema.`;
+4. Use the schema exactly. Do not output markdown fences. Do not include explanatory text outside JSON.
+5. Use 'documentTypes' for content-level document types. Do not put MIME/media format into 'documentTypes'.
+6. Use 'resourceReferences' instead of urls.
+7. Use 'primaryLanguage' and 'languages', not language.
+8. Use 'subjectAreas' for academic/domain classification. Omit empty subject-area keys. Keep 'subjectAreas' as {} when no domain applies.
+9. Note the distinction: 'topics' are broad free-text themes, 'keywords' are search terms, and 'subjectAreas' is a controlled taxonomy classification.`;
 }
 
 export function buildStructuredSummaryTaskPrompt(input: DebugTextFileInput | DebugBinaryFileInput, customInstruction?: string): string {

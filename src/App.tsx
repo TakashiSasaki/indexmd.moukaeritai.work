@@ -19,6 +19,12 @@ import {
   formatErrorMessage
 } from "./lib/firebase";
 import { writeLog } from "./lib/logger";
+import { 
+  saveDriveTokenState, 
+  loadDriveTokenState, 
+  clearDriveTokenState, 
+  isDriveTokenLikelyExpired 
+} from "./lib/driveToken";
 
 import { AppConfig, DriveLog } from "./types";
 import defaultAppConfig from "./config.json";
@@ -77,13 +83,9 @@ export default function App() {
 
   // Monitor auth state
   useEffect(() => {
-    try {
-      const cachedToken = localStorage.getItem("drive_access_token");
-      if (cachedToken) {
-        setGoogleAccessToken(cachedToken);
-      }
-    } catch (e) {
-      console.warn("localStorage access failed during initialization", e);
+    const state = loadDriveTokenState();
+    if (state && !isDriveTokenLikelyExpired(state)) {
+      setGoogleAccessToken(state.accessToken);
     }
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -155,11 +157,7 @@ export default function App() {
 
       if (accessToken) {
         setGoogleAccessToken(accessToken);
-        try {
-          localStorage.setItem("drive_access_token", accessToken);
-        } catch (e) {
-          console.warn("Failed to save token to localStorage", e);
-        }
+        saveDriveTokenState(accessToken);
         handleAddLog("success", `Google Drive OAuth 認証に成功しました。ログインアカウント: ${result.user.email}`);
       } else {
         throw new Error("Google Drive Token did not register successfully.");
@@ -185,11 +183,7 @@ export default function App() {
       setAuthError(null);
       await signOut(auth);
       setGoogleAccessToken(null);
-      try {
-        localStorage.removeItem("drive_access_token");
-      } catch (e) {
-        console.warn("Failed to remove token from localStorage", e);
-      }
+      clearDriveTokenState();
       setUser(null);
     } catch (e: any) {
       console.error(e);
@@ -199,11 +193,7 @@ export default function App() {
   // Token recovery redirecter - checks 401 exceptions on calls
   const handleSessionExpiry = () => {
     handleAddLog("error", "Google API アクセストークン期限切れを検知しました。セッションをリセットし再認証を要求します。");
-    try {
-      localStorage.removeItem("drive_access_token");
-    } catch (e) {
-      console.warn("Failed to remove token from localStorage", e);
-    }
+    clearDriveTokenState();
     setGoogleAccessToken(null);
     setAuthError("Google認証の有効期限が切れました。安全のため再度ログインしてください。");
   };
@@ -252,6 +242,12 @@ export default function App() {
           <div className="flex items-center gap-4">
             {user ? (
               <div className="flex items-center gap-3 bg-slate-50 pl-3 pr-2 py-1 rounded-xl border border-slate-200">
+                {!googleAccessToken && (
+                  <div className="hidden sm:flex items-center gap-1.5 mr-2 text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 uppercase tracking-widest">
+                    <ShieldAlert className="w-3 h-3" />
+                    Drive Auth Required
+                  </div>
+                )}
                 {user.photoURL ? (
                   <img
                     src={user.photoURL}
@@ -290,7 +286,7 @@ export default function App() {
       {/* Main Container */}
       <main className="max-w-7xl mx-auto p-0 space-y-6">
         
-        {!user || !googleAccessToken ? (
+        {!user ? (
           // Welcoming Hero & Secure login screen
           <div className="max-w-2xl mx-auto text-center space-y-6 py-12" id="welcome-container">
             <div className="space-y-4">
@@ -351,6 +347,44 @@ export default function App() {
                 * ログインには Google Drive 操作スコープがリクエストされます。読み書きは <code className="font-mono">index.md</code> に限定されます。<br/>
                 * <strong>重要:</strong> 認証のポップアップがブロックされる、または真っ白になる場合は、プレビュー画面右上の<strong>「新しいタブで開く」アイコン</strong>からアプリを開き直してログインしてください。
               </p>
+            </div>
+          </div>
+        ) : !googleAccessToken ? (
+          // Re-auth screen for missing/expired drive token
+          <div className="max-w-2xl mx-auto text-center space-y-6 py-12" id="reauth-container">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-100 text-amber-700 rounded-full text-xs font-semibold tracking-wide font-display">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-500" /> Drive Access Required
+              </div>
+              <h2 className="text-3xl font-extrabold text-slate-950 font-display tracking-tight leading-tight sm:text-4xl">
+                Drive アクセストークンの<br />
+                <span className="text-amber-600">再取得が必要です。</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
+                セキュリティのため、Google Drive API のアクセストークンの有効期限が切れました。
+                アプリを継続して利用するには、Google Drive アクセストークンを再取得してください。
+              </p>
+            </div>
+
+            <div className="pt-2 space-y-4">
+              {authError && (
+                <div className="max-w-md mx-auto p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-left text-xs font-semibold flex items-start gap-2 animate-fade-in shadow-sm">
+                  <span className="text-red-500 shrink-0 font-bold select-none text-base leading-none">⚠️</span>
+                  <div>
+                    <p className="font-bold text-red-800">認証エラー</p>
+                    <p className="text-red-600/90 font-medium mt-0.5">{authError}</p>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleLogin}
+                className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 transition-colors text-white font-bold px-8 py-3.5 rounded-2xl shadow-md hover:-translate-y-0.5 transform cursor-pointer text-sm sm:text-base font-display"
+                id="btn-reauth"
+              >
+                <Compass className="w-5 h-5 text-white" />
+                Google Drive アクセストークンを再取得
+              </button>
             </div>
           </div>
         ) : (
