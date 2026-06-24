@@ -121,36 +121,51 @@ test("buildStructuredSummaryTaskPrompt constructs valid prompt without custom in
   assert.ok(!result.includes("null"));
 });
 
-test("buildSummaryDebugSystemInstruction and TaskPrompt adhere to v1.1.0-draft.1 constraints", () => {
+test("buildSummaryDebugSystemInstruction and TaskPrompt adhere to constraints", () => {
   const sysInst = buildSummaryDebugSystemInstruction();
-  const taskPrompt = buildStructuredSummaryTaskPrompt({
-    name: "test.md",
-    mimeType: "text/markdown",
-    contentSample: "# Hello\nworld"
-  });
 
-  const combined = sysInst + taskPrompt;
+  // Mention resourceReferences and avoid urls
+  assert.ok(sysInst.includes("resourceReferences"));
+  assert.ok(sysInst.includes("urls")); // the instruction says "instead of urls" or similar, so it will contain "urls", but we want to make sure it mentions resourceReferences.
 
-  // Mention resourceReferences
-  assert.ok(combined.includes("resourceReferences"));
+  // DocumentTypes, not documentType
+  assert.ok(sysInst.includes("documentTypes"));
 
-  // Mention documentTypes
-  assert.ok(combined.includes("documentTypes"));
+  // primaryLanguage and languages
+  assert.ok(sysInst.includes("primaryLanguage"));
+  assert.ok(sysInst.includes("languages"));
 
-  // Mention primaryLanguage and languages
-  assert.ok(combined.includes("primaryLanguage"));
-  assert.ok(combined.includes("languages"));
-
-  // JSON only, no markdown fences
-  assert.ok(combined.toLowerCase().includes("json"));
-  assert.ok(combined.includes("markdown")); // usually "do not use markdown fences" or similar
+  // JSON only
+  assert.ok(sysInst.toLowerCase().includes("json"));
+  assert.ok(sysInst.includes("markdown fences"));
 
   // Distinguishes topics, keywords, subjectAreas
-  assert.ok(combined.includes("topics"));
-  assert.ok(combined.includes("keywords"));
-  assert.ok(combined.includes("subjectAreas"));
+  assert.ok(sysInst.includes("topics"));
+  assert.ok(sysInst.includes("keywords"));
+  assert.ok(sysInst.includes("subjectAreas"));
 
   // Distinguishes namedEntities and parties
-  assert.ok(combined.includes("named entities") || combined.includes("namedEntities"));
-  assert.ok(combined.includes("parties"));
+  assert.ok(sysInst.includes("namedEntities"));
+  assert.ok(sysInst.includes("parties"));
+
+  const taskPromptWithSample = buildStructuredSummaryTaskPrompt({
+    name: "test.md",
+    mimeType: "text/markdown",
+    contentSample: "# Sample Content"
+  }, "Custom instruction test");
+
+  assert.ok(taskPromptWithSample.includes("test.md"));
+  assert.ok(taskPromptWithSample.includes("text/markdown"));
+  assert.ok(taskPromptWithSample.includes("# Sample Content"));
+  assert.ok(taskPromptWithSample.includes("Custom instruction test"));
+
+  const taskPromptWithoutSample = buildStructuredSummaryTaskPrompt({
+    name: "image.png",
+    mimeType: "image/png"
+  });
+
+  assert.ok(taskPromptWithoutSample.includes("image.png"));
+  assert.ok(taskPromptWithoutSample.includes("image/png"));
+  assert.ok(!taskPromptWithoutSample.includes("ファイル内容:"));
+  assert.ok(!taskPromptWithoutSample.includes("Custom instruction"));
 });

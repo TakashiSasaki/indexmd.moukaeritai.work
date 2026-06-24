@@ -25,6 +25,14 @@ test("buildScanCacheKeyParts normalizes and produces correct outputs", () => {
   const resMissing = buildScanCacheKeyParts(undefined, undefined, undefined, undefined, undefined, undefined);
   assert.strictEqual(resMissing.normalizedString, "p_root_t_none_l_none_s_100_m_none_c_none_pv_1_0_0_fv_1_0_0");
 
+  // missing lastTraversedAt only
+  const resMissingLastTraversedAt = buildScanCacheKeyParts("folder123", "token123", undefined, 50, "flat-scan", "user123");
+  assert.ok(resMissingLastTraversedAt.normalizedString.includes("_l_none_"));
+
+  // missing nextPageToken only
+  const resMissingNextPageToken = buildScanCacheKeyParts("folder123", undefined, "2026-06-24", 50, "flat-scan", "user123");
+  assert.ok(resMissingNextPageToken.normalizedString.includes("_t_none_"));
+
   // verifies that OAuth tokens (like 'ya29.xxxx') are not accidentally in the key string
   assert.ok(!res1.normalizedString.includes("ya29."));
 });

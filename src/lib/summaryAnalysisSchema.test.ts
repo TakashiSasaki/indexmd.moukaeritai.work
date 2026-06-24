@@ -187,6 +187,24 @@ test("validateSummaryAnalysisResult passes multi-language and warnings", () => {
   assert.ok(!validateSummaryAnalysisResult(invalidObj));
 });
 
+test("validateSummaryAnalysisResult fails on missing required root field fail", () => {
+  const base = getValidBase();
+  // delete one required field
+  delete (base as any).detailedSummary;
+  assert.ok(!validateSummaryAnalysisResult(base));
+});
+
+test("validateSummaryAnalysisResult passes minimal valid object and valid subjectAreas: {}", () => {
+  const minimalValid = getValidBase();
+  assert.ok(validateSummaryAnalysisResult(minimalValid));
+
+  const withEmptySubjectAreas = {
+    ...getValidBase(),
+    subjectAreas: {}
+  };
+  assert.ok(validateSummaryAnalysisResult(withEmptySubjectAreas));
+});
+
 test("normalizeSummaryAnalysisResult normalizes fields", () => {
   const rawObj = {
     oneLineSummary: " テスト ",

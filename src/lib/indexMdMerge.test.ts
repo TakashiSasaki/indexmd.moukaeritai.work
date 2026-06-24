@@ -41,4 +41,22 @@ More notes.`;
   const resMalformed = mergeIndexMd(malformedFile, folderName, aiContent);
   assert.ok(resMalformed.includes("Some handwritten notes."));
   assert.ok(resMalformed.endsWith(AUTO_GENERATED_START + aiContent + AUTO_GENERATED_END));
+
+  // 5. Handles only whitespaces
+  const resWhitespaces = mergeIndexMd("   \n  \t ", folderName, aiContent);
+  assert.ok(resWhitespaces.includes(`# ${folderName}`));
+  assert.ok(resWhitespaces.includes("USER_NOTES_START"));
+  assert.ok(resWhitespaces.includes(AUTO_GENERATED_START + aiContent + AUTO_GENERATED_END));
+
+  // 6. Multiple manual sections untouched
+  const multiManual = `Before
+${AUTO_GENERATED_START}
+Old
+${AUTO_GENERATED_END}
+After
+More After`;
+  const resMulti = mergeIndexMd(multiManual, folderName, aiContent);
+  assert.ok(resMulti.includes("Before\n"));
+  assert.ok(resMulti.includes("\nAfter\nMore After"));
+  assert.ok(resMulti.includes(AUTO_GENERATED_START + aiContent + AUTO_GENERATED_END));
 });
