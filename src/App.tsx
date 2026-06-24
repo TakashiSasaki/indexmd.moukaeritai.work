@@ -28,6 +28,7 @@ import {
 
 import { AppConfig, DriveLog } from "./types";
 import defaultAppConfig from "./config.json";
+import { VALID_TAB_IDS } from "./lib/appTabs";
 
 import DriveDashboard from "./components/DriveDashboard";
 import DriveLogs from "./components/DriveLogs";
@@ -57,8 +58,8 @@ export default function App() {
   const [logs, setLogs] = useState<DriveLog[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const validTabs = ["dashboard", "debugger", "summary-debugger", "firestore-test", "logs", "cache-stats"];
-  const activeTab = validTabs.includes(location.pathname.substring(1)) 
+  const validTabs = VALID_TAB_IDS;
+  const activeTab = validTabs.includes(location.pathname.substring(1) as any) 
     ? location.pathname.substring(1) 
     : "dashboard";
 
@@ -72,7 +73,7 @@ export default function App() {
 
   // Persist current tab to localStorage for session recovery
   useEffect(() => {
-    if (validTabs.includes(activeTab)) {
+    if (validTabs.includes(activeTab as any)) {
       localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
     }
   }, [activeTab]);
