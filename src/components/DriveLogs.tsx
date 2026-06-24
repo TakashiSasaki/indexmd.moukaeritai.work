@@ -116,7 +116,7 @@ export default function DriveLogs({ logs, onClearLogs }: DriveLogsProps) {
               if (log.level === "error") badgeStyle = "text-red-600 bg-red-50 border border-red-100 font-bold";
  
               return (
-                <div key={log.id || idx} className="grid grid-cols-[115px_58px_1fr] items-start gap-1.5 py-1 text-[10.5px] hover:bg-slate-200/20 transition-colors">
+                <div key={log.id ? `${log.id}-${idx}` : idx} className="grid grid-cols-[115px_58px_1fr] items-start gap-1.5 py-1 text-[10.5px] hover:bg-slate-200/20 transition-colors">
                   <span className="text-slate-400 font-bold select-none text-[10px] pt-0.5">
                     [{formatTimestamp(log.timestamp)}]
                   </span>

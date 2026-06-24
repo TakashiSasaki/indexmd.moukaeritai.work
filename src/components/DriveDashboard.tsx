@@ -116,7 +116,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
   const [syncProgress, setSyncProgress] = useState<{ current: number; lastPath: string } | null>(null);
   const [isFullySynced, setIsFullySynced] = useState<boolean>(true);
   const [ignoredFolderNames, setIgnoredFolderNames] = useState<string[]>([]);
-  const [crawlStats, setCrawlStats] = useState<{ discovered: number; skipped: number; removed: number }>({ discovered: 0, skipped: 0, removed: 0 });
+  const [crawlStats, setCrawlStats] = useState<{ discovered: number; skipped: number; ignored: number; removed: number }>({ discovered: 0, skipped: 0, ignored: 0, removed: 0 });
   const [skipExistingFolders, setSkipExistingFolders] = useState<boolean>(() => {
     try {
       const val = localStorage.getItem(`indexmd_skip_existing_${userId}`);
@@ -129,7 +129,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
   // Filtered directories based on user-defined ignored names
   const filteredDirs = useMemo(() => {
     return dirs.filter(d => {
-      const folderName = d.name || d.path.split('/').pop() || "";
+      const folderName = d.name || (d.path || "").split('/').pop() || "";
       return !ignoredFolderNames.includes(folderName);
     });
   }, [dirs, ignoredFolderNames]);
@@ -200,18 +200,25 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     try {
       // 1. Write Test
       onAddLog("info", "🔍 [権限診断] 書き込みテストを開始...");
-      const writeResult = await runWithTimeout<"confirmed" | "timeout">(
+      const writeResult = await runWithExplicitResult(
         setDoc(testDocRef, { 
           last_test_at: timestamp, 
           uid: userId,
           db_id: firestoreDatabaseId
-        }, { merge: true }).then(() => "confirmed" as const),
-        5000,
-        "timeout"
+        }, { merge: true }),
+        5000
       );
 
       let writeStatus: "success" | "warn" = "success";
-      if (writeResult === "timeout") {
+      if (writeResult.status === "failed") {
+        if (writeResult.error.includes("permission") || writeResult.error.includes("denied")) {
+          onAddLog("error", `❌ [権限診断] 書き込みテスト失敗: Permission Denied.`);
+          writeStatus = "warn";
+        } else {
+          onAddLog("error", `❌ [権限診断] 書き込みテスト失敗: ${writeResult.error}`);
+          writeStatus = "warn";
+        }
+      } else if (writeResult.status === "timeout") {
         onAddLog("warn", "⚠️ [権限診断] 書き込み未確認: Firestore保存の応答がタイムアウトしました。オフライン保存として継続されている可能性があります。");
         writeStatus = "warn";
       } else {
@@ -228,7 +235,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
           setPermissionAuditResult({
             status: writeStatus,
             timestamp: new Date().toLocaleTimeString(),
-            message: `診断完了: 読み書き共に正常です。\n${writeResult === "timeout" ? "(書き込み時にタイムアウトが発生しましたが、オフラインキャッシュには保存されました)" : ""}`
+            message: `診断完了: 読み書き共に正常です。\n${writeResult.status === "timeout" ? "(書き込み時にタイムアウトが発生しましたが、オフラインキャッシュには保存されました)" : ""}`
           });
         } else {
           onAddLog("warn", `⚠️ [権限診断] 読み取り結果不一致: 保存した時間(${timestamp})と取得した時間(${data.last_test_at})が異なります。`);
@@ -345,7 +352,11 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
       // local map retention issues.
       const freshDirs: Directory[] = [];
       snap.docs.forEach((doc) => {
-        freshDirs.push(doc.data() as Directory);
+        const data = doc.data();
+        freshDirs.push({
+          ...data,
+          drive_id: doc.id || data.drive_id
+        } as Directory);
       });
       
       setDirs(freshDirs);
@@ -469,26 +480,30 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }
   };
 
-  const runWithTimeout = async <T,>(
-    promise: Promise<T>,
-    timeoutMs: number = 3500,
-    fallbackValue: T | null = null,
-    errorMessage: string = "Firestoreとの通信が遅延しています。オフライン/キャッシュ優先で継続します。"
-  ): Promise<T | null> => {
+  type FirestoreResult = 
+    | { status: "confirmed" }
+    | { status: "timeout" }
+    | { status: "failed", error: string };
+
+  const runWithExplicitResult = async (
+    promise: Promise<void>,
+    timeoutMs: number = 3500
+  ): Promise<FirestoreResult> => {
     let timeoutId: any;
-    const timeoutPromise = new Promise<null>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error(errorMessage));
-      }, timeoutMs);
+    const timeoutPromise = new Promise<{ status: "timeout" }>((resolve) => {
+      timeoutId = setTimeout(() => resolve({ status: "timeout" }), timeoutMs);
     });
+
     try {
-      const result = await Promise.race([promise, timeoutPromise]);
+      const result = await Promise.race([
+        promise.then(() => ({ status: "confirmed" as const })),
+        timeoutPromise
+      ]);
       clearTimeout(timeoutId);
-      return result as T;
+      return result;
     } catch (err: any) {
       clearTimeout(timeoutId);
-      console.warn("Firestore non-blocking timeout/error:", err.message || err);
-      return fallbackValue;
+      return { status: "failed", error: err.message || String(err) };
     }
   };
 
@@ -541,20 +556,19 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
         updated_at: serverTimestamp()
       }, { merge: true });
 
-      const timeoutPromise = new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error("Firestoreとの通信が遅延しています。現在オフライン/キャッシュキャッシュモードで継続稼働しています。")), 3500)
-      );
-
-      await Promise.race([savePromise, timeoutPromise]);
-    } catch (err: any) {
-      const msg = err.message || String(err);
-      if (msg.includes("permission") || msg.includes("denied")) {
-        onAddLog("error", `⚠️ [Firestore保存エラー] 同期情報の保存権限がありません (Missing Permissions)`);
-        onAddLog("error", `🔍 DB: ${firestoreDatabaseId}, Path: users/${userId}/state/global_sync`);
-      } else {
-        // Use console.warn instead of console.error to avoid raising test pipeline exceptions
-        console.warn("Firestore save update non-blocking delay:", msg);
+      const result = await runWithExplicitResult(savePromise, 3500);
+      if (result.status === "failed") {
+        if (result.error.includes("permission") || result.error.includes("denied")) {
+          onAddLog("error", `⚠️ [Firestore保存エラー] 同期情報の保存権限がありません (Missing Permissions)`);
+          onAddLog("error", `🔍 DB: ${firestoreDatabaseId}, Path: users/${userId}/state/global_sync`);
+        } else {
+          console.warn("Firestore save update non-blocking error/delay:", result.error);
+        }
+      } else if (result.status === "timeout") {
+        console.warn("Firestore save update timeout. Operating in cache mode.");
       }
+    } catch (syncErr: any) {
+       console.warn("Firestore save synchronous error:", syncErr);
     }
   };
 
@@ -597,7 +611,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }
     setIsCrawlActive(true);
     crawlActiveRef.current = true;
-    setCrawlStats({ discovered: 0, skipped: 0, removed: 0 });
+    setCrawlStats({ discovered: 0, skipped: 0, ignored: 0, removed: 0 });
     onAddLog("info", forceReset ? "フォルダ全件スキャンを開始します（初期走査）..." : "インクリメンタル（差分）走査を開始します...");
 
     let currentToken = forceReset ? null : nextPageToken;
@@ -657,7 +671,10 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
             body: JSON.stringify({
               token: token,
               lastTraversedAt: baselineTime,
-              nextPageToken: currentToken
+              nextPageToken: currentToken,
+              scanMode: "flat-scan",
+              pageSize: scanLimit > 0 ? scanLimit : 100,
+              cacheScope: userId
             })
           });
 
@@ -734,19 +751,28 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
             // Ignored folder check
             const { path: resolvedFullPath } = resolvePathAndDepth(resolvedId); // 変数名変更
-            const isIgnored = ignoredFolderNames.some(ignored => resolvedFullPath.split('/').includes(ignored));
+            const isNameIgnored = ignoredFolderNames.includes(file.name);
+            const isPathIgnored = ignoredFolderNames.some(ignored => resolvedFullPath.split('/').includes(ignored));
 
-            if (isIgnored) {
-              onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
-              setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
-              const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
-              batch.delete(folderDocRef);
-              batchWriteCount++;
-              
-              if (batchWriteCount === 450) {
-                await batch.commit();
-                batch = writeBatch(db);
-                batchWriteCount = 0;
+            if (isNameIgnored || isPathIgnored) {
+              if (isNameIgnored) {
+                setCrawlStats(prev => ({ ...prev, ignored: prev.ignored + 1 }));
+              }
+              const existsInDb = dirs.some(d => d.drive_id === resolvedId);
+              if (existsInDb) {
+                onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
+                setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
+                const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
+                batch.delete(folderDocRef);
+                batchWriteCount++;
+                
+                if (batchWriteCount === 450) {
+                  await batch.commit();
+                  batch = writeBatch(db);
+                  batchWriteCount = 0;
+                }
+              } else if (isNameIgnored) {
+                onAddLog("info", `🚫 無視設定に一致するため「${file.name}」の追加をスキップ（無視）しました。`);
               }
               continue;
             }
@@ -880,7 +906,9 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
               token: token,
               parentFolderId: activeOldestFolder.drive_id,
               nextPageToken: folderToken,
-              pageSize: 50
+              pageSize: 50,
+              scanMode: "progressive-scan",
+              cacheScope: userId
             })
           });
 
@@ -919,19 +947,28 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
             // Ignored folder check
             const pathForCheck = `${parentCleanPath}/${file.name}`;
-            const isIgnored = ignoredFolderNames.some(ignored => pathForCheck.split('/').includes(ignored));
+            const isNameIgnored = ignoredFolderNames.includes(file.name);
+            const isPathIgnored = ignoredFolderNames.some(ignored => pathForCheck.split('/').includes(ignored));
 
-            if (isIgnored) {
-              onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
-              setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
-              const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
-              folderBatch.delete(folderDocRef);
-              folderBatchCount++;
+            if (isNameIgnored || isPathIgnored) {
+              if (isNameIgnored) {
+                setCrawlStats(prev => ({ ...prev, ignored: prev.ignored + 1 }));
+              }
+              const existsInDb = localDirsMap.has(resolvedId);
+              if (existsInDb) {
+                onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
+                setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
+                const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
+                folderBatch.delete(folderDocRef);
+                folderBatchCount++;
 
-              if (folderBatchCount === 450) {
-                await folderBatch.commit();
-                folderBatch = writeBatch(db);
-                folderBatchCount = 0;
+                if (folderBatchCount === 450) {
+                  await folderBatch.commit();
+                  folderBatch = writeBatch(db);
+                  folderBatchCount = 0;
+                }
+              } else if (isNameIgnored) {
+                onAddLog("info", `🚫 無視設定に一致するため「${file.name}」の追加をスキップ（無視）しました。`);
               }
               continue;
             }
@@ -1098,7 +1135,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
         const item = sortedDirs[i];
         setCurrentIndexingId(item.drive_id);
         setIndexingProgress({ current: i + 1, total: sortedDirs.length });
-        setCurrentTaskName(item.path.split('/').pop() || item.drive_id);
+        setCurrentTaskName((item.path || "").split('/').pop() || item.drive_id);
         setCurrentTaskPath(item.path);
 
         onAddLog("info", `[インデックス作成中...] 階層パス (${item.depth}): ${item.path}`);
@@ -1127,7 +1164,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
           body: JSON.stringify({
             token: token,
             folderId: item.drive_id,
-            folderName: item.path.split("/").pop() || "マイドライブ",
+            folderName: (item.path || "").split("/").pop() || "マイドライブ",
             config: config,
             subdirsWithSummaries
           })
@@ -1265,9 +1302,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         },
         body: JSON.stringify({
           token: token,
-          lastGlobalSyncAt: lastGlobalSyncAt,
+          lastTraversedAt: lastGlobalSyncAt,
           nextPageToken: nextPageToken,
-          pageSize: 1
+          pageSize: 1,
+          scanMode: "debug-step",
+          bypassCache: true,
+          cacheScope: userId
         }),
         signal: controller.signal
       });
@@ -1347,6 +1387,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
       const newFolderObj = {
         drive_id: resolvedId,
+        name: file.name,
         path: fullPath || `/${file.name}`,
         depth: computedDepth || 1,
         index_status: "pending",
@@ -1359,13 +1400,15 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       setDebugSaveStatus("pending");
 
       try {
-        const result = await runWithTimeout<"confirmed" | "timeout">(
-          setDoc(folderDocRef, newFolderObj, { merge: true }).then(() => "confirmed" as const),
-          4500,
-          "timeout"
+        const result = await runWithExplicitResult(
+          setDoc(folderDocRef, newFolderObj, { merge: true }),
+          4500
         );
 
-        if (result === "timeout") {
+        if (result.status === "failed") {
+          setDebugSaveStatus("failed");
+          onAddLog("error", `❌ [デバッグ走査] Firestore保存に失敗しました。取得したフォルダ情報は永続化されていません。: ${result.error}`);
+        } else if (result.status === "timeout") {
           setDebugSaveStatus("timeout");
           onAddLog("warn", "⚠️ [デバッグ走査] Firestore保存確認がタイムアウトしました。取得結果は画面に表示していますが、永続化は未確認です。");
         } else {
@@ -1374,7 +1417,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         }
       } catch (saveErr: any) {
         setDebugSaveStatus("failed");
-        onAddLog("error", `❌ [デバッグ走査] Firestore保存に失敗しました。取得したフォルダ情報は永続化されていません。: ${saveErr.message || saveErr}`);
+        onAddLog("error", `❌ [デバッグ走査] Firestore保存に例外が発生しました。: ${saveErr.message || saveErr}`);
       }
 
       // Page token persistence with more error info
@@ -1710,22 +1753,22 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">
+                    <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm" title="新規/更新">
                       <Database className="w-2.5 h-2.5 text-indigo-500" />
                       <span className="text-[10px] font-mono font-bold text-slate-700">{crawlStats.discovered}</span>
                     </div>
-                    {crawlStats.skipped > 0 && (
-                      <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 shadow-sm" title="既存スキップ">
-                        <FastForward className="w-2.5 h-2.5 text-amber-500" />
-                        <span className="text-[10px] font-mono font-bold text-amber-700">{crawlStats.skipped}</span>
-                      </div>
-                    )}
-                    {crawlStats.removed > 0 && (
-                      <div className="flex items-center gap-1.5 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 shadow-sm" title="DBから削除">
-                        <FolderX className="w-2.5 h-2.5 text-rose-500" />
-                        <span className="text-[10px] font-mono font-bold text-rose-700">{crawlStats.removed}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 shadow-sm" title="既存スキップ">
+                      <FastForward className="w-2.5 h-2.5 text-amber-500" />
+                      <span className="text-[10px] font-mono font-bold text-amber-700">{crawlStats.skipped}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 shadow-sm" title="設定による無視">
+                      <EyeOff className="w-2.5 h-2.5 text-slate-500" />
+                      <span className="text-[10px] font-mono font-bold text-slate-700">{crawlStats.ignored}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 shadow-sm" title="DBから削除">
+                      <FolderX className="w-2.5 h-2.5 text-rose-500" />
+                      <span className="text-[10px] font-mono font-bold text-rose-700">{crawlStats.removed}</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -1897,7 +1940,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                           </div>
                           <div className="flex flex-col min-w-0">
                             <span className="text-[11px] font-bold text-slate-700 truncate" title={dir.path}>
-                              {dir.name || (dir.path === "/" ? "マイドライブ" : dir.path.split('/').pop())}
+                              {dir.name || (dir.path === "/" ? "マイドライブ" : (dir.path || "").split('/').pop())}
                             </span>
                             <span className="text-[9px] text-slate-400 truncate font-mono" title={dir.path}>{dir.path}</span>
                           </div>
@@ -1920,7 +1963,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                         </div>
                         <div className="col-span-2 text-right">
                           <span className="text-[9px] font-mono text-slate-300 select-all" title={dir.drive_id}>
-                            {dir.drive_id.slice(0, 8)}...
+                            {(dir.drive_id || "").slice(0, 8)}...
                           </span>
                         </div>
                       </div>
@@ -1934,17 +1977,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
         {activeTab === "debugger" && (
           <div className="space-y-6" id="debugger-container">
-            {/* 警告ログ表示枠 */}
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3 rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" id="alert-circle-icon" />
-              <div className="space-y-1">
-                <span className="font-bold">開発者専用テスト・強制修正ツール</span>
-                <p className="text-[11px] leading-relaxed">
-                  本パネルは、Google Drive API のページトークン（pageToken）の同期不整合や、異常終了、無限走査状態を検知して手動でリセット・1ステップずつ駆動テストするためのツールです。通常運用で不整合が発生した際にご活用ください。
-                </p>
-              </div>
-            </div>
-
             {/* Core Interactive Step Trigger */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-5 space-y-4">
@@ -2009,19 +2041,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                 </div>
               </div>
 
-              {/* BFS / DFS explanation overlay */}
-              <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 text-[11px] leading-relaxed text-slate-700 space-y-2">
-                <h5 className="font-bold text-indigo-800 flex items-center gap-1.5 text-xs">
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  幅優先 (BFS) か深さ優先 (DFS) か？ (仕様検証)
-                </h5>
-                <p>
-                  <strong>1. フォルダ走査 (Crawl)</strong>: APIの取得要件として高速フラット検索を行っているため、Google Drive APIはページ順にフォルダのフラットリストを返します。取得されたフォルダは親をメモリ上の全マップから辿ってパスを組み立てるため、<strong>事実上の幅優先 (Breadth-First) 解決</strong>を動的に行います。
-                </p>
-                <p>
-                  <strong>2. インデックス生成 (OKF Generation)</strong>: ボトムアップ（最深部から浅い階層へ）に要約（Cascade summaries）を伝搬させるため、<strong>深さ優先 (Depth-First / Deepest-First) 処理</strong>で進行します。
-                </p>
-              </div>
+
             </div>
 
             {/* Diagnostic readout */}
@@ -2158,7 +2178,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
               <div className="space-y-1">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Firestore 同期済み件数</h3>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Firestore内の <code>directories</code> コレクションに保存されているドキュメントの総数をカウントします。
+                  Firestore内の <code>directories</code> コレクションに保存されているドキュメントの総数をカウントします。<br />
+                  <span className="text-indigo-500/80 font-bold">※ この操作はサーバサイドのカウントクエリ（課金対象）を実行します。手動でのみ実行可能です。</span>
                 </p>
               </div>
               <div className="flex items-center gap-4">

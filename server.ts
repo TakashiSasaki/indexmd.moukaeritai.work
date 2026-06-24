@@ -25,8 +25,15 @@ if (!fs.existsSync(SCAN_CACHE_DIR)) {
   fs.mkdirSync(SCAN_CACHE_DIR, { recursive: true });
 }
 
-function getScanCacheKey(parentFolderId: string | undefined, nextPageToken: string | undefined, lastTraversedAt: string | undefined): string {
-  const input = `p_${parentFolderId || "root"}_t_${nextPageToken || "none"}_l_${lastTraversedAt || "none"}`;
+function getScanCacheKey(
+  parentFolderId: string | undefined, 
+  nextPageToken: string | undefined, 
+  lastTraversedAt: string | undefined,
+  pageSize: number | undefined,
+  scanMode: string | undefined,
+  cacheScope: string | undefined
+): string {
+  const input = `p_${parentFolderId || "root"}_t_${nextPageToken || "none"}_l_${lastTraversedAt || "none"}_s_${pageSize || 100}_m_${scanMode || "none"}_c_${cacheScope || "none"}`;
   return crypto.createHash("md5").update(input).digest("hex") + ".json";
 }
 
@@ -371,17 +378,21 @@ app.post("/api/drive/scan", async (req, res) => {
     return;
   }
 
-  const { lastTraversedAt, nextPageToken, pageSize, parentFolderId } = req.body;
+  const { lastTraversedAt, nextPageToken, pageSize, parentFolderId, scanMode, bypassCache, cacheScope } = req.body;
   const targetPageSize = pageSize || 100;
-  const cacheKey = getScanCacheKey(parentFolderId, nextPageToken, lastTraversedAt);
+  const cacheKey = getScanCacheKey(parentFolderId, nextPageToken, lastTraversedAt, targetPageSize, scanMode, cacheScope);
 
   try {
     // 1. Try reading from disk cache
-    const cachedData = await getCachedScan(cacheKey);
-    if (cachedData) {
-      console.log(`[Cache Hit] Serving scan result from disk cache for key: ${cacheKey}`);
-      res.json({ ...cachedData, cached: true });
-      return;
+    if (!bypassCache) {
+      const cachedData = await getCachedScan(cacheKey);
+      if (cachedData) {
+        console.log(`[Cache Hit] mode=${scanMode || "none"} scope=${cacheScope || "none"} key=${cacheKey.substring(0, 8)}... Serving scan result from disk cache.`);
+        res.json({ ...cachedData, cached: true });
+        return;
+      }
+    } else {
+      console.log(`[Cache Bypass] mode=${scanMode || "none"} skip disk cache read.`);
     }
 
     // 2. Fetch from Google API on cache miss
@@ -399,12 +410,12 @@ app.post("/api/drive/scan", async (req, res) => {
       url += `&pageToken=${encodeURIComponent(nextPageToken)}`;
     }
 
-    console.log(`[Cache Miss] Fetching scan result from Google Drive API: ${url}`);
+    console.log(`[Cache Miss] Fetching scan result from Google Drive API`);
     const response = await fetchGoogleDrive(url, token);
     const data = await response.json();
 
     // 3. Save to disk cache if it's a successful response (has no error key)
-    if (data && !data.error) {
+    if (!bypassCache && data && !data.error) {
       await setCachedScan(cacheKey, data);
     }
 

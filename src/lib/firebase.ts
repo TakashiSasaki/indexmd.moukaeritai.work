@@ -54,8 +54,8 @@ if (firestoreDatabaseId === "(default)") {
 try {
   db = getFirestore(app, firestoreDatabaseId);
 } catch (e: any) {
-  console.warn("Firestore initialization error (falling back)", e);
-  db = getFirestore(app);
+  console.error(`[Firestore] Failed to initialize Firestore with database ID: ${firestoreDatabaseId}. Not falling back to (default).`, e);
+  throw e;
 }
 
 export enum OperationType {
