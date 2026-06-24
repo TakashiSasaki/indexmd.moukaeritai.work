@@ -74,3 +74,29 @@ This document provides a safe, repeatable manual smoke procedure to verify that 
   - Simulating a stale page token is difficult without manipulating internals. 
   - When a token naturally goes stale or is manually altered in a test, the server will retry without `pageToken`.
   - **Expected if token goes stale:** The server responds with `pageTokenRecovered: true` and the client logs the recovery. Tokens must NOT be exposed in logs.
+
+## 6. Smoke Execution Record (Template)
+When executing a smoke test manually, copy this template, fill it out, and record it in your PR or Issue.
+
+```text
+### Smoke Test Record
+**Date/Time:** YYYY-MM-DD HH:MM
+**Commit SHA:** (e.g. abc1234)
+**Environment:** (Local Dev | Local Prod Build | Deployed)
+**Node Version:** vX.Y.Z
+**Firebase Project ID:** 
+**Firestore Database ID:** indexmd-db
+**Authenticated UID:** (Partial UID, e.g. a1b2...c3)
+
+**Results:**
+- **Firestore Diagnostic:** [ confirmed | timeout | failed ]
+- **One-Step Debug Scan:** [ empty | confirmed | timeout | failed ]
+- **Bounded Scan Limit:** (e.g. 5)
+- **Bounded Scan Result:** [ Pass | Fail ]
+- **Route Refresh (Dashboard/Debugger):** [ Pass | Fail ]
+- **Cache Observation:** [ Hit observed | Miss observed ]
+- **Page Token Recovery:** [ Not triggered naturally | Recovered successfully ]
+
+**Blockers / Notes:**
+(Any errors, exceptions, or unexpected behaviors)
+```

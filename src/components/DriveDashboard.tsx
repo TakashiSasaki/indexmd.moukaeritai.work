@@ -55,7 +55,8 @@ import {
   Zap,
   Sparkles,
   ShieldAlert,
-  Terminal
+  Terminal,
+  ClipboardCopy
 } from "lucide-react";
 import DriveLogs from "./DriveLogs";
 import { SummaryDebugger } from "./SummaryDebugger";
@@ -220,11 +221,9 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
       let writeStatus: "success" | "warn" = "success";
       if (writeResult.status === "failed") {
         if (writeResult.error.includes("permission") || writeResult.error.includes("denied")) {
-          onAddLog("error", `❌ [権限診断] 書き込みテスト失敗: Permission Denied.`);
-          writeStatus = "warn";
+          throw new Error(`Permission Denied: ${writeResult.error}`);
         } else {
-          onAddLog("error", `❌ [権限診断] 書き込みテスト失敗: ${writeResult.error}`);
-          writeStatus = "warn";
+          throw new Error(`Write failed: ${writeResult.error}`);
         }
       } else if (writeResult.status === "timeout") {
         onAddLog("warn", "⚠️ [権限診断] 書き込み未確認: Firestore保存の応答がタイムアウトしました。オフライン保存として継続されている可能性があります。");
@@ -2142,6 +2141,48 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                 <li><strong>ルーティングテスト:</strong> 現在のURLでブラウザをリロード（F5）し、同じタブが維持されるか確認します。</li>
               </ul>
               <p className="font-bold text-indigo-800 mt-2">※ このテスト中はGoogle Driveのファイル削除や自動要約生成を実行しないでください。</p>
+            </div>
+            
+            <div className="mt-4 p-3 bg-white border border-indigo-100 rounded-md shadow-inner text-[10px] font-mono text-slate-600 whitespace-pre overflow-x-auto relative group">
+              <button
+                onClick={() => {
+                  const text = `### Smoke Test Record
+**Date/Time:** ${new Date().toISOString().slice(0, 16).replace('T', ' ')}
+**Commit SHA:** (Fill in)
+**Environment:** (Local Dev | Local Prod Build | Deployed)
+**Node Version:** (Fill in)
+**Firebase Project ID:** ${firebaseProjectId}
+**Firestore Database ID:** ${firestoreDatabaseId || 'indexmd-db'}
+**Authenticated UID:** ${userId ? userId.slice(0, 6) + '...' : 'Unknown'}
+
+**Results:**
+- **Firestore Diagnostic:** [ confirmed | timeout | failed ]
+- **One-Step Debug Scan:** [ empty | confirmed | timeout | failed ]
+- **Bounded Scan Limit:** (e.g. 5)
+- **Bounded Scan Result:** [ Pass | Fail ]
+- **Route Refresh (Dashboard/Debugger):** [ Pass | Fail ]
+- **Cache Observation:** [ Hit observed | Miss observed ]
+- **Page Token Recovery:** [ Not triggered naturally | Recovered successfully ]
+
+**Blockers / Notes:**
+(Any errors, exceptions, or unexpected behaviors)`;
+                  navigator.clipboard.writeText(text);
+                }}
+                className="absolute top-2 right-2 p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                title="テンプレートをコピー"
+              >
+                <ClipboardCopy className="w-3.5 h-3.5" />
+              </button>
+              {`### Smoke Test Record
+**Date/Time:** YYYY-MM-DD HH:MM
+**Commit SHA:** (Fill in)
+**Environment:** (Local Dev | Local Prod Build | Deployed)
+**Node Version:** (Fill in)
+**Firebase Project ID:** ${firebaseProjectId}
+**Firestore Database ID:** ${firestoreDatabaseId || 'indexmd-db'}
+**Authenticated UID:** ${userId ? userId.slice(0, 6) + '...' : 'Unknown'}
+
+... (コピーボタンでテンプレート全体を取得できます)`}
             </div>
           </div>
 
