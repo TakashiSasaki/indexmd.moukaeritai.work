@@ -46,10 +46,3 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 ## 📂 Project Structure Note
 - `src/components/DriveDashboard.tsx`: The heart of the application. Contains the scan orchestration, Firestore sync logic, and drive API calls.
 - `server.ts`: Handles secure Gemini requests, Drive API proxying (to keep tokens secret), and history persistence.
-
-## 🔒 Hard Safety Constraints
-- **Drive Safety**: Do NOT delete Google Drive files, folders, or generated `index.md` files. Do NOT run full Drive-wide indexing.
-- **Data Safety**: Firestore database ID is `indexmd-db`. Do not loosen security rules or re-add `(default)`.
-- **Auth Safety**: Do NOT store refresh tokens anywhere. Do NOT store Drive access tokens in localStorage. Do NOT log OAuth tokens or API URLs.
-- **File Safety**: Do NOT commit `cache/` contents. Do NOT use real private user documents as fixtures.
-- **Quality Safety**: Always run `npm run lint`, `npm run test:unit`, and `npm run build` before committing. Use latest schema/prompt versions and keep schema changelogs updated.

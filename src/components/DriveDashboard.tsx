@@ -60,10 +60,8 @@ import {
   ListFilter,
   ClipboardCopy
 } from "lucide-react";
-import { APP_TABS } from "../lib/appTabs";
 import DriveLogs from "./DriveLogs";
 import { SummaryDebugger } from "./SummaryDebugger";
-import { CacheStatsTab } from "./CacheStatsTab";
 import { motion } from "motion/react";
 import { getDriveAuthHeaders } from "../lib/driveToken";
 import { 
@@ -75,8 +73,6 @@ import {
 import { resolvePathAndDepth as resolvePathAndDepthHelper } from "../lib/driveTree";
 import { runWithExplicitResult as runWithExplicitResultHelper } from "../lib/firestoreResult";
 
-import { AppTabId } from "../lib/appTabs";
-
 interface DriveDashboardProps {
   userId: string;
   token: string;
@@ -85,8 +81,8 @@ interface DriveDashboardProps {
   onAddLog: (level: "info" | "success" | "warn" | "error", message: string, details?: string) => void;
   onClearLogs: () => void;
   onSessionExpiry?: () => void;
-  activeTab: AppTabId;
-  setActiveTab: (tab: AppTabId) => void;
+  activeTab: string;
+  setActiveTab: (tab: any) => void;
 }
 
 export default function DriveDashboard({ userId, token, config, logs, onAddLog, onClearLogs, onSessionExpiry, activeTab, setActiveTab }: DriveDashboardProps) {
@@ -1535,45 +1531,67 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       {/* (Next item in list follows) */}
 
       {/* View Mode Tabs */}
-      {/* Mobile Tab Selector */}
-      <div className="sm:hidden border-b border-slate-200 pb-3" id="tabs-navigation-mobile">
-        <label htmlFor="mobile-tab-select" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-          表示するタブ
-        </label>
-        <select
-          id="mobile-tab-select"
-          value={activeTab}
-          onChange={(e) => setActiveTab(e.target.value as AppTabId)}
-          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+      <div className="flex border-b border-slate-200" id="tabs-navigation">
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "dashboard"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-dashboard"
         >
-          {APP_TABS.map((tab) => (
-            <option key={tab.id} value={tab.id}>
-              {tab.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Desktop Tab Buttons */}
-      <div className="hidden sm:flex border-b border-slate-200" id="tabs-navigation">
-        {APP_TABS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === tab.id
-                  ? "border-indigo-600 text-indigo-600 font-extrabold"
-                  : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
-              }`}
-              id={`btn-tab-${tab.id}`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
+          <Folder className="w-4 h-4" />
+          フォルダスキャンテスト
+        </button>
+        <button
+          onClick={() => setActiveTab("debugger")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "debugger"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-debugger"
+        >
+          <Bug className="w-4 h-4" />
+          フォルダ情報取得テスト
+        </button>
+        <button
+          onClick={() => setActiveTab("summary-debugger")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "summary-debugger"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-summary-debugger"
+        >
+          <Sparkles className="w-4 h-4" />
+          AI要約テスト
+        </button>
+        <button
+          onClick={() => setActiveTab("firestore-test")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "firestore-test"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-firestore-test"
+        >
+          <Database className="w-4 h-4" />
+          Firestoreテスト
+        </button>
+        <button
+          onClick={() => setActiveTab("logs")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "logs"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-logs"
+        >
+          <Terminal className="w-4 h-4" />
+          システムログ
+        </button>
       </div>
 
       <div className="mt-6" id="tabs-content">
@@ -2434,18 +2452,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       )}
 
       {activeTab === "summary-debugger" && (
-        <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} userId={userId} setActiveTab={setActiveTab} />
+        <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} />
       )}
 
       {activeTab === "logs" && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
           <DriveLogs logs={logs} onClearLogs={onClearLogs} />
-        </div>
-      )}
-
-      {activeTab === "cache-stats" && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
-          <CacheStatsTab />
         </div>
       )}
       </div>

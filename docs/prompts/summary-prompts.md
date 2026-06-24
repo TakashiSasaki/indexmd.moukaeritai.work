@@ -4,9 +4,8 @@ This document defines the prompt text and output formats used by the Drive Index
 
 **Prompt Spec Version:** `1.0.0`
 **Format Version:** `1.0.0`
-**Structured Schema Version:** `1.1.0-draft.1`
-**System Instruction Version:** `1.1.0-draft.2`
-**Summary Analysis Prompt Version:** `1.1.0-draft.2`
+**Structured Schema Version:** `1.0.0`
+**System Instruction Version:** `1.0.0`
 
 ---
 
@@ -15,14 +14,14 @@ This document defines the prompt text and output formats used by the Drive Index
 The application supports multiple output modes for summarizing files in the debug workbench:
 
 1.  **Free-Text Mode (自由文要約)**: The default behavior. Generates an unstructured text summary.
-2.  **Structured JSON Mode (構造化分析(JSON))**: An optional mode that forces the model to extract specific structured entities (`oneLineSummary`, `detailedSummary`, `keywords`, `resourceReferences`, `namedEntities`, `documentTypes`, `primaryLanguage`, `languages`, `topics`, `parties`, `monetaryAmounts`, `subjectAreas`, `temporalReferences`, `documentIntent`, `confidence`, `warnings`) according to a strict JSON schema.
+2.  **Structured JSON Mode (構造化分析(JSON))**: An optional mode that forces the model to extract specific structured entities (`oneLineSummary`, `detailedSummary`, `keywords`, `urls`, `namedEntities`, `documentType`, `language`, `confidence`) according to a strict JSON schema.
 
 ### Native Structured Output vs Prompt-Based Fallback
 If the installed `@google/genai` SDK and target model support native structured output (`responseMimeType: "application/json"`, `responseSchema`), the API utilizes it directly. If the model or SDK does not support it, a prompt-based fallback approach is used to request JSON formatting, which is then parsed and validated server-side.
 
 ### System Instructions vs Custom Instructions
 - **Fixed System Instruction**: When the API supports it, a fixed system instruction is attached to the API call. This instruction sets base policies (e.g., output in Japanese, do not hallucinate entities, `oneLineSummary` must be concise).
-- **Custom Task Instruction (カスタム要約指示)**: An optional user-provided text appended to the prompt. It is intended to guide the specific summary task, not to overwrite the core fixed policies. It is appended as a regular text prompt rather than an API-level `systemInstruction`. *Note: Changing prompt versions, schema versions, or custom instructions alters the cache key, resulting in cache misses for previously analyzed files.*
+- **Custom Task Instruction (カスタム要約指示)**: An optional user-provided text appended to the prompt. It is intended to guide the specific summary task, not to overwrite the core fixed policies. It is appended as a regular text prompt rather than an API-level `systemInstruction`.
 
 ---
 

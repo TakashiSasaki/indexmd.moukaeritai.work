@@ -1,7 +1,7 @@
 # AI Summary Test Workbench & Schema Evaluation Guide
 
 ## Overview
-The **AI Summary Test** tab is a safe, isolated workbench designed to evaluate new summary schema versions (currently `v1.1.0-draft.1` structural schema, `v1.1.0-draft.2` prompt version) without affecting Google Drive `index.md` files or Firestore data.
+The **AI Summary Test** tab is a safe, isolated workbench designed to evaluate new summary schema versions (currently `v1.1.0-draft.2`) without affecting Google Drive `index.md` files or Firestore data.
 
 ## Features
 - **Drive Input Mode**: Fetch and parse text/binary documents from Google Drive for testing.
@@ -26,5 +26,5 @@ The **AI Summary Test** tab is a safe, isolated workbench designed to evaluate n
    - Click "表示" to load previous structured results and validation errors (raw output will be marked as not persisted).
 3. **Draft Schema Iteration**:
    - Edit `src/lib/summaryAnalysisSchema.ts` and `src/lib/promptSpecs.ts`.
-   - Update version numbers (e.g., `v1.1.0-draft.1` or `v1.1.0-draft.2`).
+   - Update version numbers (e.g., `v1.1.0-draft.2`).
    - Run tests (`npm run test:unit`) before manual UI validation.

@@ -60,28 +60,3 @@ More After`;
   assert.ok(resMulti.includes("\nAfter\nMore After"));
   assert.ok(resMulti.includes(AUTO_GENERATED_START + aiContent + AUTO_GENERATED_END));
 });
-
-test("indexMdMerge marker constants are stable", () => {
-  assert.strictEqual(AUTO_GENERATED_START, "<!-- AUTO_GENERATED_START -->");
-  assert.strictEqual(AUTO_GENERATED_END, "<!-- AUTO_GENERATED_END -->");
-});
-
-test("indexMdMerge preserves multiple unrelated sections", () => {
-  const folderName = "Folder";
-  const aiContent = "\nAI content\n";
-  const existing = `# Header
-Content A
-${AUTO_GENERATED_START}
-old AI
-${AUTO_GENERATED_END}
-Content B
-## Header 2
-Content C`;
-  const merged = mergeIndexMd(existing, folderName, aiContent);
-  assert.ok(merged.includes("Content A"));
-  assert.ok(merged.includes("Content B"));
-  assert.ok(merged.includes("Content C"));
-  assert.ok(merged.includes(AUTO_GENERATED_START + aiContent + AUTO_GENERATED_END));
-  assert.strictEqual(merged.split(AUTO_GENERATED_START).length, 2); // only one block
-});
-

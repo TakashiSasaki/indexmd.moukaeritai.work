@@ -33,13 +33,7 @@ A local JSON audit log for the developer/user to monitor:
 - MIME types and file names processed.
 - Truncated to 100 entries to prevent oversized payloads.
 
-### 4.2 Cache Layers (`cache/`)
-The `cache/` directory is `.gitignore`d to prevent accidental commits of private data. It contains:
-- `cache/snippets/`: Raw text snippets extracted from documents.
-- `cache/summaries/`: Generated AI summaries.
-- `cache/scan/`: Scanned Drive folder metadata.
-
-### 4.3 Experiment History (`cache/experiment-history/experiment_history.json`)
+### 4.2 Experiment History (`cache/experiment-history/experiment_history.json`)
 Used for AI Summary Test workbench:
 - Stores experimental runs of draft schemas (e.g., `v1.1.0-draft.1`).
 - Saved in the ignored `cache/` directory to prevent accidental commits of private data.

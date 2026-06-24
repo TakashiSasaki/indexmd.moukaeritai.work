@@ -4,16 +4,11 @@ import { getDriveAuthHeaders } from '../lib/driveToken';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
 import { ModelInfo, ValidationRecord, ExperimentHistoryRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
-// @ts-ignore - TS test runner fails on ?raw imports, but vite handles it correctly in prod
- import { SUMMARY_FIXTURES } from '../lib/__fixtures__/summary-schema';
-import { db, doc, getDoc, setDoc, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { buildFileSummaryMetadata, sanitizeSummaryMetadataForFirestore, getFileSummaryDocPath } from '../lib/summaryMetadata';
+import { SUMMARY_FIXTURES } from '../lib/__fixtures__/summary-schema';
 
 interface SummaryDebuggerProps {
   token: string | null;
   onSessionExpiry?: () => void;
-  userId?: string | null;
-  setActiveTab?: (tabId: string) => void;
 }
 
 const CACHE_KEY = 'gemini_sample_files_cache';
@@ -28,7 +23,7 @@ export function canGenerateSummary(inputMode: 'drive' | 'manual', fileId: string
   return !!manualText.trim();
 }
 
-export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry, userId, setActiveTab }) => {
+export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry }) => {
   const [inputMode, setInputMode] = useState<"drive" | "manual">("drive");
   const [manualText, setManualText] = useState("");
   const [manualInputLabel, setManualInputLabel] = useState<string | null>(null);
@@ -57,90 +52,6 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingExperimentHistory, setLoadingExperimentHistory] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
-  const [firestorePersisted, setFirestorePersisted] = useState<"persisted" | "not_persisted" | "checking" | "failed">("checking");
-  const [savingToFirestore, setSavingToFirestore] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | null, message: string | null }>({ type: null, message: null });
-
-  const checkFirestorePersistence = useCallback(async (selectedFileId: string) => {
-    const currentUid = userId || auth.currentUser?.uid;
-    if (!currentUid || !selectedFileId.trim() || inputMode !== "drive") {
-      setFirestorePersisted("not_persisted");
-      return;
-    }
-    setFirestorePersisted("checking");
-    try {
-      const docPath = getFileSummaryDocPath(currentUid, selectedFileId);
-      const docRef = doc(db, docPath);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setFirestorePersisted("persisted");
-      } else {
-        setFirestorePersisted("not_persisted");
-      }
-    } catch (err) {
-      console.error("Failed to check Firestore persistence:", err);
-      setFirestorePersisted("failed");
-    }
-  }, [userId, inputMode]);
-
-  useEffect(() => {
-    if (inputMode === "drive" && fileId) {
-      checkFirestorePersistence(fileId);
-    } else {
-      setFirestorePersisted("not_persisted");
-    }
-  }, [fileId, inputMode, checkFirestorePersistence]);
-
-  const handleSaveToFirestore = async () => {
-    if (!result || result.outputMode !== "structured" || !result.structured) return;
-    const currentUid = userId || auth.currentUser?.uid;
-    if (!currentUid) {
-      setSaveStatus({ type: 'error', message: 'ユーザーが認証されていません。ログインしてください。' });
-      return;
-    }
-    
-    const selectedFileId = fileId.trim();
-    if (!selectedFileId) {
-      setSaveStatus({ type: 'error', message: 'ファイルIDが見つかりません。' });
-      return;
-    }
-
-    setSavingToFirestore(true);
-    setSaveStatus({ type: null, message: null });
-
-    try {
-      const metadataRaw = buildFileSummaryMetadata({
-        fileId: selectedFileId,
-        fileName: result.metadata?.name,
-        mimeType: result.metadata?.mimeType,
-        modifiedTime: result.metadata?.modifiedTime,
-        model: usedModel || modelName,
-        structured: result.structured,
-        validationErrors: result.validationErrors || [],
-        parseSuccess: result.success && !result.structuredParseFailed,
-        validationSuccess: result.success && !result.structuredParseFailed && !result.error,
-        source: "ai-summary-test",
-      });
-
-      const sanitizedMetadata = sanitizeSummaryMetadataForFirestore(metadataRaw);
-      const docPath = getFileSummaryDocPath(currentUid, selectedFileId);
-      const docRef = doc(db, docPath);
-
-      await setDoc(docRef, sanitizedMetadata, { merge: true });
-
-      setSaveStatus({ type: 'success', message: 'Firestoreへ正常にメタデータを保存しました。' });
-      setFirestorePersisted("persisted");
-    } catch (err: any) {
-      console.error("Failed to save to Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.WRITE, `users/${currentUid}/file_summaries/${selectedFileId}`);
-      } catch (formattedErr: any) {
-        setSaveStatus({ type: 'error', message: formattedErr.message });
-      }
-    } finally {
-      setSavingToFirestore(false);
-    }
-  };
 
   const currentMimeType = useMemo(() => {
     return samples.find(s => s.file.id === fileId)?.file.mimeType;
@@ -583,32 +494,6 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                 className="w-full bg-transparent p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            {fileId.trim() && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-slate-500">Firestoreステータス:</span>
-                {firestorePersisted === "persisted" ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs px-2.5 py-0.5 rounded-full border border-emerald-200 font-bold">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    Firestore: Persisted (保存済み)
-                  </span>
-                ) : firestorePersisted === "checking" ? (
-                  <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2.5 py-0.5 rounded-full border border-indigo-200 font-bold animate-pulse">
-                    <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
-                    確認中...
-                  </span>
-                ) : firestorePersisted === "failed" ? (
-                  <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-xs px-2.5 py-0.5 rounded-full border border-rose-200 font-bold">
-                    <span className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
-                    ステータス取得エラー
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-xs px-2.5 py-0.5 rounded-full border border-slate-200 font-medium">
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
-                    Firestore: Not persisted (未保存)
-                  </span>
-                )}
-              </div>
-            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -1131,74 +1016,6 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
           </div>
           
           <div className="p-4 space-y-6">
-            
-            {result.outputMode === "structured" && result.structured && inputMode === "drive" && (
-              <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      Firestore メタデータ連携
-                    </span>
-                    {firestorePersisted === "persisted" ? (
-                      <span className="inline-flex items-center gap-1 bg-emerald-950/60 text-emerald-400 text-[10px] px-2 py-0.5 rounded border border-emerald-900/60 font-bold">
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        保存済み (Persisted)
-                      </span>
-                    ) : firestorePersisted === "checking" ? (
-                      <span className="inline-flex items-center gap-1 bg-indigo-950/60 text-indigo-400 text-[10px] px-2 py-0.5 rounded border border-indigo-900/60 font-bold animate-pulse">
-                        <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
-                        確認中...
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 bg-slate-900 text-slate-400 text-[10px] px-2 py-0.5 rounded border border-slate-800 font-bold">
-                        未保存 (Not persisted)
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    この構造化要約結果を、Firestoreに該当Driveファイルのメタデータとして永続保存できます。
-                  </p>
-                  {saveStatus.message && (
-                    <p className={`text-xs font-bold flex items-center gap-1 ${saveStatus.type === "success" ? "text-emerald-400" : "text-rose-400"}`}>
-                      {saveStatus.type === "success" ? <Check className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                      {saveStatus.message}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2 shrink-0 w-full sm:w-auto">
-                  <button
-                    onClick={handleSaveToFirestore}
-                    disabled={savingToFirestore}
-                    className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto ${
-                      savingToFirestore 
-                        ? "bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed" 
-                        : "bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500 hover:border-indigo-400"
-                    }`}
-                  >
-                    {savingToFirestore ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        保存中...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        Firestoreへメタデータ保存
-                      </>
-                    )}
-                  </button>
-                  {setActiveTab && (
-                    <button
-                      onClick={() => setActiveTab("firestore-test")}
-                      className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:text-white hover:border-slate-500 transition-all flex items-center justify-center gap-1 w-full sm:w-auto"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                      Firestore診断
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
             
             {result.outputMode === "structured" && result.structured ? (
               <div className="space-y-6">

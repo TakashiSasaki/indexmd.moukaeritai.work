@@ -8,7 +8,7 @@ The current implementation focuses on hardening the short-lived Google Drive acc
 - **No `localStorage`**: The `drive_access_token` is no longer persisted across sessions via `localStorage` to avoid using stale or vulnerable long-lived tokens.
 - **Session-bound**: Tokens are stored in `sessionStorage` with explicit `acquiredAt` and `expiresAt` metadata.
 - **Conservative Expiry**: By default, we assume tokens expire 50 minutes after acquisition (leaving a 10-minute buffer for Google's standard 60-minute expiry).
-- **Transport via Headers**: Tokens are sent via the `Authorization: Bearer <token>` header (and temporarily `x-google-drive-token` for compatibility). URL query parameters for tokens have been removed and **must not be used** as a fallback. Body token transport is deprecated and flagged with a `TODO(deprecated)` comment.
+- **Transport via Headers**: Tokens are sent via the `Authorization: Bearer <token>` header (and temporarily `x-google-drive-token` for compatibility). URL query parameters for tokens have been removed. Body token transport is deprecated and flagged with a `TODO(deprecated)` comment.
 - **Re-authentication UX**: If a token expires (or a 401/403 is encountered), the app clears the token state but preserves Firebase authentication. A dedicated "Drive Access Required" re-authentication screen is shown instead of forcing a full application logout.
 
 ## Future Milestones

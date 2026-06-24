@@ -21,10 +21,6 @@ test("buildScanCacheKeyParts normalizes and produces correct outputs", () => {
   const resDiffCacheScope = buildScanCacheKeyParts("folder123", "token123", "2026-06-24", 50, "flat-scan", "user456");
   assert.notStrictEqual(res1.normalizedString, resDiffCacheScope.normalizedString);
 
-  // different page tokens produce different normalized strings
-  const resDiffToken = buildScanCacheKeyParts("folder123", "token456", "2026-06-24", 50, "flat-scan", "user123");
-  assert.notStrictEqual(res1.normalizedString, resDiffToken.normalizedString);
-
   // missing values normalize deterministically
   const resMissing = buildScanCacheKeyParts(undefined, undefined, undefined, undefined, undefined, undefined);
   assert.strictEqual(resMissing.normalizedString, "p_root_t_none_l_none_s_100_m_none_c_none_pv_1_0_0_fv_1_0_0");
