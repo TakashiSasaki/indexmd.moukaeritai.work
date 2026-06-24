@@ -1,5 +1,6 @@
 export interface Directory {
   drive_id: string; // Google Drive folder ID
+  name: string; // Folder name
   path: string; // Absolute path from root (e.g., "/My Folder/Subfolder")
   depth: number; // Hierarchical level (root = 0, subfolders are 1, 2, ...)
   index_status: "pending" | "processing" | "indexed" | "error";

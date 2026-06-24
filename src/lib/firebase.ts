@@ -28,13 +28,16 @@ import {
   updateDoc,
   runTransaction,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  serverTimestamp,
+  getCountFromServer
 } from "firebase/firestore";
 
 // Read configuration from dynamic firebase-applet-config
 import firebaseConfig from "../../firebase-applet-config.json";
 
 export const firestoreDatabaseId = (firebaseConfig as any).firestoreDatabaseId || "(default)";
+export const firebaseProjectId = (firebaseConfig as any).projectId || "unknown";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -49,34 +52,10 @@ if (firestoreDatabaseId === "(default)") {
 }
 
 try {
-  if (isIframe) {
-    console.info("Running in iframe - initializing Firestore with memoryLocalCache to prevent offline queue blockage and tab-lock timeouts.");
-    db = initializeFirestore(app, {
-      localCache: memoryLocalCache(),
-      experimentalForceLongPolling: true
-    }, firestoreDatabaseId);
-  } else {
-    db = initializeFirestore(app, {
-      localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()}),
-      experimentalForceLongPolling: true
-    }, firestoreDatabaseId);
-  }
+  db = getFirestore(app, firestoreDatabaseId);
 } catch (e: any) {
   console.warn("Firestore initialization error (falling back)", e);
-  try {
-    db = initializeFirestore(app, {
-      localCache: memoryLocalCache(),
-      experimentalForceLongPolling: true
-    }, firestoreDatabaseId);
-  } catch (e2) {
-    try {
-      db = initializeFirestore(app, {
-        experimentalForceLongPolling: true
-      }, firestoreDatabaseId);
-    } catch (e3) {
-      db = getFirestore(app, firestoreDatabaseId);
-    }
-  }
+  db = getFirestore(app);
 }
 
 export enum OperationType {
@@ -170,6 +149,8 @@ export {
   updateDoc,
   runTransaction,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  serverTimestamp,
+  getCountFromServer
 };
 export type { User };

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { 
+  auth,
   db, 
   collection, 
   getDocs, 
@@ -10,7 +11,12 @@ import {
   orderBy, 
   limit,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  firestoreDatabaseId,
+  firebaseProjectId,
+  getDoc,
+  serverTimestamp,
+  getCountFromServer
 } from "../lib/firebase";
 import { Directory, SyncState, DriveLog, AppConfig } from "../types";
 import { writeLog } from "../lib/logger";
@@ -22,25 +28,36 @@ import {
   RefreshCw, 
   Layers, 
   Folder, 
+  FolderX,
   FileText, 
   Database,
   CheckCircle,
   AlertCircle,
+  Clock,
   X,
   XCircle,
   Search,
   CheckSquare,
   HelpCircle,
+  SlidersHorizontal,
+  EyeOff,
   ChevronRight,
   ExternalLink,
   Trash2,
   Bug,
+  ChevronDown,
   Copy,
+  LinkIcon,
+  List,
+  LogOut,
+  FastForward,
   Check,
   Zap,
-  Sparkles
+  Sparkles,
+  ShieldAlert
 } from "lucide-react";
 import { SummaryDebugger } from "./SummaryDebugger";
+import { motion } from "motion/react";
 
 interface DriveDashboardProps {
   userId: string;
@@ -57,14 +74,16 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
   const [dirs, setDirs] = useState<Directory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
-  const [searchTerm, setSearchTerm] = useState<string>("");
   
   // Job 1 State (Scanning)
   const [isCrawlActive, setIsCrawlActive] = useState<boolean>(false);
   const crawlActiveRef = useRef<boolean>(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
-  const [lastTraversedAt, setLastTraversedAt] = useState<string | null>(null);
+  const [rootNextPageToken, setRootNextPageToken] = useState<string | null>(null);
+  const [lastGlobalSyncAt, setLastGlobalSyncAt] = useState<string | null>(null);
+  const [rootLastTraversedAt, setRootLastTraversedAt] = useState<string | null>(null);
   const [currentTaskName, setCurrentTaskName] = useState<string | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [currentTaskPath, setCurrentTaskPath] = useState<string | null>(null);
 
   // Debugger specific states
@@ -77,7 +96,6 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
       onAddLog("warn", "🔧 [デバッグ走査中断] ユーザーによって1ステップ走査リクエストが手動でキャンセルされました。");
     }
   };
-  const [resetConfirming, setResetConfirming] = useState<boolean>(false);
   const [debugLoading, setDebugLoading] = useState<boolean>(false);
   const [lastDebugFolder, setLastDebugFolder] = useState<any>(null);
   const [isTokenInitializing, setIsTokenInitializing] = useState<boolean>(false);
@@ -96,7 +114,192 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }
   });
   const [syncProgress, setSyncProgress] = useState<{ current: number; lastPath: string } | null>(null);
+  const [isFullySynced, setIsFullySynced] = useState<boolean>(true);
+  const [ignoredFolderNames, setIgnoredFolderNames] = useState<string[]>([]);
+  const [crawlStats, setCrawlStats] = useState<{ discovered: number; skipped: number; removed: number }>({ discovered: 0, skipped: 0, removed: 0 });
+  const [skipExistingFolders, setSkipExistingFolders] = useState<boolean>(() => {
+    try {
+      const val = localStorage.getItem(`indexmd_skip_existing_${userId}`);
+      return val ? val === "true" : true;
+    } catch {
+      return true;
+    }
+  });
+
+  // Filtered directories based on user-defined ignored names
+  const filteredDirs = useMemo(() => {
+    return dirs.filter(d => {
+      const folderName = d.name || d.path.split('/').pop() || "";
+      return !ignoredFolderNames.includes(folderName);
+    });
+  }, [dirs, ignoredFolderNames]);
+
+  const [scanLimit, setScanLimit] = useState<number>(() => {
+    try {
+      const val = localStorage.getItem(`indexmd_scan_limit_${userId}`);
+      return val ? parseInt(val, 10) : 100;
+    } catch {
+      return 100;
+    }
+  });
+
+  useEffect(() => {
+    if (userId) {
+      localStorage.setItem(`indexmd_scan_limit_${userId}`, scanLimit.toString());
+    }
+  }, [scanLimit, userId]);
+
+  useEffect(() => {
+    if (userId) {
+      localStorage.setItem(`indexmd_skip_existing_${userId}`, skipExistingFolders.toString());
+    }
+  }, [skipExistingFolders, userId]);
+
   const [debugSaveStatus, setDebugSaveStatus] = useState<"pending" | "confirmed" | "timeout" | "failed" | null>(null);
+  const [isCountingDirectories, setIsCountingDirectories] = useState<boolean>(false);
+  const [showIgnoreSettings, setShowIgnoreSettings] = useState<boolean>(false);
+  const [newIgnoreName, setNewIgnoreName] = useState<string>("");
+  const [isSavingIgnore, setIsSavingIgnore] = useState<boolean>(false);
+  const [isDiagnosingPermissions, setIsDiagnosingPermissions] = useState<boolean>(false);
+  const [firestoreDirCount, setFirestoreDirCount] = useState<number | null>(null);
+  const [lastDirCountAt, setLastDirCountAt] = useState<Date | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const [permissionAuditResult, setPermissionAuditResult] = useState<{
+    status: "success" | "warn" | "error" | null;
+    timestamp: string | null;
+    message: string | null;
+  } | null>(null);
+
+  const diagnoseFirestorePermission = async () => {
+    if (!userId) {
+      onAddLog("error", "❌ [権限診断] ユーザーIDが取得できません。ログイン状態を確認してください。");
+      setPermissionAuditResult({
+        status: "error",
+        timestamp: new Date().toLocaleTimeString(),
+        message: "ユーザーIDが取得できません。ログイン状態を確認してください。"
+      });
+      return;
+    }
+
+    setIsDiagnosingPermissions(true);
+    setPermissionAuditResult(null);
+    const testPath = `users/${userId}/state/diagnostics`;
+    const testDocRef = doc(db, "users", userId, "state", "diagnostics");
+    const timestamp = new Date().toISOString();
+    
+    onAddLog("info", `🔍 [権限診断] Firestore (DB: ${firestoreDatabaseId}) へのアクセス権をテスト中...`);
+    onAddLog("info", `🔍 [権限診断] ターゲットパス: ${testPath}`);
+    onAddLog("info", `🔍 [権限診断] Auth UID: ${userId}`);
+
+    try {
+      // 1. Write Test
+      onAddLog("info", "🔍 [権限診断] 書き込みテストを開始...");
+      const writeResult = await runWithTimeout<"confirmed" | "timeout">(
+        setDoc(testDocRef, { 
+          last_test_at: timestamp, 
+          uid: userId,
+          db_id: firestoreDatabaseId
+        }, { merge: true }).then(() => "confirmed" as const),
+        5000,
+        "timeout"
+      );
+
+      let writeStatus: "success" | "warn" = "success";
+      if (writeResult === "timeout") {
+        onAddLog("warn", "⚠️ [権限診断] 書き込み未確認: Firestore保存の応答がタイムアウトしました。オフライン保存として継続されている可能性があります。");
+        writeStatus = "warn";
+      } else {
+        onAddLog("success", "✅ [権限診断] 書き込み確認済み: Firestoreへの保存に応答がありました。");
+      }
+
+      // 2. Read Test
+      onAddLog("info", "🔍 [権限診断] 読み取りテストを開始...");
+      const snap = await getDoc(testDocRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.last_test_at === timestamp) {
+          onAddLog("success", "✅ [権限診断] 読み取り確認済み: 保存したデータを正しく取得できました。");
+          setPermissionAuditResult({
+            status: writeStatus,
+            timestamp: new Date().toLocaleTimeString(),
+            message: `診断完了: 読み書き共に正常です。\n${writeResult === "timeout" ? "(書き込み時にタイムアウトが発生しましたが、オフラインキャッシュには保存されました)" : ""}`
+          });
+        } else {
+          onAddLog("warn", `⚠️ [権限診断] 読み取り結果不一致: 保存した時間(${timestamp})と取得した時間(${data.last_test_at})が異なります。`);
+          setPermissionAuditResult({
+            status: "warn",
+            timestamp: new Date().toLocaleTimeString(),
+            message: "読み取り結果不一致: データの整合性が取れません。古いデータが返された可能性があります。"
+          });
+        }
+      } else {
+        onAddLog("warn", "⚠️ [権限診断] 読み取り未確認: ドキュメントが存在しません。書き込みがまだ反映されていない可能性があります。");
+        setPermissionAuditResult({
+          status: "warn",
+          timestamp: new Date().toLocaleTimeString(),
+          message: "読み取り未確認: 書き込み直後にデータが見つかりませんでした。反映に時間がかかっているか、書き込みに失敗している可能性があります。"
+        });
+      }
+    } catch (error: any) {
+      const msg = error.message || String(error);
+      let status: "error" = "error";
+      let displayMsg = `診断中にエラーが発生しました: ${msg}`;
+
+      if (msg.includes("permission") || msg.includes("denied") || msg.includes("Missing or insufficient permissions")) {
+        onAddLog("error", `❌ [権限診断] 権限エラー (Permission Denied): データベース「${firestoreDatabaseId}」のセキュリティルールによって拒否されました。`);
+        onAddLog("error", `❌ [権限診断] セキュリティルール (firestore.rules) が「indexmd-db」データベースにデプロイされているか確認してください。`);
+        displayMsg = `権限エラー: セキュリティルールによってアクセスが拒否されました。ルールが「${firestoreDatabaseId}」データベースにデプロイされているか確認してください。`;
+      } else {
+        onAddLog("error", `❌ [権限診断] 診断中にエラーが発生しました: ${msg}`);
+      }
+      
+      setPermissionAuditResult({
+        status: "error",
+        timestamp: new Date().toLocaleTimeString(),
+        message: displayMsg
+      });
+      console.error("Diagnostic failure:", error);
+    } finally {
+      setIsDiagnosingPermissions(false);
+    }
+  };
+
+  const countFirestoreDirectories = async () => {
+    if (!userId) return;
+    setIsCountingDirectories(true);
+    onAddLog("info", "📊 [Firestore統計] フォルダ数のカウントを開始しました...");
+    try {
+      const q = collection(db, "users", userId, "directories");
+      const snapshot = await getCountFromServer(q);
+      const count = snapshot.data().count;
+      setFirestoreDirCount(count);
+      setLastDirCountAt(new Date());
+      onAddLog("success", `📊 [Firestore統計] カウント完了: ${count} 件のフォルダが同期されています。`);
+    } catch (error: any) {
+      onAddLog("error", `❌ [Firestore統計] カウント中にエラーが発生しました: ${error.message || error}`);
+    } finally {
+      setIsCountingDirectories(false);
+    }
+  };
+
+  const getRelativeTime = (date: Date | null): string => {
+    if (!date) return "未取得";
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const seconds = Math.floor(diff / 1000);
+    if (seconds < 60) return `${seconds}秒前`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}分前`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}時間前`;
+    return date.toLocaleTimeString();
+  };
 
   // Job 2 State (Indexing)
   const [isIndexActive, setIsIndexActive] = useState<boolean>(false);
@@ -127,6 +330,15 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }, 4000);
 
     const dirsRef = collection(db, "users", userId, "directories");
+    
+    // Auth state verification log
+    const currentUser = auth.currentUser;
+    onAddLog("info", `[Firestore初期化] 同期リスナーを開始します。UID: ${userId}, AuthUID: ${currentUser?.uid || 'null'}, DB: ${firestoreDatabaseId}`);
+    
+    if (currentUser && currentUser.uid !== userId) {
+      onAddLog("error", `❌ [Firestore初期化] ユーザーID不一致を検出しました。Path UID: ${userId}, Auth UID: ${currentUser.uid}`);
+    }
+
     const unsubscribe = onSnapshot(dirsRef, { includeMetadataChanges: true }, (snap) => {
       // Direct high-performance mapping from snap.docs ensures we are always 100% in sync
       // with Cloud Firestore records, eliminating any partial event state-drifts or complex
@@ -176,8 +388,15 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }, (error) => {
       clearTimeout(fallbackTimer);
       console.error("Failed to listen to directory updates:", error);
+      const msg = error.message || String(error);
       setTimeout(() => {
-        onAddLog("error", "フォルダ構造のリアルタイム同期に失敗しました。", error.message);
+        if (msg.includes("permission") || msg.includes("denied")) {
+          onAddLog("error", `❌ [Firestore同期エラー] 権限がありません (Missing Permissions)`);
+          onAddLog("error", `🔍 DB: ${firestoreDatabaseId}, Path: users/${userId}/directories, Auth UID: ${userId}`);
+          onAddLog("error", `💡 セキュリティルールが「${firestoreDatabaseId}」データベースにデプロイされているか確認してください。`);
+        } else {
+          onAddLog("error", "フォルダ構造のリアルタイム同期に失敗しました。", msg);
+        }
       }, 0);
       setLoading(false);
       setIsInitialSyncing(false);
@@ -194,15 +413,15 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
   }, [userId]);
 
   useEffect(() => {
-    if (dirs.length > 0) {
+    if (filteredDirs.length > 0) {
       try {
-        localStorage.setItem(`indexmd_total_folders_${userId}`, String(dirs.length));
-        setLastKnownTotal(dirs.length);
+        localStorage.setItem(`indexmd_total_folders_${userId}`, String(filteredDirs.length));
+        setLastKnownTotal(filteredDirs.length);
       } catch (e) {
         console.warn("Failed to save folder total to localStorage:", e);
       }
     }
-  }, [dirs.length, userId]);
+  }, [filteredDirs.length, userId]);
 
   const loadSyncState = async () => {
     // 1. Initial attempt: Read from localStorage for near-instant responsiveness
@@ -212,7 +431,9 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
         const parsed = JSON.parse(cached);
         if (parsed) {
           setNextPageToken(parsed.nextPageToken || null);
-          setLastTraversedAt(parsed.last_traversed_at || null);
+          setLastGlobalSyncAt(parsed.last_traversed_at || null);
+          setIsFullySynced(parsed.is_fully_synced !== false);
+          if (parsed.skip_existing !== undefined) setSkipExistingFolders(parsed.skip_existing);
         }
       }
     } catch (e) {
@@ -224,9 +445,14 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
       const snap = await getDocs(collection(db, "users", userId, "state"));
       const target = snap.docs.find(d => d.id === "global_sync");
       if (target) {
-        const stateData = target.data() as SyncState;
-        setNextPageToken(stateData.nextPageToken);
-        setLastTraversedAt(stateData.last_traversed_at);
+        const stateData = target.data() as any;
+        setNextPageToken(stateData.nextPageToken || null);
+        setLastGlobalSyncAt(stateData.last_traversed_at || null);
+        setIsFullySynced(stateData.is_fully_synced !== false);
+        setIgnoredFolderNames(stateData.ignored_folder_names || []);
+        if (stateData.skip_existing !== undefined) setSkipExistingFolders(stateData.skip_existing);
+        setRootLastTraversedAt(stateData.root_last_traversed_at || null);
+        setRootNextPageToken(stateData.root_next_page_token || null);
         
         // Backup the fresh Firestore state to localStorage
         try {
@@ -266,17 +492,35 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }
   };
 
-  const saveSyncStateToDb = async (nextToken: string | null, status: "idle" | "running" | "paused" | "error", lastTraversed: string | null) => {
-    // Always update client-side local React state first so that the UI/crawler remains fully functional
-    // and responsive even if Firestore experiences lag, timeouts, or permission limits.
+  const saveSyncStateToDb = async (
+    nextToken: string | null, 
+    status: "idle" | "running" | "paused" | "error", 
+    lastSyncAt: string | null,
+    isComplete: boolean = false,
+    rootToken: string | null = null,
+    rootTraversed: string | null = null,
+    overrideIgnoredList: string[] | null = null,
+    overrideSkipExisting: boolean | null = null
+  ) => {
+    // Always update client-side local React state first
     setNextPageToken(nextToken);
-    setLastTraversedAt(lastTraversed);
+    setLastGlobalSyncAt(lastSyncAt);
+    setIsFullySynced(isComplete);
+    if (rootToken !== null) setRootNextPageToken(rootToken);
+    if (rootTraversed !== null) setRootLastTraversedAt(rootTraversed);
+    if (overrideIgnoredList !== null) setIgnoredFolderNames(overrideIgnoredList);
+    if (overrideSkipExisting !== null) setSkipExistingFolders(overrideSkipExisting);
 
-    // Save state to localStorage to guarantee survival/persistence under any scenario
+    // Save state to localStorage
     try {
       localStorage.setItem(`indexmd_sync_state_${userId}`, JSON.stringify({
         nextPageToken: nextToken,
-        last_traversed_at: lastTraversed
+        last_traversed_at: lastSyncAt,
+        is_fully_synced: isComplete,
+        ignored_folder_names: overrideIgnoredList ?? ignoredFolderNames,
+        skip_existing: overrideSkipExisting ?? skipExistingFolders,
+        root_next_page_token: rootToken ?? rootNextPageToken,
+        root_last_traversed_at: rootTraversed ?? rootLastTraversedAt
       }));
     } catch (e) {
       console.warn("Failed to save sync state backup to localStorage:", e);
@@ -288,7 +532,13 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
       const savePromise = setDoc(stateDocRef, {
         nextPageToken: nextToken,
         sync_status: status,
-        last_traversed_at: lastTraversed
+        last_traversed_at: lastSyncAt,
+        is_fully_synced: isComplete,
+        ignored_folder_names: overrideIgnoredList ?? ignoredFolderNames,
+        skip_existing: overrideSkipExisting ?? skipExistingFolders,
+        root_next_page_token: rootToken ?? rootNextPageToken,
+        root_last_traversed_at: rootTraversed ?? rootLastTraversedAt,
+        updated_at: serverTimestamp()
       }, { merge: true });
 
       const timeoutPromise = new Promise<void>((_, reject) =>
@@ -297,9 +547,44 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
       await Promise.race([savePromise, timeoutPromise]);
     } catch (err: any) {
-      // Use console.warn instead of console.error to avoid raising test pipeline exceptions
-      console.warn("Firestore save update non-blocking delay:", err.message || err);
+      const msg = err.message || String(err);
+      if (msg.includes("permission") || msg.includes("denied")) {
+        onAddLog("error", `⚠️ [Firestore保存エラー] 同期情報の保存権限がありません (Missing Permissions)`);
+        onAddLog("error", `🔍 DB: ${firestoreDatabaseId}, Path: users/${userId}/state/global_sync`);
+      } else {
+        // Use console.warn instead of console.error to avoid raising test pipeline exceptions
+        console.warn("Firestore save update non-blocking delay:", msg);
+      }
     }
+  };
+
+  const handleAddIgnore = async () => {
+    if (!newIgnoreName.trim() || ignoredFolderNames.length >= 10) return;
+    const nameToAdd = newIgnoreName.trim();
+    if (ignoredFolderNames.includes(nameToAdd)) {
+      setNewIgnoreName("");
+      return;
+    }
+
+    setIsSavingIgnore(true);
+    const newList = [...ignoredFolderNames, nameToAdd];
+    await saveSyncStateToDb(nextPageToken, "idle", lastGlobalSyncAt, isFullySynced, null, null, newList);
+    setNewIgnoreName("");
+    setIsSavingIgnore(false);
+    onAddLog("info", `「${nameToAdd}」を無視リストに追加しました。次回スキャンから除外されます。`);
+  };
+
+  const handleRemoveIgnore = async (nameToRemove: string) => {
+    setIsSavingIgnore(true);
+    const newList = ignoredFolderNames.filter(n => n !== nameToRemove);
+    await saveSyncStateToDb(nextPageToken, "idle", lastGlobalSyncAt, isFullySynced, null, null, newList);
+    setIsSavingIgnore(false);
+    onAddLog("info", `「${nameToRemove}」を無視リストから削除しました。`);
+  };
+
+  const handleToggleSkipExisting = async (checked: boolean) => {
+    await saveSyncStateToDb(nextPageToken, "idle", lastGlobalSyncAt, isFullySynced, null, null, null, checked);
+    onAddLog("info", checked ? "✅ 登録済みフォルダのスキップ設定を有効にしました。" : "ℹ️ 登録済みフォルダのスキップ設定を無効にしました。");
   };
 
   // JOB 1: Traverse and Scan Folders
@@ -312,13 +597,16 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     }
     setIsCrawlActive(true);
     crawlActiveRef.current = true;
+    setCrawlStats({ discovered: 0, skipped: 0, removed: 0 });
     onAddLog("info", forceReset ? "フォルダ全件スキャンを開始します（初期走査）..." : "インクリメンタル（差分）走査を開始します...");
 
     let currentToken = forceReset ? null : nextPageToken;
-    let baselineTime = forceReset ? null : lastTraversedAt;
+    let baselineTime = forceReset ? null : lastGlobalSyncAt;
+    let localRootLastTraversedAt = forceReset ? null : rootLastTraversedAt;
+    let localRootNextPageToken = forceReset ? null : rootNextPageToken;
     
     // Auto-lock status
-    await saveSyncStateToDb(currentToken, "running", baselineTime);
+    await saveSyncStateToDb(currentToken, "running", baselineTime, false);
 
     // Build unique directories mapping to quickly resolve depths & paths
     let localDirsMap = new Map<string, any>();
@@ -344,10 +632,15 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     let activeOldestFolder: any = null;
     let folderToken: string | null = null;
     let progressiveCount = 0;
-    const PROGRESSIVE_LIMIT = forceReset ? 0 : 5; // Do 0 extra if it's a full initial sync (it will naturally fetch all flat folders first anyway), 5 if incremental
-
+    
     try {
       while (crawlActiveRef.current) {
+        // Global limit check
+        if (scanLimit > 0 && scannedCount >= scanLimit) {
+          onAddLog("success", `🎯 指定されたスキャン上限（${scanLimit}件）に達したため、処理を終了します。`);
+          break;
+        }
+
         if (!resilientCrawlMode) {
           // ==========================================
           // 1. STANDARD FLAT CRAWLING MODE
@@ -378,7 +671,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
             onAddLog("warn", `フェッチエラーが発生したか、保存されたページトークン（Page Token）が無効です（ステータス: ${response.status}）。\n最も古い走査履歴を持つフォルダを起点とした「プログレッシブ走査」に自動切り替えして続行します...`);
             resilientCrawlMode = true;
             currentToken = null;
-            await saveSyncStateToDb(null, "running", baselineTime);
+            await saveSyncStateToDb(null, "running", baselineTime, false);
             continue;
           }
 
@@ -438,26 +731,57 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
             if (file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails) {
               resolvedId = file.shortcutDetails.targetId;
             }
+
+            // Ignored folder check
+            const { path: resolvedFullPath } = resolvePathAndDepth(resolvedId); // 変数名変更
+            const isIgnored = ignoredFolderNames.some(ignored => resolvedFullPath.split('/').includes(ignored));
+
+            if (isIgnored) {
+              onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
+              setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
+              const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
+              batch.delete(folderDocRef);
+              batchWriteCount++;
+              
+              if (batchWriteCount === 450) {
+                await batch.commit();
+                batch = writeBatch(db);
+                batchWriteCount = 0;
+              }
+              continue;
+            }
+
+            // Per-folder limit check
+            if (scanLimit > 0 && scannedCount >= scanLimit) break;
             const parentId = file.parents?.[0] || null;
             const { path: fullPath, depth: computedDepth } = resolvePathAndDepth(resolvedId);
 
+            setCurrentTaskId(resolvedId);
             setCurrentTaskName(file.name);
             setCurrentTaskPath(fullPath || `/${file.name}`);
+
+            if (skipExistingFolders && dirs.some(d => d.drive_id === resolvedId)) {
+              onAddLog("info", `⏩ すでに登録済みのフォルダ「${file.name}」をスキップしました。`);
+              setCrawlStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
+              continue;
+            }
 
             const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
             
             batch.set(folderDocRef, {
               drive_id: resolvedId,
+              name: file.name,
               path: fullPath || `/${file.name}`,
               depth: computedDepth || 1,
               index_status: "pending",
-              last_traversed_at: null, // Initial discovery does not mark it traversed, queue it up
+              last_traversed_at: null,
               last_updated_at: null,
               parent_id: parentId
             }, { merge: true });
 
             batchWriteCount++;
             scannedCount++;
+            setCrawlStats(prev => ({ ...prev, discovered: prev.discovered + 1 }));
 
             if (batchWriteCount === 450) {
               await batch.commit();
@@ -471,24 +795,34 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
           }
 
           currentToken = data.nextPageToken || null;
+          if (currentToken) {
+            onAddLog("info", `📄 継続ページトークンを取得しました: ${currentToken.substring(0, 8)}...`);
+          }
+          
           if (!currentToken) {
             // Flat crawl complete! Switch to Progressive folder-by-folder sweep
             onAddLog("success", "🔄 ドライブ全体の変更履歴（ページトークン）での差分チェックが完了しました。");
             onAddLog("info", "続いて、未走査、または最も最終確認日時が古いフォルダを対象とした「プログレッシブ更新」へと移行します...");
             resilientCrawlMode = true;
+            
+            // Mark global consistency check as completed now
+            const now = new Date().toISOString();
+            baselineTime = now;
+            await saveSyncStateToDb(null, "running", now, false);
           } else {
             // Track progress incrementally
-            await saveSyncStateToDb(currentToken, "running", baselineTime);
+            await saveSyncStateToDb(currentToken, "running", baselineTime, false);
             page++;
           }
         } else {
           // ==========================================
           // 2. RESILIENT FOLDER-BY-FOLDER CRAWLING MODE (User Proposal)
           // ==========================================
-          if (PROGRESSIVE_LIMIT > 0 && progressiveCount >= PROGRESSIVE_LIMIT) {
-            onAddLog("success", `🎯 今回のプログレッシブ更新（対象: ${PROGRESSIVE_LIMIT}フォルダ）が完了しました。`);
+          // Progressive mode doesn't need its own separate count check here if we have the global one above, 
+          // but if we want to be specific:
+          if (scanLimit > 0 && scannedCount >= scanLimit) {
             break;
-          } else if (PROGRESSIVE_LIMIT === 0 && resilientCrawlMode) {
+          } else if (scanLimit === 0 && resilientCrawlMode && forceReset) {
              // In full reset mode, we just stop after flat crawl is done.
              break;
           }
@@ -508,14 +842,14 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
               });
             });
 
-            // Virtual root folder item
+            // Virtual root folder item - use root-specific timestamps and tokens
             const rootItem = {
               drive_id: "root",
               path: "/",
               name: "マイドライブ",
               depth: 0,
-              last_traversed_at: baselineTime || null,
-              next_page_token: currentToken || null,
+              last_traversed_at: localRootLastTraversedAt || null,
+              next_page_token: localRootNextPageToken || null,
               parent_id: null
             };
 
@@ -573,6 +907,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
           let folderBatch = writeBatch(db);
           let folderBatchCount = 0;
+          const parentCleanPath = activeOldestFolder.path === "/" ? "" : activeOldestFolder.path;
 
           for (const file of subdirsReceived) {
             if (!crawlActiveRef.current) break;
@@ -582,15 +917,44 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
               resolvedId = file.shortcutDetails.targetId;
             }
 
+            // Ignored folder check
+            const pathForCheck = `${parentCleanPath}/${file.name}`;
+            const isIgnored = ignoredFolderNames.some(ignored => pathForCheck.split('/').includes(ignored));
+
+            if (isIgnored) {
+              onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
+              setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
+              const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
+              folderBatch.delete(folderDocRef);
+              folderBatchCount++;
+
+              if (folderBatchCount === 450) {
+                await folderBatch.commit();
+                folderBatch = writeBatch(db);
+                folderBatchCount = 0;
+              }
+              continue;
+            }
+
+            // Per-folder limit check
+            if (scanLimit > 0 && scannedCount >= scanLimit) break;
+
             const parentId = activeOldestFolder.drive_id;
-            const parentCleanPath = activeOldestFolder.path === "/" ? "" : activeOldestFolder.path;
             const fullPath = `${parentCleanPath}/${file.name}`;
             const computedDepth = activeOldestFolder.depth + 1;
 
+            setCurrentTaskId(resolvedId);
             setCurrentTaskName(file.name);
             setCurrentTaskPath(fullPath);
 
             const existingDir = localDirsMap.get(resolvedId);
+            
+            if (skipExistingFolders && existingDir) {
+              onAddLog("info", `⏩ すでに登録済みのフォルダ「${file.name}」をスキップしました。`);
+              setCrawlStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
+              continue;
+            }
+
             const needsUpdate = !existingDir || existingDir.path !== fullPath || existingDir.parent_id !== parentId;
 
             if (needsUpdate) {
@@ -598,16 +962,18 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
               
               folderBatch.set(folderDocRef, {
                 drive_id: resolvedId,
+                name: file.name,
                 path: fullPath,
                 depth: computedDepth,
-                index_status: existingDir ? existingDir.index_status : "pending",
-                last_traversed_at: existingDir ? existingDir.last_traversed_at : null, // Preserve traversed state to avoid infinite rescans
-                last_updated_at: existingDir ? existingDir.last_updated_at : null,
+                index_status: (existingDir?.index_status) ?? "pending",
+                last_traversed_at: existingDir?.last_traversed_at ?? null,
+                last_updated_at: existingDir?.last_updated_at ?? null,
                 parent_id: parentId
               }, { merge: true });
 
               folderBatchCount++;
               scannedCount++;
+              setCrawlStats(prev => ({ ...prev, discovered: prev.discovered + 1 }));
 
               if (folderBatchCount === 450) {
                 await folderBatch.commit();
@@ -637,9 +1003,9 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
           // Immediately update traversed_at and next_page_token so this folder is put at the back of the queue (Round Robin)
           if (activeOldestFolder.drive_id === "root") {
-            baselineTime = finishedTime;
-            currentToken = folderToken;
-            await saveSyncStateToDb(currentToken, "running", finishedTime);
+            localRootNextPageToken = folderToken;
+            localRootLastTraversedAt = finishedTime;
+            await saveSyncStateToDb(currentToken, "running", baselineTime, false, localRootNextPageToken, localRootLastTraversedAt);
           } else {
             const parentFolderRef = doc(db, "users", userId, "directories", activeOldestFolder.drive_id);
             await setDoc(parentFolderRef, {
@@ -670,22 +1036,28 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
         await new Promise(r => setTimeout(r, config.rate_limit_delay_ms));
       }
 
-      if (!crawlActiveRef.current) {
-        // Interrupted by user cancellation
-        await saveSyncStateToDb(currentToken, "paused", baselineTime);
-        onAddLog("warn", `ユーザーによってフォルダ走査が一時停止/中断されました。進行状況を保存しました。`);
+      const reachedLimit = scanLimit > 0 && scannedCount >= scanLimit;
+
+      if (!crawlActiveRef.current || reachedLimit) {
+        // Interrupted by user cancellation or reached limit
+        await saveSyncStateToDb(currentToken, "idle", baselineTime, false);
+        if (reachedLimit) {
+          // Already logged success in the loop
+        } else {
+          onAddLog("warn", `ユーザーによってフォルダ走査が一時停止/中断されました。進行状況を保存しました。`);
+        }
         return;
       }
 
       // Complete traversal successfully
       const completionTime = new Date().toISOString();
-      await saveSyncStateToDb(null, "idle", completionTime);
-      onAddLog("success", `フォルダの走査が完了しました。新たに ${scannedCount} 件 of folders synced.`);
+      await saveSyncStateToDb(null, "idle", completionTime, true);
+      onAddLog("success", `ドライブ全体の走査（変更履歴の同期）が完了しました。新たに ${scannedCount} 件のフォルダが同期されました。`);
 
     } catch (err: any) {
       onAddLog("error", "フォルダ走査中にエラーが発生し、処理が中断されました。", err.message || err);
       if (!err.message?.includes("401")) {
-        await saveSyncStateToDb(currentToken, "error", baselineTime);
+        await saveSyncStateToDb(currentToken, "error", baselineTime, false);
       }
     } finally {
       setIsCrawlActive(false);
@@ -695,7 +1067,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
   // JOB 2: OKF index.md index generation bottom-up
   const startGenerationJob = async () => {
     if (isIndexActive || isCrawlActive) return;
-    if (dirs.length === 0) {
+    if (filteredDirs.length === 0) {
       onAddLog("warn", "インデックスを生成するためのフォルダデータがありません。先に走査を実行してください。");
       return;
     }
@@ -710,7 +1082,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
     onAddLog("info", "ボトムアップ型（階層順）のOKF index.md 生成プロセスを起動中...");
 
     // Sort folders by depth decending (bottom-up: deep folders first)
-    const sortedDirs = [...dirs].sort((a,b) => b.depth - a.depth);
+    const sortedDirs = [...filteredDirs].sort((a,b) => b.depth - a.depth);
     setIndexingProgress({ current: 0, total: sortedDirs.length });
 
     let successCount = 0;
@@ -737,7 +1109,7 @@ export default function DriveDashboard({ userId, token, config, logs, onAddLog, 
 
         // Retrieve pre-generated summaries of immediately lower subfolders to support cascading summary propagation
         // Children of this folder have: parent_id = current drive_id
-        const childDirs = dirs.filter(d => d.parent_id === item.drive_id);
+        const childDirs = filteredDirs.filter(d => d.parent_id === item.drive_id);
         const subdirsWithSummaries = childDirs.map(child => ({
           id: child.drive_id,
           name: (child.path || "").split("/").pop() || "",
@@ -843,70 +1215,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     }
   };
 
-  // Safe reset routine
-  const handleResetClick = () => {
-    if (isCrawlActive || isIndexActive) return;
-    if (!resetConfirming) {
-      setResetConfirming(true);
-      setTimeout(() => setResetConfirming(false), 5000);
-    } else {
-      executeFullReset();
-      setResetConfirming(false);
-    }
-  };
-
-  const executeFullReset = async () => {
-    try {
-      let batch = writeBatch(db);
-      let batchCount = 0;
-      
-      for (const d of dirs) {
-        batch.set(doc(db, "users", userId, "directories", d.drive_id), {
-          index_status: "pending",
-          last_traversed_at: null,
-          next_page_token: null
-        }, { merge: true });
-        
-        batchCount++;
-        
-        if (batchCount === 450) {
-          await batch.commit();
-          batch = writeBatch(db);
-          batchCount = 0;
-        }
-      }
-      
-      // Also reset Firestore global sync state
-      const stateDocRef = doc(db, "users", userId, "state", "global_sync");
-      batch.set(stateDocRef, {
-        nextPageToken: null,
-        sync_status: "idle",
-        last_traversed_at: null
-      }, { merge: true });
-      
-      await batch.commit();
-
-      // Clear client-side states
-      setNextPageToken(null);
-      setLastTraversedAt(null);
-
-      // Clear localStorage cache to allow fresh full scan
-      try {
-        localStorage.setItem(`indexmd_sync_state_${userId}`, JSON.stringify({
-          nextPageToken: null,
-          last_traversed_at: null
-        }));
-      } catch (e) {
-        console.warn("Failed to update localStorage sync state:", e);
-      }
-
-      onAddLog("success", "フォルダIDと階層情報を保持したまま、再走査・再生成のための処理状態を初期化しました。");
-    } catch (e: any) {
-      console.error(e);
-      onAddLog("error", "状態初期化に失敗しました。", e.message);
-    }
-  };
-
   // Debug Routine: fetch exactly 1 folder from Drive API
   const fetchSingleFolderDebug = async () => {
     if (isCrawlActive || isIndexActive) {
@@ -957,7 +1265,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         },
         body: JSON.stringify({
           token: token,
-          lastTraversedAt: lastTraversedAt,
+          lastGlobalSyncAt: lastGlobalSyncAt,
           nextPageToken: nextPageToken,
           pageSize: 1
         }),
@@ -994,7 +1302,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       if (filesReceived.length === 0) {
         onAddLog("warn", "🔧 [デバッグ走査] 対象フォルダが見つかりませんでした (すべてのフォルダが同期済み、または該当なし)。");
         setLastDebugFolder({ empty: true });
-        await saveSyncStateToDb(null, "idle", lastTraversedAt);
+        await saveSyncStateToDb(null, "idle", lastGlobalSyncAt, isFullySynced);
         setDebugLoading(false);
         return;
       }
@@ -1069,9 +1377,16 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         onAddLog("error", `❌ [デバッグ走査] Firestore保存に失敗しました。取得したフォルダ情報は永続化されていません。: ${saveErr.message || saveErr}`);
       }
 
-      // Save page token for subsequent single steps
-      const nextTraversedTime = file.modifiedTime || new Date().toISOString();
-      await saveSyncStateToDb(returnedNextToken, "idle", nextTraversedTime);
+      // Page token persistence with more error info
+      try {
+        const nextTraversedTime = file.modifiedTime || new Date().toISOString();
+        await saveSyncStateToDb(returnedNextToken, "idle", nextTraversedTime, false);
+      } catch (tokenErr: any) {
+        const msg = tokenErr.message || String(tokenErr);
+        if (msg.includes("permission") || msg.includes("denied")) {
+          onAddLog("error", `❌ [デバッグ走査] 同期トークンの保存権限がありません (DB: ${firestoreDatabaseId}, Path: users/${userId}/state/global_sync)`);
+        }
+      }
 
       setLastDebugFolder({
         ...newFolderObj,
@@ -1092,7 +1407,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         onAddLog("error", "🔧 [デバッグ走査タイムアウト] Google Drive APIの応答が15秒以内にありませんでした。処理を中断します。再度お試しください。");
       } else if (e.message?.includes("pageToken") && (e.message?.includes("Invalid") || e.message?.includes("invalid"))) {
         onAddLog("warn", "⚠️ Google Drive APIから無効なページトークン(pageToken)が検出されました。走査位置を自動修正（pageToken=null）しました。もう一度「1ステップ走査」ボタンをクリックすると、最新の変更点から再スキャンが開始されます。");
-        await saveSyncStateToDb(null, "idle", lastTraversedAt);
+        await saveSyncStateToDb(null, "idle", lastGlobalSyncAt, false);
       } else {
         onAddLog("error", "🔧 [デバッグ走査失敗] 追加フェッチエラー", e.message || e);
       }
@@ -1102,38 +1417,39 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     }
   };
 
-  const filteredDirs = dirs.filter((d) => 
-    (d.path || "").toLowerCase().includes((searchTerm || "").toLowerCase()) || 
-    (d.drive_id || "").includes(searchTerm)
-  );
-
   // Find oldest and newest traversed folders
-  const traversedFolders = dirs.filter(d => d.last_traversed_at);
-  const virtualRootFolder = {
-    drive_id: "root",
-    path: "マイドライブ",
-    name: "マイドライブ",
-    depth: 0,
-    last_traversed_at: lastTraversedAt,
-    index_status: "pending" as const,
-  };
-  const allTraversedFolders = [...traversedFolders, ...(lastTraversedAt ? [virtualRootFolder] : [])];
+  const allFoldersForStats = [
+    ...filteredDirs,
+    {
+      drive_id: "root",
+      name: "マイドライブ (Root)",
+      path: "/",
+      depth: 0,
+      last_traversed_at: rootLastTraversedAt,
+      next_page_token: rootNextPageToken,
+      index_status: "pending" as const,
+    }
+  ];
   
-  const oldestTraversedFolder = allTraversedFolders.length > 0 
-    ? allTraversedFolders.reduce((oldest, current) => {
-        if (!oldest.last_traversed_at) return current;
-        if (!current.last_traversed_at) return oldest;
-        return new Date(current.last_traversed_at) < new Date(oldest.last_traversed_at) ? current : oldest;
-      }, allTraversedFolders[0])
-    : null;
-
-  const newestTraversedFolder = allTraversedFolders.length > 0 
-    ? allTraversedFolders.reduce((newest, current) => {
-        if (!newest.last_traversed_at) return current;
-        if (!current.last_traversed_at) return newest;
-        return new Date(current.last_traversed_at) > new Date(newest.last_traversed_at) ? current : newest;
-      }, allTraversedFolders[0])
-    : null;
+  // Calculate the queue FIRST with deterministic tie-breaking (Oldest first)
+  const traversalQueue = allFoldersForStats.length > 0
+    ? [...allFoldersForStats].sort((a, b) => {
+        // Null/undefined last_traversed_at comes first (highest priority)
+        if (!a.last_traversed_at && !b.last_traversed_at) {
+          return (a.path || "").localeCompare(b.path || "");
+        }
+        if (!a.last_traversed_at) return -1;
+        if (!b.last_traversed_at) return 1;
+        
+        const timeA = new Date(a.last_traversed_at).getTime();
+        const timeB = new Date(b.last_traversed_at).getTime();
+        
+        if (timeA === timeB) {
+          return (a.path || "").localeCompare(b.path || "");
+        }
+        return timeA - timeB;
+      })
+    : [];
 
   const buildBreadcrumbPath = (dirId: string): { id: string, name: string }[] => {
     let currentId: string | null = dirId;
@@ -1174,92 +1490,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
   return (
     <div className="space-y-6">
-      {/* Bento Grid Stats */}
-      {activeTab !== "summary-debugger" && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4" id="stats-bento">
-          {/* Stat 1: Connection */}
-          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Drive Workspace</span>
-              <div className="text-xs font-bold text-indigo-600 mt-1 flex items-center gap-1.5 font-display">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                接続中 (My Drive)
-              </div>
-            </div>
-            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-              <Database className="w-4 h-4" />
-            </div>
-          </div>
-
-          {/* Stat 2: Total Scanned Folders */}
-          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm" id="stat-scanned-folders">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">スキャン済みフォルダ数</span>
-              <div className="text-lg font-extrabold text-slate-800 mt-1 font-mono">
-                {dirs.length} <span className="text-xs font-normal text-slate-400">件</span>
-              </div>
-            </div>
-            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-              <Folder className="w-4 h-4" />
-            </div>
-          </div>
-
-          {/* Stat 3: Firestore Collections Count */}
-          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm" id="stat-firestore-count">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Firestore 同期済み件数</span>
-              <div className="text-lg font-extrabold text-indigo-600 mt-1 font-mono">
-                {dirs.length} <span className="text-xs font-normal text-indigo-400">件</span>
-              </div>
-            </div>
-            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-              <Database className="w-4 h-4" />
-            </div>
-          </div>
-
-          {/* Stat 4: Sync Progress Status */}
-          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm" id="stat-sync-status">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">同期ステータス</span>
-              <div className="text-xs font-bold text-slate-700 mt-1.5 flex items-center gap-1">
-                {nextPageToken ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 text-amber-500 animate-spin" />
-                    <span>差分同期可能</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>同期完了 (Root)</span>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-              <RefreshCw className="w-4 h-4" />
-            </div>
-          </div>
-
-          {/* Stat 5: Active Job Execution */}
-          <div className="bg-white border border-slate-200 p-4 rounded-lg flex items-center justify-between shadow-sm" id="stat-active-job">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">アクティブジョブ</span>
-              <div className="text-xs font-bold text-slate-700 mt-1.5 flex items-center gap-1.5">
-                {isCrawlActive ? (
-                  <span className="text-indigo-600 animate-pulse flex items-center gap-1">● 走査中...</span>
-                ) : isIndexActive ? (
-                  <span className="text-emerald-600 animate-pulse flex items-center gap-1">● インデックス生成中...</span>
-                ) : (
-                  <span className="text-slate-400">待機中 (Idle)</span>
-                )}
-              </div>
-            </div>
-            <div className="p-2.5 bg-indigo-50 rounded text-indigo-600">
-              <Zap className="w-4 h-4" />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Bento Grid Stats - Removed as requested */}
+      {/* (Next item in list follows) */}
 
       {/* View Mode Tabs */}
       <div className="flex border-b border-slate-200" id="tabs-navigation">
@@ -1273,7 +1505,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
           id="btn-tab-dashboard"
         >
           <Folder className="w-4 h-4" />
-          メインダッシュボード
+          フォルダスキャンテスト
         </button>
         <button
           onClick={() => setActiveTab("debugger")}
@@ -1285,7 +1517,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
           id="btn-tab-debugger"
         >
           <Bug className="w-4 h-4" />
-          フォルダ列挙デバッガー
+          フォルダ情報取得テスト
         </button>
         <button
           onClick={() => setActiveTab("summary-debugger")}
@@ -1297,158 +1529,423 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
           id="btn-tab-summary-debugger"
         >
           <Sparkles className="w-4 h-4" />
-          AI要約デバッガー
+          AI要約テスト
+        </button>
+        <button
+          onClick={() => setActiveTab("firestore-test")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "firestore-test"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-firestore-test"
+        >
+          <Database className="w-4 h-4" />
+          Firestoreテスト
         </button>
       </div>
 
       <div className="mt-6" id="tabs-content">
+        {activeTab === "dashboard" && (
+          <div className="space-y-6" id="dashboard-container">
+            {/* Action Header */}
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 w-full sm:w-auto">
+                <button
+                  onClick={() => startScanJob(false)}
+                  disabled={isCrawlActive || isIndexActive}
+                  className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none transition-colors text-white font-bold px-4 py-2 rounded-md text-[10px] sm:text-xs cursor-pointer shadow-sm w-full sm:w-auto"
+                  id="btn-scan-incremental"
+                >
+                  <FolderSync className="w-3.5 h-3.5" />
+                  スキャン
+                </button>
+
+                <div className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-md shadow-sm h-full group hover:bg-white transition-colors w-full sm:w-auto">
+                  <SlidersHorizontal className="w-3 h-3 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter shrink-0">上限:</span>
+                  <select 
+                    value={scanLimit} 
+                    onChange={(e) => setScanLimit(Number(e.target.value))}
+                    disabled={isCrawlActive || isIndexActive}
+                    className="text-[10px] sm:text-xs font-bold text-slate-700 bg-transparent outline-none cursor-pointer disabled:opacity-50 pr-1"
+                  >
+                    <option value={1}>1件</option>
+                    <option value={5}>5件</option>
+                    <option value={100}>100件</option>
+                    <option value={500}>500件</option>
+                    <option value={1000}>1000件</option>
+                    <option value={0}>無制限</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={() => setShowIgnoreSettings(!showIgnoreSettings)}
+                  className={`flex items-center justify-center gap-2 px-3 py-2 border rounded-md shadow-sm transition-all text-[10px] sm:text-xs font-bold w-full sm:w-auto ${
+                    showIgnoreSettings 
+                    ? "bg-slate-700 text-white border-slate-700" 
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                  title="無視するフォルダを設定"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  設定
+                  {ignoredFolderNames.length > 0 && (
+                    <span className="flex items-center justify-center w-4 h-4 bg-indigo-500 text-[10px] text-white rounded-full">
+                      {ignoredFolderNames.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={startGenerationJob}
+                  disabled={isCrawlActive || isIndexActive || filteredDirs.length === 0}
+                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:pointer-events-none transition-colors text-white font-bold px-4 py-2 rounded-md text-[10px] sm:text-xs cursor-pointer shadow-sm w-full sm:w-auto"
+                  id="btn-generate-indices"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  インデックス
+                </button>
+              </div>
+            </div>
+
+            {/* Configuration Panels */}
+            {showIgnoreSettings && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4 overflow-hidden"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <EyeOff className="w-4 h-4 text-slate-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider">無視するフォルダ名 (最大10個)</h3>
+                  </div>
+                  <button 
+                    onClick={() => setShowIgnoreSettings(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
+                  ここで指定した名前と完全に一致するフォルダは、スキャン対象から除外されます。
+                  (例: <code className="bg-slate-200 px-1 rounded">node_modules</code>, <code className="bg-slate-200 px-1 rounded">.git</code> など)
+                </p>
+
+                <div className="space-y-3">
+                  {/* Skip existing folders option */}
+                  <div className="flex items-center gap-3 bg-white border border-slate-200 rounded p-3 mb-4">
+                    <input 
+                      type="checkbox"
+                      id="skip-existing-folders"
+                      checked={skipExistingFolders}
+                      onChange={(e) => handleToggleSkipExisting(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <label htmlFor="skip-existing-folders" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                      登録済みのフォルダをスキップする (高速化)
+                    </label>
+                  </div>
+
+                  {/* Add Input */}
+                  {ignoredFolderNames.length < 10 && (
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={newIgnoreName}
+                        onChange={(e) => setNewIgnoreName(e.target.value)}
+                        placeholder="フォルダ名を入力..."
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newIgnoreName.trim()) {
+                            handleAddIgnore();
+                          }
+                        }}
+                        className="flex-1 bg-white border border-slate-200 rounded px-3 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                      <button 
+                        onClick={handleAddIgnore}
+                        disabled={!newIgnoreName.trim() || isSavingIgnore}
+                        className="bg-indigo-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        追加
+                      </button>
+                    </div>
+                  )}
+
+                  {/* List */}
+                  <div className="flex flex-wrap gap-2">
+                    {ignoredFolderNames.length === 0 ? (
+                      <span className="text-[10px] text-slate-400 italic">登録されているフォルダ名はありません</span>
+                    ) : (
+                      ignoredFolderNames.map((name) => (
+                        <div 
+                          key={name}
+                          className="flex items-center gap-1.5 bg-white border border-slate-200 pl-2.5 pr-1.5 py-1 rounded-full group hover:border-red-200 transition-colors shadow-sm"
+                        >
+                          <span className="text-xs font-medium text-slate-700">{name}</span>
+                          <button 
+                            onClick={() => handleRemoveIgnore(name)}
+                            disabled={isSavingIgnore}
+                            className="p-0.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {isCrawlActive && (
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg mb-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-3 h-3 animate-spin text-indigo-500" />
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                      Google Drive API 走査中...
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">
+                      <Database className="w-2.5 h-2.5 text-indigo-500" />
+                      <span className="text-[10px] font-mono font-bold text-slate-700">{crawlStats.discovered}</span>
+                    </div>
+                    {crawlStats.skipped > 0 && (
+                      <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 shadow-sm" title="既存スキップ">
+                        <FastForward className="w-2.5 h-2.5 text-amber-500" />
+                        <span className="text-[10px] font-mono font-bold text-amber-700">{crawlStats.skipped}</span>
+                      </div>
+                    )}
+                    {crawlStats.removed > 0 && (
+                      <div className="flex items-center gap-1.5 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 shadow-sm" title="DBから削除">
+                        <FolderX className="w-2.5 h-2.5 text-rose-500" />
+                        <span className="text-[10px] font-mono font-bold text-rose-700">{crawlStats.removed}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 bg-white/50 px-2 py-1.5 rounded border border-slate-100/50">
+                    <div className="shrink-0 w-4 h-4 rounded-sm bg-indigo-100 flex items-center justify-center">
+                      <Folder className="w-2.5 h-2.5 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-slate-700 truncate">{currentTaskName || "待機中..."}</span>
+                        <span className="text-[8px] font-mono text-slate-400 shrink-0 select-all">{currentTaskId}</span>
+                      </div>
+                      <div className="text-[9px] font-mono text-slate-500 truncate mt-0.5">
+                        <span className="text-slate-300 mr-1">Path:</span>{currentTaskPath || "/"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isIndexActive && indexingProgress && (
+              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg mb-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-3 h-3 animate-spin text-emerald-500" />
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+                      OKF インデックス生成中...
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono font-bold text-emerald-600">
+                    {indexingProgress.current} / {indexingProgress.total}
+                  </div>
+                </div>
+                <div className="w-full h-1 bg-emerald-100 rounded-full overflow-hidden mb-2">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{ width: `${Math.round((indexingProgress.current / (indexingProgress.total || 1)) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded border border-emerald-100/50">
+                  <FileText className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span className="text-[9px] font-mono text-emerald-600 truncate flex-1">
+                    {currentTaskName}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Next Scan Strategy Panel */}
+            <div className="space-y-3 bg-slate-50 border border-slate-200/85 p-4 rounded-lg" id="extremes-traversed-panel">
+              <div className="flex items-center gap-2 text-slate-700 font-bold text-xs uppercase tracking-wider mb-2">
+                <Zap className="w-3.5 h-3.5 text-indigo-500" />
+                次回のスキャン開始予定
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Priority 1: Page Token */}
+                <div className={`p-3 rounded-lg border transition-all ${nextPageToken ? 'bg-amber-50 border-amber-200 ring-2 ring-amber-500/20' : 'bg-white border-slate-200 opacity-50'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-amber-700 uppercase">優先 1: 継続トークン</span>
+                    {nextPageToken && <CheckCircle className="w-3 h-3 text-amber-500" />}
+                  </div>
+                  <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                    {nextPageToken ? (
+                      <div className="space-y-1">
+                        <p>前回の走査の続きから再開します。</p>
+                        <code className="block p-1 bg-white border border-amber-100 rounded text-[9px] font-mono truncate select-all">{nextPageToken}</code>
+                      </div>
+                    ) : (
+                      <p className="italic text-slate-400">現在、継続トークンはありません</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Priority 2: Unvisited */}
+                {(() => {
+                  const unvisited = traversalQueue.find(f => !f.last_traversed_at);
+                  const isActive = !nextPageToken && unvisited;
+                  return (
+                    <div className={`p-3 rounded-lg border transition-all ${isActive ? 'bg-indigo-50 border-indigo-200 ring-2 ring-indigo-500/20' : 'bg-white border-slate-200 opacity-50'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-indigo-700 uppercase">優先 2: 未走査フォルダ</span>
+                        {isActive && <CheckCircle className="w-3 h-3 text-indigo-500" />}
+                      </div>
+                      <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                        {unvisited ? (
+                          <div className="space-y-1">
+                            <p>発見済みで未訪問のフォルダから開始します。</p>
+                            <div className="flex items-center gap-1 text-indigo-600 font-bold truncate">
+                              <Folder className="w-3 h-3" />
+                              <span className="truncate">{unvisited.name || unvisited.path}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="italic text-slate-400">未走査のフォルダはありません</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Priority 3: Oldest */}
+                {(() => {
+                  const oldest = traversalQueue.find(f => f.last_traversed_at);
+                  const isActive = !nextPageToken && !traversalQueue.find(f => !f.last_traversed_at) && oldest;
+                  return (
+                    <div className={`p-3 rounded-lg border transition-all ${isActive ? 'bg-slate-100 border-slate-300 ring-2 ring-slate-500/20' : 'bg-white border-slate-200 opacity-50'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-slate-700 uppercase">優先 3: 最古の訪問済み</span>
+                        {isActive && <CheckCircle className="w-3 h-3 text-slate-500" />}
+                      </div>
+                      <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                        {oldest ? (
+                          <div className="space-y-1">
+                            <p>最後に訪問してから最も時間が経過したフォルダを再訪します。</p>
+                            <div className="flex items-center gap-1 text-slate-700 font-bold truncate">
+                              <Folder className="w-3 h-3" />
+                              <span className="truncate">{oldest.name || oldest.path}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="italic text-slate-400">訪問済みのフォルダはありません</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Directory Structure Tree / List Table */}
+            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-inner">
+              <div className="grid grid-cols-12 gap-2 bg-slate-50 p-2.5 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="col-span-5 md:col-span-6">フォルダ階層 (Path)</div>
+                <div className="col-span-2 text-center">階層 (Depth)</div>
+                <div className="col-span-3 text-center">インデックス状態</div>
+                <div className="col-span-2 text-right">フォルダID</div>
+              </div>
+
+              <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto custom-scrollbar">
+                {isInitialSyncing && filteredDirs.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-slate-500 font-mono italic block flex flex-col items-center justify-center space-y-4">
+                    <Database className="w-6 h-6 animate-bounce text-indigo-500 opacity-75" />
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-700 not-italic">Firestore データベースとリアルタイム同期中...</p>
+                      {syncProgress && (
+                        <p className="text-slate-400">
+                          {syncProgress.current} 件のフォルダメタデータを取得済み
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  filteredDirs.length === 0 ? (
+                    <div className="p-20 text-center space-y-3">
+                      <div className="inline-flex p-3 bg-slate-50 rounded-full text-slate-300">
+                        <Folder className="w-6 h-6" />
+                      </div>
+                      <p className="text-xs text-slate-400 font-medium italic">フォルダが見つかりません</p>
+                    </div>
+                  ) : (
+                    filteredDirs.slice(0, 100).map((dir) => (
+                      <div key={dir.drive_id} className="grid grid-cols-12 gap-2 p-3 items-center hover:bg-slate-50 transition-colors group">
+                        <div className="col-span-5 md:col-span-6 flex items-center gap-2.5 overflow-hidden">
+                          <div className="shrink-0 w-8 h-8 rounded bg-slate-50 flex items-center justify-center group-hover:bg-white transition-colors">
+                            <Folder className="w-4 h-4 text-slate-400" />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11px] font-bold text-slate-700 truncate" title={dir.path}>
+                              {dir.name || (dir.path === "/" ? "マイドライブ" : dir.path.split('/').pop())}
+                            </span>
+                            <span className="text-[9px] text-slate-400 truncate font-mono" title={dir.path}>{dir.path}</span>
+                          </div>
+                        </div>
+                        <div className="col-span-2 text-center">
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                            L{dir.depth}
+                          </span>
+                        </div>
+                        <div className="col-span-3 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter ${
+                              dir.index_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                              dir.index_status === 'processing' ? 'bg-indigo-100 text-indigo-700 animate-pulse' :
+                              'bg-slate-100 text-slate-50'
+                            }`}>
+                              {dir.index_status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="col-span-2 text-right">
+                          <span className="text-[9px] font-mono text-slate-300 select-all" title={dir.drive_id}>
+                            {dir.drive_id.slice(0, 8)}...
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === "debugger" && (
           <div className="space-y-6" id="debugger-container">
             {/* 警告ログ表示枠 */}
             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3 rounded-lg flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" id="alert-circle-icon" />
               <div className="space-y-1">
-                <span className="font-bold">開発者専用デバッグ・強制修正ツール</span>
+                <span className="font-bold">開発者専用テスト・強制修正ツール</span>
                 <p className="text-[11px] leading-relaxed">
                   本パネルは、Google Drive API のページトークン（pageToken）の同期不整合や、異常終了、無限走査状態を検知して手動でリセット・1ステップずつ駆動テストするためのツールです。通常運用で不整合が発生した際にご活用ください。
                 </p>
               </div>
             </div>
 
-            {/* Firestore Database Settings Info */}
-            <div className="bg-slate-50 border border-slate-200 text-slate-800 text-xs px-4 py-3 rounded-lg flex items-start gap-2">
-              <Database className="w-4 h-4 shrink-0 text-indigo-500 mt-0.5" />
-              <div className="space-y-1 w-full">
-                <span className="font-bold">デバッグ環境データベース設定 (Firestore Native mode)</span>
-                <ul className="text-[11px] leading-relaxed list-disc list-inside mt-1 text-slate-600 space-y-0.5">
-                  <li><span className="font-semibold text-slate-700">Project ID:</span> <code className="bg-slate-100 text-indigo-700 px-1 py-0.5 rounded">moukaeritaid</code></li>
-                  <li><span className="font-semibold text-slate-700">Database ID:</span> <code className="bg-slate-100 text-indigo-700 px-1 py-0.5 rounded">indexmd-db</code></li>
-                  <li><span className="font-semibold text-slate-700">Collections Used:</span> 
-                    <ul className="list-circle list-inside ml-4 mt-0.5 space-y-0.5">
-                      <li><code>users/&#123;userId&#125;/state/global_sync</code> (Tracks global sync tokens)</li>
-                      <li><code>users/&#123;userId&#125;/directories/&#123;directoryId&#125;</code> (Stores metadata for each directory)</li>
-                    </ul>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-
-            <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4" id="token-init-panel">
-              <div className="space-y-1">
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">同期状態（トークン）の初期化</h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Firestore上のグローバル同期トークン（nextPageToken）を null に戻し、同期ステータスを "idle" にします。次の走査は最初から再開されます。
-                </p>
-              </div>
-              
-              <div className="flex flex-col md:flex-row md:items-center gap-3 w-full md:w-auto">
-                <div className="w-full md:w-auto" id="token-init-button-container">
-                  <button
-                    onClick={async () => {
-                      setIsTokenInitializing(true);
-                      onAddLog("info", "🔧 [デバッガー] 1️⃣ トークン初期化処理を開始しました。（スピナーの回転を開始）");
-                      onAddLog("info", "🔧 [デバッガー] 2️⃣ リセット用データの検証を行います。");
-                      try {
-                        onAddLog("info", `🔧 [デバッガー] 3️⃣ Firestore のターゲットパスを確認: 'users/${userId}/state/global_sync'`);
-                        onAddLog("info", `🔧 [デバッガー] 4️⃣ 初期化パラメータを設定: { nextPageToken: null, sync_status: 'idle', last_traversed_at: "${lastTraversedAt || '未実行（null）'}" }`);
-                        onAddLog("warn", "🔧 [デバッガー] 5️⃣ Firestoreへの非同期ネットワーク通信 (setDoc) をリクエストしました。応答を待機しています...");
-                        
-                        await saveSyncStateToDb(null, "idle", lastTraversedAt);
-                        
-                        onAddLog("success", "🔧 [デバッガー] 6️⃣ [通信完了] Firestore内のグローバル同期トークンおよび同期ステータス（'idle'）の初期化に成功しました！");
-                        setLastDebugFolder(null);
-                        onAddLog("info", "🔧 [デバッガー] 7️⃣ クライアント側のデバッグ表示（lastDebugFolder）をクリアしました。");
-                        onAddLog("info", "🔧 [デバッガー] 7.5️⃣ 関連するフォルダ走査ディスクキャッシュのクリアをバックエンドに要求しています...");
-                        
-                        try {
-                          await fetch("/api/drive/clear-scan-cache", {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              "x-google-drive-token": token,
-                              "Authorization": `Bearer ${token}`
-                            }
-                          });
-                          onAddLog("success", "🔧 [デバッガー] [キャッシュクリア完了] フォルダ走査キャッシュの自動パージに成功しました！");
-                        } catch (cacheErr: any) {
-                          onAddLog("warn", `🔧 [デバッガー] フォルダ走査キャッシュのクリア中に軽微な警告が発生しました: ${cacheErr.message || cacheErr}`);
-                        }
-
-                        onAddLog("success", "🔧 [デバッガー] 8️⃣ すべての初期化プロセスが安全に完了しました。スピナーの回転を停止します。次のフォルダフェッチは最上位階層(root)から行われます。");
-                      } catch (error: any) {
-                        onAddLog("error", `🔧 [デバッガー] ❌ [通信失敗] 初期化処理中にエラーが発生しました: ${error.message || error}`);
-                      } finally {
-                        setIsTokenInitializing(false);
-                      }
-                    }}
-                    disabled={isTokenInitializing}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-105 border border-slate-200 rounded text-xs font-bold transition-all cursor-pointer bg-slate-50 hover:bg-white disabled:opacity-50 w-full md:w-auto"
-                    id="btn-token-initialize"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isTokenInitializing ? "animate-spin" : ""}`} />
-                    {isTokenInitializing ? "初期化中..." : "トークン初期化"}
-                  </button>
-                </div>
-
-                <div className="w-full md:w-auto" id="cache-clear-button-container">
-                  <div className="flex items-center justify-between md:justify-start gap-2.5 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 w-full md:w-auto min-h-[38px]" id="cache-clearing-group">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider hidden md:inline">対象キャッシュ:</span>
-                    <select
-                      value={selectedCacheType}
-                      onChange={(e) => setSelectedCacheType(e.target.value)}
-                      disabled={isCacheClearing}
-                      className="bg-white border border-slate-200 rounded px-1.5 py-1 text-xs font-semibold text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                      id="select-cache-type"
-                    >
-                      <option value="all">すべて一括クリア</option>
-                      <option value="scan">フォルダ走査 (scan)</option>
-                      <option value="snippets">ファイルスニペット (snippets)</option>
-                      <option value="summaries">AI要約 (summaries)</option>
-                    </select>
-                    <button
-                      onClick={async () => {
-                        setIsCacheClearing(true);
-                        let typeLabel = "すべての";
-                        if (selectedCacheType === "scan") typeLabel = "フォルダ走査(scan)";
-                        if (selectedCacheType === "snippets") typeLabel = "ファイルスニペット(snippets)";
-                        if (selectedCacheType === "summaries") typeLabel = "AI要約(summaries)";
-                        
-                        onAddLog("info", `🧹 ${typeLabel} キャッシュの手動クリアを開始しました...`);
-                        try {
-                          const response = await fetch("/api/drive/clear-cache", {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              "x-google-drive-token": token,
-                              "Authorization": `Bearer ${token}`
-                            },
-                            body: JSON.stringify({ type: selectedCacheType })
-                          });
-                          if (response.ok) {
-                            const data = await response.json();
-                            onAddLog("success", `🧹 [キャッシュクリア完了] ${data.message}`);
-                          } else {
-                            throw new Error(`HTTPステータス: ${response.status}`);
-                          }
-                        } catch (err: any) {
-                          onAddLog("error", `❌ キャッシュクリアエラー: ${err.message || err}`);
-                        } finally {
-                          setIsCacheClearing(false);
-                        }
-                      }}
-                      disabled={isCacheClearing}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 rounded text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-                      id="btn-clear-cache"
-                    >
-                      <Trash2 className={`w-3.5 h-3.5 ${isCacheClearing ? "animate-spin" : ""}`} />
-                      {isCacheClearing ? "クリア中" : "クリア実行"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          {/* Core Interactive Step Trigger */}
+            {/* Core Interactive Step Trigger */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-5 space-y-4">
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 space-y-4">
@@ -1502,8 +1999,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">DBに登録された総数:</span>
-                    <span className="font-semibold text-slate-800">{dirs.length} フォルダ</span>
+                    <span className="text-slate-400">有効なフォルダ総数:</span>
+                    <span className="font-semibold text-slate-800">{filteredDirs.length} フォルダ</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 text-[9px]">DB登録総数 (無視込):</span>
+                    <span className="text-slate-500 text-[9px]">{dirs.length}</span>
                   </div>
                 </div>
               </div>
@@ -1563,363 +2064,224 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                         )}
                         {debugSaveStatus === "pending" && (
                           <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
-                            <RefreshCw className="w-2.5 h-2.5 animate-spin" /> 保存確認中
+                            <RefreshCw className="w-2.5 h-2.5 animate-spin" /> 保存待機中 (Timeout候補)
                           </span>
                         )}
                         {debugSaveStatus === "timeout" && (
-                          <span className="bg-slate-500/10 text-slate-400 border border-slate-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
-                            <HelpCircle className="w-2.5 h-2.5" /> 保存未確認
+                          <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
+                            <AlertCircle className="w-2.5 h-2.5" /> タイムアウト
                           </span>
                         )}
                         {debugSaveStatus === "failed" && (
                           <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded text-[8px] flex items-center gap-1">
-                            <AlertCircle className="w-2.5 h-2.5" /> 保存失敗
+                            <XCircle className="w-2.5 h-2.5" /> 保存失敗
                           </span>
                         )}
-                        {!debugSaveStatus && (
-                          <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded text-[8px]">DRIVE FETCHED</span>
-                        )}
-                        <button
-                          onClick={handleCopyDiagnostics}
-                          className="flex items-center gap-1 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white px-1.5 py-0.5 rounded border border-slate-700 font-sans font-medium text-[9px] transition-colors cursor-pointer"
-                          title="診断データをクリップボードにコピー"
-                        >
-                          {copiedDiagnostics ? (
-                            <>
-                              <Check className="w-2.5 h-2.5 text-green-400 animate-pulse" />
-                              <span className="text-green-400">コピー完了</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-2.5 h-2.5 text-slate-400" />
-                              <span>データをコピー</span>
-                            </>
-                          )}
-                        </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-y-2.5">
-                      <div className="text-slate-400">Name:</div>
-                      <div className="col-span-2 text-indigo-300 font-bold break-all whitespace-pre-wrap">{lastDebugFolder.name}</div>
-
-                      <div className="text-slate-400">Resolved Path:</div>
-                      <div className="col-span-2 text-emerald-400 font-bold break-all whitespace-pre-wrap">{lastDebugFolder.path}</div>
-
-                      <div className="text-slate-400">Inferred Depth:</div>
-                      <div className="col-span-2 font-bold text-amber-400">{lastDebugFolder.depth} (Level {lastDebugFolder.depth})</div>
-
-                      <div className="text-slate-400">Target Folder ID:</div>
-                      <div className="col-span-2 text-slate-300 select-all break-all">{lastDebugFolder.drive_id}</div>
-
-                      <div className="text-slate-400">Parent Folder ID:</div>
-                      <div className="col-span-2 text-slate-300 break-all">{lastDebugFolder.parent_id || "root / None"}</div>
-
-                      <div className="text-slate-400">Mime Type:</div>
-                      <div className="col-span-2 text-slate-400 break-all">{lastDebugFolder.originalMimeType}</div>
-
-                      <div className="text-slate-400">Returned Next Token:</div>
-                      <div className="col-span-2 text-slate-400 break-all" title={lastDebugFolder.nextToken || "Null"}>{lastDebugFolder.nextToken || "Null (Complete)"}</div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800 text-[10.5px] text-slate-500 break-all">
-                      Firestore パス: <code className="text-slate-400 break-all">users/{userId}/directories/{lastDebugFolder.drive_id}</code>
+                    <div className="space-y-1.5 overflow-hidden">
+                      <div className="flex items-center justify-between text-slate-500 text-[10px]">
+                        <span>DisplayName</span>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-indigo-400 font-bold truncate max-w-[200px]">{lastDebugFolder.name}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500 text-[10px]">
+                        <span>Resolved Path</span>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-slate-300 truncate max-w-[200px]">{lastDebugFolder.path}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500 text-[10px]">
+                        <span>Computed Depth</span>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-amber-500 font-bold">Level {lastDebugFolder.depth}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500 text-[10px]">
+                        <span>Next Page Token</span>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-slate-400 truncate max-w-[150px]">{lastDebugFolder.nextToken || "Null (Complete)"}</span>
+                      </div>
                     </div>
                   </div>
                 )
               ) : (
-                <div className="bg-slate-50 border border-slate-200 border-dashed text-center rounded-xl py-12 px-6 italic text-slate-400 font-mono text-xs flex flex-col items-center justify-center gap-2">
-                  <Bug className="w-8 h-8 opacity-25 text-slate-400" />
-                  手動検証用のフェッチ履歴はありません。
-                  <br />「追加取得」をクリックして現在のpageTokenから検証を行ってください。
+                <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-12 text-center space-y-3">
+                  <div className="inline-flex p-3 bg-white rounded-full text-slate-300 border border-slate-100 shadow-sm">
+                    <Bug className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">診断データ未取得</p>
+                    <p className="text-[10px] text-slate-400 italic">「フォルダを1つ追加取得・検証」ボタンをクリックしてテストを開始してください</p>
+                  </div>
                 </div>
               )}
-
-              {/* Scanned Database List (Simplified) */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-                <div className="bg-slate-50 p-2.5 border-b border-slate-200 flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                    <Database className="w-3.5 h-3.5" /> リアルタイム同期済みツリー (スキャン順)
-                  </span>
-                  <span className="text-[10px] text-indigo-600 font-bold font-mono">
-                    {dirs.length} items
-                  </span>
-                </div>
-                <div className="max-h-[220px] overflow-y-auto custom-scrollbar divide-y divide-slate-100">
-                  {isInitialSyncing && dirs.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-400 italic animate-pulse space-y-1">
-                      <div className="font-bold text-indigo-500">Firestoreと同期中...</div>
-                      {syncProgress && (
-                        <div className="text-[10px] font-mono text-slate-400">
-                          {syncProgress.current} 件のフォルダ情報を取得済み
-                          {lastKnownTotal > 0 ? ` (${Math.min(Math.round((syncProgress.current / lastKnownTotal) * 100), 100)}%)` : ""}
-                        </div>
-                      )}
-                    </div>
-                  ) : dirs.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-400 italic">No nodes scanned yet.</div>
-                  ) : (
-                    dirs.slice().sort((a, b) => String(b.last_traversed_at || '').localeCompare(String(a.last_traversed_at || ''))).slice(0, 100).map(dir => (
-                      <div key={dir.drive_id} className="p-2 flex items-center justify-between hover:bg-slate-50/50 transition-colors text-xs text-slate-650 font-mono">
-                        <div className="flex items-center gap-2 truncate pr-2">
-                          <span className="text-[9px] px-1 py-0.5 bg-indigo-50 text-indigo-600 rounded font-bold">L{dir.depth}</span>
-                          <span className="font-semibold text-slate-800 truncate" title={dir.path}>{dir.path}</span>
-                        </div>
-                        <span className="text-[9px] text-slate-400 shrink-0">{dir.drive_id.slice(0, 10)}...</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         </div>
       )}
 
-      {activeTab === "dashboard" && (
-        <div className="bg-white border border-slate-200 p-4 rounded-lg shadow-sm space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex flex-wrap gap-2.5">
-              <button
-                onClick={() => startScanJob(false)}
-                disabled={isCrawlActive || isIndexActive}
-                className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 disabled:pointer-events-none transition-colors text-indigo-700 border border-indigo-200 font-bold px-3.5 py-2 rounded-md text-xs cursor-pointer"
-                id="btn-scan-incremental"
-              >
-                <FolderSync className="w-3.5 h-3.5" />
-                差分フォルダ走査
-              </button>
 
-              <button
-                onClick={() => startScanJob(true)}
-                disabled={isCrawlActive || isIndexActive}
-                className="inline-flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 disabled:opacity-50 disabled:pointer-events-none border border-slate-200 transition-all text-slate-600 font-bold px-3.5 py-2 rounded-md text-xs cursor-pointer"
-                id="btn-scan-full"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                全件初期走査
-              </button>
-
-              <button
-                onClick={startGenerationJob}
-                disabled={isCrawlActive || isIndexActive || dirs.length === 0}
-                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none transition-colors text-white font-bold px-4 py-2 rounded-md text-xs cursor-pointer shadow-sm"
-                id="btn-generate-indices"
-              >
-                <Play className="w-3.5 h-3.5" />
-                OKFインデックス生成
-              </button>
-
-              <button
-                onClick={handleResetClick}
-                disabled={isCrawlActive || isIndexActive || dirs.length === 0}
-                className={`inline-flex items-center gap-1.5 transition-all px-3 py-2 rounded-md text-xs cursor-pointer ${
-                  resetConfirming
-                    ? "bg-amber-500 hover:bg-amber-600 text-white border-transparent font-bold animate-pulse shadow-sm"
-                    : "text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 hover:border-amber-200"
-                }`}
-                id="btn-reset-data"
-              >
-                <FolderSync className="w-3.5 h-3.5" />
-                {resetConfirming ? "状態を初期化？ (あと5秒)" : "再走査・再生成状態を初期化"}
-              </button>
+      {activeTab === "firestore-test" && (
+        <div className="space-y-6" id="firestore-test-container">
+          {/* Connection Info Panel */}
+          <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm space-y-4" id="stat-connection-info">
+            <div className="flex items-center gap-2 text-slate-700 font-bold text-xs uppercase tracking-wider mb-2">
+              <Database className="w-3.5 h-3.5 text-indigo-500" />
+              接続構成情報 (Dynamic Config)
             </div>
-
-            {/* Search Box */}
-            <div className="relative md:w-72">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="階層パスまたはIDで検索..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-md pl-9 pr-4 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-3 bg-slate-50 rounded border border-slate-100">
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mb-1">GCP Project ID</div>
+                <div className="text-xs font-mono text-slate-700 break-all select-all">{firebaseProjectId}</div>
+              </div>
+              <div className="p-3 bg-slate-50 rounded border border-slate-100">
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mb-1">Firebase Project</div>
+                <div className="text-xs font-mono text-slate-700 break-all select-all">{firebaseProjectId}</div>
+              </div>
+              <div className="p-3 bg-slate-50 rounded border border-slate-100">
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mb-1">Firestore Database</div>
+                <div className="text-xs font-mono text-slate-700 break-all select-all">{firestoreDatabaseId}</div>
+              </div>
+              <div className="p-3 bg-slate-50 rounded border border-slate-100">
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mb-1">Collection Paths</div>
+                <div className="text-[9px] font-mono text-slate-500 leading-tight">
+                  • users/&#123;uid&#125;/directories<br />
+                  • users/&#123;uid&#125;/state/global_sync
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* 最も古い／新しい情報取得フォルダの表示 (Oldest/Newest Traversed Folders) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 border border-slate-200/85 p-4 rounded-lg" id="extremes-traversed-panel">
-            {/* Oldest */}
-            <div className="bg-white p-3.5 rounded-md border border-slate-200 shadow-sm flex flex-col justify-between" id="oldest-folder-card">
-              <div>
-                <div className="flex items-center gap-2 text-amber-600 font-bold text-xs uppercase tracking-wider mb-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  最も走査（訪問）日時の古いフォルダ (再開候補)
-                </div>
-                {isInitialSyncing && dirs.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic animate-pulse">
-                    同期中... {syncProgress ? `(${syncProgress.current}件取得済み)` : ""}
-                  </p>
-                ) : oldestTraversedFolder ? (
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-slate-800 break-all flex flex-wrap items-center gap-1" title={oldestTraversedFolder.path}>
-                      <Folder className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      {buildBreadcrumbPath(oldestTraversedFolder.drive_id).map((crumb, idx, arr) => (
-                        <span key={crumb.id} className="flex items-center gap-1">
-                          <span className={idx === arr.length - 1 ? 'text-slate-800' : 'text-slate-500'}>{crumb.name}</span>
-                          {idx < arr.length - 1 && <span className="text-slate-300">/</span>}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-[10px] font-mono text-slate-400 select-all break-all">
-                      ID: {oldestTraversedFolder.drive_id}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400 italic">走査済みのフォルダはありません</p>
-                )}
+          {/* Firestore Directories Count Stat Panel */}
+          <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm space-y-4" id="stat-firestore-count">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="space-y-1">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Firestore 同期済み件数</h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Firestore内の <code>directories</code> コレクションに保存されているドキュメントの総数をカウントします。
+                </p>
               </div>
-              {oldestTraversedFolder && !loading && oldestTraversedFolder.last_traversed_at && (
-                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono">
-                  <span className="text-slate-400">最終訪問日時:</span>
-                  <span className="font-bold text-slate-700">{new Date(oldestTraversedFolder.last_traversed_at).toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Newest */}
-            <div className="bg-white p-3.5 rounded-md border border-slate-200 shadow-sm flex flex-col justify-between" id="newest-folder-card">
-              <div>
-                <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-wider mb-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  最も走査（訪問）日時の新しいフォルダ
-                </div>
-                {isInitialSyncing && dirs.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic animate-pulse">
-                    同期中... {syncProgress ? `(${syncProgress.current}件取得済み)` : ""}
-                  </p>
-                ) : newestTraversedFolder ? (
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-slate-800 break-all flex flex-wrap items-center gap-1" title={newestTraversedFolder.path}>
-                      <Folder className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      {buildBreadcrumbPath(newestTraversedFolder.drive_id).map((crumb, idx, arr) => (
-                        <span key={crumb.id} className="flex items-center gap-1">
-                          <span className={idx === arr.length - 1 ? 'text-slate-800' : 'text-slate-500'}>{crumb.name}</span>
-                          {idx < arr.length - 1 && <span className="text-slate-300">/</span>}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-[10px] font-mono text-slate-400 select-all break-all">
-                      ID: {newestTraversedFolder.drive_id}
-                    </p>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-2xl font-extrabold text-indigo-600 font-mono">
+                    {firestoreDirCount !== null ? firestoreDirCount.toLocaleString() : "---"}
+                    <span className="text-xs font-normal text-indigo-400 ml-1">件</span>
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-400 italic">走査済みのフォルダはありません</p>
-                )}
-              </div>
-              {newestTraversedFolder && !loading && newestTraversedFolder.last_traversed_at && (
-                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono">
-                  <span className="text-slate-400">最終訪問日時:</span>
-                  <span className="font-bold text-slate-700">{new Date(newestTraversedFolder.last_traversed_at).toLocaleString()}</span>
+                  <div className="text-[10px] text-slate-400 font-medium">
+                    取得日時: {lastDirCountAt ? `${lastDirCountAt.toLocaleTimeString()} (${getRelativeTime(lastDirCountAt)})` : "未取得"}
+                  </div>
                 </div>
-              )}
+                <button
+                  onClick={countFirestoreDirectories}
+                  disabled={isCountingDirectories}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-bold rounded text-xs transition-all cursor-pointer border border-slate-200"
+                  id="btn-count-directories"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCountingDirectories ? "animate-spin" : ""}`} />
+                  {isCountingDirectories ? "カウント中..." : "件数を更新"}
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Directory Structure Tree / List Table */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-inner">
-            <div className="grid grid-cols-12 gap-2 bg-slate-50 p-2.5 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              <div className="col-span-5 md:col-span-6">フォルダ階層 (Path)</div>
-              <div className="col-span-2 text-center">階層 (Depth)</div>
-              <div className="col-span-3 text-center">インデックス状態</div>
-              <div className="col-span-2 text-right">フォルダID</div>
+          <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4" id="token-init-panel">
+            <div className="space-y-1">
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">nextPageToken</h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Firestore上のグローバル同期トークン（nextPageToken）を null に戻し、同期ステータスを "idle" にします。次の走査は最初から再開されます。
+              </p>
             </div>
+            
+            <div className="flex flex-col md:flex-row md:items-center gap-3 w-full md:w-auto">
+              {nextPageToken && (
+                <div className="px-2 py-1 bg-amber-50 border border-amber-100 rounded text-[9px] font-mono text-amber-700 max-w-[150px] truncate" title={nextPageToken}>
+                  TOKEN: {nextPageToken}
+                </div>
+              )}
+              <div className="w-full md:w-auto" id="token-init-button-container">
+                <button
+                  onClick={async () => {
+                    if (!confirm("本当にトークンをリセットしますか？この操作は取り消せません。")) return;
+                    setIsTokenInitializing(true);
+                    onAddLog("info", "🔧 [同期テスト] 1️⃣ nextPageToken削除処理を開始しました。");
+                    try {
+                      await saveSyncStateToDb(null, "idle", lastGlobalSyncAt, false);
+                      onAddLog("success", "🔧 [同期テスト] 2️⃣ Firestore内のグローバル同期トークンを削除しました。");
+                      setLastDebugFolder(null);
+                      
+                      try {
+                        await fetch("/api/drive/clear-scan-cache", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "x-google-drive-token": token,
+                            "Authorization": `Bearer ${token}`
+                          }
+                        });
+                      } catch (e) {}
 
-            <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto custom-scrollbar">
-              {isInitialSyncing && dirs.length === 0 ? (
-                <div className="p-12 text-center text-xs text-slate-500 font-mono italic block flex flex-col items-center justify-center space-y-4">
-                  <Database className="w-6 h-6 animate-bounce text-indigo-500 opacity-75" />
-                  <div className="space-y-1">
-                    <p className="font-bold text-slate-700 not-italic">Firestore データベースとリアルタイム同期中...</p>
-                    {syncProgress && (
-                      <p className="text-slate-400">
-                        {syncProgress.current} 件のフォルダメタデータを取得しました
-                        {lastKnownTotal > 0 ? ` (${Math.min(Math.round((syncProgress.current / lastKnownTotal) * 100), 100)}%)` : ""}
-                      </p>
-                    )}
-                  </div>
-                  {lastKnownTotal > 0 && syncProgress && (
-                    <div className="w-48 bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
-                      <div 
-                        className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(Math.round((syncProgress.current / lastKnownTotal) * 100), 100)}%` }}
-                      ></div>
-                    </div>
-                  )}
-                  {syncProgress?.lastPath && (
-                    <p className="text-[10px] text-slate-400 max-w-md truncate bg-slate-50 border border-slate-150 rounded px-2.5 py-1 font-mono">
-                      最新同期: {syncProgress.lastPath}
-                    </p>
-                  )}
-                </div>
-              ) : filteredDirs.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-400 italic block">
-                  合致するフォルダが見つかりません。
-                </div>
-              ) : (
-                <>
-                  {filteredDirs.slice(0, 50).map((dir) => {
-                    let statusBadge = "text-slate-500 border-slate-200 bg-slate-50";
-                    if (dir.index_status === "indexed") {
-                      statusBadge = "text-emerald-700 border-emerald-200 bg-emerald-50";
-                    } else if (dir.index_status === "processing") {
-                      statusBadge = "text-indigo-700 border-indigo-200 bg-indigo-50 animate-pulse";
-                    } else if (dir.index_status === "error") {
-                      statusBadge = "text-red-700 border-red-200 bg-red-50";
+                      onAddLog("success", "🔧 [同期テスト] 3️⃣ 初期化プロセス完了。");
+                    } catch (error: any) {
+                      onAddLog("error", `🔧 [同期テスト] ❌ エラー: ${error.message || error}`);
+                    } finally {
+                      setIsTokenInitializing(false);
                     }
-
-                    return (
-                      <div key={dir.drive_id} className="grid grid-cols-12 gap-2 p-2.5 items-center hover:bg-slate-50/50 transition-colors text-xs text-slate-650">
-                      <div className="col-span-5 md:col-span-6 flex items-center gap-2">
-                        <Folder className="w-3.5 h-3.5 text-indigo-500/70 shrink-0" />
-                        <span className="font-semibold text-slate-800 break-all md:truncate leading-tight" title={dir.path}>
-                          {dir.path}
-                        </span>
-                      </div>
-
-                      <div className="col-span-2 text-center font-mono text-slate-650 font-semibold">
-                        {dir.depth}
-                      </div>
-
-                      <div className="col-span-3 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded border text-[9px] font-bold tracking-wide ${statusBadge}`}>
-                          {dir.index_status === "indexed" ? "OKF-更新済" : 
-                           dir.index_status === "processing" ? "処理中..." : "未生成"}
-                        </span>
-                      </div>
-
-                      <div className="col-span-2 text-right font-mono text-[10px] text-slate-400 flex items-start justify-end gap-1">
-                        <span className="break-all md:truncate md:w-24 leading-tight">{dir.drive_id}</span>
-                        <a 
-                          href={`https://drive.google.com/drive/folders/${dir.drive_id}`} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="text-slate-400 hover:text-indigo-600 transition-colors"
-                          title="Google Driveで開く"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-
-                      {/* Show AI Summary brief if generated */}
-                      {dir.ai_summary && (
-                        <div className="col-span-12 pl-5 pt-1 text-[11px] text-slate-500 leading-relaxed max-w-4xl break-all mt-0.5 bg-slate-50/40 p-1.5 rounded border border-slate-100/50">
-                          <span className="text-indigo-600 font-bold uppercase text-[9px] tracking-wider mr-1">[AI摘要]</span>
-                          {dir.ai_summary}
-                        </div>
-                      )}
-                    </div>
-                  );
-                  })}
-                  {filteredDirs.length > 50 && (
-                    <div className="p-3 text-center text-xs text-slate-400 font-mono italic">
-                      + 他 {filteredDirs.length - 50} 件 (検索を利用して絞り込み表示を行ってください)
-                    </div>
-                  )}
-                </>
-              )}
+                  }}
+                  disabled={isTokenInitializing || !nextPageToken}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-bold rounded text-xs transition-all cursor-pointer border border-slate-200 w-full md:w-auto"
+                  id="btn-token-initialize"
+                >
+                  <Trash2 className={`w-3.5 h-3.5 ${isTokenInitializing ? "animate-spin" : ""}`} />
+                  {isTokenInitializing ? "削除中..." : "nextPageToken削除"}
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* Firestore Permission Diagnosis */}
+          <div className="bg-white border border-slate-200 p-5 rounded-lg shadow-sm space-y-4" id="firestore-permission-panel">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="space-y-1">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Firestore 権限診断</h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  現在の認証ユーザーが指定されたデータベースとパスに対して適切な読み書き権限を持っているか検証します。
+                </p>
+              </div>
+              <button
+                onClick={diagnoseFirestorePermission}
+                disabled={isDiagnosingPermissions}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded text-xs transition-all cursor-pointer shadow-sm min-w-[160px]"
+                id="btn-diagnose-permission"
+              >
+                {isDiagnosingPermissions ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                )}
+                Firestore権限を診断
+              </button>
+            </div>
+
+            {/* Diagnostic Results Summary */}
+            {permissionAuditResult && (
+              <div className={`mt-3 p-3 rounded border text-[11px] font-medium animate-in fade-in slide-in-from-top-1 duration-300 ${
+                permissionAuditResult.status === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-800" :
+                permissionAuditResult.status === "warn" ? "bg-amber-50 border-amber-100 text-amber-800" :
+                "bg-red-50 border-red-100 text-red-800"
+              }`} id="diagnostic-result-summary">
+                <div className="flex items-center gap-2 mb-1">
+                  {permissionAuditResult.status === "success" ? (
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                  ) : permissionAuditResult.status === "warn" ? (
+                    <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
+                  ) : (
+                    <XCircle className="w-3.5 h-3.5 text-red-500" />
+                  )}
+                  <span className="font-bold">診断結果 ({permissionAuditResult.timestamp})</span>
+                </div>
+                <p className="ml-5.5 leading-relaxed whitespace-pre-wrap">{permissionAuditResult.message}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
