@@ -57,7 +57,7 @@ export default function App() {
   const [logs, setLogs] = useState<DriveLog[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const validTabs = ["dashboard", "debugger", "summary-debugger", "firestore-test", "logs"];
+  const validTabs = ["dashboard", "debugger", "summary-debugger", "firestore-test", "logs", "cache-stats"];
   const activeTab = validTabs.includes(location.pathname.substring(1)) 
     ? location.pathname.substring(1) 
     : "dashboard";
@@ -442,6 +442,7 @@ export default function App() {
                 </div>
               } />
               <Route path="/logs" element={null} />
+              <Route path="/cache-stats" element={null} />
             </Routes>
           </div>
         )}

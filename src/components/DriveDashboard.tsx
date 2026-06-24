@@ -62,6 +62,7 @@ import {
 } from "lucide-react";
 import DriveLogs from "./DriveLogs";
 import { SummaryDebugger } from "./SummaryDebugger";
+import { CacheStatsTab } from "./CacheStatsTab";
 import { motion } from "motion/react";
 import { getDriveAuthHeaders } from "../lib/driveToken";
 import { 
@@ -1592,6 +1593,18 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
           <Terminal className="w-4 h-4" />
           システムログ
         </button>
+        <button
+          onClick={() => setActiveTab("cache-stats")}
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeTab === "cache-stats"
+              ? "border-indigo-600 text-indigo-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600 bg-transparent"
+          }`}
+          id="btn-tab-cache-stats"
+        >
+          <Zap className="w-4 h-4" />
+          キャッシュ統計
+        </button>
       </div>
 
       <div className="mt-6" id="tabs-content">
@@ -2458,6 +2471,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       {activeTab === "logs" && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
           <DriveLogs logs={logs} onClearLogs={onClearLogs} />
+        </div>
+      )}
+
+      {activeTab === "cache-stats" && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <CacheStatsTab />
         </div>
       )}
       </div>
