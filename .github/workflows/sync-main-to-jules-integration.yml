@@ -1,0 +1,165 @@
+name: Sync main to Jules integration
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-main-to-jules-integration
+  cancel-in-progress: false
+
+env:
+  MAIN_BRANCH: main
+  INTEGRATION_BRANCH: jules/integration
+  SYNC_BRANCH: automation/sync-main-to-jules-integration
+
+jobs:
+  sync-main-to-jules-integration:
+    name: Sync main to jules/integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge main into jules/integration or open conflict PR
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          REPO: ${{ github.repository }}
+          PUSH_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          echo "Repository: ${REPO}"
+          echo "Main branch: ${MAIN_BRANCH}"
+          echo "Integration branch: ${INTEGRATION_BRANCH}"
+          echo "Sync branch: ${SYNC_BRANCH}"
+          echo "Main push SHA: ${PUSH_SHA}"
+
+          git fetch origin \
+            "+refs/heads/${MAIN_BRANCH}:refs/remotes/origin/${MAIN_BRANCH}" \
+            --prune
+
+          # Create jules/integration from main if it does not exist yet.
+          if ! git ls-remote --exit-code --heads origin "${INTEGRATION_BRANCH}" >/dev/null 2>&1; then
+            echo "Integration branch ${INTEGRATION_BRANCH} does not exist. Creating it from ${MAIN_BRANCH}."
+            git switch -C "${INTEGRATION_BRANCH}" "origin/${MAIN_BRANCH}"
+            git push origin "HEAD:refs/heads/${INTEGRATION_BRANCH}"
+            echo "Created ${INTEGRATION_BRANCH} from ${MAIN_BRANCH}."
+            exit 0
+          fi
+
+          git fetch origin \
+            "+refs/heads/${INTEGRATION_BRANCH}:refs/remotes/origin/${INTEGRATION_BRANCH}" \
+            --prune
+
+          git switch -C "${INTEGRATION_BRANCH}" "origin/${INTEGRATION_BRANCH}"
+
+          BEFORE_SHA="$(git rev-parse HEAD)"
+          echo "Before merge: ${BEFORE_SHA}"
+
+          if git merge --no-edit "origin/${MAIN_BRANCH}"; then
+            AFTER_SHA="$(git rev-parse HEAD)"
+            echo "After merge: ${AFTER_SHA}"
+
+            if [ "${BEFORE_SHA}" = "${AFTER_SHA}" ]; then
+              echo "${INTEGRATION_BRANCH} is already up to date with ${MAIN_BRANCH}."
+            else
+              echo "Pushing merged result to ${INTEGRATION_BRANCH}."
+              git push origin "HEAD:refs/heads/${INTEGRATION_BRANCH}"
+            fi
+
+            # If an old conflict PR exists, close it because sync now succeeds.
+            EXISTING_PR="$(gh pr list \
+              --repo "${REPO}" \
+              --state open \
+              --base "${INTEGRATION_BRANCH}" \
+              --head "${SYNC_BRANCH}" \
+              --json number \
+              --jq '.[0].number // empty')"
+
+            if [ -n "${EXISTING_PR}" ]; then
+              echo "Closing stale conflict PR #${EXISTING_PR}."
+              gh pr close "${EXISTING_PR}" \
+                --repo "${REPO}" \
+                --delete-branch \
+                --comment "Automatic sync from \`${MAIN_BRANCH}\` to \`${INTEGRATION_BRANCH}\` now succeeds, so this conflict PR is no longer needed." \
+                || true
+            fi
+
+            exit 0
+          fi
+
+          echo "Merge conflict detected while merging ${MAIN_BRANCH} into ${INTEGRATION_BRANCH}."
+          git merge --abort || true
+
+          # Create/update a branch that represents the current main state.
+          # This branch is used only to create a PR into jules/integration.
+          git switch -C "${SYNC_BRANCH}" "origin/${MAIN_BRANCH}"
+          git push --force origin "HEAD:refs/heads/${SYNC_BRANCH}"
+
+          TITLE="Sync ${MAIN_BRANCH} into ${INTEGRATION_BRANCH} (manual conflict resolution required)"
+          BODY_FILE="$(mktemp)"
+
+          cat > "${BODY_FILE}" <<EOF
+          Automatic sync from \`${MAIN_BRANCH}\` to \`${INTEGRATION_BRANCH}\` failed because Git reported a merge conflict.
+
+          Source branch: \`${MAIN_BRANCH}\`
+          Target branch: \`${INTEGRATION_BRANCH}\`
+          Source SHA: \`${PUSH_SHA}\`
+
+          This PR is created automatically so the conflict can be reviewed and resolved manually.
+
+          Important notes:
+
+          - \`${INTEGRATION_BRANCH}\` is the Jules working/integration branch.
+          - This workflow never resets \`${INTEGRATION_BRANCH}\`.
+          - On a clean merge, it merges \`${MAIN_BRANCH}\` into \`${INTEGRATION_BRANCH}\` and pushes the result.
+          - On conflict, it updates \`${SYNC_BRANCH}\` to the latest \`${MAIN_BRANCH}\` and opens or updates this PR.
+          - The sync branch \`${SYNC_BRANCH}\` is automation-owned and may be force-updated by future runs.
+          - If you are resolving conflicts manually, prefer resolving them into \`${INTEGRATION_BRANCH}\` directly, then close this PR.
+
+          Workflow run:
+          ${RUN_URL}
+          EOF
+
+          EXISTING_PR="$(gh pr list \
+            --repo "${REPO}" \
+            --state open \
+            --base "${INTEGRATION_BRANCH}" \
+            --head "${SYNC_BRANCH}" \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -n "${EXISTING_PR}" ]; then
+            echo "Updating existing conflict PR #${EXISTING_PR}."
+            gh pr edit "${EXISTING_PR}" \
+              --repo "${REPO}" \
+              --title "${TITLE}" \
+              --body-file "${BODY_FILE}"
+          else
+            echo "Creating conflict PR."
+            gh pr create \
+              --repo "${REPO}" \
+              --base "${INTEGRATION_BRANCH}" \
+              --head "${SYNC_BRANCH}" \
+              --title "${TITLE}" \
+              --body-file "${BODY_FILE}"
+          fi
+
+          echo "Conflict PR is ready."
