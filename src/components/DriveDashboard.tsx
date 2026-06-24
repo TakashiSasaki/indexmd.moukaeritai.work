@@ -1610,24 +1610,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   スキャン
                 </button>
 
-                <div className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-md shadow-sm h-full group hover:bg-white transition-colors w-full sm:w-auto">
-                  <SlidersHorizontal className="w-3 h-3 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter shrink-0">上限:</span>
-                  <select 
-                    value={scanLimit} 
-                    onChange={(e) => setScanLimit(Number(e.target.value))}
-                    disabled={isCrawlActive || isIndexActive}
-                    className="text-[10px] sm:text-xs font-bold text-slate-700 bg-transparent outline-none cursor-pointer disabled:opacity-50 pr-1"
-                  >
-                    <option value={1}>1件</option>
-                    <option value={5}>5件</option>
-                    <option value={100}>100件</option>
-                    <option value={500}>500件</option>
-                    <option value={1000}>1000件</option>
-                    <option value={0}>無制限</option>
-                  </select>
-                </div>
-
                 <button
                   onClick={() => setShowIgnoreSettings(!showIgnoreSettings)}
                   className={`flex items-center justify-center gap-2 px-3 py-2 border rounded-md shadow-sm transition-all text-[10px] sm:text-xs font-bold w-full sm:w-auto ${
@@ -1635,9 +1617,9 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                     ? "bg-slate-700 text-white border-slate-700" 
                     : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                   }`}
-                  title="無視するフォルダを設定"
+                  title="スキャン設定"
                 >
-                  <EyeOff className="w-3.5 h-3.5" />
+                  <Settings className="w-3.5 h-3.5" />
                   設定
                   {ignoredFolderNames.length > 0 && (
                     <span className="flex items-center justify-center w-4 h-4 bg-indigo-500 text-[10px] text-white rounded-full">
@@ -1667,8 +1649,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 text-slate-700">
-                    <EyeOff className="w-4 h-4 text-slate-400" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider">無視するフォルダ名 (最大10個)</h3>
+                    <Settings className="w-4 h-4 text-slate-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider">スキャン設定</h3>
                   </div>
                   <button 
                     onClick={() => setShowIgnoreSettings(false)}
@@ -1678,14 +1660,38 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   </button>
                 </div>
                 
-                <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-                  ここで指定した名前と完全に一致するフォルダは、スキャン対象から除外されます。
-                  (例: <code className="bg-slate-200 px-1 rounded">node_modules</code>, <code className="bg-slate-200 px-1 rounded">.git</code> など)
-                </p>
+                <div className="space-y-4">
+                  {/* Scan Limit */}
+                  <div className="bg-white border border-slate-200 rounded p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-700">スキャン上限数</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">1回の操作で処理するフォルダの最大数</p>
+                      </div>
+                      <select 
+                        value={scanLimit} 
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setScanLimit(val);
+                          try {
+                            localStorage.setItem(`indexmd_scan_limit_${userId}`, val.toString());
+                          } catch {}
+                        }}
+                        disabled={isCrawlActive || isIndexActive}
+                        className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none cursor-pointer disabled:opacity-50"
+                      >
+                        <option value={1}>1件</option>
+                        <option value={5}>5件</option>
+                        <option value={100}>100件</option>
+                        <option value={500}>500件</option>
+                        <option value={1000}>1000件</option>
+                        <option value={0}>無制限</option>
+                      </select>
+                    </div>
+                  </div>
 
-                <div className="space-y-3">
                   {/* Skip existing folders option */}
-                  <div className="flex items-center gap-3 bg-white border border-slate-200 rounded p-3 mb-4">
+                  <div className="flex items-center gap-3 bg-white border border-slate-200 rounded p-3">
                     <input 
                       type="checkbox"
                       id="skip-existing-folders"
@@ -1697,6 +1703,19 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       登録済みのフォルダをスキップする (高速化)
                     </label>
                   </div>
+
+                  {/* Ignore folders */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                      <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                      無視するフォルダ名 (最大10個)
+                    </h4>
+                    <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
+                      ここで指定した名前と完全に一致するフォルダは、スキャン対象から除外されます。
+                      (例: <code className="bg-slate-200 px-1 rounded">node_modules</code>, <code className="bg-slate-200 px-1 rounded">.git</code> など)
+                    </p>
+
+                    <div className="space-y-3">
 
                   {/* Add Input */}
                   {ignoredFolderNames.length < 10 && (
@@ -1744,6 +1763,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                         </div>
                       ))
                     )}
+                  </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
