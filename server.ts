@@ -97,6 +97,41 @@ async function setCachedSummary(key: string, content: any): Promise<void> {
 }
 
 const HISTORY_PATH = path.join(process.cwd(), "src/data/validation_history.json");
+const EXPERIMENT_HISTORY_PATH = path.join(process.cwd(), "src/data/experiment_history.json");
+
+function saveExperimentHistory(entry: any) {
+  try {
+    let history: any[] = [];
+    if (fs.existsSync(EXPERIMENT_HISTORY_PATH)) {
+      const content = fs.readFileSync(EXPERIMENT_HISTORY_PATH, "utf-8");
+      try {
+        history = JSON.parse(content);
+      } catch (e) {
+        history = [];
+      }
+    }
+    
+    if (!Array.isArray(history)) history = [];
+
+    const newEntry = {
+      id: `exp-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      ...entry
+    };
+    
+    history.unshift(newEntry);
+    
+    if (history.length > 100) {
+      history = history.slice(0, 100);
+    }
+
+    fs.writeFileSync(EXPERIMENT_HISTORY_PATH, JSON.stringify(history, null, 2));
+    return newEntry;
+  } catch (e) {
+    console.error("Failed to save experiment history:", e);
+    return null;
+  }
+}
 
 function saveToHistory(entry: {
   status: "success" | "error";
@@ -324,6 +359,31 @@ app.get("/api/validation-history", (req, res) => {
     res.json([]);
   } catch (e) {
     res.status(500).json({ error: "Failed to read history" });
+  }
+});
+
+// API to fetch experiment history
+app.get("/api/experiment-history", (req, res) => {
+  try {
+    if (fs.existsSync(EXPERIMENT_HISTORY_PATH)) {
+      const content = fs.readFileSync(EXPERIMENT_HISTORY_PATH, "utf-8");
+      return res.json(JSON.parse(content));
+    }
+    res.json([]);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to read experiment history" });
+  }
+});
+
+// API to clear experiment history
+app.post("/api/experiment-history/clear", (req, res) => {
+  try {
+    if (fs.existsSync(EXPERIMENT_HISTORY_PATH)) {
+      fs.unlinkSync(EXPERIMENT_HISTORY_PATH);
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to clear experiment history" });
   }
 });
 
@@ -1063,6 +1123,24 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
       result.summary = summaryText;
     }
 
+    // Save to Experiment History
+    saveExperimentHistory({
+      inputKind: "driveFile",
+      inputLabel: fileMeta.name,
+      fileMetadata: {
+        name: fileMeta.name,
+        mimeType: fileMeta.mimeType
+      },
+      model: targetModel,
+      outputMode: mode,
+      schemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
+      parseSuccess: result.success && !result.structuredParseFailed,
+      validationSuccess: result.success && !result.structuredParseFailed && !result.error,
+      structuredResult: result.structured,
+      rawOutput: result.rawText || result.summary,
+      error: result.error
+    });
+
     await setCachedSummary(cacheKey, result);
     
     res.json(result);
@@ -1100,6 +1178,107 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
     const rawStatus = err.status || err.response?.status;
     const statusCode = rawStatus ? Number(rawStatus) : 500;
     res.status(statusCode).json({ error: errorMessage });
+  }
+});
+
+
+app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
+  try {
+    const { text, customInstruction, modelName, outputMode } = req.body;
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({ error: "Missing or invalid 'text' field" });
+    }
+
+    const targetModel = modelName || "gemini-3.5-flash";
+    const mode = outputMode === "structured" ? "structured" : "text";
+    const temp = 0.2;
+    const tP = 0.95;
+    const tK = 64;
+
+    const contentSample = text.substring(0, 50000);
+    
+    let prompt = "";
+    let configOption: any = { temperature: temp, topP: tP, topK: tK };
+    
+    if (mode === "structured") {
+      prompt = buildStructuredSummaryTaskPrompt({
+        name: "Manual Text Input",
+        mimeType: "text/plain",
+        contentSample: contentSample
+      }, customInstruction);
+      configOption.systemInstruction = buildSummaryDebugSystemInstruction();
+      configOption.responseMimeType = "application/json";
+      configOption.responseSchema = SUMMARY_ANALYSIS_SCHEMA;
+    } else {
+      prompt = buildDebugTextFileSummaryPrompt({
+        name: "Manual Text Input",
+        mimeType: "text/plain",
+        contentSample: contentSample
+      }, customInstruction);
+    }
+
+    const aiRes = await generateContentWithRetry(targetModel, prompt, 4, configOption);
+    const summaryText = aiRes.text?.trim() || (mode === "structured" ? "{}" : "No summary generated");
+
+    let result: any = {
+      success: true,
+      outputMode: mode,
+      metadata: { name: "Manual Text Input", mimeType: "text/plain" },
+      contentSampleSnippet: contentSample.substring(0, 200) + (contentSample.length > 200 ? "..." : "")
+    };
+
+    if (mode === "structured") {
+      try {
+        const parsed = JSON.parse(summaryText);
+        const normalized = normalizeSummaryAnalysisResult(parsed);
+        if (validateSummaryAnalysisResult(normalized)) {
+          result.structured = normalized;
+          result.schemaVersion = SUMMARY_ANALYSIS_SCHEMA_VERSION;
+          result.summary = normalized.oneLineSummary || "No summary generated";
+          result.rawText = summaryText; 
+        } else {
+          result.success = false;
+          result.structuredParseFailed = true;
+          result.schemaVersion = SUMMARY_ANALYSIS_SCHEMA_VERSION;
+          result.rawText = summaryText;
+          result.error = "Structured output validation failed";
+        }
+      } catch (e: any) {
+        result.success = false;
+        result.structuredParseFailed = true;
+        result.schemaVersion = SUMMARY_ANALYSIS_SCHEMA_VERSION;
+        result.rawText = summaryText;
+        result.error = "JSON parse failed: " + e.message;
+      }
+    } else {
+      result.summary = summaryText;
+    }
+
+    // Hash the text just to store some uniqueness indicator
+    let textHash = 0;
+    for (let i = 0; i < text.length; i++) {
+      textHash = ((textHash << 5) - textHash) + text.charCodeAt(i);
+      textHash |= 0;
+    }
+
+    saveExperimentHistory({
+      inputKind: "manualText",
+      inputLabel: `Manual Text (${text.length} chars)`,
+      model: targetModel,
+      outputMode: mode,
+      schemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
+      parseSuccess: result.success && !result.structuredParseFailed,
+      validationSuccess: result.success && !result.structuredParseFailed && !result.error,
+      structuredResult: result.structured,
+      rawOutput: result.rawText || result.summary,
+      error: result.error,
+      manualTextHash: textHash.toString(16)
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("Manual text summary error:", err);
+    res.status(500).json({ error: err.message || "Failed to process manual text" });
   }
 });
 

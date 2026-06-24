@@ -35,6 +35,29 @@ export interface ValidationRecord {
   details?: string;
 }
 
+export interface ExperimentHistoryRecord {
+  id: string;
+  timestamp: string;
+  inputKind: "driveFile" | "manualText";
+  inputLabel: string; // safe input label
+  fileMetadata?: {
+    name: string;
+    mimeType: string;
+    modifiedTime?: string;
+  };
+  model: string;
+  outputMode: "text" | "structured";
+  schemaVersion?: string;
+  promptVersion?: string; // we can store this if needed
+  parseSuccess?: boolean;
+  validationSuccess?: boolean;
+  structuredResult?: any;
+  rawOutput?: string;
+  error?: string;
+  warnings?: string[];
+  manualTextHash?: string; // Only if we want to store it
+}
+
 export interface ModelPricing {
   freeTier: boolean;
   inputPrice: string; // e.g. "$1.50 / 1M tokens"

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle } from 'lucide-react';
+import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle, History, Trash2 } from 'lucide-react';
 import { getDriveAuthHeaders } from '../lib/driveToken';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
-import { ModelInfo, ValidationRecord } from '../types';
+import { ModelInfo, ValidationRecord, ExperimentHistoryRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
 
 interface SummaryDebuggerProps {
@@ -17,6 +17,8 @@ const SELECTED_MODEL_KEY = 'gemini_selected_model';
 const MODELS = MODELS_INFO as ModelInfo[];
 
 export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry }) => {
+  const [inputMode, setInputMode] = useState<"drive" | "manual">("drive");
+  const [manualText, setManualText] = useState("");
   const [fileId, setFileId] = useState("");
   const [outputMode, setOutputMode] = useState<"text" | "structured">("text");
   const [modelName, setModelName] = useState(() => {
@@ -38,7 +40,9 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const [errorViewTab, setErrorViewTab] = useState<'raw' | 'text'>('raw');
   const [usedModel, setUsedModel] = useState<string | null>(null);
   const [validationHistory, setValidationHistory] = useState<ValidationRecord[]>([]);
+  const [experimentHistory, setExperimentHistory] = useState<ExperimentHistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingExperimentHistory, setLoadingExperimentHistory] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
 
   const currentMimeType = useMemo(() => {
@@ -100,8 +104,37 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
     }
   };
 
+  const fetchExperimentHistory = async () => {
+    try {
+      setLoadingExperimentHistory(true);
+      const res = await fetch('/api/experiment-history');
+      if (res.ok) {
+        const data = await res.json();
+        setExperimentHistory(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch experiment history", e);
+    } finally {
+      setLoadingExperimentHistory(false);
+    }
+  };
+
+  const clearExperimentHistory = async () => {
+    if (!confirm("Are you sure you want to clear the local experiment history?")) return;
+    try {
+      setLoadingExperimentHistory(true);
+      await fetch('/api/experiment-history/clear', { method: 'POST' });
+      setExperimentHistory([]);
+    } catch (e) {
+      console.error("Failed to clear experiment history", e);
+    } finally {
+      setLoadingExperimentHistory(false);
+    }
+  };
+
   useEffect(() => {
     fetchValidationHistory();
+    fetchExperimentHistory();
   }, []);
 
   const extractTextFromHtml = (html: string) => {
@@ -201,41 +234,60 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   };
 
   const handleGenerate = async () => {
-    if (!fileId.trim()) return;
+    if (inputMode === "drive" && !fileId.trim()) return;
+    if (inputMode === "manual" && !manualText.trim()) return;
+    
     setLoading(true);
     setResult(null);
     setError(null);
     setRawErrorResponse(null);
     setUsedModel(modelName);
 
-    // Extract ID from full URL if user pasted a URL instead
     let parsedId = fileId.trim();
-    if (parsedId.includes("drive.google.com/file/d/")) {
-      parsedId = parsedId.split("/d/")[1].split("/")[0];
-    } else if (parsedId.includes("docs.google.com/document/d/")) {
-      parsedId = parsedId.split("/d/")[1].split("/")[0];
-    } else if (parsedId.includes("docs.google.com/spreadsheets/d/")) {
-      parsedId = parsedId.split("/d/")[1].split("/")[0];
-    } else if (parsedId.includes("docs.google.com/presentation/d/")) {
-      parsedId = parsedId.split("/d/")[1].split("/")[0];
+    if (inputMode === "drive") {
+      if (parsedId.includes("drive.google.com/file/d/")) {
+        parsedId = parsedId.split("/d/")[1].split("/")[0];
+      } else if (parsedId.includes("docs.google.com/document/d/")) {
+        parsedId = parsedId.split("/d/")[1].split("/")[0];
+      } else if (parsedId.includes("docs.google.com/spreadsheets/d/")) {
+        parsedId = parsedId.split("/d/")[1].split("/")[0];
+      } else if (parsedId.includes("docs.google.com/presentation/d/")) {
+        parsedId = parsedId.split("/d/")[1].split("/")[0];
+      }
+      setFileId(parsedId);
     }
-    
-    setFileId(parsedId);
 
     try {
-      const response = await fetch("/api/drive/debug/generate-file-summary", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getDriveAuthHeaders(token || "")
-        },
-        body: JSON.stringify({
-          fileId: parsedId,
-          modelName,
-          customInstruction: customPrompt,
-          outputMode,
-        }),
-      });
+      let response;
+      if (inputMode === "drive") {
+        response = await fetch("/api/drive/debug/generate-file-summary", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getDriveAuthHeaders(token || "")
+          },
+          body: JSON.stringify({
+            fileId: parsedId,
+            modelName,
+            customInstruction: customPrompt,
+            outputMode,
+          }),
+        });
+      } else {
+        response = await fetch("/api/drive/debug/generate-manual-summary", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getDriveAuthHeaders(token || "")
+          },
+          body: JSON.stringify({
+            text: manualText,
+            modelName,
+            customInstruction: customPrompt,
+            outputMode,
+          }),
+        });
+      }
 
       const text = await response.text();
       
@@ -391,31 +443,63 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Input Section */}
       <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">
-            ドライブ ファイル ID または共有リンク URL
-          </label>
-          <div className="flex bg-slate-50 border border-slate-200 rounded-md overflow-hidden">
-            <span className="flex items-center px-3 text-slate-400 bg-slate-100 border-r border-slate-200">
-              <LinkIcon className="w-4 h-4" />
-            </span>
-            <input
-              type="text"
-              value={fileId}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFileId(val);
-                try {
-                  localStorage.setItem(SELECTED_FILE_ID_KEY, val);
-                } catch (err) {
-                  // Silent
-                }
-              }}
-              placeholder="例: 1BxiMVs0XRYNzOQxx7_IcbOxyz..."
-              className="w-full bg-transparent p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        
+        {/* Input Mode Toggle */}
+        <div className="flex border-b border-slate-200 mb-4">
+          <button
+            onClick={() => setInputMode("drive")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${inputMode === "drive" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+          >
+            Google Drive ファイル
+          </button>
+          <button
+            onClick={() => setInputMode("manual")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${inputMode === "manual" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+          >
+            マニュアル入力 (テスト用)
+          </button>
+        </div>
+
+        {inputMode === "drive" ? (
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              ドライブ ファイル ID または共有リンク URL
+            </label>
+            <div className="flex bg-slate-50 border border-slate-200 rounded-md overflow-hidden">
+              <span className="flex items-center px-3 text-slate-400 bg-slate-100 border-r border-slate-200">
+                <LinkIcon className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={fileId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFileId(val);
+                  try {
+                    localStorage.setItem(SELECTED_FILE_ID_KEY, val);
+                  } catch (err) {
+                    // Silent
+                  }
+                }}
+                placeholder="例: 1BxiMVs0XRYNzOQxx7_IcbOxyz..."
+                className="w-full bg-transparent p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              テスト用テキスト
+              <span className="ml-2 text-xs text-rose-500 font-normal bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">※スキーマ評価専用</span>
+            </label>
+            <textarea
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              placeholder="テスト用のテキストをここに貼り付けてください。"
+              className="w-full h-32 bg-slate-50 border border-slate-200 rounded-md p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
             />
           </div>
-        </div>
+        )}
 
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -646,6 +730,96 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
         </button>
       </div>
 
+      {/* Experiment History Section */}
+      <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+            <History className="w-4 h-4 text-indigo-500" />
+            実験履歴 (Local Debug)
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchExperimentHistory}
+              disabled={loadingExperimentHistory}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${loadingExperimentHistory ? 'animate-spin' : ''}`} />
+              更新
+            </button>
+            <button
+              onClick={clearExperimentHistory}
+              disabled={loadingExperimentHistory}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-3 h-3" />
+              クリア
+            </button>
+          </div>
+        </div>
+        
+        {experimentHistory.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] uppercase text-slate-500 tracking-wider">
+                  <th className="p-2 border-b border-slate-200">Time</th>
+                  <th className="p-2 border-b border-slate-200">Input</th>
+                  <th className="p-2 border-b border-slate-200">Model</th>
+                  <th className="p-2 border-b border-slate-200">Mode/Schema</th>
+                  <th className="p-2 border-b border-slate-200">Status</th>
+                  <th className="p-2 border-b border-slate-200">Action</th>
+                </tr>
+              </thead>
+              <tbody className="text-xs text-slate-600">
+                {experimentHistory.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="p-2 whitespace-nowrap">{new Date(item.timestamp).toLocaleTimeString()}</td>
+                    <td className="p-2 max-w-[150px] truncate" title={item.inputLabel}>{item.inputLabel}</td>
+                    <td className="p-2 whitespace-nowrap">{item.model}</td>
+                    <td className="p-2 whitespace-nowrap">{item.outputMode} {item.schemaVersion ? `(${item.schemaVersion})` : ''}</td>
+                    <td className="p-2 whitespace-nowrap">
+                      {item.error ? (
+                        <span className="text-rose-600 flex items-center gap-1"><XCircle className="w-3 h-3"/> Error</span>
+                      ) : (
+                        item.validationSuccess ? (
+                          <span className="text-emerald-600 flex items-center gap-1"><Check className="w-3 h-3"/> Valid</span>
+                        ) : (
+                          <span className="text-amber-600 flex items-center gap-1"><XCircle className="w-3 h-3"/> Invalid</span>
+                        )
+                      )}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      <button 
+                        onClick={() => {
+                          setResult({
+                            success: !item.error,
+                            outputMode: item.outputMode,
+                            metadata: item.fileMetadata,
+                            structured: item.structuredResult,
+                            summary: item.outputMode !== 'structured' ? item.rawOutput : (item.structuredResult?.oneLineSummary || "No summary"),
+                            rawText: item.rawOutput,
+                            schemaVersion: item.schemaVersion,
+                            error: item.error,
+                            structuredParseFailed: !item.parseSuccess,
+                          });
+                          setUsedModel(item.model);
+                          setError(item.error || null);
+                        }}
+                        className="text-indigo-600 hover:underline"
+                      >
+                        表示
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 py-4 text-center">履歴はありません。</p>
+        )}
+      </div>
+
       {/* Results Section */}
       <div className="mt-10 space-y-6">
         {error && (
@@ -873,89 +1047,103 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                   </div>
                 </div>
 
-                {result.structured.subjectAreas && Object.keys(result.structured.subjectAreas).length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">ドメイン分類 (Subject Areas)</h4>
-                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
-                      {Object.keys(result.structured.subjectAreas).map((key) => (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">ドメイン分類 (Subject Areas)</h4>
+                  <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                    {result.structured.subjectAreas && Object.keys(result.structured.subjectAreas).length > 0 ? (
+                      Object.keys(result.structured.subjectAreas).map((key) => (
                         <div key={key} className="mb-1 flex items-start">
                           <span className="text-slate-400 w-32 shrink-0">{key}:</span>
                           <span className="text-white">{result.structured.subjectAreas[key].join(", ")}</span>
                         </div>
-                      ))}
-                    </div>
+                      ))
+                    ) : (
+                      <span className="text-slate-500">該当なし</span>
+                    )}
                   </div>
-                )}
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {result.structured.namedEntities?.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">固有表現</h4>
-                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">固有表現</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                      {result.structured.namedEntities?.length > 0 ? (
                         <ul className="space-y-1">
                           {result.structured.namedEntities.map((ne: any, i: number) => (
                             <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{ne.type}:</span> <span className="text-slate-200">{ne.name}</span></li>
                           ))}
                         </ul>
-                      </div>
+                      ) : (
+                        <span className="text-slate-500">なし</span>
+                      )}
                     </div>
-                  )}
+                  </div>
 
-                  {result.structured.parties?.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">関係者 (Parties)</h4>
-                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">関係者 (Parties)</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                      {result.structured.parties?.length > 0 ? (
                         <ul className="space-y-1">
                           {result.structured.parties.map((pt: any, i: number) => (
                             <li key={i} className="flex"><span className="text-slate-500 w-20 shrink-0">{pt.role}:</span> <span className="text-slate-200">{pt.name} <span className="text-[10px] text-slate-500">({pt.kind})</span></span></li>
                           ))}
                         </ul>
-                      </div>
+                      ) : (
+                        <span className="text-slate-500">なし</span>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {result.structured.temporalReferences?.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">時間参照</h4>
-                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">時間参照</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                      {result.structured.temporalReferences?.length > 0 ? (
                         <ul className="space-y-1">
                           {result.structured.temporalReferences.map((tr: any, i: number) => (
                             <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{tr.role}:</span> <span className="text-slate-200">{tr.date || "-"} <span className="text-[10px] text-slate-500">({tr.raw})</span></span></li>
                           ))}
                         </ul>
-                      </div>
+                      ) : (
+                        <span className="text-slate-500">なし</span>
+                      )}
                     </div>
-                  )}
+                  </div>
 
-                  {result.structured.monetaryAmounts?.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">金額</h4>
-                      <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">金額</h4>
+                    <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                      {result.structured.monetaryAmounts?.length > 0 ? (
                         <ul className="space-y-1">
                           {result.structured.monetaryAmounts.map((ma: any, i: number) => (
                             <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{ma.role}:</span> <span className="text-slate-200">{ma.amount} {ma.currency} <span className="text-[10px] text-slate-500">({ma.raw})</span></span></li>
                           ))}
                         </ul>
-                      </div>
+                      ) : (
+                        <span className="text-slate-500">なし</span>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
                 
-                {result.structured.resourceReferences?.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">リソース参照</h4>
-                    <ul className="list-disc pl-5 text-xs text-blue-400 space-y-1 bg-slate-800/50 rounded-md p-3 border border-slate-700/50">
-                      {result.structured.resourceReferences.map((rr: any, i: number) => (
-                        <li key={i}>
-                          <a href={rr.uri} target="_blank" rel="noreferrer" className="hover:underline break-all">{rr.uri}</a>
-                          {rr.raw && rr.raw !== rr.uri && <span className="text-slate-500 ml-2">({rr.raw})</span>}
-                        </li>
-                      ))}
-                    </ul>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">リソース参照</h4>
+                  <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50">
+                    {result.structured.resourceReferences?.length > 0 ? (
+                      <ul className="list-disc pl-5 text-xs text-blue-400 space-y-1">
+                        {result.structured.resourceReferences.map((rr: any, i: number) => (
+                          <li key={i}>
+                            <a href={rr.uri} target="_blank" rel="noreferrer" className="hover:underline break-all">{rr.uri}</a>
+                            {rr.raw && rr.raw !== rr.uri && <span className="text-slate-500 ml-2">({rr.raw})</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-slate-500 text-xs">なし</span>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {result.structured.warnings?.length > 0 && (
                   <div className="space-y-2">
@@ -973,12 +1161,20 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
                       Raw JSON
                     </h4>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(JSON.stringify(result.structured, null, 2))}
-                      className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
-                    >
-                      JSONをコピー
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(result.rawText || "")}
+                        className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
+                      >
+                        生テキスト(Raw)コピー
+                      </button>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(JSON.stringify(result.structured, null, 2))}
+                        className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
+                      >
+                        JSONコピー
+                      </button>
+                    </div>
                   </div>
                   <pre className="bg-black/50 p-3 rounded-md border border-slate-800 text-[10px] text-emerald-300 font-mono overflow-x-auto">
                     {JSON.stringify(result.structured, null, 2)}
