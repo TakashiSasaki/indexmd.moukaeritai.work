@@ -5,6 +5,7 @@ import {
   getFileSummaryDocPath,
   isPersistableStructuredSummary,
   sanitizeSummaryMetadataForFirestore,
+  getSummaryMetadataStatus,
 } from "./summaryMetadata";
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from "./summaryAnalysisSchema";
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from "./promptSpecs";
@@ -147,5 +148,103 @@ describe("summaryMetadata", () => {
 
     const result = sanitizeSummaryMetadataForFirestore(input);
     assert.deepStrictEqual(result, input);
+  });
+
+  describe("getSummaryMetadataStatus", () => {
+    const baseSaved = {
+      fileId: "file-123",
+      parseSuccess: true,
+      validationSuccess: true,
+      schemaVersion: "1.1.0-draft.1",
+      promptVersion: "1.1.0-draft.2",
+      systemInstructionVersion: "1.1.0-draft.2",
+      modifiedTime: "2026-06-24T12:00:00Z",
+    };
+
+    test("returns missing if savedMetadata is null or undefined", () => {
+      const status = getSummaryMetadataStatus({
+        savedMetadata: null,
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+      });
+      assert.strictEqual(status, "missing");
+    });
+
+    test("returns invalid if fileId is empty or parsing failed", () => {
+      const status1 = getSummaryMetadataStatus({
+        savedMetadata: { ...baseSaved, fileId: "" },
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+      });
+      assert.strictEqual(status1, "invalid");
+
+      const status2 = getSummaryMetadataStatus({
+        savedMetadata: { ...baseSaved, parseSuccess: false },
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+      });
+      assert.strictEqual(status2, "invalid");
+
+      const status3 = getSummaryMetadataStatus({
+        savedMetadata: { ...baseSaved, validationSuccess: false },
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+      });
+      assert.strictEqual(status3, "invalid");
+    });
+
+    test("returns stale-schema on schema mismatch", () => {
+      const status = getSummaryMetadataStatus({
+        savedMetadata: baseSaved,
+        currentSchemaVersion: "1.2.0",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+      });
+      assert.strictEqual(status, "stale-schema");
+    });
+
+    test("returns stale-prompt on prompt or system instruction mismatch", () => {
+      const status1 = getSummaryMetadataStatus({
+        savedMetadata: baseSaved,
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.2.0",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+      });
+      assert.strictEqual(status1, "stale-prompt");
+
+      const status2 = getSummaryMetadataStatus({
+        savedMetadata: baseSaved,
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0",
+      });
+      assert.strictEqual(status2, "stale-prompt");
+    });
+
+    test("returns stale-file on file modifiedTime mismatch", () => {
+      const status = getSummaryMetadataStatus({
+        savedMetadata: baseSaved,
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentFileModifiedTime: "2026-06-25T00:00:00Z", // newer file modification
+      });
+      assert.strictEqual(status, "stale-file");
+    });
+
+    test("returns current when all matches perfectly", () => {
+      const status = getSummaryMetadataStatus({
+        savedMetadata: baseSaved,
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentFileModifiedTime: "2026-06-24T12:00:00Z",
+      });
+      assert.strictEqual(status, "current");
+    });
   });
 });

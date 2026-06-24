@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle, History, Trash2, FolderPlus } from 'lucide-react';
+import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle, History, Trash2, FolderPlus, HelpCircle } from 'lucide-react';
 import { getDriveAuthHeaders } from '../lib/driveToken';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
 import { ModelInfo, ValidationRecord, ExperimentHistoryRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
 // @ts-ignore - TS test runner fails on ?raw imports, but vite handles it correctly in prod
  import { SUMMARY_FIXTURES } from '../lib/__fixtures__/summary-schema';
-import { db, doc, getDoc, setDoc, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { buildFileSummaryMetadata, sanitizeSummaryMetadataForFirestore, getFileSummaryDocPath } from '../lib/summaryMetadata';
+import { db, doc, getDoc, setDoc, auth, handleFirestoreError, OperationType, collection, getDocs, query, orderBy, limit } from '../lib/firebase';
+import { buildFileSummaryMetadata, sanitizeSummaryMetadataForFirestore, getFileSummaryDocPath, isPersistableStructuredSummary, getSummaryMetadataStatus } from '../lib/summaryMetadata';
+import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from '../lib/summaryAnalysisSchema';
+import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from '../lib/promptSpecs';
+import { SavedSummariesBrowser } from './SavedSummariesBrowser';
 
 interface SummaryDebuggerProps {
   token: string | null;
@@ -60,11 +63,81 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const [firestorePersisted, setFirestorePersisted] = useState<"persisted" | "not_persisted" | "checking" | "failed">("checking");
   const [savingToFirestore, setSavingToFirestore] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | null, message: string | null }>({ type: null, message: null });
+  const [savedMetadata, setSavedMetadata] = useState<any>(null);
+  const [selectedParentId, setSelectedParentId] = useState<string>("");
+  const [dirs, setDirs] = useState<any[]>([]);
+  const [loadingDirs, setLoadingDirs] = useState(false);
+  const [activeSubView, setActiveSubView] = useState<"test-run" | "saved-browser">("test-run");
+
+  const currentFileModifiedTime = useMemo(() => {
+    if (result?.metadata?.modifiedTime) {
+      return result.metadata.modifiedTime;
+    }
+    const selectedFile = samples.find(s => s.file.id === fileId);
+    return selectedFile?.file?.modifiedTime;
+  }, [result, samples, fileId]);
+
+  const fetchDirs = useCallback(async () => {
+    const currentUid = userId || auth.currentUser?.uid;
+    if (!currentUid) return;
+    setLoadingDirs(true);
+    try {
+      const q = collection(db, "users", currentUid, "directories");
+      const snap = await getDocs(q);
+      const fetchedDirs = snap.docs.map(doc => ({
+        drive_id: doc.id,
+        ...doc.data()
+      }));
+      setDirs(fetchedDirs);
+    } catch (err) {
+      console.error("Failed to fetch directories from Firestore:", err);
+    } finally {
+      setLoadingDirs(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchDirs();
+  }, [fetchDirs]);
+
+  const [savedSummaries, setSavedSummaries] = useState<any[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [savedError, setSavedError] = useState<string | null>(null);
+
+  const fetchSavedSummaries = useCallback(async () => {
+    const currentUid = userId || auth.currentUser?.uid;
+    if (!currentUid) return;
+    setLoadingSaved(true);
+    setSavedError(null);
+    try {
+      const colRef = collection(db, "users", currentUid, "file_summaries");
+      const q = query(colRef, limit(50));
+      const snap = await getDocs(q);
+      const list = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSavedSummaries(list);
+    } catch (err: any) {
+      console.error("Failed to fetch saved summaries:", err);
+      setSavedError(err.message || String(err));
+    } finally {
+      setLoadingSaved(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (activeSubView === "saved-browser") {
+      fetchSavedSummaries();
+    }
+  }, [activeSubView, fetchSavedSummaries]);
+
 
   const checkFirestorePersistence = useCallback(async (selectedFileId: string) => {
     const currentUid = userId || auth.currentUser?.uid;
     if (!currentUid || !selectedFileId.trim() || inputMode !== "drive") {
       setFirestorePersisted("not_persisted");
+      setSavedMetadata(null);
       return;
     }
     setFirestorePersisted("checking");
@@ -73,13 +146,20 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
       const docRef = doc(db, docPath);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
+        const data = docSnap.data();
+        setSavedMetadata(data);
         setFirestorePersisted("persisted");
+        if (data.parentId) {
+          setSelectedParentId(data.parentId);
+        }
       } else {
+        setSavedMetadata(null);
         setFirestorePersisted("not_persisted");
       }
     } catch (err) {
       console.error("Failed to check Firestore persistence:", err);
       setFirestorePersisted("failed");
+      setSavedMetadata(null);
     }
   }, [userId, inputMode]);
 
@@ -88,6 +168,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
       checkFirestorePersistence(fileId);
     } else {
       setFirestorePersisted("not_persisted");
+      setSavedMetadata(null);
     }
   }, [fileId, inputMode, checkFirestorePersistence]);
 
@@ -114,6 +195,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
         fileName: result.metadata?.name,
         mimeType: result.metadata?.mimeType,
         modifiedTime: result.metadata?.modifiedTime,
+        parentId: selectedParentId || undefined,
         model: usedModel || modelName,
         structured: result.structured,
         validationErrors: result.validationErrors || [],
@@ -121,6 +203,11 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
         validationSuccess: result.success && !result.structuredParseFailed && !result.error,
         source: "ai-summary-test",
       });
+
+      if (!isPersistableStructuredSummary(metadataRaw)) {
+        setSaveStatus({ type: 'error', message: 'この要約は保存可能な要約メタデータの条件（パース成功、バリデーション成功など）を満たしていません。' });
+        return;
+      }
 
       const sanitizedMetadata = sanitizeSummaryMetadataForFirestore(metadataRaw);
       const docPath = getFileSummaryDocPath(currentUid, selectedFileId);
@@ -130,6 +217,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
 
       setSaveStatus({ type: 'success', message: 'Firestoreへ正常にメタデータを保存しました。' });
       setFirestorePersisted("persisted");
+      setSavedMetadata(sanitizedMetadata);
     } catch (err: any) {
       console.error("Failed to save to Firestore:", err);
       try {
@@ -141,6 +229,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
       setSavingToFirestore(false);
     }
   };
+
 
   const currentMimeType = useMemo(() => {
     return samples.find(s => s.file.id === fileId)?.file.mimeType;
@@ -539,8 +628,36 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Input Section */}
-      <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
+      {/* Sub-navigation bar */}
+      <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 max-w-md">
+        <button
+          onClick={() => setActiveSubView("test-run")}
+          className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
+            activeSubView === "test-run" 
+              ? "bg-white text-slate-800 shadow-sm" 
+              : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Play className="w-3.5 h-3.5 text-indigo-500" />
+          要約テスト実行 (Test Runner)
+        </button>
+        <button
+          onClick={() => setActiveSubView("saved-browser")}
+          className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
+            activeSubView === "saved-browser" 
+              ? "bg-white text-slate-800 shadow-sm" 
+              : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5 text-indigo-500" />
+          保存済み要約ブラウザ (Saved Summaries Browser)
+        </button>
+      </div>
+
+      {activeSubView === "test-run" ? (
+        <>
+          {/* Input Section */}
+          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
         
         {/* Input Mode Toggle */}
         <div className="flex border-b border-slate-200 mb-4">
@@ -584,30 +701,194 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
               />
             </div>
             {fileId.trim() && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-slate-500">Firestoreステータス:</span>
-                {firestorePersisted === "persisted" ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs px-2.5 py-0.5 rounded-full border border-emerald-200 font-bold">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    Firestore: Persisted (保存済み)
-                  </span>
-                ) : firestorePersisted === "checking" ? (
-                  <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2.5 py-0.5 rounded-full border border-indigo-200 font-bold animate-pulse">
-                    <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
-                    確認中...
-                  </span>
-                ) : firestorePersisted === "failed" ? (
-                  <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-xs px-2.5 py-0.5 rounded-full border border-rose-200 font-bold">
-                    <span className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
-                    ステータス取得エラー
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-xs px-2.5 py-0.5 rounded-full border border-slate-200 font-medium">
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
-                    Firestore: Not persisted (未保存)
-                  </span>
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Firestoreステータス:</span>
+                  {firestorePersisted === "persisted" ? (
+                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs px-2.5 py-0.5 rounded-full border border-emerald-200 font-bold">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      Firestore: Persisted (保存済み)
+                    </span>
+                  ) : firestorePersisted === "checking" ? (
+                    <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2.5 py-0.5 rounded-full border border-indigo-200 font-bold animate-pulse">
+                      <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
+                      確認中...
+                    </span>
+                  ) : firestorePersisted === "failed" ? (
+                    <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-xs px-2.5 py-0.5 rounded-full border border-rose-200 font-bold">
+                      <span className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
+                      ステータス取得エラー
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-xs px-2.5 py-0.5 rounded-full border border-slate-200 font-medium">
+                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full" />
+                      Firestore: Not persisted (未保存)
+                    </span>
+                  )}
+                </div>
+
+                {savedMetadata && (
+                  <div className="mt-4 border border-indigo-100 bg-indigo-50/20 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-indigo-100/50 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          保存済みメタデータ詳細 (Saved Metadata Detail)
+                        </span>
+                        {(() => {
+                          const status = getSummaryMetadataStatus({
+                            savedMetadata,
+                            currentSchemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
+                            currentPromptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
+                            currentSystemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
+                            currentFileModifiedTime: currentFileModifiedTime
+                          });
+                          
+                          switch (status) {
+                            case "current":
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded border border-emerald-200 font-bold">
+                                  最新状態 (Current)
+                                </span>
+                              );
+                            case "stale-schema":
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded border border-amber-200 font-bold" title="スキーマバージョン不一致">
+                                  スキーマが古い (Stale Schema)
+                                </span>
+                              );
+                            case "stale-prompt":
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded border border-amber-200 font-bold" title="プロンプトまたはシステム指示バージョン不一致">
+                                  プロンプトが古い (Stale Prompt)
+                                </span>
+                              );
+                            case "stale-file":
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded border border-amber-200 font-bold" title="ファイル更新日時が新しくなっています">
+                                  ファイル更新あり (Stale File)
+                                </span>
+                              );
+                            case "invalid":
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 text-[10px] px-2 py-0.5 rounded border border-rose-200 font-bold">
+                                  無効なデータ (Invalid)
+                                </span>
+                              );
+                            default:
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[10px] px-2 py-0.5 rounded border border-slate-200 font-bold">
+                                  不明 (Unknown)
+                                </span>
+                              );
+                          }
+                        })()}
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => checkFirestorePersistence(fileId)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 transition-colors"
+                          title="診断を再読み込み"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="space-y-1 bg-white p-2.5 rounded border border-slate-100 shadow-sm">
+                        <p className="text-slate-400">ファイル名: <span className="font-semibold text-slate-700">{savedMetadata.fileName || "不明"}</span></p>
+                        <p className="text-slate-400">モデル: <span className="font-mono text-slate-700">{savedMetadata.model || "不明"}</span></p>
+                        <p className="text-slate-400">生成日時: <span className="text-slate-700">{savedMetadata.generatedAt ? new Date(savedMetadata.generatedAt).toLocaleString() : "不明"}</span></p>
+                        <p className="text-slate-400">更新日時(保存時): <span className="text-slate-700">{savedMetadata.modifiedTime ? new Date(savedMetadata.modifiedTime).toLocaleString() : "不明"}</span></p>
+                      </div>
+
+                      <div className="space-y-1 bg-white p-2.5 rounded border border-slate-100 shadow-sm">
+                        <p className="text-slate-400">スキーマVer: <span className="font-mono text-slate-700">{savedMetadata.schemaVersion || "不明"}</span></p>
+                        <p className="text-slate-400">プロンプトVer: <span className="font-mono text-slate-700">{savedMetadata.promptVersion || "不明"}</span></p>
+                        <p className="text-slate-400">システム指示Ver: <span className="font-mono text-slate-700">{savedMetadata.systemInstructionVersion || "不明"}</span></p>
+                        {savedMetadata.parentId && (
+                          <p className="text-slate-400">関連付け親ID: <span className="font-mono text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-100">{savedMetadata.parentId}</span></p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stale Warning & Hint */}
+                    {(() => {
+                      const status = getSummaryMetadataStatus({
+                        savedMetadata,
+                        currentSchemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
+                        currentPromptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
+                        currentSystemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
+                        currentFileModifiedTime: currentFileModifiedTime
+                      });
+                      if (status !== "current" && status !== "missing") {
+                        return (
+                          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-md">
+                            <span className="font-bold">⚠️ 注意: </span>
+                            この保存データはスキーマ、プロンプト定義、または対象ファイルが古いため、最新モデルで要約を再生成することをお勧めします。
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Main Action Bar for Detail Panel */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          setResult({
+                            outputMode: "structured",
+                            structured: savedMetadata.structured,
+                            summary: savedMetadata.summary,
+                            success: true,
+                            validationErrors: savedMetadata.validationErrors || [],
+                            metadata: {
+                              name: savedMetadata.fileName,
+                              mimeType: savedMetadata.mimeType,
+                              modifiedTime: savedMetadata.modifiedTime,
+                            }
+                          });
+                          setUsedModel(savedMetadata.model);
+                          setError(null);
+                        }}
+                        className="px-3 py-1.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 font-bold rounded text-[11px] transition-all flex items-center gap-1 shadow-sm"
+                      >
+                        <FileSearch className="w-3.5 h-3.5 text-indigo-600" />
+                        現在のビューに結果を読み込む
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(JSON.stringify(savedMetadata, null, 2));
+                            alert("メタデータJSONをクリップボードにコピーしました。");
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium rounded text-[11px] transition-all flex items-center gap-1"
+                      >
+                        <Code className="w-3.5 h-3.5" />
+                        JSONをコピー
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(savedMetadata.summary || "");
+                            alert("要約文をコピーしました。");
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium rounded text-[11px] transition-all flex items-center gap-1"
+                      >
+                        <Clipboard className="w-3.5 h-3.5" />
+                        要約文をコピー
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         ) : (
@@ -1132,73 +1413,124 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
           
           <div className="p-4 space-y-6">
             
-            {result.outputMode === "structured" && result.structured && inputMode === "drive" && (
-              <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      Firestore メタデータ連携
-                    </span>
-                    {firestorePersisted === "persisted" ? (
-                      <span className="inline-flex items-center gap-1 bg-emerald-950/60 text-emerald-400 text-[10px] px-2 py-0.5 rounded border border-emerald-900/60 font-bold">
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        保存済み (Persisted)
-                      </span>
-                    ) : firestorePersisted === "checking" ? (
-                      <span className="inline-flex items-center gap-1 bg-indigo-950/60 text-indigo-400 text-[10px] px-2 py-0.5 rounded border border-indigo-900/60 font-bold animate-pulse">
-                        <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
-                        確認中...
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 bg-slate-900 text-slate-400 text-[10px] px-2 py-0.5 rounded border border-slate-800 font-bold">
-                        未保存 (Not persisted)
-                      </span>
-                    )}
+            {result.outputMode === "structured" && result.structured && inputMode === "drive" && (() => {
+              const currentUid = userId || auth.currentUser?.uid;
+              const isDriveMode = inputMode === "drive";
+              const hasFileId = !!fileId.trim();
+              const isStructured = result && result.outputMode === "structured";
+              const hasStructuredResult = !!(result && result.structured);
+              const isParseSuccess = !!(result && result.success && !result.structuredParseFailed);
+              const isValidationSuccess = !!(result && result.success && !result.structuredParseFailed && !result.error);
+              const isAuthenticated = !!currentUid;
+              const isSaveAvailable = isDriveMode && hasFileId && isStructured && hasStructuredResult && isParseSuccess && isValidationSuccess && isAuthenticated;
+
+              return (
+                <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-lg flex flex-col gap-4">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          Firestore メタデータ連携
+                        </span>
+                        {firestorePersisted === "persisted" ? (
+                          <span className="inline-flex items-center gap-1 bg-emerald-950/60 text-emerald-400 text-[10px] px-2 py-0.5 rounded border border-emerald-900/60 font-bold">
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            保存済み (Persisted)
+                          </span>
+                        ) : firestorePersisted === "checking" ? (
+                          <span className="inline-flex items-center gap-1 bg-indigo-950/60 text-indigo-400 text-[10px] px-2 py-0.5 rounded border border-indigo-900/60 font-bold animate-pulse">
+                            <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                            確認中...
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-slate-900 text-slate-400 text-[10px] px-2 py-0.5 rounded border border-slate-800 font-bold">
+                            未保存 (Not persisted)
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        この構造化要約結果を、Firestoreに該当Driveファイルのメタデータとして永続保存できます。
+                      </p>
+
+                      {/* Parent Folder Selection Dropdown */}
+                      <div className="mt-3">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 text-slate-300">
+                          関連付ける親ディレクトリ (任意 - プレビューでフォルダ分類する際に使用されます)
+                        </label>
+                        <select
+                          value={selectedParentId}
+                          onChange={(e) => setSelectedParentId(e.target.value)}
+                          className="bg-slate-900 text-slate-100 text-xs rounded border border-slate-700 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-md w-full"
+                        >
+                          <option value="">-- 親ディレクトリを選択してください (任意) --</option>
+                          {dirs.map((dir) => (
+                            <option key={dir.drive_id} value={dir.drive_id}>
+                              {dir.path || dir.name} ({dir.drive_id.slice(0, 8)}...)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {saveStatus.message && (
+                        <p className={`text-xs font-bold flex items-center gap-1 mt-2 ${saveStatus.type === "success" ? "text-emerald-400" : "text-rose-400"}`}>
+                          {saveStatus.type === "success" ? <Check className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                          {saveStatus.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 shrink-0 w-full md:w-auto">
+                      <button
+                        onClick={handleSaveToFirestore}
+                        disabled={savingToFirestore || !isSaveAvailable}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all flex items-center justify-center gap-1.5 shadow-sm w-full md:w-auto ${
+                          (savingToFirestore || !isSaveAvailable)
+                            ? "bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed" 
+                            : "bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500 hover:border-indigo-400"
+                        }`}
+                      >
+                        {savingToFirestore ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            保存中...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Firestoreへメタデータ保存
+                          </>
+                        )}
+                      </button>
+                      {setActiveTab && (
+                        <button
+                          onClick={() => setActiveTab("firestore-test")}
+                          className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:text-white hover:border-slate-500 transition-all flex items-center justify-center gap-1 w-full md:w-auto"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                          Firestore診断
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    この構造化要約結果を、Firestoreに該当Driveファイルのメタデータとして永続保存できます。
-                  </p>
-                  {saveStatus.message && (
-                    <p className={`text-xs font-bold flex items-center gap-1 ${saveStatus.type === "success" ? "text-emerald-400" : "text-rose-400"}`}>
-                      {saveStatus.type === "success" ? <Check className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                      {saveStatus.message}
-                    </p>
+
+                  {/* Clearly explaining why save is disabled */}
+                  {!isSaveAvailable && (
+                    <div className="bg-rose-950/40 border border-rose-900/60 text-rose-300 text-[11px] p-2.5 rounded-md space-y-1">
+                      <p className="font-bold flex items-center gap-1"><XCircle className="w-3.5 h-3.5 text-rose-400" />Firestoreへの保存は以下の理由により無効化されています：</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        {!isAuthenticated && <li>ユーザーが認証されていません。ログインしてください。</li>}
+                        {!isDriveMode && <li>入力モードがDriveではありません。</li>}
+                        {!hasFileId && <li>ファイルIDが空です。</li>}
+                        {!isStructured && <li>要約出力モードが「構造化」ではありません。</li>}
+                        {!hasStructuredResult && <li>構造化結果が存在しません。</li>}
+                        {!isParseSuccess && <li>構造化データのパースに失敗しています。</li>}
+                        {isParseSuccess && !isValidationSuccess && <li>構造化データのバリデーションに失敗しています。</li>}
+                      </ul>
+                    </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2 shrink-0 w-full sm:w-auto">
-                  <button
-                    onClick={handleSaveToFirestore}
-                    disabled={savingToFirestore}
-                    className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all flex items-center justify-center gap-1.5 shadow-sm w-full sm:w-auto ${
-                      savingToFirestore 
-                        ? "bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed" 
-                        : "bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500 hover:border-indigo-400"
-                    }`}
-                  >
-                    {savingToFirestore ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        保存中...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        Firestoreへメタデータ保存
-                      </>
-                    )}
-                  </button>
-                  {setActiveTab && (
-                    <button
-                      onClick={() => setActiveTab("firestore-test")}
-                      className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:text-white hover:border-slate-500 transition-all flex items-center justify-center gap-1 w-full sm:w-auto"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                      Firestore診断
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+              );
+            })()}
+
             
             {result.outputMode === "structured" && result.structured ? (
               <div className="space-y-6">
@@ -1509,6 +1841,20 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
         </div>
       )}
       </div>
+    </>
+  ) : (
+    <SavedSummariesBrowser 
+          savedSummaries={savedSummaries}
+          loadingSaved={loadingSaved}
+          savedError={savedError}
+          dirs={dirs}
+          fetchSavedSummaries={fetchSavedSummaries}
+          userId={userId || undefined}
+          setFileId={setFileId}
+          setInputMode={setInputMode}
+          setActiveSubView={setActiveSubView}
+        />
+      )}
     </div>
   );
 };

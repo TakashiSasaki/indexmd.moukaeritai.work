@@ -19,6 +19,15 @@ Current Version: `v1.1.0-draft.1` (Experimental/Draft)
 - **confidence**: This is the model's self-reported confidence score, *not* a factual guarantee of accuracy.
 - **warnings**: Used by the model to flag OCR/image ambiguity, uncertain classifications, or illegible parts.
 
+## Metadata Persistence & Tracking (v1.2.0)
+- **parentId**: Tracks the direct Google Drive parent folder ID. Used to group file-level summaries and map them into the correct directory for read-only `index.md` generation previews.
+- **getSummaryMetadataStatus() Evaluation**:
+  - `current`: All versions match; no file drift.
+  - `stale-schema`: Schema version mismatch.
+  - `stale-prompt`: Prompt or system instruction mismatch.
+  - `stale-file`: The file's Drive `modifiedTime` is newer than the saved generation timestamp.
+  - `invalid`: The saved document fails structure validation.
+
 ## Known Limitations
 - AI may hallucinate named entities if not strictly instructed.
 - Structured JSON extraction may fail for extremely long documents due to context windows.

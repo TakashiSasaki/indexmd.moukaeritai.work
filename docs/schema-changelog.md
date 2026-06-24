@@ -1,5 +1,12 @@
 # Summary Analysis Schema Changelog
 
+## v1.2.0
+- Type: metadata & persistence structure change
+- **Workbench Persistence**:
+  - Introduced the optional `parentId` field inside `FileSummaryMetadata` to group saved file summaries by directory in Firestore.
+  - Implemented the `getSummaryMetadataStatus` function, checking for stale-schema, stale-prompt, stale-file, current, or invalid statuses.
+  - Formulated a read-only local `index.md` Markdown generation template on the client side using saved Firestore metadata.
+
 ## v1.1.0-draft.2
 - Type: prompt-only change
 - **Prompt Adjustments**:

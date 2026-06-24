@@ -1,18 +1,20 @@
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from "./summaryAnalysisSchema";
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from "./promptSpecs";
+import { SummaryAnalysisResult } from "../types";
 
 export interface FileSummaryMetadata {
   fileId: string;
   fileName?: string;
   mimeType?: string;
   modifiedTime?: string;
+  parentId?: string;
   schemaVersion: string;
   promptVersion: string;
   systemInstructionVersion: string;
   model: string;
   outputMode: "structured";
   summary: string;
-  structured: any; // SummaryAnalysisResult
+  structured: SummaryAnalysisResult;
   validationErrors: string[];
   parseSuccess: boolean;
   validationSuccess: boolean;
@@ -26,8 +28,9 @@ export interface BuildFileSummaryMetadataInput {
   fileName?: string;
   mimeType?: string;
   modifiedTime?: string;
+  parentId?: string;
   model: string;
-  structured: any;
+  structured: SummaryAnalysisResult;
   validationErrors: string[];
   parseSuccess: boolean;
   validationSuccess: boolean;
@@ -45,13 +48,14 @@ export function buildFileSummaryMetadata(input: BuildFileSummaryMetadataInput): 
     fileName: input.fileName || undefined,
     mimeType: input.mimeType || undefined,
     modifiedTime: input.modifiedTime || undefined,
+    parentId: input.parentId || undefined,
     schemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
     promptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
     systemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
     model: input.model,
     outputMode: "structured",
     summary: summaryText,
-    structured: input.structured || {},
+    structured: input.structured,
     validationErrors: input.validationErrors || [],
     parseSuccess: !!input.parseSuccess,
     validationSuccess: !!input.validationSuccess,
@@ -106,3 +110,65 @@ export function sanitizeSummaryMetadataForFirestore(metadata: any): any {
   }
   return metadata;
 }
+
+export interface SummaryMetadataStatusInput {
+  savedMetadata?: any;
+  currentSchemaVersion: string;
+  currentPromptVersion: string;
+  currentSystemInstructionVersion: string;
+  currentFileModifiedTime?: string;
+}
+
+export function getSummaryMetadataStatus(
+  input: SummaryMetadataStatusInput
+): "missing" | "current" | "stale-schema" | "stale-prompt" | "stale-file" | "invalid" {
+  const {
+    savedMetadata,
+    currentSchemaVersion,
+    currentPromptVersion,
+    currentSystemInstructionVersion,
+    currentFileModifiedTime,
+  } = input;
+
+  if (!savedMetadata) {
+    return "missing";
+  }
+
+  if (
+    !savedMetadata.fileId ||
+    typeof savedMetadata.fileId !== "string" ||
+    savedMetadata.fileId.trim() === ""
+  ) {
+    return "invalid";
+  }
+
+  // Check validation status
+  if (!savedMetadata.parseSuccess || !savedMetadata.validationSuccess) {
+    return "invalid";
+  }
+
+  // Schema version mismatch
+  if (savedMetadata.schemaVersion !== currentSchemaVersion) {
+    return "stale-schema";
+  }
+
+  // Prompt or system instruction mismatch
+  if (
+    savedMetadata.promptVersion !== currentPromptVersion ||
+    savedMetadata.systemInstructionVersion !== currentSystemInstructionVersion
+  ) {
+    return "stale-prompt";
+  }
+
+  // File modifiedTime mismatch (when available on both sides)
+  if (
+    currentFileModifiedTime &&
+    savedMetadata.modifiedTime &&
+    savedMetadata.modifiedTime !== currentFileModifiedTime
+  ) {
+    return "stale-file";
+  }
+
+  return "current";
+}
+

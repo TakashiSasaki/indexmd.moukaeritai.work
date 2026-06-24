@@ -83,3 +83,63 @@ export interface AppConfig {
   logs_cleanup_threshold: number;
   gemini_model: string;
 }
+
+export interface NamedEntity {
+  name: string;
+  type: string;
+}
+
+export interface ResourceReference {
+  uri: string;
+  raw?: string;
+}
+
+export interface TemporalReference {
+  date: string;
+  role: string;
+  raw: string;
+}
+
+export interface Party {
+  name: string;
+  role: string;
+  kind: string;
+}
+
+export interface MonetaryAmount {
+  amount: number;
+  currency: string;
+  role: string;
+  raw: string;
+}
+
+export interface SubjectAreas {
+  mathematics?: string[];
+  physics?: string[];
+  biology?: string[];
+  computerScience?: string[];
+  socialSciences?: string[];
+  humanities?: string[];
+  engineering?: string[];
+}
+
+export interface SummaryAnalysisResult {
+  oneLineSummary: string;
+  detailedSummary: string;
+  title: string;
+  inferredTitle: string;
+  documentTypes: string[];
+  documentIntent: string;
+  topics: string[];
+  keywords: string[];
+  namedEntities: NamedEntity[];
+  resourceReferences: ResourceReference[];
+  primaryLanguage: string;
+  languages: string[];
+  temporalReferences: TemporalReference[];
+  parties: Party[];
+  monetaryAmounts: MonetaryAmount[];
+  subjectAreas: SubjectAreas;
+  confidence: number;
+  warnings: string[];
+}
