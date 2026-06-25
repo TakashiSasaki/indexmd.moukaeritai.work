@@ -13,6 +13,15 @@ test("runWithExplicitResult classifies promise outcomes correctly", async () => 
   const res2 = await runWithExplicitResult(slowPromise, 50);
   assert.deepStrictEqual(res2, { status: "timeout" });
 
+  // 2b. extremely short timeout returns timeout without waiting excessively
+  const startTime = Date.now();
+  // Using an empty promise that never resolves avoids lingering setTimeout handles
+  const verySlowPromise = new Promise<void>(() => {});
+  const resVeryShortTimeout = await runWithExplicitResult(verySlowPromise, 1);
+  const duration = Date.now() - startTime;
+  assert.deepStrictEqual(resVeryShortTimeout, { status: "timeout" });
+  assert.ok(duration < 1000, `Took too long: ${duration}ms`);
+
   // 3. rejected promise returns failed
   const rejectedPromise = Promise.reject(new Error("Database write error"));
   const res3 = await runWithExplicitResult(rejectedPromise, 100);

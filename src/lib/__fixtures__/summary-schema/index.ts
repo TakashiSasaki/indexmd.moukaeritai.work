@@ -1,9 +1,9 @@
-import meetingNotesJa from './meeting-notes.ja';
-import invoiceEn from './invoice.en';
-import academicPaperEn from './academic-paper.en';
-import mathCategoryTheoryJa from './math-category-theory.ja';
-import bookmarkDoiUri from './bookmark-doi-uri';
-import sourceCodeTs from './source-code.ts';
+import meetingNotesJa from './meeting-notes.ja.txt?raw';
+import invoiceEn from './invoice.en.txt?raw';
+import academicPaperEn from './academic-paper.en.txt?raw';
+import mathCategoryTheoryJa from './math-category-theory.ja.txt?raw';
+import bookmarkDoiUri from './bookmark-doi-uri.txt?raw';
+import sourceCodeTs from './source-code.ts.txt?raw';
 
 export const SUMMARY_FIXTURES = [
   { id: 'meeting-notes', label: 'Meeting Notes (EN)', content: meetingNotesJa },

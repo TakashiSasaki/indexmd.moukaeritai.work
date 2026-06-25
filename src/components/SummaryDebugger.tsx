@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle, History, Trash2, FolderPlus, HelpCircle } from 'lucide-react';
+import { Settings, Play, FileText, Code, Loader2, FileDigit, Link as LinkIcon, FileSearch, RefreshCw, Clipboard, Check, XCircle, History as HistoryIcon, Trash2, FolderPlus, HelpCircle, Activity, ChevronDown, ChevronUp, LayoutGrid } from 'lucide-react';
 import { getDriveAuthHeaders } from '../lib/driveToken';
 import { CompatibilityMatrix } from './CompatibilityMatrix';
 import { ModelInfo, ValidationRecord, ExperimentHistoryRecord } from '../types';
@@ -10,7 +10,6 @@ import { db, doc, getDoc, setDoc, auth, handleFirestoreError, OperationType, col
 import { buildFileSummaryMetadata, sanitizeSummaryMetadataForFirestore, getFileSummaryDocPath, isPersistableStructuredSummary, getSummaryMetadataStatus } from '../lib/summaryMetadata';
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from '../lib/summaryAnalysisSchema';
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from '../lib/promptSpecs';
-import { SavedSummariesBrowser } from './SavedSummariesBrowser';
 
 interface SummaryDebuggerProps {
   token: string | null;
@@ -67,7 +66,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   const [selectedParentId, setSelectedParentId] = useState<string>("");
   const [dirs, setDirs] = useState<any[]>([]);
   const [loadingDirs, setLoadingDirs] = useState(false);
-  const [activeSubView, setActiveSubView] = useState<"test-run" | "saved-browser">("test-run");
+  const [showMatrix, setShowMatrix] = useState(false);
 
   const currentFileModifiedTime = useMemo(() => {
     if (result?.metadata?.modifiedTime) {
@@ -99,38 +98,6 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
   useEffect(() => {
     fetchDirs();
   }, [fetchDirs]);
-
-  const [savedSummaries, setSavedSummaries] = useState<any[]>([]);
-  const [loadingSaved, setLoadingSaved] = useState(false);
-  const [savedError, setSavedError] = useState<string | null>(null);
-
-  const fetchSavedSummaries = useCallback(async () => {
-    const currentUid = userId || auth.currentUser?.uid;
-    if (!currentUid) return;
-    setLoadingSaved(true);
-    setSavedError(null);
-    try {
-      const colRef = collection(db, "users", currentUid, "file_summaries");
-      const q = query(colRef, limit(50));
-      const snap = await getDocs(q);
-      const list = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setSavedSummaries(list);
-    } catch (err: any) {
-      console.error("Failed to fetch saved summaries:", err);
-      setSavedError(err.message || String(err));
-    } finally {
-      setLoadingSaved(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    if (activeSubView === "saved-browser") {
-      fetchSavedSummaries();
-    }
-  }, [activeSubView, fetchSavedSummaries]);
 
 
   const checkFirestorePersistence = useCallback(async (selectedFileId: string) => {
@@ -628,36 +595,8 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Sub-navigation bar */}
-      <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 max-w-md">
-        <button
-          onClick={() => setActiveSubView("test-run")}
-          className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
-            activeSubView === "test-run" 
-              ? "bg-white text-slate-800 shadow-sm" 
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Play className="w-3.5 h-3.5 text-indigo-500" />
-          要約テスト実行 (Test Runner)
-        </button>
-        <button
-          onClick={() => setActiveSubView("saved-browser")}
-          className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
-            activeSubView === "saved-browser" 
-              ? "bg-white text-slate-800 shadow-sm" 
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5 text-indigo-500" />
-          保存済み要約ブラウザ (Saved Summaries Browser)
-        </button>
-      </div>
-
-      {activeSubView === "test-run" ? (
-        <>
-          {/* Input Section */}
-          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
+      {/* Input Section */}
+      <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
         
         {/* Input Mode Toggle */}
         <div className="flex border-b border-slate-200 mb-4">
@@ -1092,27 +1031,69 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
       </div>
 
       {/* Compatibility Matrix Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-            <Settings className="w-4 h-4 text-indigo-500" />
-            モデル別ファイル形式対応状況 (検証マトリクス)
-          </h3>
-          <button
-            onClick={fetchValidationHistory}
-            disabled={loadingHistory}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3 h-3 ${loadingHistory ? 'animate-spin' : ''}`} />
-            更新
-          </button>
-        </div>
-        <CompatibilityMatrix 
-          history={validationHistory}
-          currentModelId={modelName}
-          currentMimeType={currentMimeType}
-          onCellClick={handleCellClick}
-        />
+      <div className="bg-slate-50/50 border border-slate-200 rounded-xl overflow-hidden transition-all duration-300">
+        <button
+          onClick={() => setShowMatrix(!showMatrix)}
+          className="w-full flex items-center justify-between p-4 hover:bg-slate-100/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg transition-colors ${showMatrix ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
+              <LayoutGrid className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <h3 className="text-sm font-bold text-slate-700">
+                モデル別ファイル形式対応状況 (検証マトリクス)
+              </h3>
+              <p className="text-[10px] text-slate-500 font-medium">
+                {showMatrix ? "マトリクスを閉じる" : "モデルとファイル形式の互換性を確認・選択する"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {!showMatrix && (
+              <div className="hidden sm:flex items-center gap-2 px-2 py-1 bg-white border border-slate-200 rounded text-[10px] text-slate-500 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                全モデル検証済み
+              </div>
+            )}
+            {showMatrix ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+          </div>
+        </button>
+
+        {showMatrix && (
+          <div className="p-4 pt-0 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between py-2 border-t border-slate-200">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Validation Grid</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fetchValidationHistory();
+                }}
+                disabled={loadingHistory}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-indigo-600 bg-white border border-slate-200 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50 shadow-sm"
+              >
+                <RefreshCw className={`w-3 h-3 ${loadingHistory ? 'animate-spin' : ''}`} />
+                検証履歴を更新
+              </button>
+            </div>
+            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-inner">
+              <CompatibilityMatrix 
+                history={validationHistory}
+                currentModelId={modelName}
+                currentMimeType={currentMimeType}
+                onCellClick={handleCellClick}
+              />
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex gap-2">
+              <HelpCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-800 leading-relaxed">
+                このマトリクスは、各モデルとファイル形式の組み合わせでの最新の検証結果を表示しています。
+                セルをクリックすることで、モデルとテスト用のサンプルファイルを同時に切り替えることができます。
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
         <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4">
           <label className="text-sm font-semibold text-slate-700">
@@ -1164,13 +1145,12 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
             </>
           )}
         </button>
-      </div>
-
+      
       {/* Experiment History Section */}
       <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-            <History className="w-4 h-4 text-indigo-500" />
+            <HistoryIcon className="w-4 h-4 text-indigo-500" />
             実験履歴 (Local Debug)
           </h3>
           <div className="flex gap-2">
@@ -1841,21 +1821,6 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
         </div>
       )}
       </div>
-    </>
-  ) : (
-    <SavedSummariesBrowser 
-          savedSummaries={savedSummaries}
-          loadingSaved={loadingSaved}
-          savedError={savedError}
-          dirs={dirs}
-          fetchSavedSummaries={fetchSavedSummaries}
-          userId={userId || undefined}
-          setFileId={setFileId}
-          setInputMode={setInputMode}
-          setActiveSubView={setActiveSubView}
-          token={token}
-        />
-      )}
     </div>
   );
 };

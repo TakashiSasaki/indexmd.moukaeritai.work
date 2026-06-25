@@ -87,6 +87,26 @@ test("Drive token state expiration and parsing", () => {
   assert.strictEqual(malformedLoaded, null);
 });
 
+test("Drive token handles malformed JSON without throwing", () => {
+  sessionStorage.clear();
+  sessionStorage.setItem("drive_token_state", "invalid{json");
+
+  assert.doesNotThrow(() => {
+    const loaded = loadDriveTokenState();
+    assert.strictEqual(loaded, null);
+  });
+});
+
+test("Drive token missing item", () => {
+  sessionStorage.clear();
+  const loaded = loadDriveTokenState();
+  assert.strictEqual(loaded, null);
+});
+
+test("isDriveTokenLikelyExpired handles null", () => {
+  assert.strictEqual(isDriveTokenLikelyExpired(null), true);
+});
+
 test("getDriveAuthHeaders returns Authorization Bearer header", () => {
   const headers = getDriveAuthHeaders("my_token_456");
   assert.strictEqual(headers["Authorization"], "Bearer my_token_456");

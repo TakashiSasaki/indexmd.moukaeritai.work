@@ -1,0 +1,203 @@
+{
+  "summary": {
+    "oneLine": "Patient medical claim receipt for orthopedic consultation and MRI scan.",
+    "detailed": "This document contains a medical clinic receipt and insurance claim statement for patient John Smith's visit to Metro Orthopedics on May 10, 2026. It details a standard consultation, an MRI diagnostic procedure, insurance coverage contribution ($800.00), and the patient's out-of-pocket payment obligation ($150.00)."
+  },
+  "titleInfo": {
+    "explicitTitle": {
+      "value": "Patient Treatment & Claim Summary - Case #90128",
+      "source": "documentHeading"
+    },
+    "fileNameTitle": {
+      "value": "claim_90128_metro_ortho.pdf",
+      "isGeneric": false
+    },
+    "inferredTitle": "Metro Orthopedics Treatment Receipt & Insurance Claim Statement",
+    "displayTitle": {
+      "value": "Patient Treatment & Claim Summary - Case #90128",
+      "source": "explicitTitle",
+      "reason": "Official document heading chosen as the display title for legal matching."
+    }
+  },
+  "documentKindInfo": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "kinds": [
+      {
+        "kind": "receipt",
+        "confidence": 0.95,
+        "reason": "Includes payment receipts and detailed line item charges for clinic procedures."
+      },
+      {
+        "kind": "certificate",
+        "confidence": 0.6,
+        "reason": "Contains clinical treatment sign-off by a licensed medical practitioner."
+      }
+    ]
+  },
+  "fileFormatInfo": {
+    "mimeType": "application/pdf",
+    "extension": "pdf"
+  },
+  "subjectAreas": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "domains": [
+      {
+        "domain": "medicine",
+        "confidence": 1.0,
+        "reason": "Covers clinical diagnostics, orthopedic medical consultation, and MRI procedures.",
+        "labels": [
+          {
+            "label": "Orthopedics",
+            "kind": "field",
+            "confidence": 1.0
+          },
+          {
+            "label": "MRI Scan",
+            "kind": "process",
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "domain": "finance",
+        "confidence": 0.95,
+        "reason": "Details medical insurance claim reimbursement, patient copayment, and health plan deductibles.",
+        "labels": [
+          {
+            "label": "Medical Insurance Claim",
+            "kind": "topic",
+            "confidence": 0.98
+          },
+          {
+            "label": "Patient Copay",
+            "kind": "topic",
+            "confidence": 0.95
+          }
+        ]
+      }
+    ]
+  },
+  "languageInfo": {
+    "primary": "en",
+    "detected": ["en"]
+  },
+  "indexing": {
+    "topics": ["medical-claims", "orthopedic-consultation"],
+    "keywords": ["MRI", "co-pay", "claim-90128", "Metro Orthopedics"],
+    "namedEntities": [
+      {
+        "name": "Metro Orthopedics",
+        "type": "organization"
+      },
+      {
+        "name": "John Smith",
+        "type": "person"
+      },
+      {
+        "name": "Blue Health Insurer",
+        "type": "organization"
+      }
+    ],
+    "resourceReferences": []
+  },
+  "extractedFacts": {
+    "temporalReferences": [
+      {
+        "value": "2026-05-10",
+        "normalizedDate": "2026-05-10",
+        "role": "appointmentDate",
+        "roleCategory": "event",
+        "raw": "Date of Treatment: May 10, 2026",
+        "confidence": 1.0
+      },
+      {
+        "value": "2026-05-12",
+        "normalizedDate": "2026-05-12",
+        "role": "processedAt",
+        "roleCategory": "transaction",
+        "raw": "Claim Processed Date: May 12, 2026",
+        "confidence": 0.9
+      }
+    ],
+    "parties": [
+      {
+        "name": "John Smith",
+        "kind": "person",
+        "roles": [
+          {
+            "role": "patient",
+            "roleCategory": "medical",
+            "confidence": 1.0
+          },
+          {
+            "role": "payer",
+            "roleCategory": "payment",
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Metro Orthopedics",
+        "kind": "organization",
+        "roles": [
+          {
+            "role": "healthcareProvider",
+            "roleCategory": "medical",
+            "confidence": 1.0
+          },
+          {
+            "role": "payee",
+            "roleCategory": "payment",
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Blue Health Insurer",
+        "kind": "organization",
+        "roles": [
+          {
+            "role": "insuranceCarrier",
+            "roleCategory": "medical",
+            "confidence": 1.0
+          },
+          {
+            "role": "co-payer",
+            "roleCategory": "payment",
+            "confidence": 0.95
+          }
+        ]
+      }
+    ],
+    "monetaryAmounts": [
+      {
+        "amount": 950.0,
+        "currency": "USD",
+        "role": "grossCharge",
+        "roleCategory": "price",
+        "raw": "Total Procedure Charge: $950.00",
+        "confidence": 1.0
+      },
+      {
+        "amount": 800.0,
+        "currency": "USD",
+        "role": "insuranceContribution",
+        "roleCategory": "payment",
+        "raw": "Plan Paid Amount: $800.00",
+        "confidence": 1.0
+      },
+      {
+        "amount": 150.0,
+        "currency": "USD",
+        "role": "patientCopay",
+        "roleCategory": "insurance",
+        "raw": "Patient Copay: $150.00",
+        "confidence": 1.0
+      }
+    ]
+  },
+  "quality": {
+    "confidence": 0.95,
+    "warnings": []
+  }
+}
