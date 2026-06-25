@@ -74,7 +74,8 @@ const MODELS = MODELS_INFO as ModelInfo[];
 const RenderStructuredSummary: React.FC<{
   structured: any;
   rawText?: string;
-}> = ({ structured, rawText }) => {
+  repairWarnings?: string[];
+}> = ({ structured, rawText, repairWarnings = [] }) => {
   const oneLine = structured.summary?.oneLine;
   const detailed = structured.summary?.detailed;
 
@@ -408,6 +409,19 @@ const RenderStructuredSummary: React.FC<{
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {repairWarnings?.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-sky-400 uppercase tracking-wider">
+            修復ノート (Repair Warnings)
+          </h4>
+          <ul className="list-disc pl-5 text-xs text-sky-200 space-y-1 bg-sky-900/30 rounded-md p-3 border border-sky-800/50">
+            {repairWarnings.map((w: string, i: number) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -1837,177 +1851,6 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
         )}
       </button>
 
-      {/* Experiment History Section */}
-      <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-            <HistoryIcon className="w-4 h-4 text-indigo-500" />
-            実験履歴 (Local Debug)
-          </h3>
-          <div className="flex gap-2">
-            <button
-              onClick={fetchExperimentHistory}
-              disabled={loadingExperimentHistory}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`w-3 h-3 ${loadingExperimentHistory ? "animate-spin" : ""}`}
-              />
-              更新
-            </button>
-            <button
-              onClick={clearExperimentHistory}
-              disabled={loadingExperimentHistory}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors disabled:opacity-50"
-            >
-              <Trash2 className="w-3 h-3" />
-              クリア
-            </button>
-          </div>
-        </div>
-
-        {experimentHistory.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-[10px] uppercase text-slate-500 tracking-wider">
-                  <th className="p-2 border-b border-slate-200">Time</th>
-                  <th className="p-2 border-b border-slate-200">Input</th>
-                  <th className="p-2 border-b border-slate-200">Model</th>
-                  <th className="p-2 border-b border-slate-200">Schema/Mode</th>
-                  <th className="p-2 border-b border-slate-200">Status</th>
-                  <th className="p-2 border-b border-slate-200">
-                    Preview / Classifications
-                  </th>
-                  <th className="p-2 border-b border-slate-200">Action</th>
-                </tr>
-              </thead>
-              <tbody className="text-[10px] sm:text-xs text-slate-600">
-                {experimentHistory.map((item) => {
-                  const summaryPreview =
-                    item.structuredResult?.summary?.oneLine ||
-                    (item.outputMode !== "structured" && item.rawOutput) ||
-                    "-";
-                  
-                  const docKinds =
-                    item.structuredResult?.documentKindInfo?.kinds?.join(", ") || "-";
-                  
-                  const domainsPreview =
-                    item.structuredResult?.subjectAreas?.domains?.map((d: any) => d.domain).join(", ") || "-";
-
-                  const topicLabelsList: string[] = [];
-                  if (item.structuredResult?.subjectAreas?.domains) {
-                    for (const dom of item.structuredResult.subjectAreas.domains) {
-                      if (dom.labels) {
-                        for (const lbl of dom.labels) {
-                          if (lbl.kind === "topic" && lbl.label) {
-                            topicLabelsList.push(lbl.label);
-                          }
-                        }
-                      }
-                    }
-                  }
-                  const topicLabels = topicLabelsList.length > 0 ? topicLabelsList.join(", ") : "-";
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className="border-b border-slate-100 hover:bg-slate-50"
-                    >
-                      <td className="p-2 whitespace-nowrap">
-                        {new Date(item.timestamp).toLocaleTimeString()}
-                      </td>
-                      <td
-                        className="p-2 max-w-[120px] truncate"
-                        title={item.inputLabel}
-                      >
-                        {item.inputLabel}
-                      </td>
-                      <td className="p-2 whitespace-nowrap">{item.model}</td>
-                      <td className="p-2 whitespace-nowrap">
-                        {item.outputMode === "structured"
-                           ? item.schemaVersion
-                          : item.outputMode}
-                      </td>
-                      <td className="p-2 whitespace-nowrap">
-                        {item.error ? (
-                          <span className="text-rose-600 flex items-center gap-1">
-                            <XCircle className="w-3 h-3" /> Error
-                          </span>
-                        ) : item.validationSuccess ? (
-                          <span className="text-emerald-600 flex items-center gap-1">
-                            <Check className="w-3 h-3" /> Valid
-                          </span>
-                        ) : (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <XCircle className="w-3 h-3" /> Invalid
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 max-w-[200px]">
-                        <div
-                          className="truncate font-medium text-slate-800 mb-0.5"
-                          title={summaryPreview}
-                        >
-                          {summaryPreview}
-                        </div>
-                        {item.outputMode === "structured" &&
-                          item.parseSuccess && (
-                            <div
-                              className="text-[9px] text-slate-400 truncate"
-                              title={`Kinds: ${docKinds} | Topics: ${topicLabels} | Domains: ${domainsPreview}`}
-                            >
-                              <span className="text-slate-500">K:</span>{" "}
-                              {docKinds} /{" "}
-                              <span className="text-slate-500">T:</span>{" "}
-                              {topicLabels} /{" "}
-                              <span className="text-slate-500">D:</span>{" "}
-                              {domainsPreview}
-                            </div>
-                          )}
-                      </td>
-                      <td className="p-2 whitespace-nowrap">
-                        <button
-                          onClick={() => {
-                            setResult({
-                              success: !item.error,
-                              outputMode: item.outputMode,
-                              metadata: item.fileMetadata,
-                              structured: item.structuredResult,
-                              summary:
-                                item.outputMode !== "structured"
-                                  ? item.rawOutput ||
-                                    item.summary ||
-                                    "No summary (raw output not persisted)"
-                                  : item.structuredResult?.summary?.oneLine ||
-                                    "No summary",
-                              rawText: item.rawOutput,
-                              schemaVersion: item.schemaVersion,
-                              error: item.error,
-                              validationErrors: item.validationErrors,
-                              structuredParseFailed: !item.parseSuccess,
-                            });
-                            setUsedModel(item.model);
-                            setError(item.error || null);
-                          }}
-                          className="text-indigo-600 hover:underline flex items-center gap-1"
-                        >
-                          表示
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500 py-4 text-center">
-            履歴はありません。
-          </p>
-        )}
-      </div>
-
       {/* Results Section */}
       <div className="mt-10 space-y-6">
         {error && (
@@ -2350,6 +2193,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                 <RenderStructuredSummary
                   structured={result.structured}
                   rawText={result.rawText}
+                  repairWarnings={result.warnings}
                 />
               ) : result.structuredParseFailed ? (
                 <div className="space-y-4">
@@ -2463,6 +2307,177 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
               </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Experiment History Section */}
+      <div className="mt-10 bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+            <HistoryIcon className="w-4 h-4 text-indigo-500" />
+            実験履歴 (Local Debug)
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchExperimentHistory}
+              disabled={loadingExperimentHistory}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50"
+            >
+              <RefreshCw
+                className={`w-3 h-3 ${loadingExperimentHistory ? "animate-spin" : ""}`}
+              />
+              更新
+            </button>
+            <button
+              onClick={clearExperimentHistory}
+              disabled={loadingExperimentHistory}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-3 h-3" />
+              クリア
+            </button>
+          </div>
+        </div>
+
+        {experimentHistory.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] uppercase text-slate-500 tracking-wider">
+                  <th className="p-2 border-b border-slate-200">Time</th>
+                  <th className="p-2 border-b border-slate-200">Input</th>
+                  <th className="p-2 border-b border-slate-200">Model</th>
+                  <th className="p-2 border-b border-slate-200">Schema/Mode</th>
+                  <th className="p-2 border-b border-slate-200">Status</th>
+                  <th className="p-2 border-b border-slate-200">
+                    Preview / Classifications
+                  </th>
+                  <th className="p-2 border-b border-slate-200">Action</th>
+                </tr>
+              </thead>
+              <tbody className="text-[10px] sm:text-xs text-slate-600">
+                {experimentHistory.map((item) => {
+                  const summaryPreview =
+                    item.structuredResult?.summary?.oneLine ||
+                    (item.outputMode !== "structured" && item.rawOutput) ||
+                    "-";
+                  
+                  const docKinds =
+                    item.structuredResult?.documentKindInfo?.kinds?.join(", ") || "-";
+                  
+                  const domainsPreview =
+                    item.structuredResult?.subjectAreas?.domains?.map((d: any) => d.domain).join(", ") || "-";
+
+                  const topicLabelsList: string[] = [];
+                  if (item.structuredResult?.subjectAreas?.domains) {
+                    for (const dom of item.structuredResult.subjectAreas.domains) {
+                      if (dom.labels) {
+                        for (const lbl of dom.labels) {
+                          if (lbl.kind === "topic" && lbl.label) {
+                            topicLabelsList.push(lbl.label);
+                          }
+                        }
+                      }
+                    }
+                  }
+                  const topicLabels = topicLabelsList.length > 0 ? topicLabelsList.join(", ") : "-";
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className="border-b border-slate-100 hover:bg-slate-50"
+                    >
+                      <td className="p-2 whitespace-nowrap">
+                        {new Date(item.timestamp).toLocaleTimeString()}
+                      </td>
+                      <td
+                        className="p-2 max-w-[120px] truncate"
+                        title={item.inputLabel}
+                      >
+                        {item.inputLabel}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">{item.model}</td>
+                      <td className="p-2 whitespace-nowrap">
+                        {item.outputMode === "structured"
+                           ? item.schemaVersion
+                          : item.outputMode}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        {item.error ? (
+                          <span className="text-rose-600 flex items-center gap-1">
+                            <XCircle className="w-3 h-3" /> Error
+                          </span>
+                        ) : item.validationSuccess ? (
+                          <span className="text-emerald-600 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Valid
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 flex items-center gap-1">
+                            <XCircle className="w-3 h-3" /> Invalid
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2 max-w-[200px]">
+                        <div
+                          className="truncate font-medium text-slate-800 mb-0.5"
+                          title={summaryPreview}
+                        >
+                          {summaryPreview}
+                        </div>
+                        {item.outputMode === "structured" &&
+                          item.parseSuccess && (
+                            <div
+                              className="text-[9px] text-slate-400 truncate"
+                              title={`Kinds: ${docKinds} | Topics: ${topicLabels} | Domains: ${domainsPreview}`}
+                            >
+                              <span className="text-slate-500">K:</span>{" "}
+                              {docKinds} /{" "}
+                              <span className="text-slate-500">T:</span>{" "}
+                              {topicLabels} /{" "}
+                              <span className="text-slate-500">D:</span>{" "}
+                              {domainsPreview}
+                            </div>
+                          )}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        <button
+                          onClick={() => {
+                            setResult({
+                              success: !item.error,
+                              outputMode: item.outputMode,
+                              metadata: item.fileMetadata,
+                              structured: item.structuredResult,
+                              summary:
+                                item.outputMode !== "structured"
+                                  ? item.rawOutput ||
+                                    item.summary ||
+                                    "No summary (raw output not persisted)"
+                                  : item.structuredResult?.summary?.oneLine ||
+                                    "No summary",
+                              rawText: item.rawOutput,
+                              schemaVersion: item.schemaVersion,
+                              error: item.error,
+                              validationErrors: item.validationErrors,
+                              structuredParseFailed: !item.parseSuccess,
+                            });
+                            setUsedModel(item.model);
+                            setError(item.error || null);
+                          }}
+                          className="text-indigo-600 hover:underline flex items-center gap-1"
+                        >
+                          表示
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 py-4 text-center">
+            履歴はありません。
+          </p>
         )}
       </div>
     </div>

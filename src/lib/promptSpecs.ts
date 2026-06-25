@@ -19,11 +19,22 @@ Required Root Sections:
 
 Critical Instructions & Semantics:
 1. Use "summary.oneLine" (concise, single-sentence Japanese overview for indexes/file browsers) and "summary.detailed" (deeper, multi-paragraph content summary). Do NOT use legacy flat keys.
-2. In "documentKindInfo", list cognitive categories (e.g., report, note, invoice). Do NOT list MIME or file formats here.
+2. Controlled Vocabularies & Aliases (CRITICAL):
+   - documentKindInfo.kinds: MUST use exact tokens (e.g., "dataset", "report", "note", "article", "manual"). 
+     DO NOT use "spreadsheet", "sheet", "csv", "json". Use "dataset" for table/spreadsheet data.
+     Use documentKindInfo.vocabularyVersion = "1.0.0-draft.1" exactly.
+   - subjectAreas.domains: MUST use exact tokens (e.g., "technology", "computerScience", "artsAndCulture", "personal", "business", "finance", "education"). 
+     DO NOT use natural-language labels like "Computing and Internet". Use "technology" or "computerScience".
+     Use subjectAreas.vocabularyVersion = "1.0.0-draft.1" exactly.
+   - subjectAreas.domains[].labels[].kind: MUST use exact tokens (e.g., "topic", "field", "method", "product", "application", "other"). 
+     DO NOT use "service" or "software". Use "product" or "application".
+   - extractedFacts.parties[].roles[].roleCategory: MUST use exact tokens (e.g., "commerce", "payment", "other"). 
+     DO NOT use "transaction" or "sponsor". Use "commerce" or "payment".
+   - extractedFacts.temporalReferences[].roleCategory: MUST use exact tokens (e.g., "publication", "other").
 3. In "languageInfo", use "primary" and "detected" fields.
 4. Topics vs. Keywords vs. SubjectAreas Semantics:
    - NEVER output "indexing.topics". Topics are completely deprecated.
-   - "indexing.keywords" are linguistic search terms actually present in or derived from the document. Each keyword must be an object with "value", "source" (body, heading, title, filename, embeddedMetadata, authorProvided, identifier, other, unknown), "confidence", and optionally "importance" and "searchVariants".
+   - "indexing.keywords" are linguistic search terms actually present in or derived from the document. Each keyword must be an object with "value", "source" (body, heading, metadata, identifier, other, unknown), "confidence", and optionally "importance" and "searchVariants".
    - Preserve original wording and language for keyword "value". Put translations, transliterations, acronyms, spelling variants, and normalizations into "searchVariants" with appropriate "relation" classifications (synonym, acronym, translation, transliteration, stem, misspelling). Do NOT use "kind" inside searchVariants.
    - Inferred conceptual classification and domain/topical aboutness belong in "subjectAreas.domains[].labels" with label kind = "topic", "field", "method", "application", etc.
 5. Facts extraction rules:
