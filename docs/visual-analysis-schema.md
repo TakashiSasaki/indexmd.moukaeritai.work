@@ -10,26 +10,24 @@ We specifically use `visibleElements` rather than `visibleObjects`. This distinc
 ## Data Structure
 
 ### `visualInfo.imageKind`
-A controlled vocabulary defining the type of image. Valid kinds include:
-- `landscapePhoto`, `naturalPhoto`
-- `productPhoto`, `packageImage`
-- `documentPhoto`, `receiptPhoto`
-- `screenshot`
-- `diagram`, `chartOrTable`
-- `handwrittenNote`, `whiteboardPhoto`
-- `mixed`, `unknown`
+A controlled vocabulary defining the type of image.
+- **Valid Kinds**: `landscapePhoto`, `naturalPhoto`, `productPhoto`, `packageImage`, `documentPhoto`, `receiptPhoto`, `screenshot`, `diagram`, `chartOrTable`, `handwrittenNote`, `whiteboardPhoto`, `mixed`, `unknown`.
+- **Confidence**: `imageKindConfidence` (0.0 to 1.0) must be provided.
 
 ### `visualInfo.visibleElements[].category`
-A controlled vocabulary for elements detected in the scene. Categories include:
-- `person`, `animal`, `plant`, `food`
-- `product`, `productPackage`, `document`
-- `screen`, `uiElement`
-- `building`, `vehicle`, `furniture`, `container`, `tool`, `clothing`
-- `landscapeElement`, `weatherOrSky`, `waterBody`, `terrain`, `roadOrPath`
-- `signage`, `textRegion`, `chart`, `table`, `symbol`, `unknown`
+A controlled vocabulary for elements detected in the scene.
+- **Human/Living**: `person`, `animal`, `plant`, `food`
+- **Utility/Manufactured**: `product`, `productPackage`, `document`, `building`, `vehicle`, `furniture`, `container`, `tool`, `clothing`, `symbol`
+- **Digital**: `screen`, `uiElement`
+- **Natural/Scenic**: `landscapeElement`, `weatherOrSky`, `waterBody`, `terrain`, `roadOrPath`
+- **Text/Structural**: `signage`, `textRegion`, `chart`, `table`
+- **Fallback**: `unknown`
+- **Constraints**: Each element must have a `label`, `category`, and `confidence` (0.0 to 1.0). `attributes` and `count` are optional.
 
 ### `visualInfo.visibleText`
-For extracting readable text present in the image. Critical for document photos, receipts, screenshots, and signage.
+For extracting readable text present in the image.
+- **Properties**: `text`, `confidence` (0.0 to 1.0), `language` (ISO 639-1).
+- **Usage**: Critical for document photos, receipts, screenshots, and signage.
 
 ## Specific Image Guidelines
 
