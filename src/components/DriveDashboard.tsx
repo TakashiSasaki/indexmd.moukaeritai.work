@@ -67,6 +67,7 @@ import { SummaryDebugger } from "./SummaryDebugger";
 import { SavedSummariesBrowser } from "./SavedSummariesBrowser";
 import { CacheStatsTab } from "./CacheStatsTab";
 import { IconTestTab } from "./IconTestTab";
+import ImageExperiment from "./ImageExperiment";
 import { motion } from "motion/react";
 import { getDriveAuthHeaders } from "../lib/driveToken";
 import { 
@@ -2023,6 +2024,17 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       {activeTab === "icon-test" && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
           <IconTestTab />
+        </div>
+      )}
+
+      {activeTab === "image-experiment" && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <ImageExperiment 
+            token={token}
+            config={config}
+            onAddLog={onAddLog}
+            onSessionExpiry={onSessionExpiry}
+          />
         </div>
       )}
       </div>

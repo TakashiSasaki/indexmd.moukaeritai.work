@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Visual Analysis Schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "visual-analysis.v0.1.0-draft.1"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "caption": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["caption", "description"]
+    },
+    "visualInfo": {
+      "type": "object",
+      "properties": {
+        "imageKind": { "type": "string" },
+        "imageKindConfidence": { "type": "number" },
+        "sceneDescription": { "type": "string" },
+        "visibleElements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "category": { "type": "string" },
+              "primary": { "type": "boolean" },
+              "count": { "type": "number" },
+              "attributes": { "type": "array", "items": { "type": "string" } },
+              "confidence": { "type": "number" },
+              "evidence": { "type": "string" },
+              "locationHint": { "type": "string" }
+            },
+            "required": ["label", "category", "confidence"]
+          }
+        },
+        "visibleText": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" },
+              "confidence": { "type": "number" },
+              "locationHint": { "type": "string" },
+              "language": { "type": "string" }
+            },
+            "required": ["text", "confidence"]
+          }
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["imageKind", "imageKindConfidence", "sceneDescription", "visibleElements", "visibleText", "uncertainties"]
+    },
+    "indexing": {
+      "type": "object",
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "confidence": { "type": "number" },
+              "importance": { "type": "number" }
+            },
+            "required": ["value", "confidence", "importance"]
+          }
+        }
+      },
+      "required": ["keywords"]
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "confidence": { "type": "number" },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["confidence", "issues"]
+    }
+  },
+  "required": ["schemaVersion", "summary", "visualInfo", "indexing", "quality"]
+}
