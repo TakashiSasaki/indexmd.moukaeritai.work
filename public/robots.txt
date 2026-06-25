@@ -1,10 +1,4 @@
 User-agent: *
-Allow: /
-Disallow: /dashboard
-Disallow: /debugger
-Disallow: /summary-debugger
-Disallow: /summary-browser
-Disallow: /firestore-test
-Disallow: /logs
-Disallow: /cache-stats
+Allow: /$
+Disallow: /
 Sitemap: https://indexmd.moukaeritai.work/sitemap.xml
