@@ -1,6 +1,9 @@
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
+  initializeAuth,
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
   signInWithPopup, 
   GoogleAuthProvider, 
   signInAnonymously, 
@@ -30,7 +33,8 @@ import {
   writeBatch,
   onSnapshot,
   serverTimestamp,
-  getCountFromServer
+  getCountFromServer,
+  getDocFromServer
 } from "firebase/firestore";
 
 // Read configuration from dynamic firebase-applet-config
@@ -40,7 +44,12 @@ export const firestoreDatabaseId = (firebaseConfig as any).firestoreDatabaseId |
 export const firebaseProjectId = (firebaseConfig as any).projectId || "unknown";
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+
+// Use initializeAuth for more robust configuration in iframe environments
+const auth = initializeAuth(app, {
+  persistence: browserLocalPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
+});
 
 // Use custom Firestore Database ID if present in config to avoid connection timeouts or database mismatches.
 let db: Firestore;
@@ -52,7 +61,8 @@ if (firestoreDatabaseId === "(default)") {
 }
 
 try {
-  db = getFirestore(app, firestoreDatabaseId);
+  // Use initializeFirestore for explicit database ID
+  db = initializeFirestore(app, {}, firestoreDatabaseId);
 } catch (e: any) {
   console.error(`[Firestore] Failed to initialize Firestore with database ID: ${firestoreDatabaseId}. Not falling back to (default).`, e);
   throw e;
@@ -127,6 +137,25 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+// Validation Connection to Firestore as per Critical Constraint in skill
+async function testConnection() {
+  if (typeof window === "undefined") return;
+  try {
+    // Try to reach a dummy doc to verify network to Firestore
+    await getDocFromServer(doc(db, '_health_check', 'ping'));
+    console.log("[Firebase] Firestore connectivity verified.");
+  } catch (error: any) {
+    // We expect 404 or "not found" if the doc doesn't exist, which is fine as long as it's not a network error.
+    if (error.message?.includes('the client is offline') || error.message?.includes('network')) {
+      console.error("[Firebase] Client is offline or Firestore is unreachable. Please check your Firebase configuration or network.");
+    } else {
+      // Benign error (e.g. permission denied on health check path is expected if not set up)
+      console.log("[Firebase] Connection test handshake completed (status: reachable).");
+    }
+  }
+}
+testConnection();
 
 export { 
   auth, 
