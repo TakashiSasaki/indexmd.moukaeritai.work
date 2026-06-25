@@ -5,13 +5,11 @@ import {
 } from 'lucide-react';
 import { db, collection, getDocs, query, limit } from '../lib/firebase';
 import { getSummaryMetadataStatus, getSummaryMetadataStatusReasons } from '../lib/summaryMetadata';
-import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from '../lib/summaryAnalysisSchema';
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from '../lib/promptSpecs';
-import { getStructuredSummaryDisplaySummary, isSummaryAnalysisV12Draft2 } from '../lib/summaryAnalysis/versioned';
+import { SCHEMA_VERSION_V12, getStructuredSummaryDisplaySummary } from '../lib/summaryAnalysis/versioned';
 import { 
   sortSavedSummariesByGeneratedAt, 
   filterSavedSummaries, 
-  summarizeSubjectAreas, 
   getDocumentTypeOptions, 
   getSubjectAreaOptions, 
   sanitizeSavedSummaryForClipboard 
@@ -198,7 +196,7 @@ These notes must also be completely preserved intact!`);
     const enriched = savedSummaries.map(item => {
       const status = getSummaryMetadataStatus({
         savedMetadata: item,
-        currentSchemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
         currentSystemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
         currentFileModifiedTime: item.modifiedTime // Assume no modification drift by default
@@ -237,7 +235,7 @@ These notes must also be completely preserved intact!`);
     if (!selectedSummary) return [];
     return getSummaryMetadataStatusReasons({
       savedMetadata: selectedSummary,
-      currentSchemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
+      currentSchemaVersion: SCHEMA_VERSION_V12,
       currentPromptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
       currentSystemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
       currentFileModifiedTime: selectedSummary.modifiedTime
@@ -285,7 +283,7 @@ These notes must also be completely preserved intact!`);
   };
 
   const handleCopyOneLineSummary = async (item: any) => {
-    const text = getStructuredSummaryDisplaySummary(item.structured, item.schemaVersion) || item.summary || '';
+    const text = getStructuredSummaryDisplaySummary(item.structured) || item.summary || '';
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -505,7 +503,7 @@ These notes must also be completely preserved intact!`);
                                     )}
                                   </span>
                                   <span className="text-xs text-slate-600 leading-relaxed block mt-0.5">
-                                    {getStructuredSummaryDisplaySummary(file.structured, file.schemaVersion) || file.summary}
+                                    {getStructuredSummaryDisplaySummary(file.structured) || file.summary}
                                   </span>
                                 </li>
                               );
@@ -1124,20 +1122,13 @@ These notes must also be completely preserved intact!`);
 
                 {(() => {
                   const s = selectedSummary.structured;
-                  const isV12 = isSummaryAnalysisV12Draft2(s) || selectedSummary.schemaVersion?.includes("1.2.0");
-                  const oneLine = isV12 ? s?.summary?.oneLine : s?.oneLineSummary;
-                  const docKinds = isV12 ? s?.documentKindInfo?.kinds?.map((k: any) => k.kind) : s?.documentTypes;
-                  const intent = isV12 ? null : s?.documentIntent;
-                  const primaryLang = isV12 ? s?.languageInfo?.primary : s?.primaryLanguage;
+                  const oneLine = s?.summary?.oneLine;
+                  const docKinds = s?.documentKindInfo?.kinds?.map((k: any) => k.kind);
+                  const primaryLang = s?.languageInfo?.primary;
                   
-                  let subAreaStr = "";
-                  if (isV12) {
-                    subAreaStr = (s?.subjectAreas?.domains || [])
-                      .map((d: any) => `${d.domain}: ${(d.labels || []).map((l: any) => l.label).join(", ")}`)
-                      .join("\n");
-                  } else {
-                    subAreaStr = summarizeSubjectAreas(s?.subjectAreas);
-                  }
+                  const subAreaStr = (s?.subjectAreas?.domains || [])
+                    .map((d: any) => `${d.domain}: ${(d.labels || []).map((l: any) => l.label).join(", ")}`)
+                    .join("\n");
 
                   return (
                     <>
@@ -1165,14 +1156,9 @@ These notes must also be completely preserved intact!`);
                         </div>
 
                         <div>
-                          <span className="text-slate-400 block font-bold font-sans">作成者の意図</span>
-                          <span className="text-slate-800 font-semibold block mt-0.5">{intent || "N/A (V1.2)"}</span>
+                          <span className="text-slate-400 block font-bold font-sans">主要言語</span>
+                          <span className="text-slate-800 font-semibold block mt-0.5">{primaryLang || "不明"}</span>
                         </div>
-                      </div>
-
-                      <div>
-                        <span className="text-slate-400 block font-bold">主要言語</span>
-                        <span className="text-slate-800 font-semibold block mt-0.5">{primaryLang || "不明"}</span>
                       </div>
 
                       <div>
@@ -1186,13 +1172,13 @@ These notes must also be completely preserved intact!`);
                         <div>
                           <span>⚠️ 警告の数 (warnings)</span>
                           <span className="font-bold text-slate-800 ml-1.5">
-                            {(isV12 ? s?.quality?.warnings?.length : s?.warnings?.length) || 0} 件
+                            {(s?.quality?.warnings?.length) || 0} 件
                           </span>
                         </div>
                         <div>
                           <span>🔗 外部参照数 (resourceReferences)</span>
                           <span className="font-bold text-slate-800 ml-1.5">
-                            {(isV12 ? s?.indexing?.resourceReferences?.length : s?.resourceReferences?.length) || 0} 件
+                            {(s?.indexing?.resourceReferences?.length) || 0} 件
                           </span>
                         </div>
                       </div>

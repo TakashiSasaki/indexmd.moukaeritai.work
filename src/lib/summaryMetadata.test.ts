@@ -8,29 +8,56 @@ import {
   getSummaryMetadataStatus,
   getSummaryMetadataStatusReasons,
 } from "./summaryMetadata";
-import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from "./summaryAnalysisSchema";
+import { SCHEMA_VERSION_V12 } from "./summaryAnalysis/versioned";
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from "./promptSpecs";
 
 describe("summaryMetadata", () => {
   const validStructured = {
-    oneLineSummary: "This is a one-line summary.",
-    detailedSummary: "This is a very detailed summary analysis of the document.",
-    title: "Document Title",
-    inferredTitle: "Document Title Inferred",
-    documentTypes: ["note"],
-    documentIntent: "inform",
-    topics: ["test"],
-    keywords: ["doc"],
-    namedEntities: [{ name: "Acme Corp", type: "organization" }],
-    resourceReferences: [{ uri: "https://example.com" }],
-    primaryLanguage: "Japanese",
-    languages: ["Japanese"],
-    temporalReferences: [{ date: "2026-06-24", role: "created", raw: "June 2026" }],
-    parties: [{ name: "Takashi", role: "author", kind: "person" }],
-    monetaryAmounts: [{ amount: 100, currency: "USD", role: "total", raw: "$100" }],
-    subjectAreas: { computerScience: ["algorithms"] },
-    confidence: 0.95,
-    warnings: [],
+    summary: {
+      oneLine: "This is a one-line summary.",
+      detailed: "This is a very detailed summary analysis of the document.",
+    },
+    titleInfo: {
+      displayTitle: {
+        value: "Document Title",
+        source: "title",
+        reason: "Matched main title",
+      },
+      inferredTitle: "Document Title Inferred",
+    },
+    documentKindInfo: {
+      kinds: [{ kind: "note", confidence: 0.95 }],
+    },
+    fileFormatInfo: {
+      format: "pdf",
+    },
+    subjectAreas: {
+      domains: [
+        {
+          domain: "computerScience",
+          confidence: 0.9,
+          labels: [{ label: "algorithms", kind: "topic" }],
+        },
+      ],
+    },
+    indexing: {
+      keywords: [{ value: "doc", source: "title" }],
+      namedEntities: [{ name: "Acme Corp", type: "organization" }],
+      resourceReferences: [{ uri: "https://example.com", raw: "https://example.com" }],
+    },
+    languageInfo: {
+      primary: "Japanese",
+      detected: ["Japanese"],
+    },
+    extractedFacts: {
+      temporalReferences: [{ date: "2026-06-24", role: "created", raw: "June 2026" }],
+      parties: [{ name: "Takashi", role: "author", kind: "person" }],
+      monetaryAmounts: [{ amount: 100, currency: "USD", role: "total", raw: "$100" }],
+    },
+    quality: {
+      confidence: 0.95,
+      warnings: [],
+    },
   };
 
   test("builds metadata from valid structured response", () => {
@@ -40,7 +67,7 @@ describe("summaryMetadata", () => {
       mimeType: "application/pdf",
       modifiedTime: "2026-06-24T12:00:00Z",
       model: "gemini-2.5-pro",
-      structured: validStructured,
+      structured: validStructured as any,
       validationErrors: [],
       parseSuccess: true,
       validationSuccess: true,
@@ -54,7 +81,7 @@ describe("summaryMetadata", () => {
     assert.strictEqual(metadata.fileName, "test_doc.pdf");
     assert.strictEqual(metadata.mimeType, "application/pdf");
     assert.strictEqual(metadata.modifiedTime, "2026-06-24T12:00:00Z");
-    assert.strictEqual(metadata.schemaVersion, SUMMARY_ANALYSIS_SCHEMA_VERSION);
+    assert.strictEqual(metadata.schemaVersion, SCHEMA_VERSION_V12);
     assert.strictEqual(metadata.promptVersion, SUMMARY_ANALYSIS_PROMPT_VERSION);
     assert.strictEqual(metadata.systemInstructionVersion, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION);
     assert.strictEqual(metadata.model, "gemini-2.5-pro");
@@ -73,7 +100,7 @@ describe("summaryMetadata", () => {
     const input = {
       fileId: "file-456",
       model: "gemini-2.5-pro",
-      structured: validStructured,
+      structured: validStructured as any,
       validationErrors: [],
       parseSuccess: true,
       validationSuccess: true,
@@ -156,33 +183,14 @@ describe("summaryMetadata", () => {
       fileId: "file-123",
       parseSuccess: true,
       validationSuccess: true,
-      schemaVersion: "1.1.0-draft.1",
+      schemaVersion: SCHEMA_VERSION_V12,
       promptVersion: "1.1.0-draft.2",
       systemInstructionVersion: "1.1.0-draft.2",
       modifiedTime: "2026-06-24T12:00:00Z",
       model: "gemini-2.5-pro",
       outputMode: "structured" as const,
       summary: "This is a summary text.",
-      structured: {
-        oneLineSummary: "This is a one-line summary.",
-        detailedSummary: "This is a detailed summary.",
-        title: "Title",
-        inferredTitle: "Title",
-        documentTypes: ["note"],
-        documentIntent: "inform",
-        topics: ["test"],
-        keywords: ["doc"],
-        namedEntities: [],
-        resourceReferences: [],
-        primaryLanguage: "Japanese",
-        languages: ["Japanese"],
-        temporalReferences: [],
-        parties: [],
-        monetaryAmounts: [],
-        subjectAreas: { computerScience: ["ai"] },
-        confidence: 0.95,
-        warnings: [],
-      },
+      structured: validStructured,
       generatedAt: "2026-06-24T12:00:00Z",
       source: "ai-summary-test" as const,
     };
@@ -190,7 +198,7 @@ describe("summaryMetadata", () => {
     test("returns missing if savedMetadata is null or undefined", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: null,
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
@@ -200,7 +208,7 @@ describe("summaryMetadata", () => {
     test("returns invalid if fileId is empty or parsing failed or required fields are missing", () => {
       const status1 = getSummaryMetadataStatus({
         savedMetadata: { ...baseSaved, fileId: "" },
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
@@ -208,7 +216,7 @@ describe("summaryMetadata", () => {
 
       const status2 = getSummaryMetadataStatus({
         savedMetadata: { ...baseSaved, parseSuccess: false },
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
@@ -216,7 +224,7 @@ describe("summaryMetadata", () => {
 
       const status3 = getSummaryMetadataStatus({
         savedMetadata: { ...baseSaved, validationSuccess: false },
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
@@ -226,9 +234,8 @@ describe("summaryMetadata", () => {
       const status4 = getSummaryMetadataStatus({
         savedMetadata: { 
           fileId: "file-123"
-          // schemaVersion, model, outputMode, promptVersion, etc. are missing
         },
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
@@ -238,7 +245,7 @@ describe("summaryMetadata", () => {
     test("returns stale-schema on schema mismatch", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
-        currentSchemaVersion: "1.2.0",
+        currentSchemaVersion: "other-version",
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
@@ -248,7 +255,7 @@ describe("summaryMetadata", () => {
     test("returns stale-prompt on prompt or system instruction mismatch", () => {
       const status1 = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.2.0",
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
@@ -256,7 +263,7 @@ describe("summaryMetadata", () => {
 
       const status2 = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.2.0",
       });
@@ -266,7 +273,7 @@ describe("summaryMetadata", () => {
     test("returns stale-file on file modifiedTime mismatch", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
         currentFileModifiedTime: "2026-06-25T00:00:00Z", // newer file modification
@@ -277,7 +284,7 @@ describe("summaryMetadata", () => {
     test("returns current when all matches perfectly", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
-        currentSchemaVersion: "1.1.0-draft.1",
+        currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.1.0-draft.2",
         currentSystemInstructionVersion: "1.1.0-draft.2",
         currentFileModifiedTime: "2026-06-24T12:00:00Z",
@@ -289,7 +296,7 @@ describe("summaryMetadata", () => {
       test("identifies missing data reason", () => {
         const reasons = getSummaryMetadataStatusReasons({
           savedMetadata: null,
-          currentSchemaVersion: "1.1.0-draft.1",
+          currentSchemaVersion: SCHEMA_VERSION_V12,
           currentPromptVersion: "1.1.0-draft.2",
           currentSystemInstructionVersion: "1.1.0-draft.2",
         });
@@ -299,7 +306,7 @@ describe("summaryMetadata", () => {
       test("identifies incomplete fields reason", () => {
         const reasons = getSummaryMetadataStatusReasons({
           savedMetadata: { fileId: "file-123" },
-          currentSchemaVersion: "1.1.0-draft.1",
+          currentSchemaVersion: SCHEMA_VERSION_V12,
           currentPromptVersion: "1.1.0-draft.2",
           currentSystemInstructionVersion: "1.1.0-draft.2",
         });

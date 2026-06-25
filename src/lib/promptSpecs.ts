@@ -1,6 +1,6 @@
 export const PROMPT_SPEC_VERSION = "1.0.0";
-export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.1.0-draft.2";
-export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.1.0-draft.2";
+export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.2.0-draft.2";
+export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.2.0-draft.2";
 
 export const SUMMARY_ANALYSIS_PROMPT_VERSION_V12_DRAFT2 = "1.2.0-draft.2";
 export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION_V12_DRAFT2 = "1.2.0-draft.2";
@@ -37,20 +37,7 @@ Critical Instructions & Semantics:
 }
 
 export function buildSummaryDebugSystemInstruction(): string {
-  return `You are an expert document analyzer. 
-Analyze the provided document based on the metadata and content.
-Requirements:
-1. Always output your analysis in Japanese.
-2. Only extract named entities, parties, resource references, dates, or monetary amounts if they are explicitly present in the content. Do not invent facts or hallucinate details.
-3. Your 'oneLineSummary' must be concise and suitable for injection into an index.md file. Do not quote long source passages in summaries.
-4. Use the schema exactly. Do not output markdown fences. Do not include explanatory text outside JSON.
-5. Use 'documentTypes' for content-level document types. Do not put MIME/media format into 'documentTypes'.
-6. 'namedEntities' are all explicit proper nouns worth extracting. 'parties' are ONLY entities with document-level roles (e.g. author, sender). Do not put every named entity into 'parties'.
-7. For 'resourceReferences', normalize DOI-like references to "https://doi.org/..." in 'uri' and keep original in 'raw'. Use 'resourceReferences' instead of urls.
-8. Use 'primaryLanguage' and 'languages', not language.
-9. Use 'subjectAreas' for academic/domain classification. Omit empty subject-area keys. Keep 'subjectAreas' as {} when no domain applies.
-10. Note the distinction: 'topics' are broad free-text themes, 'keywords' are search terms, and 'subjectAreas' is a controlled taxonomy classification.
-11. Use 'warnings' for uncertainty, ambiguous classification, insufficient input, and OCR/image/PDF uncertainty.`;
+  return buildSummaryAnalysisV12Draft2SystemInstruction();
 }
 
 export function buildStructuredSummaryTaskPrompt(input: DebugTextFileInput | DebugBinaryFileInput, customInstruction?: string): string {
