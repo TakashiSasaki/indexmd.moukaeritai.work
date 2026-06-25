@@ -68,7 +68,7 @@ export interface SubjectLabel {
   label: string;
   kind: string;
   confidence: number;
-  language?: string;
+  language?: string | null;
   script?: string;
   source: string; // e.g. surface, inferred, controlledVocabulary
   reason?: string;
@@ -103,23 +103,34 @@ export interface ResourceReference {
   raw?: string;
 }
 
+export type KeywordSource =
+  | "body"
+  | "heading"
+  | "title"
+  | "filename"
+  | "embeddedMetadata"
+  | "authorProvided"
+  | "identifier"
+  | "other"
+  | "unknown";
+
 export interface SearchVariant {
   value: string;
-  kind: string; // e.g. synonym, acronym, translation, transliteration, stem, misspelling
-  language?: string;
+  relation: string; // e.g. synonym, acronym, translation, transliteration, stem, misspelling
+  language?: string | null;
   script?: string;
   confidence: number;
 }
 
 export interface KeywordTerm {
   value: string;
-  language?: string;
+  language?: string | null;
   script?: string;
-  source: string; // e.g. surface, inferred, controlledVocabulary
+  source: KeywordSource;
   confidence: number;
-  importance: number;
+  importance?: number;
   normalizedValue?: string;
-  searchVariants: SearchVariant[];
+  searchVariants?: SearchVariant[];
 }
 
 export interface IndexingInfo {

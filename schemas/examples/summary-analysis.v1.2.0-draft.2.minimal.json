@@ -63,14 +63,14 @@
         "value": "setup",
         "language": "en",
         "script": "Latn",
-        "source": "surface",
+        "source": "body",
         "confidence": 0.95,
         "importance": 0.8,
         "normalizedValue": "setup",
         "searchVariants": [
           {
             "value": "installation",
-            "kind": "synonym",
+            "relation": "synonym",
             "language": "en",
             "script": "Latn",
             "confidence": 0.9
@@ -81,14 +81,14 @@
         "value": "configuration",
         "language": "en",
         "script": "Latn",
-        "source": "surface",
+        "source": "heading",
         "confidence": 0.95,
         "importance": 0.85,
         "normalizedValue": "configuration",
         "searchVariants": [
           {
             "value": "config",
-            "kind": "acronym",
+            "relation": "acronym",
             "language": "en",
             "script": "Latn",
             "confidence": 0.95

@@ -18,6 +18,17 @@ function normalizeOptionalStr(val: any): string | null {
 }
 
 /**
+ * Normalizes language field according to string | null | undefined.
+ */
+function normalizeLanguage(val: any): string | null | undefined {
+  if (val === undefined) return undefined;
+  if (val === null) return null;
+  if (typeof val !== "string") return null;
+  const trimmed = val.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
  * Deduplicates and trims string arrays, filtering out empty strings.
  */
 function dedupArray(arr: any): string[] {
@@ -163,8 +174,8 @@ export function normalizeSummaryAnalysisV12(value: any): SummaryAnalysisResultV1
                 confidence: typeof l.confidence === "number" ? Math.min(1, Math.max(0, l.confidence)) : 0,
                 source: trimStr(l.source) || "controlledVocabulary"
               };
-              const lang = trimStr(l.language);
-              if (lang !== "") normLabel.language = lang;
+              const lang = normalizeLanguage(l.language);
+              if (lang !== undefined) normLabel.language = lang;
               const scr = trimStr(l.script);
               if (scr !== "") normLabel.script = scr;
               const reas = trimStr(l.reason);
@@ -207,48 +218,85 @@ export function normalizeSummaryAnalysisV12(value: any): SummaryAnalysisResultV1
       const val = trimStr(kw.value);
       if (val === "") return null;
 
+      const rawSource = trimStr(kw.source);
+      const validSources = ["body", "heading", "title", "filename", "embeddedMetadata", "authorProvided", "identifier", "other", "unknown"];
+      let normSource: any = "unknown";
+      if (validSources.includes(rawSource)) {
+        normSource = rawSource;
+      } else {
+        // Map legacy sources if any
+        if (rawSource === "surface") normSource = "body";
+        else if (rawSource === "inferred") normSource = "other";
+        else if (rawSource === "controlledVocabulary") normSource = "other";
+      }
+
       const normKw: any = {
         value: val,
-        source: trimStr(kw.source) || "surface",
-        confidence: typeof kw.confidence === "number" ? Math.min(1, Math.max(0, kw.confidence)) : 0,
-        importance: typeof kw.importance === "number" ? Math.min(1, Math.max(0, kw.importance)) : 0,
-        searchVariants: Array.isArray(kw.searchVariants)
-          ? kw.searchVariants
-              .map((sv: any) => {
-                if (!sv || typeof sv !== "object") return null;
-                const svVal = trimStr(sv.value);
-                if (svVal === "") return null;
-                const normSv: any = {
-                  value: svVal,
-                  kind: trimStr(sv.kind) || "synonym",
-                  confidence: typeof sv.confidence === "number" ? Math.min(1, Math.max(0, sv.confidence)) : 0
-                };
-                const svLang = trimStr(sv.language);
-                if (svLang !== "") normSv.language = svLang;
-                const svScr = trimStr(sv.script);
-                if (svScr !== "") normSv.script = svScr;
-                return normSv;
-              })
-              .filter((sv: any) => sv !== null)
-          : []
+        source: normSource,
+        confidence: typeof kw.confidence === "number" ? Math.min(1, Math.max(0, kw.confidence)) : 0
       };
 
-      const lang = trimStr(kw.language);
-      if (lang !== "") normKw.language = lang;
+      if (kw.importance !== undefined) {
+        normKw.importance = typeof kw.importance === "number" ? Math.min(1, Math.max(0, kw.importance)) : 0;
+      }
+
+      const lang = normalizeLanguage(kw.language);
+      if (lang !== undefined) normKw.language = lang;
+
       const scr = trimStr(kw.script);
       if (scr !== "") normKw.script = scr;
+
       const normVal = trimStr(kw.normalizedValue);
       if (normVal !== "") normKw.normalizedValue = normVal;
+
+      if (Array.isArray(kw.searchVariants)) {
+        normKw.searchVariants = kw.searchVariants
+          .map((sv: any) => {
+            if (!sv || typeof sv !== "object") return null;
+            const svVal = trimStr(sv.value);
+            if (svVal === "") return null;
+            const normSv: any = {
+              value: svVal,
+              relation: trimStr(sv.relation || sv.kind) || "synonym",
+              confidence: typeof sv.confidence === "number" ? Math.min(1, Math.max(0, sv.confidence)) : 0
+            };
+            const svLang = normalizeLanguage(sv.language);
+            if (svLang !== undefined) normSv.language = svLang;
+            const svScr = trimStr(sv.script);
+            if (svScr !== "") normSv.script = svScr;
+            return normSv;
+          })
+          .filter((sv: any) => sv !== null);
+      }
 
       return normKw;
     })
     .filter((kw: any) => kw !== null);
 
-  // Deduplicate keywords by value
+  // Deduplicate keywords stably by composite key: value + language + script
   const uniqueKwMap = new Map<string, any>();
   for (const kw of normalizedKeywords) {
-    if (!uniqueKwMap.has(kw.value)) {
-      uniqueKwMap.set(kw.value, kw);
+    const key = `${kw.value.toLowerCase()}||${(kw.language || "").toLowerCase()}||${(kw.script || "").toLowerCase()}`;
+    if (!uniqueKwMap.has(key)) {
+      uniqueKwMap.set(key, kw);
+    } else {
+      // Merge searchVariants of duplicate items, keeping unique ones
+      const existingKw = uniqueKwMap.get(key);
+      if (kw.searchVariants && kw.searchVariants.length > 0) {
+        if (!existingKw.searchVariants) {
+          existingKw.searchVariants = [];
+        }
+        for (const sv of kw.searchVariants) {
+          const svExists = existingKw.searchVariants.some(
+            (exSv: any) =>
+              exSv.value.toLowerCase() === sv.value.toLowerCase() &&
+              exSv.relation.toLowerCase() === sv.relation.toLowerCase()
+          );
+          if (!svExists) {
+            existingKw.searchVariants.push(sv);
+          }
+        }
+      }
     }
   }
   const dedupedKeywords = Array.from(uniqueKwMap.values());

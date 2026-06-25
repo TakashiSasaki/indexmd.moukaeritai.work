@@ -81,7 +81,7 @@ function getValidV12Base(): any {
       keywords: [
         {
           value: "testing",
-          source: "surface",
+          source: "body",
           confidence: 0.95,
           importance: 0.9,
           language: "en",
@@ -90,7 +90,7 @@ function getValidV12Base(): any {
           searchVariants: [
             {
               value: "test",
-              kind: "stem",
+              relation: "stem",
               language: "en",
               script: "Latn",
               confidence: 0.99
@@ -99,7 +99,7 @@ function getValidV12Base(): any {
         },
         {
           value: "validation",
-          source: "surface",
+          source: "heading",
           confidence: 0.95,
           importance: 0.85,
           searchVariants: []
@@ -322,3 +322,72 @@ test("v1.2: normalizer detects and redacts security sensitive credentials", () =
   assert.strictEqual(norm.extractedFacts.temporalReferences[0].raw, "[REDACTED_SECURITY_SENSITIVE_STRING]");
   assert.strictEqual(norm.extractedFacts.monetaryAmounts[0].raw, "[REDACTED_SECURITY_SENSITIVE_STRING]");
 });
+
+// v1.2.0-draft.2 specific validation and normalization tests
+test("v1.2: validation explicitly rejects objects containing indexing.topics", () => {
+  const obj = getValidV12Base();
+  obj.indexing.topics = ["some", "deprecated", "topics"];
+  assert.ok(!validateSummaryAnalysisV12(obj));
+  const errors = getSummaryAnalysisV12ValidationErrors(obj);
+  assert.ok(errors.some((e) => e.includes("indexing.topics is deprecated")));
+});
+
+test("v1.2: validation explicitly rejects string items in indexing.keywords", () => {
+  const obj = getValidV12Base();
+  obj.indexing.keywords = ["just-a-string-keyword"];
+  assert.ok(!validateSummaryAnalysisV12(obj));
+  const errors = getSummaryAnalysisV12ValidationErrors(obj);
+  assert.ok(errors.some((e) => e.includes("Keyword term must be an object")));
+});
+
+test("v1.2: validation rejects invalid keyword sources like legacy surface or inferred", () => {
+  const obj = getValidV12Base();
+  obj.indexing.keywords[0].source = "surface"; // Deprecated/invalid in validation
+  assert.ok(!validateSummaryAnalysisV12(obj));
+  const errors = getSummaryAnalysisV12ValidationErrors(obj);
+  assert.ok(errors.some((e) => e.includes("Invalid keyword source")));
+});
+
+test("v1.2: normalizer maps legacy keyword sources to valid draft.2 provenance sources", () => {
+  const obj = getValidV12Base();
+  // We put legacy sources
+  obj.indexing.keywords[0].source = "surface";
+  obj.indexing.keywords[1].source = "inferred";
+
+  const norm = normalizeSummaryAnalysisV12(obj);
+  assert.strictEqual(norm.indexing.keywords[0].source, "body");
+  assert.strictEqual(norm.indexing.keywords[1].source, "other");
+});
+
+test("v1.2: normalizer performs stable deduplication by composite key and merges search variants", () => {
+  const obj = getValidV12Base();
+  // Add duplicate keyword entries with different casing or same composite key but different search variants
+  obj.indexing.keywords = [
+    {
+      value: "API",
+      source: "heading",
+      confidence: 0.9,
+      language: "en",
+      script: "Latn",
+      searchVariants: [{ value: "application programming interface", relation: "synonym", confidence: 0.9 }]
+    },
+    {
+      value: "api",
+      source: "body",
+      confidence: 0.8,
+      language: "en",
+      script: "Latn",
+      searchVariants: [{ value: "REST API", relation: "synonym", confidence: 0.85 }]
+    }
+  ];
+
+  const norm = normalizeSummaryAnalysisV12(obj);
+  // Should stably keep the first, but merge searchVariants
+  assert.strictEqual(norm.indexing.keywords.length, 1);
+  assert.strictEqual(norm.indexing.keywords[0].value, "API");
+  assert.strictEqual(norm.indexing.keywords[0].source, "heading"); // preserves first's properties
+  assert.strictEqual(norm.indexing.keywords[0].searchVariants.length, 2);
+  assert.strictEqual(norm.indexing.keywords[0].searchVariants[0].value, "application programming interface");
+  assert.strictEqual(norm.indexing.keywords[0].searchVariants[1].value, "REST API");
+});
+

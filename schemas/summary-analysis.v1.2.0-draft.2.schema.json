@@ -125,7 +125,7 @@
                     "label": { "type": "string" },
                     "kind": { "type": "string", "description": "Subject label kind category (e.g. field, topic, method)." },
                     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-                    "language": { "type": "string", "description": "Optional BCP 47 language tag." },
+                    "language": { "type": ["string", "null"], "description": "Optional BCP 47 language tag." },
                     "script": { "type": "string", "description": "Optional ISO 15924 script code." },
                     "source": { "type": "string", "enum": ["surface", "inferred", "controlledVocabulary"], "description": "The extraction source/method for this label." },
                     "reason": { "type": "string", "description": "Linguistic or contextual reasoning for the label." },
@@ -161,6 +161,7 @@
     "indexing": {
       "type": "object",
       "description": "Metadata specifically extracted to facilitate indexing, categorization, and search.",
+      "additionalProperties": false,
       "properties": {
         "keywords": {
           "type": "array",
@@ -174,7 +175,7 @@
                 "description": "The exact keyword string."
               },
               "language": {
-                "type": "string",
+                "type": ["string", "null"],
                 "description": "Optional BCP 47 language tag (e.g., 'ja', 'en')."
               },
               "script": {
@@ -183,7 +184,7 @@
               },
               "source": {
                 "type": "string",
-                "enum": ["surface", "inferred", "controlledVocabulary"],
+                "enum": ["body", "heading", "title", "filename", "embeddedMetadata", "authorProvided", "identifier", "other", "unknown"],
                 "description": "The extraction source/method for this keyword."
               },
               "confidence": {
@@ -212,12 +213,12 @@
                       "type": "string",
                       "minLength": 1
                     },
-                    "kind": {
+                    "relation": {
                       "type": "string",
                       "enum": ["synonym", "acronym", "translation", "transliteration", "stem", "misspelling"]
                     },
                     "language": {
-                      "type": "string"
+                      "type": ["string", "null"]
                     },
                     "script": {
                       "type": "string"
@@ -228,11 +229,11 @@
                       "maximum": 1
                     }
                   },
-                  "required": ["value", "kind", "confidence"]
+                  "required": ["value", "relation", "confidence"]
                 }
               }
             },
-            "required": ["value", "source", "confidence", "importance", "searchVariants"]
+            "required": ["value", "source", "confidence"]
           }
         },
         "namedEntities": {
