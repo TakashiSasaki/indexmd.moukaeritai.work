@@ -6,6 +6,7 @@ import {
   isPersistableStructuredSummary,
   sanitizeSummaryMetadataForFirestore,
   getSummaryMetadataStatus,
+  getSummaryMetadataStatusReasons,
 } from "./summaryMetadata";
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from "./summaryAnalysisSchema";
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from "./promptSpecs";
@@ -159,6 +160,31 @@ describe("summaryMetadata", () => {
       promptVersion: "1.1.0-draft.2",
       systemInstructionVersion: "1.1.0-draft.2",
       modifiedTime: "2026-06-24T12:00:00Z",
+      model: "gemini-2.5-pro",
+      outputMode: "structured" as const,
+      summary: "This is a summary text.",
+      structured: {
+        oneLineSummary: "This is a one-line summary.",
+        detailedSummary: "This is a detailed summary.",
+        title: "Title",
+        inferredTitle: "Title",
+        documentTypes: ["note"],
+        documentIntent: "inform",
+        topics: ["test"],
+        keywords: ["doc"],
+        namedEntities: [],
+        resourceReferences: [],
+        primaryLanguage: "Japanese",
+        languages: ["Japanese"],
+        temporalReferences: [],
+        parties: [],
+        monetaryAmounts: [],
+        subjectAreas: { computerScience: ["ai"] },
+        confidence: 0.95,
+        warnings: [],
+      },
+      generatedAt: "2026-06-24T12:00:00Z",
+      source: "ai-summary-test" as const,
     };
 
     test("returns missing if savedMetadata is null or undefined", () => {
@@ -171,7 +197,7 @@ describe("summaryMetadata", () => {
       assert.strictEqual(status, "missing");
     });
 
-    test("returns invalid if fileId is empty or parsing failed", () => {
+    test("returns invalid if fileId is empty or parsing failed or required fields are missing", () => {
       const status1 = getSummaryMetadataStatus({
         savedMetadata: { ...baseSaved, fileId: "" },
         currentSchemaVersion: "1.1.0-draft.1",
@@ -195,6 +221,18 @@ describe("summaryMetadata", () => {
         currentSystemInstructionVersion: "1.1.0-draft.2",
       });
       assert.strictEqual(status3, "invalid");
+
+      // Test missing required fields
+      const status4 = getSummaryMetadataStatus({
+        savedMetadata: { 
+          fileId: "file-123"
+          // schemaVersion, model, outputMode, promptVersion, etc. are missing
+        },
+        currentSchemaVersion: "1.1.0-draft.1",
+        currentPromptVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.1.0-draft.2",
+      });
+      assert.strictEqual(status4, "invalid");
     });
 
     test("returns stale-schema on schema mismatch", () => {
@@ -245,6 +283,47 @@ describe("summaryMetadata", () => {
         currentFileModifiedTime: "2026-06-24T12:00:00Z",
       });
       assert.strictEqual(status, "current");
+    });
+
+    describe("getSummaryMetadataStatusReasons", () => {
+      test("identifies missing data reason", () => {
+        const reasons = getSummaryMetadataStatusReasons({
+          savedMetadata: null,
+          currentSchemaVersion: "1.1.0-draft.1",
+          currentPromptVersion: "1.1.0-draft.2",
+          currentSystemInstructionVersion: "1.1.0-draft.2",
+        });
+        assert.deepStrictEqual(reasons, ["要約データが存在しません"]);
+      });
+
+      test("identifies incomplete fields reason", () => {
+        const reasons = getSummaryMetadataStatusReasons({
+          savedMetadata: { fileId: "file-123" },
+          currentSchemaVersion: "1.1.0-draft.1",
+          currentPromptVersion: "1.1.0-draft.2",
+          currentSystemInstructionVersion: "1.1.0-draft.2",
+        });
+        assert.ok(reasons[0].includes("必須フィールドが不足"));
+      });
+
+      test("identifies mismatch reasons", () => {
+        const reasons = getSummaryMetadataStatusReasons({
+          savedMetadata: {
+            ...baseSaved,
+            schemaVersion: "old-schema",
+            promptVersion: "old-prompt",
+          },
+          currentSchemaVersion: "new-schema",
+          currentPromptVersion: "new-prompt",
+          currentSystemInstructionVersion: "1.1.0-draft.2",
+          currentFileModifiedTime: "2026-06-25T00:00:00Z", // modified time mismatch
+        });
+
+        const reasonsStr = reasons.join(" | ");
+        assert.ok(reasonsStr.includes("スキーマバージョン不一致"));
+        assert.ok(reasonsStr.includes("分析プロンプトバージョン不一致"));
+        assert.ok(reasonsStr.includes("Driveファイル更新検知"));
+      });
     });
   });
 });

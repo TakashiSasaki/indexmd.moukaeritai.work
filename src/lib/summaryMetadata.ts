@@ -134,10 +134,25 @@ export function getSummaryMetadataStatus(
     return "missing";
   }
 
+  // Check required fields existence and basic types
   if (
     !savedMetadata.fileId ||
     typeof savedMetadata.fileId !== "string" ||
-    savedMetadata.fileId.trim() === ""
+    savedMetadata.fileId.trim() === "" ||
+    !savedMetadata.schemaVersion ||
+    typeof savedMetadata.schemaVersion !== "string" ||
+    !savedMetadata.promptVersion ||
+    typeof savedMetadata.promptVersion !== "string" ||
+    !savedMetadata.systemInstructionVersion ||
+    typeof savedMetadata.systemInstructionVersion !== "string" ||
+    !savedMetadata.model ||
+    typeof savedMetadata.model !== "string" ||
+    savedMetadata.outputMode !== "structured" ||
+    savedMetadata.summary === undefined ||
+    !savedMetadata.structured ||
+    typeof savedMetadata.structured !== "object" ||
+    !savedMetadata.generatedAt ||
+    !savedMetadata.source
   ) {
     return "invalid";
   }
@@ -170,5 +185,79 @@ export function getSummaryMetadataStatus(
   }
 
   return "current";
+}
+
+export function getSummaryMetadataStatusReasons(
+  input: SummaryMetadataStatusInput
+): string[] {
+  const {
+    savedMetadata,
+    currentSchemaVersion,
+    currentPromptVersion,
+    currentSystemInstructionVersion,
+    currentFileModifiedTime,
+  } = input;
+
+  if (!savedMetadata) {
+    return ["要約データが存在しません"];
+  }
+
+  const reasons: string[] = [];
+
+  // Check required fields existence and basic types
+  if (
+    !savedMetadata.fileId ||
+    typeof savedMetadata.fileId !== "string" ||
+    savedMetadata.fileId.trim() === "" ||
+    !savedMetadata.schemaVersion ||
+    typeof savedMetadata.schemaVersion !== "string" ||
+    !savedMetadata.promptVersion ||
+    typeof savedMetadata.promptVersion !== "string" ||
+    !savedMetadata.systemInstructionVersion ||
+    typeof savedMetadata.systemInstructionVersion !== "string" ||
+    !savedMetadata.model ||
+    typeof savedMetadata.model !== "string" ||
+    savedMetadata.outputMode !== "structured" ||
+    savedMetadata.summary === undefined ||
+    !savedMetadata.structured ||
+    typeof savedMetadata.structured !== "object" ||
+    !savedMetadata.generatedAt ||
+    !savedMetadata.source
+  ) {
+    reasons.push("必須フィールドが不足しているか、無効なデータ形式です。");
+    return reasons; // Return early because other checks might crash if fields are missing
+  }
+
+  // Check validation status
+  if (!savedMetadata.parseSuccess) {
+    reasons.push("JSON構造のパース処理に失敗しています。");
+  }
+  if (!savedMetadata.validationSuccess) {
+    reasons.push("スキーマのバリデーションに失敗しています。");
+  }
+
+  // Schema version mismatch
+  if (savedMetadata.schemaVersion !== currentSchemaVersion) {
+    reasons.push(`スキーマバージョン不一致 (保存: ${savedMetadata.schemaVersion} / 現在: ${currentSchemaVersion})`);
+  }
+
+  // Prompt or system instruction mismatch
+  if (savedMetadata.promptVersion !== currentPromptVersion) {
+    reasons.push(`分析プロンプトバージョン不一致 (保存: ${savedMetadata.promptVersion} / 現在: ${currentPromptVersion})`);
+  }
+  if (savedMetadata.systemInstructionVersion !== currentSystemInstructionVersion) {
+    reasons.push(`システム指示バージョン不一致 (保存: ${savedMetadata.systemInstructionVersion} / 現在: ${currentSystemInstructionVersion})`);
+  }
+
+  // File modifiedTime mismatch
+  if (
+    currentFileModifiedTime &&
+    savedMetadata.modifiedTime &&
+    savedMetadata.modifiedTime !== currentFileModifiedTime
+  ) {
+    reasons.push(`Driveファイル更新検知 (保存された更新日時: ${new Date(savedMetadata.modifiedTime).toLocaleString()} / 最新の更新日時: ${new Date(currentFileModifiedTime).toLocaleString()})`);
+  }
+
+  return reasons;
 }
 
