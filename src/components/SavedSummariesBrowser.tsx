@@ -7,6 +7,7 @@ import { db, collection, getDocs, query, limit } from '../lib/firebase';
 import { getSummaryMetadataStatus, getSummaryMetadataStatusReasons } from '../lib/summaryMetadata';
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from '../lib/summaryAnalysisSchema';
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from '../lib/promptSpecs';
+import { getStructuredSummaryDisplaySummary, isSummaryAnalysisV12Draft2 } from '../lib/summaryAnalysis/versioned';
 import { 
   sortSavedSummariesByGeneratedAt, 
   filterSavedSummaries, 
@@ -284,7 +285,7 @@ These notes must also be completely preserved intact!`);
   };
 
   const handleCopyOneLineSummary = async (item: any) => {
-    const text = item.structured?.oneLineSummary || item.summary || '';
+    const text = getStructuredSummaryDisplaySummary(item.structured, item.schemaVersion) || item.summary || '';
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -504,7 +505,7 @@ These notes must also be completely preserved intact!`);
                                     )}
                                   </span>
                                   <span className="text-xs text-slate-600 leading-relaxed block mt-0.5">
-                                    {file.structured?.oneLineSummary || file.summary}
+                                    {getStructuredSummaryDisplaySummary(file.structured, file.schemaVersion) || file.summary}
                                   </span>
                                 </li>
                               );
@@ -1121,61 +1122,83 @@ These notes must also be completely preserved intact!`);
               <div className="pt-4 space-y-3 text-[11px]">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono block">要約・抽出構造化データ</span>
 
-                <div>
-                  <span className="text-slate-400 block font-bold">1行要約 (oneLineSummary)</span>
-                  <p className="bg-slate-50 border border-slate-100 p-2 rounded text-slate-800 leading-relaxed mt-0.5">
-                    {selectedSummary.structured?.oneLineSummary || selectedSummary.summary || "情報なし"}
-                  </p>
-                </div>
+                {(() => {
+                  const s = selectedSummary.structured;
+                  const isV12 = isSummaryAnalysisV12Draft2(s) || selectedSummary.schemaVersion?.includes("1.2.0");
+                  const oneLine = isV12 ? s?.summary?.oneLine : s?.oneLineSummary;
+                  const docKinds = isV12 ? s?.documentKindInfo?.kinds?.map((k: any) => k.kind) : s?.documentTypes;
+                  const intent = isV12 ? null : s?.documentIntent;
+                  const primaryLang = isV12 ? s?.languageInfo?.primary : s?.primaryLanguage;
+                  
+                  let subAreaStr = "";
+                  if (isV12) {
+                    subAreaStr = (s?.subjectAreas?.domains || [])
+                      .map((d: any) => `${d.domain}: ${(d.labels || []).map((l: any) => l.label).join(", ")}`)
+                      .join("\n");
+                  } else {
+                    subAreaStr = summarizeSubjectAreas(s?.subjectAreas);
+                  }
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-slate-400 block font-bold">ドキュメント分類 (documentTypes)</span>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {selectedSummary.structured?.documentTypes && selectedSummary.structured.documentTypes.length > 0 ? (
-                        selectedSummary.structured.documentTypes.map((t: string) => (
-                          <span key={t} className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono text-[10px] border border-slate-200">
-                            {t}
+                  return (
+                    <>
+                      <div>
+                        <span className="text-slate-400 block font-bold">1行要約 (oneLineSummary)</span>
+                        <p className="bg-slate-50 border border-slate-100 p-2 rounded text-slate-800 leading-relaxed mt-0.5 font-sans text-xs">
+                          {oneLine || selectedSummary.summary || "情報なし"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-slate-400 block font-bold">ドキュメント分類</span>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {docKinds && docKinds.length > 0 ? (
+                              docKinds.map((t: string) => (
+                                <span key={t} className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono text-[10px] border border-slate-200">
+                                  {t}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400 italic">不明/指定なし</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-slate-400 block font-bold font-sans">作成者の意図</span>
+                          <span className="text-slate-800 font-semibold block mt-0.5">{intent || "N/A (V1.2)"}</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-bold">主要言語</span>
+                        <span className="text-slate-800 font-semibold block mt-0.5">{primaryLang || "不明"}</span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-bold">関連分野の概要 (subjectAreas)</span>
+                        <p className="font-mono text-[10px] bg-indigo-50/50 border border-indigo-100/50 p-2 rounded text-indigo-950 block mt-0.5 leading-relaxed whitespace-pre-wrap">
+                          {subAreaStr || "情報なし"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-[10px] text-slate-500 font-mono">
+                        <div>
+                          <span>⚠️ 警告の数 (warnings)</span>
+                          <span className="font-bold text-slate-800 ml-1.5">
+                            {(isV12 ? s?.quality?.warnings?.length : s?.warnings?.length) || 0} 件
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-400 italic">不明/指定なし</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-400 block font-bold font-sans">作成者の意図 (documentIntent)</span>
-                    <span className="text-slate-800 font-semibold block mt-0.5">{selectedSummary.structured?.documentIntent || "不明"}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-slate-400 block font-bold">主要言語 (primaryLanguage)</span>
-                  <span className="text-slate-800 font-semibold block mt-0.5">{selectedSummary.structured?.primaryLanguage || "不明"}</span>
-                </div>
-
-                <div>
-                  <span className="text-slate-400 block font-bold">関連分野の概要 (subjectAreas)</span>
-                  <p className="font-mono text-[10px] bg-indigo-50/50 border border-indigo-100/50 p-2 rounded text-indigo-950 block mt-0.5 leading-relaxed">
-                    {summarizeSubjectAreas(selectedSummary.structured?.subjectAreas)}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-[10px] text-slate-500 font-mono">
-                  <div>
-                    <span>⚠️ 警告の数 (warnings)</span>
-                    <span className="font-bold text-slate-800 ml-1.5">
-                      {selectedSummary.structured?.warnings?.length || 0} 件
-                    </span>
-                  </div>
-                  <div>
-                    <span>🔗 外部参照数 (resourceReferences)</span>
-                    <span className="font-bold text-slate-800 ml-1.5">
-                      {selectedSummary.structured?.resourceReferences?.length || 0} 件
-                    </span>
-                  </div>
-                </div>
+                        </div>
+                        <div>
+                          <span>🔗 外部参照数 (resourceReferences)</span>
+                          <span className="font-bold text-slate-800 ml-1.5">
+                            {(isV12 ? s?.indexing?.resourceReferences?.length : s?.resourceReferences?.length) || 0} 件
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

@@ -7,9 +7,10 @@ import MODELS_INFO from '../data/models_info.json';
 // @ts-ignore - TS test runner fails on ?raw imports, but vite handles it correctly in prod
  import { SUMMARY_FIXTURES } from '../lib/__fixtures__/summary-schema';
 import { db, doc, getDoc, setDoc, auth, handleFirestoreError, OperationType, collection, getDocs, query, orderBy, limit } from '../lib/firebase';
-import { buildFileSummaryMetadata, sanitizeSummaryMetadataForFirestore, getFileSummaryDocPath, isPersistableStructuredSummary, getSummaryMetadataStatus } from '../lib/summaryMetadata';
+import { buildFileSummaryMetadata, sanitizeSummaryMetadataForFirestore, getFileSummaryDocPath, isPersistableStructuredSummary, getSummaryMetadataStatus, shouldSkipFirestoreSummaryWrite } from '../lib/summaryMetadata';
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from '../lib/summaryAnalysisSchema';
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from '../lib/promptSpecs';
+import { isSummaryAnalysisV12Draft2, SCHEMA_VERSION_V12 } from '../lib/summaryAnalysis/versioned';
 import { canGenerateSummary } from '../lib/summaryDebuggerUtils';
 
 interface SummaryDebuggerProps {
@@ -24,6 +25,272 @@ const SELECTED_FILE_ID_KEY = 'gemini_selected_file_id';
 const SELECTED_MODEL_KEY = 'gemini_selected_model';
 
 const MODELS = MODELS_INFO as ModelInfo[];
+
+const RenderStructuredSummary: React.FC<{ structured: any; rawText?: string; isV12: boolean }> = ({ structured, rawText, isV12 }) => {
+  const oneLine = isV12 ? structured.summary?.oneLine : structured.oneLineSummary;
+  const detailed = isV12 ? structured.summary?.detailed : structured.detailedSummary;
+  
+  const displayTitle = isV12 ? structured.titleInfo?.displayTitle?.value : structured.title;
+  const displayTitleSource = isV12 ? structured.titleInfo?.displayTitle?.source : null;
+  const displayTitleReason = isV12 ? structured.titleInfo?.displayTitle?.reason : null;
+  
+  const inferredTitle = isV12 ? structured.titleInfo?.inferredTitle : structured.inferredTitle;
+  
+  const docKindText = isV12 
+    ? structured.documentKindInfo?.kinds?.map((k: any) => `${k.kind} (${Math.round(k.confidence * 100)}%)`).join(", ") 
+    : structured.documentTypes?.join(", ");
+  const intentText = isV12 ? null : structured.documentIntent;
+  const primaryLang = isV12 ? structured.languageInfo?.primary : structured.primaryLanguage;
+  const languagesList = isV12 ? structured.languageInfo?.detected?.join(", ") : structured.languages?.join(", ");
+  const confidence = isV12 ? structured.quality?.confidence : structured.confidence;
+  
+  const topics = isV12 
+    ? (structured.subjectAreas?.domains || [])
+        .flatMap((d: any) => (d.labels || []))
+        .filter((l: any) => l.kind === "topic")
+        .map((l: any) => l.label)
+    : structured.topics || [];
+  const keywords = isV12 
+    ? (structured.indexing?.keywords || []).map((k: any) => `${k.value} (${k.source})`)
+    : structured.keywords || [];
+    
+  const saDomains = isV12 
+    ? (structured.subjectAreas?.domains || []).map((d: any) => ({
+        domain: d.domain,
+        confidence: d.confidence,
+        labels: (d.labels || []).map((l: any) => l.label).join(", ")
+      }))
+    : Object.keys(structured.subjectAreas || {}).map((key) => ({
+        domain: key,
+        confidence: null,
+        labels: structured.subjectAreas[key].join(", ")
+      }));
+
+  const nEntities = isV12 ? structured.indexing?.namedEntities : structured.namedEntities;
+  const rReferences = isV12 ? structured.indexing?.resourceReferences : null;
+  const tempRefs = isV12 ? structured.extractedFacts?.temporalReferences : null;
+  const parties = isV12 ? structured.extractedFacts?.parties : structured.parties;
+  const mAmounts = isV12 ? structured.extractedFacts?.monetaryAmounts : null;
+  const warnings = isV12 ? structured.quality?.warnings : structured.warnings || [];
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+             <FileText className="w-4 h-4 text-emerald-400" />
+             index.md候補 (1行要約) - <span className="text-[10px] text-blue-400 font-mono">{isV12 ? SCHEMA_VERSION_V12 : "v1.1.0-draft.1"}</span>
+          </h4>
+          <button
+            onClick={() => navigator.clipboard.writeText(oneLine || "")}
+            className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
+          >
+            コピー
+          </button>
+        </div>
+        <div className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50">
+          <p className="whitespace-pre-wrap text-emerald-50 leading-relaxed text-sm font-bold">
+            {oneLine || "要約がありません"}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+           詳細な要約
+        </h4>
+        <div className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50">
+          <p className="whitespace-pre-wrap text-slate-200 leading-relaxed text-sm">
+            {detailed || "詳細がありません"}
+          </p>
+        </div>
+      </div>
+
+      {displayTitle && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            表示タイトル {displayTitleSource && <span className="text-[10px] text-slate-500 font-mono">({displayTitleSource})</span>}
+          </h4>
+          <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-sm text-white">
+            {displayTitle}
+            {displayTitleReason && <div className="text-[10px] text-slate-400 mt-1">選定理由: {displayTitleReason}</div>}
+            {inferredTitle && <span className="ml-2 text-xs text-slate-400">(推論: {inferredTitle})</span>}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">分類情報</h4>
+          <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs text-slate-300 grid grid-cols-2 gap-2">
+            <div>種類: <span className="text-white font-medium">{docKindText || "-"}</span></div>
+            {intentText && <div>意図: <span className="text-white font-medium">{intentText}</span></div>}
+            <div>主言語: <span className="text-white font-medium">{primaryLang || "-"}</span></div>
+            <div>言語リスト: <span className="text-white font-medium">{languagesList || "-"}</span></div>
+            <div className="col-span-2">信頼度: <span className="text-white font-medium">{confidence ? (confidence * 100).toFixed(1) : "-"}%</span></div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">トピック & キーワード</h4>
+          <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50">
+            <div className="mb-2">
+              <div className="text-[10px] text-slate-500 mb-1">トピック (分類ラベル):</div>
+              <div className="flex flex-wrap gap-1">
+                {topics?.length > 0 ? topics.map((t: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-indigo-900/50 border border-indigo-700/50 text-indigo-300 rounded text-[10px]">{t}</span>
+                )) : <span className="text-xs text-slate-500">なし</span>}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 mb-1">キーワード:</div>
+              <div className="flex flex-wrap gap-1">
+                {keywords?.length > 0 ? keywords.map((kw: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-slate-700/50 border border-slate-600/50 text-slate-300 rounded text-[10px]">{kw}</span>
+                )) : <span className="text-xs text-slate-500">なし</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">ドメイン分類 (Subject Areas)</h4>
+        <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+          {saDomains && saDomains.length > 0 ? (
+            saDomains.map((d: any, idx: number) => (
+              <div key={idx} className="mb-1 flex items-start">
+                <span className="text-slate-400 w-32 shrink-0">{d.domain}{d.confidence !== null && ` (${Math.round(d.confidence * 100)}%)`}:</span>
+                <span className="text-white">{d.labels || "該当なし"}</span>
+              </div>
+            ))
+          ) : (
+            <span className="text-slate-500">該当なし</span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">固有表現</h4>
+          <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+            {nEntities?.length > 0 ? (
+              <ul className="space-y-1">
+                {nEntities.map((ne: any, i: number) => (
+                  <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{ne.type}:</span> <span className="text-slate-200">{ne.name}</span></li>
+                ))}
+              </ul>
+            ) : (
+              <span className="text-slate-500">なし</span>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">関係者 (Parties)</h4>
+          <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+            {parties?.length > 0 ? (
+              <ul className="space-y-1">
+                {parties.map((pt: any, i: number) => (
+                  <li key={i} className="flex">
+                    <span className="text-slate-500 w-20 shrink-0">{pt.role}:</span> 
+                    <span className="text-slate-200">
+                      {pt.name} {pt.kind && <span className="text-[10px] text-slate-500">({pt.kind})</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="text-slate-500">なし</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {(tempRefs?.length > 0 || mAmounts?.length > 0 || rReferences?.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {tempRefs && tempRefs.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">時間参照 (V1.2)</h4>
+              <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                <ul className="space-y-1">
+                  {tempRefs.map((tr: any, i: number) => (
+                    <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{tr.role}:</span> <span className="text-slate-200">{tr.date || "-"} <span className="text-[10px] text-slate-500">({tr.raw})</span></span></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {mAmounts && mAmounts.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">金額 (V1.2)</h4>
+              <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                <ul className="space-y-1">
+                  {mAmounts.map((ma: any, i: number) => (
+                    <li key={i} className="flex"><span className="text-slate-500 w-24 shrink-0">{ma.role}:</span> <span className="text-slate-200">{ma.amount} {ma.currency} <span className="text-[10px] text-slate-500">({ma.raw})</span></span></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {rReferences && rReferences.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">リソース参照 (V1.2)</h4>
+              <div className="bg-slate-800/50 rounded-md p-3 border border-slate-700/50 text-xs">
+                <ul className="list-disc pl-5 text-blue-400 space-y-1">
+                  {rReferences.map((rr: any, i: number) => (
+                    <li key={i}>
+                      <a href={rr.uri} target="_blank" rel="noreferrer" className="hover:underline break-all">{rr.uri}</a>
+                      {rr.raw && rr.raw !== rr.uri && <span className="text-slate-500 ml-2">({rr.raw})</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {warnings?.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold text-amber-500 uppercase tracking-wider">警告</h4>
+          <ul className="list-disc pl-5 text-xs text-amber-200 space-y-1 bg-amber-950/30 rounded-md p-3 border border-amber-900/50">
+            {warnings.map((w: string, i: number) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+            Raw JSON
+          </h4>
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigator.clipboard.writeText(rawText || "")}
+              className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
+            >
+              生テキスト(Raw)コピー
+            </button>
+            <button
+              onClick={() => navigator.clipboard.writeText(JSON.stringify(structured, null, 2))}
+              className="px-2 py-1 text-[9px] text-slate-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-slate-700 rounded bg-slate-800"
+            >
+              JSONコピー
+            </button>
+          </div>
+        </div>
+        <pre className="bg-black/50 p-3 rounded-md border border-slate-800 text-[10px] text-emerald-300 font-mono overflow-x-auto">
+          {JSON.stringify(structured, null, 2)}
+        </pre>
+      </div>
+    </div>
+  );
+};
 
 export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry, userId, setActiveTab }) => {
   const [inputMode, setInputMode] = useState<"drive" | "manual">("drive");
@@ -164,10 +431,20 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessi
         parseSuccess: result.success && !result.structuredParseFailed,
         validationSuccess: result.success && !result.structuredParseFailed && !result.error,
         source: "ai-summary-test",
+        schemaVersion: result.schemaVersion,
+        promptVersion: result.schemaVersion === "1.2.0-draft.2" ? "1.2.0-draft.2" : undefined,
+        systemInstructionVersion: result.schemaVersion === "1.2.0-draft.2" ? "1.2.0-draft.2" : undefined,
       });
 
       if (!isPersistableStructuredSummary(metadataRaw)) {
         setSaveStatus({ type: 'error', message: 'この要約は保存可能な要約メタデータの条件（パース成功、バリデーション成功など）を満たしていません。' });
+        return;
+      }
+
+      if (savedMetadata && shouldSkipFirestoreSummaryWrite(savedMetadata, metadataRaw)) {
+        setSaveStatus({ type: 'success', message: '内容に変更がないため、Firestoreへの書き込みをスキップしました（スキップ最適化）。' });
+        setFirestorePersisted("persisted");
+        setSavingToFirestore(false);
         return;
       }
 
@@ -1508,6 +1785,8 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
 
             
             {result.outputMode === "structured" && result.structured ? (
+              <RenderStructuredSummary structured={result.structured} rawText={result.rawText} isV12={isSummaryAnalysisV12Draft2(result.structured)} />
+            ) : false && result.structured ? (
               <div className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
