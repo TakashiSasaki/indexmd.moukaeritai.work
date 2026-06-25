@@ -1,6 +1,6 @@
 # Summary Analysis Schema v1.2.0 - Design Rationale
 
-This document describes the key architectural decisions and engineering rationales behind the Summary Analysis Schema v1.2.0-draft.1 design.
+This document describes the key architectural decisions and engineering rationales behind the Summary Analysis Schema v1.2.0-draft.2 design.
 
 ---
 
@@ -30,12 +30,14 @@ MIME type formats (PDF, DOCX, MD) are purely physical representations, whereas d
 Standard library classification systems like Universal Decimal Classification (UDC), Dewey Decimal Classification (DDC), or Library of Congress Classification (LCC) are far too rigid and formal for personal, business, or mixed technical files.
 * **Rationale**: v1.2 introduces a hybrid approach:
   * Controlled high-level domains (e.g., `computerScience`, `medicine`, `finance`) categorizing broad subject pillars.
-  * Open-vocabulary, AI-generated labels (e.g., `React hooks`, `Orthopedics`, `MRI scan`) nested under domain nodes to capture high-fidelity specifics.
+  * Open-vocabulary, AI-generated labels (e.g., `React hooks`, `Orthopedics`, `MRI scan`) nested under domain nodes to capture high-fidelity specifics. This represents the primary locus of *inferred semantic aboutness* in the schema.
   * If no domain matches, the controlled domain can be set to `other`, requiring at least one concrete open-vocabulary label to justify the classification.
 
-### 6. Topics vs. Keywords
-* **Topics**: Represent coarse, abstract, conceptual classifications answering “What is this document about?” (e.g., `cloud-consulting`).
-* **Keywords**: Represent high-fidelity, precise search tags or terms retrieved directly or normalized from the content, answering “What specific terms will help searchers find this document again?” (e.g., `INV-2026-904`).
+### 6. Linguistic Keywords (No Topics Duplication)
+In draft.2, we completed a crucial semantic cleanup:
+* **Removal of `topics`**: `indexing.topics` was removed entirely to eliminate semantic duplication. Any inferred topical aboutness belongs inside `subjectAreas.domains[].labels[]` with `kind = "topic"`.
+* **Provenance-Oriented Keywords**: Keywords inside `indexing.keywords` represent fine-grained, high-fidelity terms derived directly from the document. To reflect this, keywords now carry a provenance-oriented source (`body`, `heading`, `title`, `filename`, `embeddedMetadata`, `authorProvided`, `identifier`, `other`, `unknown`) rather than semantic extraction categories like `surface` or `inferred`. This cleanly separates literal terms from cognitive inferences.
+* **Search Variants (Relation)**: Search variants represent linguistic transformations. We renamed their classification from `kind` to `relation` (`synonym`, `acronym`, `translation`, `transliteration`, `stem`, `misspelling`) to avoid semantic confusion with document or label kinds.
 
 ### 7. Extracted Facts: Role Categories + Open Roles
 We replace rigid role enums with a hierarchical Category + Open Role design:

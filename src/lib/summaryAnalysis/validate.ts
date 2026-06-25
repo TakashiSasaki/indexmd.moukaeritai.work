@@ -6,6 +6,7 @@ import {
   SUBJECT_DOMAINS,
   SUBJECT_DOMAIN_VOCABULARY_VERSION,
   SUBJECT_LABEL_KINDS,
+  KEYWORD_SOURCES,
   TEMPORAL_ROLE_CATEGORIES,
   PARTY_KINDS,
   PARTY_ROLE_CATEGORIES,
@@ -251,10 +252,18 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
 
   // 8. Indexing Validation
   if (value.indexing && typeof value.indexing === "object") {
+    if ("topics" in value.indexing) {
+      errors.push("indexing.topics is deprecated and no longer supported");
+    }
+
     const { keywords, resourceReferences } = value.indexing;
 
     if (Array.isArray(keywords)) {
       for (const kw of keywords) {
+        if (typeof kw === "string") {
+          errors.push("Keyword term must be an object, string not allowed");
+          continue;
+        }
         if (!kw || typeof kw !== "object") {
           errors.push("Keyword term must be an object");
           continue;
@@ -265,7 +274,7 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
           errors.push("Keyword value must be a non-empty string");
         }
 
-        if (typeof source !== "string" || !["surface", "inferred", "controlledVocabulary"].includes(source)) {
+        if (typeof source !== "string" || !KEYWORD_SOURCES.includes(source)) {
           errors.push(`Invalid keyword source: "${source}"`);
         }
 
@@ -273,12 +282,14 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
           errors.push(`Keyword confidence must be between 0 and 1, got ${confidence}`);
         }
 
-        if (typeof importance !== "number" || !Number.isFinite(importance) || importance < 0 || importance > 1) {
-          errors.push(`Keyword importance must be between 0 and 1, got ${importance}`);
+        if (importance !== undefined) {
+          if (typeof importance !== "number" || !Number.isFinite(importance) || importance < 0 || importance > 1) {
+            errors.push(`Keyword importance must be between 0 and 1, got ${importance}`);
+          }
         }
 
-        if (language !== undefined && typeof language !== "string") {
-          errors.push("Keyword language must be a string");
+        if (language !== undefined && language !== null && typeof language !== "string") {
+          errors.push("Keyword language must be a string or null");
         }
 
         if (script !== undefined && typeof script !== "string") {
@@ -289,36 +300,38 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
           errors.push("Keyword normalizedValue must be a string");
         }
 
-        if (Array.isArray(searchVariants)) {
-          for (const sv of searchVariants) {
-            if (!sv || typeof sv !== "object") {
-              errors.push("Search variant must be an object");
-              continue;
-            }
-            const { value: svVal, kind, confidence: svConfidence, language: svLang, script: svScript } = sv;
+        if (searchVariants !== undefined) {
+          if (Array.isArray(searchVariants)) {
+            for (const sv of searchVariants) {
+              if (!sv || typeof sv !== "object") {
+                errors.push("Search variant must be an object");
+                continue;
+              }
+              const { value: svVal, relation, confidence: svConfidence, language: svLang, script: svScript } = sv;
 
-            if (typeof svVal !== "string" || svVal.trim() === "") {
-              errors.push("Search variant value must be a non-empty string");
-            }
+              if (typeof svVal !== "string" || svVal.trim() === "") {
+                errors.push("Search variant value must be a non-empty string");
+              }
 
-            if (typeof kind !== "string" || !["synonym", "acronym", "translation", "transliteration", "stem", "misspelling"].includes(kind)) {
-              errors.push(`Invalid search variant kind: "${kind}"`);
-            }
+              if (typeof relation !== "string" || !["synonym", "acronym", "translation", "transliteration", "stem", "misspelling"].includes(relation)) {
+                errors.push(`Invalid search variant relation: "${relation}"`);
+              }
 
-            if (typeof svConfidence !== "number" || !Number.isFinite(svConfidence) || svConfidence < 0 || svConfidence > 1) {
-              errors.push(`Search variant confidence must be between 0 and 1, got ${svConfidence}`);
-            }
+              if (typeof svConfidence !== "number" || !Number.isFinite(svConfidence) || svConfidence < 0 || svConfidence > 1) {
+                errors.push(`Search variant confidence must be between 0 and 1, got ${svConfidence}`);
+              }
 
-            if (svLang !== undefined && typeof svLang !== "string") {
-              errors.push("Search variant language must be a string");
-            }
+              if (svLang !== undefined && svLang !== null && typeof svLang !== "string") {
+                errors.push("Search variant language must be a string or null");
+              }
 
-            if (svScript !== undefined && typeof svScript !== "string") {
-              errors.push("Search variant script must be a string");
+              if (svScript !== undefined && typeof svScript !== "string") {
+                errors.push("Search variant script must be a string");
+              }
             }
+          } else {
+            errors.push("Keyword searchVariants must be an array");
           }
-        } else {
-          errors.push("Keyword searchVariants must be an array");
         }
       }
     } else {

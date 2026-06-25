@@ -75,21 +75,21 @@
         "value": "初期化",
         "language": "ja",
         "script": "Jpan",
-        "source": "surface",
+        "source": "body",
         "confidence": 0.95,
         "importance": 0.9,
         "normalizedValue": "初期化",
         "searchVariants": [
           {
             "value": "セットアップ",
-            "kind": "synonym",
+            "relation": "synonym",
             "language": "ja",
             "script": "Jpan",
             "confidence": 0.9
           },
           {
             "value": "initialization",
-            "kind": "translation",
+            "relation": "translation",
             "language": "en",
             "script": "Latn",
             "confidence": 0.95
@@ -100,14 +100,14 @@
         "value": "API",
         "language": "en",
         "script": "Latn",
-        "source": "surface",
+        "source": "heading",
         "confidence": 0.99,
         "importance": 0.85,
         "normalizedValue": "api",
         "searchVariants": [
           {
             "value": "Application Programming Interface",
-            "kind": "synonym",
+            "relation": "synonym",
             "language": "en",
             "script": "Latn",
             "confidence": 0.95

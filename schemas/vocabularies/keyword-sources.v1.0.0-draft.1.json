@@ -2,12 +2,14 @@
   "vocabularyId": "keyword-sources",
   "version": "1.0.0-draft.1",
   "terms": [
-    { "value": "wikipedia", "description": "Wikipedia article titles", "deprecated": false, "aliases": [] },
-    { "value": "wikidata", "description": "Wikidata items/concepts", "deprecated": false, "aliases": [] },
-    { "value": "mesh", "description": "Medical Subject Headings", "deprecated": false, "aliases": [] },
-    { "value": "loc", "description": "Library of Congress Subject Headings", "deprecated": false, "aliases": [] },
-    { "value": "rvm", "description": "Répertoire de vedettes-matière", "deprecated": false, "aliases": [] },
-    { "value": "ndl", "description": "National Diet Library Subject Headings", "deprecated": false, "aliases": [] },
-    { "value": "custom", "description": "Document-specific custom vocabulary terms", "deprecated": false, "aliases": [] }
+    { "value": "body", "description": "Extracted from the body text of the document", "deprecated": false, "aliases": [] },
+    { "value": "heading", "description": "Extracted from headings or section titles", "deprecated": false, "aliases": [] },
+    { "value": "title", "description": "Extracted from the main title of the document", "deprecated": false, "aliases": [] },
+    { "value": "filename", "description": "Derived from the file name or path", "deprecated": false, "aliases": [] },
+    { "value": "embeddedMetadata", "description": "Extracted from document metadata fields like PDF keywords", "deprecated": false, "aliases": [] },
+    { "value": "authorProvided", "description": "Explicitly provided as keywords or tags by the author inside the document text", "deprecated": false, "aliases": [] },
+    { "value": "identifier", "description": "Extracted from identifiers like product codes, SKU, or ISBN", "deprecated": false, "aliases": [] },
+    { "value": "other", "description": "Any other valid source not covered by above categories", "deprecated": false, "aliases": [] },
+    { "value": "unknown", "description": "Unspecified or unknown source of keyword term", "deprecated": false, "aliases": [] }
   ]
 }
