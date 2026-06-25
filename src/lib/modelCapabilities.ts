@@ -68,3 +68,23 @@ export function shouldUseNativeResponseSchema(modelName: string): boolean {
 export function getStructuredExecutionMode(modelName: string): StructuredExecutionMode {
   return getModelCapability(modelName).structuredExecutionMode;
 }
+
+export type VisualModelRecommendation = "recommended" | "experimental" | "unsupported";
+
+export function getVisualModelCapability(modelName: string): { recommendation: VisualModelRecommendation; providerFamily: string } {
+  const cap = getModelCapability(modelName);
+  
+  if (modelName.toLowerCase().includes("flash")) {
+    return { recommendation: "recommended", providerFamily: "gemini" };
+  }
+  
+  if (cap.providerFamily === "google-gemma") {
+    return { recommendation: "experimental", providerFamily: "gemma" };
+  }
+  
+  if (cap.providerFamily === "google-gemini") {
+    return { recommendation: "experimental", providerFamily: "gemini" };
+  }
+
+  return { recommendation: "unsupported", providerFamily: "unknown" };
+}

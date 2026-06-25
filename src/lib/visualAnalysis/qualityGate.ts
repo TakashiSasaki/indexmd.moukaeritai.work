@@ -27,47 +27,98 @@ export function evaluateVisualAnalysisQuality(
     issues.push({ code: "EXPERIMENTAL_MODEL", message: "Experimental model or prompted JSON mode used for visual analysis.", severity: "info" });
   }
 
-  if (result.visualInfo?.imageKind === "unknown") {
-    score -= 10;
-    issues.push({ code: "UNKNOWN_KIND", message: "Image kind could not be determined.", severity: "warning" });
+  const vi = result.visualInfo;
+  const elements = vi?.visibleElements || [];
+  const text = vi?.visibleText || [];
+
+  if (vi?.imageKind === "unknown") {
+    score -= 15;
+    issues.push({ code: "UNKNOWN_KIND", message: "Image kind is classified as unknown.", severity: "warning" });
   }
 
-  if (!result.visualInfo?.visibleElements || result.visualInfo.visibleElements.length === 0) {
-    score -= 20;
-    issues.push({ code: "NO_VISIBLE_ELEMENTS", message: "No visible elements detected.", severity: "warning" });
-  }
-
-  if (result.visualInfo?.imageKind === "documentPhoto" || result.visualInfo?.imageKind === "screenshot") {
-    if (!result.visualInfo.visibleText || result.visualInfo.visibleText.length === 0) {
-      score -= 20;
-      issues.push({ code: "NO_VISIBLE_TEXT_IN_DOCUMENT", message: "Document/Screenshot image contains no extracted visible text.", severity: "warning" });
-    }
-  }
-  
-  if (result.visualInfo?.imageKind === "landscapePhoto") {
-    const hasLandscapeElements = result.visualInfo?.visibleElements?.some(el => 
-      ["landscapeElement", "weatherOrSky", "waterBody", "terrain"].includes(el.category)
+  // Specific kind vs category checks
+  if (vi?.imageKind === "landscapePhoto" || vi?.imageKind === "naturalPhoto") {
+    const hasLandscape = elements.some(el => 
+      ['landscapeElement', 'weatherOrSky', 'waterBody', 'terrain', 'roadOrPath', 'plant', 'animal'].includes(el.category)
     );
-    if (!hasLandscapeElements) {
-      score -= 15;
-      issues.push({ code: "NO_LANDSCAPE_ELEMENTS", message: "Landscape photo lacks landscape elements.", severity: "warning" });
+    if (!hasLandscape) {
+      score -= 20;
+      issues.push({ code: "NO_LANDSCAPE_ELEMENTS", message: "Landscape photo lacks expected landscape/natural elements.", severity: "warning" });
     }
+  }
+
+  if (vi?.imageKind === "productPhoto" || vi?.imageKind === "packageImage") {
+    const hasProduct = elements.some(el => ['product', 'productPackage'].includes(el.category));
+    if (!hasProduct) {
+      score -= 20;
+      issues.push({ code: "NO_PRODUCT_ELEMENTS", message: "Product photo lacks product or package elements.", severity: "warning" });
+    }
+  }
+
+  if (vi?.imageKind === "screenshot") {
+    const hasUI = elements.some(el => ['screen', 'uiElement'].includes(el.category));
+    if (!hasUI) {
+      score -= 20;
+      issues.push({ code: "NO_UI_ELEMENTS", message: "Screenshot lacks UI or screen elements.", severity: "warning" });
+    }
+  }
+
+  if (vi?.imageKind === "chartOrTable" || vi?.imageKind === "diagram") {
+    const hasVisualStructure = elements.some(el => ['chart', 'table', 'symbol'].includes(el.category));
+    if (!hasVisualStructure) {
+      score -= 15;
+      issues.push({ code: "NO_STRUCTURAL_ELEMENTS", message: "Chart/Diagram lacks structural categories (chart, table, symbol).", severity: "warning" });
+    }
+  }
+
+  if (["documentPhoto", "receiptPhoto", "handwrittenNote", "whiteboardPhoto"].includes(vi?.imageKind || "")) {
+    const hasTextOrDoc = elements.some(el => ['document', 'textRegion', 'signage'].includes(el.category)) || text.length > 0;
+    if (!hasTextOrDoc) {
+      score -= 25;
+      issues.push({ code: "NO_VISIBLE_TEXT_IN_DOCUMENT", message: "Document-like photo has no visible text or text regions.", severity: "warning" });
+    }
+  }
+
+  if (elements.length > 0 && elements.every(el => el.confidence < 0.4)) {
+    score -= 10;
+    issues.push({ code: "LOW_CONFIDENCE_ELEMENTS", message: "All visible elements have low confidence.", severity: "warning" });
+  }
+
+  if (text.length > 0 && text.every(txt => txt.confidence < 0.4)) {
+    score -= 10;
+    issues.push({ code: "LOW_CONFIDENCE_TEXT", message: "All extracted text has low confidence.", severity: "warning" });
+  }
+
+  const caption = result.summary?.caption || "";
+  const description = result.summary?.description || "";
+  if (caption.trim() === "") {
+    issues.push({ code: "NO_CAPTION", message: "Missing caption.", severity: "blocking" });
+    score -= 50;
+  } else if (caption.length < 10) {
+    score -= 5;
+    issues.push({ code: "SHORT_CAPTION", message: "Caption is very short.", severity: "info" });
+  }
+
+  if (description.trim() === "") {
+    issues.push({ code: "NO_DESCRIPTION", message: "Missing description.", severity: "blocking" });
+    score -= 50;
   }
 
   if (result.quality?.confidence < 0.6) {
-    score -= (0.6 - result.quality.confidence) * 100;
-    issues.push({ code: "LOW_CONFIDENCE", message: "Low overall confidence reported by model.", severity: "warning" });
+    score -= (0.6 - result.quality.confidence) * 50;
+    issues.push({ code: "LOW_OVERALL_CONFIDENCE", message: "Low overall confidence reported by model.", severity: "warning" });
   }
-  
-  if (!result.summary?.caption || result.summary.caption.trim() === "") {
-    issues.push({ code: "NO_CAPTION", message: "Missing caption.", severity: "blocking" });
-    score -= 50;
+
+  const keywords = result.indexing?.keywords || [];
+  if (keywords.length === 0) {
+    score -= 5;
+    issues.push({ code: "MISSING_KEYWORDS", message: "No indexing keywords generated.", severity: "info" });
   }
 
   let status: VisualQualityStatus = "valid";
   if (issues.some(iss => iss.severity === "blocking")) {
     status = "invalid";
-  } else if (score < 80) {
+  } else if (score < 75) {
     status = "validLowQuality";
   }
 
