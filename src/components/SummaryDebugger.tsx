@@ -78,12 +78,26 @@ const RenderStructuredSummary: React.FC<{
   repairWarnings?: string[];
   validationErrors?: string[];
   repairFallbackUsed?: boolean;
+  qualityStatus?: string;
+  qualityIssues?: any[];
+  qualityScore?: number;
+  experimentalModel?: boolean;
+  effectiveStructuredExecutionMode?: string;
+  providerFamily?: string;
+  usedModelName?: string;
 }> = ({
   structured,
   rawText,
   repairWarnings = [],
   validationErrors = [],
   repairFallbackUsed = false,
+  qualityStatus,
+  qualityIssues = [],
+  qualityScore,
+  experimentalModel,
+  effectiveStructuredExecutionMode,
+  providerFamily,
+  usedModelName,
 }) => {
   const oneLine = structured.summary?.oneLine;
   const detailed = structured.summary?.detailed;
@@ -122,22 +136,68 @@ const RenderStructuredSummary: React.FC<{
   const mAmounts = structured.extractedFacts?.monetaryAmounts;
   const warnings = structured.quality?.warnings || [];
 
-  const hasIssues = repairWarnings.length > 0 || validationErrors.length > 0;
+  const hasIssues = repairWarnings.length > 0 || validationErrors.length > 0 || qualityIssues.length > 0;
+
+  let schemaBadge = { label: "VALID", color: "emerald" };
+  if (validationErrors.length > 0) {
+    schemaBadge = { label: "INVALID", color: "rose" };
+  }
+
+  let qualityBadge = { label: "GOOD", color: "emerald" };
+  if (qualityStatus === "validLowQuality") {
+    qualityBadge = { label: "LOW QUALITY", color: "amber" };
+  } else if (qualityStatus === "validWithRepair") {
+    qualityBadge = { label: "REPAIRED", color: "blue" };
+  } else if (qualityStatus === "invalid") {
+    qualityBadge = { label: "INVALID", color: "rose" };
+  }
+
+  const execBadgeLabel = effectiveStructuredExecutionMode === "promptedJson" ? "Prompted JSON" : "Native Schema";
+  const execBadgeColor = effectiveStructuredExecutionMode === "promptedJson" ? "amber" : "emerald";
+
+  let modelBadgeLabel = "Unknown Model";
+  let modelBadgeColor = "slate";
+  if (providerFamily === "gemini" && !experimentalModel) {
+    modelBadgeLabel = "Gemini";
+    modelBadgeColor = "emerald";
+  } else if (providerFamily === "gemma" || experimentalModel) {
+    modelBadgeLabel = providerFamily === "gemma" ? "Gemma" : "Experimental";
+    modelBadgeColor = "amber";
+  }
 
   return (
     <div className="space-y-6">
       {hasIssues && (
         <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden">
           <div className="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
-            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Activity className="w-3 h-3 text-amber-400" />
-              品質・バリデーション状況
-            </h4>
-            {validationErrors.length === 0 ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30 font-bold uppercase">
-                  Valid
+            <div className="flex flex-col gap-1">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <Activity className="w-3 h-3 text-amber-400" />
+                品質・バリデーション状況
+              </h4>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <span className={`text-[9px] px-1.5 py-0.5 bg-${schemaBadge.color}-500/20 text-${schemaBadge.color}-400 rounded border border-${schemaBadge.color}-500/30 font-bold uppercase`}>
+                  Schema: {schemaBadge.label}
                 </span>
+                {qualityStatus && (
+                  <span className={`text-[9px] px-1.5 py-0.5 bg-${qualityBadge.color}-500/20 text-${qualityBadge.color}-400 rounded border border-${qualityBadge.color}-500/30 font-bold uppercase`}>
+                    Quality: {qualityBadge.label}
+                  </span>
+                )}
+                {effectiveStructuredExecutionMode && (
+                  <span className={`text-[9px] px-1.5 py-0.5 bg-${execBadgeColor}-500/20 text-${execBadgeColor}-400 rounded border border-${execBadgeColor}-500/30 font-bold uppercase`}>
+                    Exec: {execBadgeLabel}
+                  </span>
+                )}
+                {providerFamily && (
+                  <span className={`text-[9px] px-1.5 py-0.5 bg-${modelBadgeColor}-500/20 text-${modelBadgeColor}-400 rounded border border-${modelBadgeColor}-500/30 font-bold uppercase`}>
+                    Model: {modelBadgeLabel}
+                  </span>
+                )}
+              </div>
+            </div>
+            {validationErrors.length === 0 ? (
+              <div className="flex flex-col items-end gap-1">
                 <button
                   onClick={() => navigator.clipboard.writeText(JSON.stringify(structured, null, 2))}
                   className="px-2 py-0.5 text-[9px] text-emerald-400 hover:text-white transition-colors uppercase font-bold border border-emerald-800 rounded bg-emerald-900/40"
@@ -146,10 +206,7 @@ const RenderStructuredSummary: React.FC<{
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] px-1.5 py-0.5 bg-rose-500/20 text-rose-400 rounded border border-rose-500/30 font-bold uppercase">
-                  Invalid
-                </span>
+              <div className="flex flex-col items-end gap-1">
                 <button
                   onClick={() => navigator.clipboard.writeText(rawText || "")}
                   className="px-2 py-0.5 text-[9px] text-rose-400 hover:text-white transition-colors uppercase font-bold border border-rose-800 rounded bg-rose-900/40"
@@ -160,10 +217,37 @@ const RenderStructuredSummary: React.FC<{
             )}
           </div>
           <div className="p-4 space-y-3">
+            {qualityStatus === "validLowQuality" && (
+              <div className="text-[11px] text-amber-400 font-medium flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-3 h-3" />
+                  生成結果はスキーマ要件を満たしていますが、抽出品質が低いと判定されました。
+                </div>
+                {effectiveStructuredExecutionMode === "promptedJson" && (
+                  <div className="text-slate-400 ml-5 text-[10px]">
+                    ヒント: より強力な構造化抽出には Gemini Flash モデル（Native Schemaモード）の使用を推奨します。
+                  </div>
+                )}
+              </div>
+            )}
+            
             {repairFallbackUsed && (
               <div className="text-[11px] text-blue-400 font-medium flex items-center gap-2">
                 <RefreshCw className="w-3 h-3 animate-spin" />
                 決定論的修復に失敗したため、LLMによる修復フォールバックを適用しました。
+              </div>
+            )}
+
+            {qualityIssues.length > 0 && (
+              <div className="space-y-1 pt-1">
+                <p className="text-[10px] text-amber-300 font-bold uppercase">
+                  品質警告 ({qualityScore}点):
+                </p>
+                <ul className="text-[11px] text-amber-200/80 space-y-1 list-disc pl-4">
+                  {qualityIssues.map((w: any, i: number) => (
+                    <li key={i}>{w.message}</li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -2401,6 +2485,13 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                   repairWarnings={result.warnings}
                   validationErrors={result.validationErrors}
                   repairFallbackUsed={result.repairFallbackUsed}
+                  qualityStatus={result.qualityStatus}
+                  qualityIssues={result.qualityIssues}
+                  qualityScore={result.qualityScore}
+                  experimentalModel={result.experimentalModel}
+                  effectiveStructuredExecutionMode={result.effectiveStructuredExecutionMode}
+                  providerFamily={result.providerFamily}
+                  usedModelName={usedModel || undefined}
                 />
               ) : (
                 <div className="space-y-2">
