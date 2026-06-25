@@ -629,17 +629,37 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
     // Build unique directories mapping to quickly resolve depths & paths
     let localDirsMap = new Map<string, any>();
     if (!forceReset) {
-      dirs.forEach(d => {
-        localDirsMap.set(d.drive_id, {
-          drive_id: d.drive_id,
-          name: (d.path || "").split("/").pop() || d.drive_id,
-          parents: d.parent_id ? [d.parent_id] : [],
-          depth: d.depth || 1,
-          path: d.path,
-          last_traversed_at: d.last_traversed_at || null,
-          next_page_token: d.next_page_token || null
+      try {
+        onAddLog("info", "Firestoreから最新のディレクトリ一覧を同期中...");
+        const freshSnap = await getDocs(collection(db, "users", userId, "directories"));
+        freshSnap.forEach(docSnap => {
+          const d = docSnap.data();
+          localDirsMap.set(docSnap.id, {
+            drive_id: docSnap.id,
+            name: d.name || "",
+            parents: d.parent_id ? [d.parent_id] : [],
+            depth: d.depth || 1,
+            path: d.path || "",
+            last_traversed_at: d.last_traversed_at || null,
+            next_page_token: d.next_page_token || null,
+            index_status: d.index_status || "pending"
+          });
         });
-      });
+        onAddLog("info", `Firestoreから ${localDirsMap.size} 件のディレクトリ情報を正確に読み込みました。`);
+      } catch (e: any) {
+        onAddLog("warn", "Firestoreからの直接同期に失敗しました。ローダーのローカル状態を使用します:", e.message || e);
+        dirs.forEach(d => {
+          localDirsMap.set(d.drive_id, {
+            drive_id: d.drive_id,
+            name: (d.path || "").split("/").pop() || d.drive_id,
+            parents: d.parent_id ? [d.parent_id] : [],
+            depth: d.depth || 1,
+            path: d.path,
+            last_traversed_at: d.last_traversed_at || null,
+            next_page_token: d.next_page_token || null
+          });
+        });
+      }
     }
 
     let scannedCount = 0;
@@ -777,7 +797,9 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             setCurrentTaskName(file.name);
             setCurrentTaskPath(fullPath || `/${file.name}`);
 
-            if (skipExistingFolders && dirs.some(d => d.drive_id === resolvedId)) {
+            const existingDir = localDirsMap.get(resolvedId);
+
+            if (skipExistingFolders && existingDir) {
               onAddLog("info", `⏩ すでに登録済みのフォルダ「${file.name}」をスキップしました。`);
               setCrawlStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
               continue;
@@ -785,16 +807,25 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
 
             const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
             
-            batch.set(folderDocRef, {
+            const flatUpdateData: any = {
               drive_id: resolvedId,
               name: file.name,
               path: fullPath || `/${file.name}`,
               depth: computedDepth || 1,
-              index_status: "pending",
-              last_traversed_at: null,
-              last_updated_at: null,
+              index_status: existingDir?.index_status || "pending",
               parent_id: parentId
-            }, { merge: true });
+            };
+
+            // Safeguard: Do not overwrite existing traversed timestamps with null on merge updates!
+            if (existingDir) {
+              flatUpdateData.last_traversed_at = existingDir.last_traversed_at || null;
+              flatUpdateData.last_updated_at = existingDir.last_updated_at || null;
+            } else {
+              flatUpdateData.last_traversed_at = null;
+              flatUpdateData.last_updated_at = null;
+            }
+
+            batch.set(folderDocRef, flatUpdateData, { merge: true });
 
             batchWriteCount++;
             scannedCount++;
@@ -986,16 +1017,25 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             if (needsUpdate) {
               const folderDocRef = doc(db, "users", userId, "directories", resolvedId);
               
-              folderBatch.set(folderDocRef, {
+              const progressiveUpdateData: any = {
                 drive_id: resolvedId,
                 name: file.name,
                 path: fullPath,
                 depth: computedDepth,
                 index_status: (existingDir?.index_status) ?? "pending",
-                last_traversed_at: existingDir?.last_traversed_at ?? null,
-                last_updated_at: existingDir?.last_updated_at ?? null,
                 parent_id: parentId
-              }, { merge: true });
+              };
+
+              // Safeguard: Do not overwrite existing traversed timestamps with null on merge updates!
+              if (existingDir) {
+                progressiveUpdateData.last_traversed_at = existingDir.last_traversed_at || null;
+                progressiveUpdateData.last_updated_at = existingDir.last_updated_at || null;
+              } else {
+                progressiveUpdateData.last_traversed_at = null;
+                progressiveUpdateData.last_updated_at = null;
+              }
+
+              folderBatch.set(folderDocRef, progressiveUpdateData, { merge: true });
 
               folderBatchCount++;
               scannedCount++;
