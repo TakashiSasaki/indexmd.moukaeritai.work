@@ -1034,6 +1034,7 @@ The following JSON failed strict schema and vocabulary validation.
 Fix ONLY the invalid schema fields and controlled vocabulary fields mentioned in the validation errors.
 DO NOT invent new facts. DO NOT add raw private content.
 PRESERVE ALL EXISTING FACTS exactly as they are.
+DO NOT use markdown fences (e.g. \`\`\`json).
 RETURN ONLY JSON.
 
 Validation Errors:
@@ -1052,7 +1053,84 @@ ${candidateJson}
   };
 
   const aiRes = await generateContentWithRetry(targetModel, [{ text: repairPrompt }], 2, repairConfig);
-  return aiRes.text?.trim() || "{}";
+  const text = aiRes.text?.trim() || "{}";
+  // Strip markdown fences just in case
+  return text.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+}
+
+/**
+ * Shared logic to parse, normalize, repair, and validate structured summary output.
+ */
+async function processStructuredSummaryOutput(
+  summaryText: string,
+  targetModel: string,
+  configOption: any
+): Promise<{
+  structured?: SummaryAnalysisResultV12;
+  schemaVersion: string;
+  summary?: string;
+  warnings?: string[];
+  validationErrors?: any[];
+  error?: string;
+  structuredParseFailed?: boolean;
+  repairApplied?: boolean;
+  repairFallbackUsed?: boolean;
+  rawText: string;
+}> {
+  const result: any = {
+    schemaVersion: SCHEMA_VERSION_V12,
+    rawText: summaryText
+  };
+
+  try {
+    const parsed = JSON.parse(summaryText);
+    let { repaired: normalized, warnings } = normalizeAndRepairSummaryAnalysisV12(parsed);
+    let validationErrors = getSummaryAnalysisV12ValidationErrors(normalized);
+    let repairFallbackUsed = false;
+
+    if (validationErrors.length > 0) {
+      // Deterministic repair failed to produce valid schema, try LLM repair-only fallback
+      const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);
+      try {
+        const repairedParsed = JSON.parse(repairedText);
+        const repairResult = normalizeAndRepairSummaryAnalysisV12(repairedParsed);
+        const newValidationErrors = getSummaryAnalysisV12ValidationErrors(repairResult.repaired);
+        
+        if (newValidationErrors.length === 0) {
+          normalized = repairResult.repaired;
+          validationErrors = [];
+          warnings = [...warnings, ...repairResult.warnings, "Resolved validation errors using repair-only LLM fallback."];
+          repairFallbackUsed = true;
+          // Note: we don't update result.rawText to the repaired text for debug reasons 
+          // (we want to see what was repaired), but we store the result.
+        } else {
+          // Fallback also failed, keep original validation errors but maybe add fallback fail note
+          validationErrors = newValidationErrors;
+          warnings = [...warnings, "Repair-only LLM fallback also failed validation."];
+        }
+      } catch (e: any) {
+        warnings = [...warnings, `Repair-only LLM fallback failed to parse as JSON: ${e.message}`];
+      }
+    }
+
+    if (validationErrors.length === 0) {
+      result.structured = normalized;
+      result.summary = normalized.summary?.oneLine || normalized.summary?.detailed || normalized.titleInfo?.displayTitle?.value || "No summary generated";
+      result.repairApplied = warnings.length > 0;
+      result.repairFallbackUsed = repairFallbackUsed;
+      if (warnings.length > 0) result.warnings = warnings;
+    } else {
+      result.structuredParseFailed = true;
+      result.error = "Structured output validation failed";
+      result.validationErrors = validationErrors;
+      if (warnings.length > 0) result.warnings = warnings;
+    }
+  } catch (e: any) {
+    result.structuredParseFailed = true;
+    result.error = "JSON parse failed: " + e.message;
+  }
+
+  return result;
 }
 
 app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
@@ -1172,48 +1250,9 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
            };
 
            if (mode === "structured") {
-             try {
-               const parsed = JSON.parse(summaryText);
-               let { repaired: normalized, warnings } = normalizeAndRepairSummaryAnalysisV12(parsed);
-               let validationErrors = getSummaryAnalysisV12ValidationErrors(normalized);
-               
-               if (validationErrors.length > 0) {
-                 const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);
-                 try {
-                   const repairedParsed = JSON.parse(repairedText);
-                   const repairResult = normalizeAndRepairSummaryAnalysisV12(repairedParsed);
-                   const newValidationErrors = getSummaryAnalysisV12ValidationErrors(repairResult.repaired);
-                   if (newValidationErrors.length === 0) {
-                     normalized = repairResult.repaired;
-                     validationErrors = [];
-                     warnings = [...warnings, ...repairResult.warnings, "Resolved validation errors using repair-only LLM fallback."];
-                   }
-                 } catch (e) {
-                 }
-               }
-
-               if (validationErrors.length === 0) {
-                 result.structured = normalized;
-                 result.schemaVersion = SCHEMA_VERSION_V12;
-                 result.summary = normalized.summary?.oneLine || "No summary generated";
-                 result.rawText = summaryText;
-                 if (warnings.length > 0) result.warnings = warnings;
-               } else {
-                 result.success = false;
-                 result.structuredParseFailed = true;
-                 result.schemaVersion = SCHEMA_VERSION_V12;
-                 result.rawText = summaryText;
-                 result.error = "Structured output validation failed";
-                 result.validationErrors = validationErrors;
-                 if (warnings.length > 0) result.warnings = warnings;
-               }
-             } catch (e: any) {
-               result.success = false;
-               result.structuredParseFailed = true;
-               result.schemaVersion = SCHEMA_VERSION_V12;
-               result.rawText = summaryText;
-               result.error = "JSON parse failed: " + e.message;
-             }
+             const processed = await processStructuredSummaryOutput(summaryText, targetModel, configOption);
+             result = { ...result, ...processed };
+             if (processed.error) result.success = false;
            } else {
              result.summary = summaryText;
            }
@@ -1285,48 +1324,9 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
     };
 
     if (mode === "structured") {
-      try {
-        const parsed = JSON.parse(summaryText);
-        let { repaired: normalized, warnings } = normalizeAndRepairSummaryAnalysisV12(parsed);
-        let validationErrors = getSummaryAnalysisV12ValidationErrors(normalized);
-        
-        if (validationErrors.length > 0) {
-          const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);
-          try {
-            const repairedParsed = JSON.parse(repairedText);
-            const repairResult = normalizeAndRepairSummaryAnalysisV12(repairedParsed);
-            const newValidationErrors = getSummaryAnalysisV12ValidationErrors(repairResult.repaired);
-            if (newValidationErrors.length === 0) {
-              normalized = repairResult.repaired;
-              validationErrors = [];
-              warnings = [...warnings, ...repairResult.warnings, "Resolved validation errors using repair-only LLM fallback."];
-            }
-          } catch (e) {
-          }
-        }
-
-        if (validationErrors.length === 0) {
-          result.structured = normalized;
-          result.schemaVersion = SCHEMA_VERSION_V12;
-          result.summary = normalized.summary?.oneLine || normalized.summary?.detailed || normalized.titleInfo?.displayTitle?.value || "No summary generated";
-          result.rawText = summaryText; // expose raw text for debug view
-          if (warnings.length > 0) result.warnings = warnings;
-        } else {
-          result.success = false;
-          result.structuredParseFailed = true;
-          result.schemaVersion = SCHEMA_VERSION_V12;
-          result.rawText = summaryText;
-          result.error = "Structured output validation failed";
-          result.validationErrors = validationErrors;
-          if (warnings.length > 0) result.warnings = warnings;
-        }
-      } catch (e: any) {
-        result.success = false;
-        result.structuredParseFailed = true;
-        result.schemaVersion = SCHEMA_VERSION_V12;
-        result.rawText = summaryText;
-        result.error = "JSON parse failed: " + e.message;
-      }
+      const processed = await processStructuredSummaryOutput(summaryText, targetModel, configOption);
+      result = { ...result, ...processed };
+      if (processed.error) result.success = false;
     } else {
       result.summary = summaryText;
     }
@@ -1347,6 +1347,8 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
       structuredResult: result.structured,
       validationErrors: result.validationErrors,
       warnings: result.warnings,
+      repairApplied: result.repairApplied,
+      repairFallbackUsed: result.repairFallbackUsed,
       error: result.error
     });
 
@@ -1437,48 +1439,9 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
     };
 
     if (mode === "structured") {
-      try {
-        const parsed = JSON.parse(summaryText);
-        let { repaired: normalized, warnings } = normalizeAndRepairSummaryAnalysisV12(parsed);
-        let validationErrors = getSummaryAnalysisV12ValidationErrors(normalized);
-
-        if (validationErrors.length > 0) {
-          const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);
-          try {
-            const repairedParsed = JSON.parse(repairedText);
-            const repairResult = normalizeAndRepairSummaryAnalysisV12(repairedParsed);
-            const newValidationErrors = getSummaryAnalysisV12ValidationErrors(repairResult.repaired);
-            if (newValidationErrors.length === 0) {
-              normalized = repairResult.repaired;
-              validationErrors = [];
-              warnings = [...warnings, ...repairResult.warnings, "Resolved validation errors using repair-only LLM fallback."];
-            }
-          } catch (e) {
-          }
-        }
-
-        if (validationErrors.length === 0) {
-          result.structured = normalized;
-          result.schemaVersion = SCHEMA_VERSION_V12;
-          result.summary = normalized.summary?.oneLine || normalized.summary?.detailed || normalized.titleInfo?.displayTitle?.value || "No summary generated";
-          result.rawText = summaryText; 
-          if (warnings.length > 0) result.warnings = warnings;
-        } else {
-          result.success = false;
-          result.structuredParseFailed = true;
-          result.schemaVersion = SCHEMA_VERSION_V12;
-          result.rawText = summaryText;
-          result.error = "Structured output validation failed";
-          result.validationErrors = validationErrors;
-          if (warnings.length > 0) result.warnings = warnings;
-        }
-      } catch (e: any) {
-        result.success = false;
-        result.structuredParseFailed = true;
-        result.schemaVersion = SCHEMA_VERSION_V12;
-        result.rawText = summaryText;
-        result.error = "JSON parse failed: " + e.message;
-      }
+      const processed = await processStructuredSummaryOutput(summaryText, targetModel, configOption);
+      result = { ...result, ...processed };
+      if (processed.error) result.success = false;
     } else {
       result.summary = summaryText;
     }
@@ -1501,6 +1464,8 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
       structuredResult: result.structured,
       validationErrors: result.validationErrors,
       warnings: result.warnings,
+      repairApplied: result.repairApplied,
+      repairFallbackUsed: result.repairFallbackUsed,
       error: result.error,
       manualTextHash: textHash.toString(16)
     });

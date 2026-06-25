@@ -75,7 +75,15 @@ const RenderStructuredSummary: React.FC<{
   structured: any;
   rawText?: string;
   repairWarnings?: string[];
-}> = ({ structured, rawText, repairWarnings = [] }) => {
+  validationErrors?: string[];
+  repairFallbackUsed?: boolean;
+}> = ({
+  structured,
+  rawText,
+  repairWarnings = [],
+  validationErrors = [],
+  repairFallbackUsed = false,
+}) => {
   const oneLine = structured.summary?.oneLine;
   const detailed = structured.summary?.detailed;
 
@@ -113,8 +121,71 @@ const RenderStructuredSummary: React.FC<{
   const mAmounts = structured.extractedFacts?.monetaryAmounts;
   const warnings = structured.quality?.warnings || [];
 
+  const hasIssues = repairWarnings.length > 0 || validationErrors.length > 0;
+
   return (
     <div className="space-y-6">
+      {hasIssues && (
+        <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden">
+          <div className="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Activity className="w-3 h-3 text-amber-400" />
+              品質・バリデーション状況
+            </h4>
+            {validationErrors.length === 0 ? (
+              <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30 font-bold uppercase">
+                Valid
+              </span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] px-1.5 py-0.5 bg-rose-500/20 text-rose-400 rounded border border-rose-500/30 font-bold uppercase">
+                  Invalid
+                </span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(rawText || "")}
+                  className="px-2 py-0.5 text-[9px] text-rose-400 hover:text-white transition-colors uppercase font-bold border border-rose-800 rounded bg-rose-900/40"
+                >
+                  Rawをコピー
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="p-4 space-y-3">
+            {repairFallbackUsed && (
+              <div className="text-[11px] text-blue-400 font-medium flex items-center gap-2">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                決定論的修復に失敗したため、LLMによる修復フォールバックを適用しました。
+              </div>
+            )}
+
+            {repairWarnings.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-500 font-bold uppercase">
+                  自動修復・正規化警告:
+                </p>
+                <ul className="text-[11px] text-amber-200/80 space-y-1 list-disc pl-4">
+                  {repairWarnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {validationErrors.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-rose-400 font-bold uppercase">
+                  未解決のバリデーションエラー:
+                </p>
+                <ul className="text-[11px] text-rose-300 space-y-1 list-disc pl-4 font-mono">
+                  {validationErrors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -2189,63 +2260,14 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                   );
                 })()}
 
-              {result.outputMode === "structured" && result.structured ? (
+              {result.outputMode === "structured" ? (
                 <RenderStructuredSummary
-                  structured={result.structured}
+                  structured={result.structured || {}}
                   rawText={result.rawText}
                   repairWarnings={result.warnings}
+                  validationErrors={result.validationErrors}
+                  repairFallbackUsed={result.repairFallbackUsed}
                 />
-              ) : result.structuredParseFailed ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-amber-950/30 border border-amber-900/50 rounded-lg shadow-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-bold text-sm text-amber-400">
-                        構造化データの解析に失敗しました
-                      </h4>
-                      <button
-                        onClick={() =>
-                          navigator.clipboard.writeText(result.rawText || "")
-                        }
-                        className="px-2 py-1 text-[9px] text-amber-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-amber-800 rounded bg-amber-900/40"
-                      >
-                        失敗出力をコピー
-                      </button>
-                    </div>
-                    <p className="text-amber-200 text-xs mb-2">
-                      {result.error}
-                    </p>
-
-                    {result.validationErrors &&
-                      result.validationErrors.length > 0 && (
-                        <div className="mb-4 space-y-1">
-                          <h5 className="text-xs font-bold text-rose-400">
-                            バリデーションエラー:
-                          </h5>
-                          <ul className="list-disc list-inside text-xs text-rose-300">
-                            {result.validationErrors.map(
-                              (err: string, i: number) => (
-                                <li key={i}>{err}</li>
-                              ),
-                            )}
-                          </ul>
-                          <button
-                            onClick={() =>
-                              navigator.clipboard.writeText(
-                                result.validationErrors.join("\n"),
-                              )
-                            }
-                            className="mt-2 px-2 py-1 text-[9px] text-rose-400 hover:text-white transition-colors uppercase font-bold flex items-center gap-1 border border-rose-800 rounded bg-rose-900/40 inline-block"
-                          >
-                            エラー一覧をコピー
-                          </button>
-                        </div>
-                      )}
-
-                    <pre className="bg-black/40 p-3 rounded text-[10px] text-amber-300 font-mono overflow-x-auto whitespace-pre-wrap">
-                      {result.rawText}
-                    </pre>
-                  </div>
-                </div>
               ) : (
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">

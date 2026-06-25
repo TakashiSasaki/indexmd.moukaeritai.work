@@ -93,6 +93,74 @@ describe('repairSummaryAnalysisV12ControlledVocabularies', () => {
     assert.strictEqual(temps?.[1].roleCategory, "other");
   });
 
+  it('repairs monetary role categories', () => {
+    const input: any = {
+      extractedFacts: {
+        monetaryAmounts: [
+          { amount: 100, roleCategory: "transaction" },
+          { amount: 200, roleCategory: "cost" },
+          { amount: 300, roleCategory: "charge" },
+          { amount: 400, roleCategory: "invalid-cat" }
+        ]
+      }
+    };
+    
+    const { repaired } = repairSummaryAnalysisV12ControlledVocabularies(input);
+    const m = repaired.extractedFacts?.monetaryAmounts;
+    assert.strictEqual(m?.[0].roleCategory, "payment");
+    assert.strictEqual(m?.[1].roleCategory, "price");
+    assert.strictEqual(m?.[2].roleCategory, "fee");
+    assert.strictEqual(m?.[3].roleCategory, "other");
+  });
+
+  it('repairs keyword sources', () => {
+    const input: any = {
+      indexing: {
+        keywords: [
+          { value: "k1", source: "metadata" },
+          { value: "k2", source: "user" },
+          { value: "k3", source: "url" },
+          { value: "k4", source: "invalid" }
+        ]
+      }
+    };
+    
+    const { repaired } = repairSummaryAnalysisV12ControlledVocabularies(input);
+    const kw = repaired.indexing?.keywords;
+    assert.strictEqual(kw?.[0].source, "embeddedMetadata");
+    assert.strictEqual(kw?.[1].source, "authorProvided");
+    assert.strictEqual(kw?.[2].source, "identifier");
+    assert.strictEqual(kw?.[3].source, "unknown");
+  });
+
+  it('deduplicates keywords including source in key', () => {
+    const input: any = {
+      summary: { oneLine: "test", detailed: "test" },
+      indexing: {
+        keywords: [
+          { value: "test", source: "body" },
+          { value: "test", source: "heading" }, // Different source, should keep
+          { value: "TEST", source: "body" }, // Same source, case insensitive value, should dedup
+        ]
+      }
+    };
+    
+    const { repaired } = normalizeAndRepairSummaryAnalysisV12(input);
+    // Should have 2 keywords: "test" (body) and "test" (heading)
+    assert.strictEqual(repaired.indexing?.keywords.length, 2);
+    assert.ok(repaired.indexing?.keywords.some(k => k.source === "body"));
+    assert.ok(repaired.indexing?.keywords.some(k => k.source === "heading"));
+  });
+
+  it('removes unknown document kind if others exist', () => {
+    const input: any = {
+      documentKindInfo: { kinds: [{ kind: "report" }, { kind: "unknown" }] }
+    };
+    const { repaired } = repairSummaryAnalysisV12ControlledVocabularies(input);
+    assert.strictEqual(repaired.documentKindInfo?.kinds.length, 1);
+    assert.strictEqual(repaired.documentKindInfo?.kinds[0].kind, "report");
+  });
+
   it('full cycle: normalize, repair, and validate passes strict checks', () => {
     // A highly "dirty" but logically sound summary from an LLM that ignored some strict constraints
     const dirtyInput: any = {

@@ -1,13 +1,10 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Allow: /$
-Allow: /assets/
-Allow: /icon.svg
-Allow: /icons/
-Allow: /og-image.png
-Allow: /manifest.json
-Allow: /sw.js
-Allow: /sitemap.xml
-Disallow: /
-
+Allow: /
+Disallow: /dashboard
+Disallow: /debugger
+Disallow: /summary-debugger
+Disallow: /summary-browser
+Disallow: /firestore-test
+Disallow: /logs
+Disallow: /cache-stats
 Sitemap: https://indexmd.moukaeritai.work/sitemap.xml
