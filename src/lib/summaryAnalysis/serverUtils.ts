@@ -4,6 +4,7 @@ import { normalizeAndRepairSummaryAnalysisV12 } from "./repair";
 import { SummaryAnalysisResultV12 } from "./types";
 import { generateContentWithRetry } from "../gemini";
 import { getModelCapability } from "../modelCapabilities";
+import { evaluateStructuredSummaryQuality } from "./qualityGate";
 
 async function repairOutputWithLLM(
   targetModel: string,
@@ -60,6 +61,12 @@ export async function processStructuredSummaryOutput(
   supportsNativeResponseSchema?: boolean;
   providerFamily?: string;
   responseSchemaEnabled?: boolean;
+  qualityStatus?: "valid" | "validWithRepair" | "validLowQuality" | "invalid";
+  qualityScore?: number;
+  qualityIssues?: any[];
+  recommendedForPersistence?: boolean;
+  recommendedForIndexMdCandidate?: boolean;
+  experimentalModel?: boolean;
 }> {
   const cap = getModelCapability(targetModel);
   const result: any = {
@@ -159,6 +166,35 @@ export async function processStructuredSummaryOutput(
       result.repairApplied = warnings.length > 0;
       result.repairFallbackUsed = repairFallbackUsed;
       if (warnings.length > 0) result.warnings = warnings;
+
+      // Evaluate Quality
+      const qualityReport = evaluateStructuredSummaryQuality(normalized, {
+        modelName: targetModel,
+        providerFamily: result.providerFamily,
+        effectiveStructuredExecutionMode: result.effectiveStructuredExecutionMode,
+        supportsNativeResponseSchema: result.supportsNativeResponseSchema,
+        responseSchemaEnabled: result.responseSchemaEnabled,
+        repairApplied: result.repairApplied,
+        repairFallbackUsed: result.repairFallbackUsed,
+        warnings: result.warnings
+      });
+
+      result.qualityStatus = qualityReport.status;
+      result.qualityScore = qualityReport.score;
+      result.qualityIssues = qualityReport.issues;
+      result.recommendedForPersistence = qualityReport.recommendedForPersistence;
+      result.recommendedForIndexMdCandidate = qualityReport.recommendedForIndexMdCandidate;
+      result.experimentalModel = qualityReport.experimentalModel;
+
+      if (qualityReport.status === "invalid") {
+        result.structuredParseFailed = true;
+        result.error = "Structured output failed quality gate requirements: " + qualityReport.issues.map(i => i.message).join(", ");
+        result.validationErrors = qualityReport.issues.map(iss => ({
+          path: "qualityGate",
+          message: iss.message,
+          keyword: iss.code
+        }));
+      }
     } else {
       result.structuredParseFailed = true;
       result.error = "Structured output validation failed";
