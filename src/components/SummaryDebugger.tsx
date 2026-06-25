@@ -133,9 +133,17 @@ const RenderStructuredSummary: React.FC<{
               品質・バリデーション状況
             </h4>
             {validationErrors.length === 0 ? (
-              <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30 font-bold uppercase">
-                Valid
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30 font-bold uppercase">
+                  Valid
+                </span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(JSON.stringify(structured, null, 2))}
+                  className="px-2 py-0.5 text-[9px] text-emerald-400 hover:text-white transition-colors uppercase font-bold border border-emerald-800 rounded bg-emerald-900/40"
+                >
+                  JSONをコピー
+                </button>
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-[9px] px-1.5 py-0.5 bg-rose-500/20 text-rose-400 rounded border border-rose-500/30 font-bold uppercase">
@@ -171,18 +179,49 @@ const RenderStructuredSummary: React.FC<{
               </div>
             )}
 
-            {validationErrors.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-[10px] text-rose-400 font-bold uppercase">
-                  未解決のバリデーションエラー:
-                </p>
-                <ul className="text-[11px] text-rose-300 space-y-1 list-disc pl-4 font-mono">
-                  {validationErrors.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {(() => {
+              const vocabErrors = validationErrors.filter(e => 
+                e.toLowerCase().includes("vocabulary") || 
+                e.toLowerCase().includes("invalid document kind") || 
+                e.toLowerCase().includes("invalid subject domain") || 
+                e.toLowerCase().includes("invalid subject label kind") || 
+                e.toLowerCase().includes("invalid temporal rolecategory") || 
+                e.toLowerCase().includes("invalid party rolecategory") || 
+                e.toLowerCase().includes("invalid monetary rolecategory") || 
+                e.toLowerCase().includes("invalid keyword source")
+              );
+              const schemaErrors = validationErrors.filter(e => !vocabErrors.includes(e));
+
+              return (
+                <>
+                  {vocabErrors.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-amber-400 font-bold uppercase">
+                        制御語彙バリデーションエラー:
+                      </p>
+                      <ul className="text-[11px] text-amber-300 space-y-1 list-disc pl-4 font-mono">
+                        {vocabErrors.map((e, i) => (
+                          <li key={i}>{e}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {schemaErrors.length > 0 && (
+                    <div className="space-y-1 pt-2">
+                      <p className="text-[10px] text-rose-400 font-bold uppercase">
+                        スキーマ構造バリデーションエラー:
+                      </p>
+                      <ul className="text-[11px] text-rose-300 space-y-1 list-disc pl-4 font-mono">
+                        {schemaErrors.map((e, i) => (
+                          <li key={i}>{e}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

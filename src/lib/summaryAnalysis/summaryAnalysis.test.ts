@@ -373,7 +373,7 @@ test("v1.2: normalizer performs stable deduplication by composite key and merges
     },
     {
       value: "api",
-      source: "body",
+      source: "heading",
       confidence: 0.8,
       language: "en",
       script: "Latn",

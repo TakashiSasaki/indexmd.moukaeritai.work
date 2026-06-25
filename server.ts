@@ -28,6 +28,8 @@ import { validateSummaryAnalysisV12, getSummaryAnalysisV12ValidationErrors } fro
 import { normalizeAndRepairSummaryAnalysisV12 } from "./src/lib/summaryAnalysis/repair";
 import { normalizeSummaryAnalysisV12 } from "./src/lib/summaryAnalysis/normalize";
 import { SummaryAnalysisResultV12 } from "./src/lib/summaryAnalysis/types";
+import { processStructuredSummaryOutput } from "./src/lib/summaryAnalysis/serverUtils";
+import { generateContentWithRetry, getGeminiClient } from "./src/lib/gemini";
 
 initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory']);
 
@@ -245,169 +247,7 @@ const PORT = 3000;
 // Apply JSON parsing middleware
 app.use(express.json());
 
-// Lazy-initialized Gemini SDK clients mapping apiVersion to client
-let _clients: Record<string, any> = {};
-function getGeminiClient(modelName: string) {
-  // Always use v1beta for newer models (3.5, gemma, preview) as many are not in v1 yet
-  const apiVersion = 'v1beta';
 
-  if (!_clients[apiVersion]) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error("GEMINI_API_KEY environment variable is required.");
-    }
-    _clients[apiVersion] = new GoogleGenAI({ 
-      apiKey: key,
-      httpOptions: {
-        apiVersion: apiVersion,
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-  }
-  return _clients[apiVersion];
-}
-
-const MODEL_FALLBACKS: Record<string, string> = {
-  "gemini-3.5-pro": "gemini-3.1-pro-preview",
-  "gemini-3.5-flash": "gemini-2.5-flash",
-  "gemini-2.5-flash-lite-preview-09-2025": "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite": "gemini-3.1-flash-lite",
-  "gemini-2.5-flash": "gemini-3.1-flash-lite"
-};
-
-/**
- * Helper to call Gemini with exponential backoff for 503/429 errors
- * with automatic fallback to alternative resilient models on both 404 (Not Found)
- * and 429 (Resource Exhausted / Quota Exceeded) errors.
- */
-async function generateContentWithRetry(
-  modelName: string, 
-  contents: any, 
-  maxRetries = 4, 
-  configOption?: { 
-    temperature?: number; 
-    topP?: number; 
-    topK?: number; 
-    systemInstruction?: string; 
-    responseMimeType?: string; 
-    responseSchema?: any; 
-  }
-) {
-  let currentModel = modelName;
-  let client = getGeminiClient(currentModel);
-  let lastError: any = null;
-  const attemptedModels = new Set<string>([currentModel]);
-  
-  for (let i = 0; i <= maxRetries; i++) {
-    try {
-      const callParams: any = {
-        model: currentModel,
-        contents: contents
-      };
-      
-      if (configOption) {
-        callParams.config = {};
-        if (typeof configOption.temperature === "number" && configOption.temperature !== 0) {
-          callParams.config.temperature = configOption.temperature;
-        }
-        if (typeof configOption.topP === "number" && configOption.topP !== 0) {
-          callParams.config.topP = configOption.topP;
-        }
-        if (typeof configOption.topK === "number" && configOption.topK !== 0) {
-          callParams.config.topK = configOption.topK;
-        }
-        if (configOption.systemInstruction) {
-          callParams.config.systemInstruction = configOption.systemInstruction;
-        }
-        if (configOption.responseMimeType) {
-          callParams.config.responseMimeType = configOption.responseMimeType;
-        }
-        if (configOption.responseSchema) {
-          callParams.config.responseSchema = configOption.responseSchema;
-        }
-      }
-
-      const response = await client.models.generateContent(callParams);
-      return response;
-    } catch (err: any) {
-      lastError = err;
-      let statusCode = err.status || (err.response?.status) || (err.error?.code);
-      if (!statusCode && err.message) {
-        try {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error && parsed.error.code) {
-             statusCode = parsed.error.code;
-          }
-        } catch(e) {}
-      }
-      
-      const rawMessage = err.message || "";
-      const errorBody = err.response?.error || err.error || {};
-      const isQuotaExceeded = statusCode === 429 && (
-        rawMessage.includes("RESOURCE_EXHAUSTED") || 
-        rawMessage.includes("quota") || 
-        rawMessage.includes("Quota exceeded") ||
-        errorBody.status === "RESOURCE_EXHAUSTED" ||
-        rawMessage.includes("exceeded your current quota")
-      );
-
-      const isNotFound = statusCode === 404 || rawMessage.includes("404") || rawMessage.includes("NOT_FOUND");
-
-      if (isNotFound || isQuotaExceeded) {
-        let fallback = MODEL_FALLBACKS[currentModel];
-        if (!fallback) {
-          if (currentModel.includes("pro")) {
-            fallback = "gemini-3.1-pro-preview";
-          } else if (currentModel === "gemini-2.5-flash" || currentModel === "gemini-3.5-flash") {
-            fallback = "gemini-3.1-flash-lite";
-          } else {
-            fallback = "gemini-2.5-flash-lite";
-          }
-        }
-        
-        if (fallback && !attemptedModels.has(fallback)) {
-          // console.log(`Model ${currentModel} failed (isNotFound: ${isNotFound}, isQuotaExceeded: ${isQuotaExceeded}). Falling back to alternative model: ${fallback}...`);
-          attemptedModels.add(fallback);
-          currentModel = fallback;
-          client = getGeminiClient(currentModel);
-          continue; 
-        } else {
-          // If the fallback has already been tried, inspect remaining pool items
-          const modelPool = [
-            "gemini-3.5-flash",
-            "gemini-3.1-flash-lite",
-            "gemini-2.5-flash-lite",
-            "gemini-2.5-flash",
-            "gemini-flash-latest"
-          ];
-          const nextUntried = modelPool.find(m => !attemptedModels.has(m));
-          if (nextUntried) {
-            console.log(`All primary fallbacks exhausted. Trying untried model from pool: ${nextUntried}...`);
-            attemptedModels.add(nextUntried);
-            currentModel = nextUntried;
-            client = getGeminiClient(currentModel);
-            continue;
-          }
-        }
-      }
-
-      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || 
-                         rawMessage.includes("503") || rawMessage.includes("429") ||
-                         rawMessage.includes("high demand") || rawMessage.includes("Internal error");
-                         
-      if (isRetryable && i < maxRetries) {
-        const delay = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
-        console.log(`Gemini API retryable status (${statusCode || 'unknown'}). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      break;
-    }
-  }
-  throw lastError;
-}
 
 // 1. Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -1023,116 +863,8 @@ app.get("/api/drive/index-preflight/content", async (req, res) => {
   }
 });
 
-async function repairOutputWithLLM(
-  targetModel: string,
-  candidateJson: string,
-  validationErrors: any[],
-  configOption: any
-): Promise<string> {
-  const repairPrompt = `
-You are a deterministic JSON repair agent.
-The following JSON failed strict schema and vocabulary validation.
-Fix ONLY the invalid schema fields and controlled vocabulary fields mentioned in the validation errors.
-DO NOT invent new facts. DO NOT add raw private content.
-PRESERVE ALL EXISTING FACTS exactly as they are.
-DO NOT use markdown fences (e.g. \`\`\`json).
-RETURN ONLY JSON.
 
-Validation Errors:
-${JSON.stringify(validationErrors, null, 2)}
-
-Candidate JSON:
-${candidateJson}
-  `.trim();
-
-  // Remove schema from config Option so it doesn't try to enforce complex JSON schemas if it's failing,
-  // or maybe keep it but without the strict schema object to allow fallback to just "application/json".
-  const repairConfig = {
-    ...configOption,
-    responseSchema: undefined, 
-    systemInstruction: undefined
-  };
-
-  const aiRes = await generateContentWithRetry(targetModel, [{ text: repairPrompt }], 2, repairConfig);
-  const text = aiRes.text?.trim() || "{}";
-  // Strip markdown fences just in case
-  return text.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-}
-
-/**
- * Shared logic to parse, normalize, repair, and validate structured summary output.
- */
-async function processStructuredSummaryOutput(
-  summaryText: string,
-  targetModel: string,
-  configOption: any
-): Promise<{
-  structured?: SummaryAnalysisResultV12;
-  schemaVersion: string;
-  summary?: string;
-  warnings?: string[];
-  validationErrors?: any[];
-  error?: string;
-  structuredParseFailed?: boolean;
-  repairApplied?: boolean;
-  repairFallbackUsed?: boolean;
-  rawText: string;
-}> {
-  const result: any = {
-    schemaVersion: SCHEMA_VERSION_V12,
-    rawText: summaryText
-  };
-
-  try {
-    const parsed = JSON.parse(summaryText);
-    let { repaired: normalized, warnings } = normalizeAndRepairSummaryAnalysisV12(parsed);
-    let validationErrors = getSummaryAnalysisV12ValidationErrors(normalized);
-    let repairFallbackUsed = false;
-
-    if (validationErrors.length > 0) {
-      // Deterministic repair failed to produce valid schema, try LLM repair-only fallback
-      const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);
-      try {
-        const repairedParsed = JSON.parse(repairedText);
-        const repairResult = normalizeAndRepairSummaryAnalysisV12(repairedParsed);
-        const newValidationErrors = getSummaryAnalysisV12ValidationErrors(repairResult.repaired);
-        
-        if (newValidationErrors.length === 0) {
-          normalized = repairResult.repaired;
-          validationErrors = [];
-          warnings = [...warnings, ...repairResult.warnings, "Resolved validation errors using repair-only LLM fallback."];
-          repairFallbackUsed = true;
-          // Note: we don't update result.rawText to the repaired text for debug reasons 
-          // (we want to see what was repaired), but we store the result.
-        } else {
-          // Fallback also failed, keep original validation errors but maybe add fallback fail note
-          validationErrors = newValidationErrors;
-          warnings = [...warnings, "Repair-only LLM fallback also failed validation."];
-        }
-      } catch (e: any) {
-        warnings = [...warnings, `Repair-only LLM fallback failed to parse as JSON: ${e.message}`];
-      }
-    }
-
-    if (validationErrors.length === 0) {
-      result.structured = normalized;
-      result.summary = normalized.summary?.oneLine || normalized.summary?.detailed || normalized.titleInfo?.displayTitle?.value || "No summary generated";
-      result.repairApplied = warnings.length > 0;
-      result.repairFallbackUsed = repairFallbackUsed;
-      if (warnings.length > 0) result.warnings = warnings;
-    } else {
-      result.structuredParseFailed = true;
-      result.error = "Structured output validation failed";
-      result.validationErrors = validationErrors;
-      if (warnings.length > 0) result.warnings = warnings;
-    }
-  } catch (e: any) {
-    result.structuredParseFailed = true;
-    result.error = "JSON parse failed: " + e.message;
-  }
-
-  return result;
-}
+const SUMMARY_ANALYSIS_REPAIR_VERSION = "1.0.0";
 
 app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
   const token = extractToken(req);
@@ -1167,7 +899,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
 
     let cacheKey = "";
     if (mode === "structured") {
-      cacheKey = `${fileId}__${safeModel}__${temp}__${tP}__${tK}__mode_${mode}__v${SUMMARY_ANALYSIS_PROMPT_VERSION.replace(/\./g, '_')}__sys_${SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION.replace(/\./g, '_')}__sch_${SCHEMA_VERSION_V12.replace(/\./g, '_')}__${instructionHash}__${modTime}.json`;
+      cacheKey = `${fileId}__${safeModel}__${temp}__${tP}__${tK}__mode_${mode}__v${SUMMARY_ANALYSIS_PROMPT_VERSION.replace(/\./g, '_')}__sys_${SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION.replace(/\./g, '_')}__sch_${SCHEMA_VERSION_V12.replace(/\./g, '_')}__rep_${SUMMARY_ANALYSIS_REPAIR_VERSION.replace(/\./g, '_')}__${instructionHash}__${modTime}.json`;
     } else {
       cacheKey = `${fileId}__${safeModel}__${temp}__${tP}__${tK}__mode_${mode}__v${PROMPT_SPEC_VERSION.replace(/\./g, '_')}__${instructionHash}__${modTime}.json`;
     }
@@ -1258,7 +990,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
              result.summary = summaryText;
            }
 
-           await setCachedSummary(cacheKey, result);
+           if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, result); }
            return res.json(result);
          } catch(e: any) {
            return res.status(500).json({ error: `${mimeType.startsWith('image') ? 'Image' : 'PDF'} generation failed: ${e.message}` });
@@ -1353,7 +1085,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
       error: result.error
     });
 
-    await setCachedSummary(cacheKey, result);
+    if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, result); }
     
     res.json(result);
   } catch (err: any) {
