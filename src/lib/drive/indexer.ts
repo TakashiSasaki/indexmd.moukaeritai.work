@@ -21,7 +21,7 @@ export async function runIndexingJob(
   config: any,
   directories: DirectoryMetadata[],
   callbacks: IndexerCallbacks,
-  indexActiveRef: React.MutableRefObject<boolean>
+  indexActiveRef: { current: boolean }
 ) {
   const { onAddLog, setIsIndexActive, setIndexingProgress, setCurrentIndexingId, onSessionExpiry } = callbacks;
 

@@ -75,7 +75,7 @@ export async function runScanJob(
     rootNextPageToken: string | null;
   },
   callbacks: ScanCallbacks,
-  crawlActiveRef: React.MutableRefObject<boolean>
+  crawlActiveRef: { current: boolean }
 ) {
   const { 
     forceReset, 

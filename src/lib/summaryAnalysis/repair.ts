@@ -54,7 +54,7 @@ export function repairSummaryAnalysisV12ControlledVocabularies(value: SummaryAna
       
       // Ensure "documentKindInfo.kinds" is non-empty
       if (result.documentKindInfo.kinds.length === 0) {
-        result.documentKindInfo.kinds = [{ kind: "unknown" }];
+        result.documentKindInfo.kinds = [{ kind: "unknown", confidence: 0.5, reason: "Fallback because kinds array was empty" }];
         warnings.push(`Added fallback "unknown" document kind because the list was empty.`);
       }
     }

@@ -27,6 +27,7 @@ import { SUMMARY_ANALYSIS_SCHEMA_V12, SCHEMA_VERSION_V12 } from "./src/lib/summa
 import { validateSummaryAnalysisV12, getSummaryAnalysisV12ValidationErrors } from "./src/lib/summaryAnalysis/validate";
 import { normalizeAndRepairSummaryAnalysisV12 } from "./src/lib/summaryAnalysis/repair";
 import { normalizeSummaryAnalysisV12 } from "./src/lib/summaryAnalysis/normalize";
+import { SummaryAnalysisResultV12 } from "./src/lib/summaryAnalysis/types";
 
 initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory']);
 
