@@ -99,6 +99,8 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
   
   // Job 1 State (Scanning)
   const [isCrawlActive, setIsCrawlActive] = useState<boolean>(false);
+  const [crawlMode, setCrawlMode] = useState<"flat" | "progressive" | null>(null);
+  const [activeScanFolder, setActiveScanFolder] = useState<{ name: string; path: string } | null>(null);
   const crawlActiveRef = useRef<boolean>(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [rootNextPageToken, setRootNextPageToken] = useState<string | null>(null);
@@ -617,6 +619,8 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
       return;
     }
     setIsCrawlActive(true);
+    setCrawlMode("flat");
+    setActiveScanFolder(null);
     crawlActiveRef.current = true;
     setCrawlStats({ discovered: 0, skipped: 0, ignored: 0, removed: 0 });
     onAddLog("info", forceReset ? "フォルダ全件スキャンを開始します（初期走査）..." : "インクリメンタル（差分）走査を開始します...");
@@ -629,15 +633,17 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
     // Auto-lock status
     await saveSyncStateToDb(currentToken, "running", baselineTime, false);
 
-    // Build unique directories mapping to quickly resolve depths & paths
-    let localDirsMap = new Map<string, any>();
+    // Build unique directories mappings
+    let persistedDirsMap = new Map<string, any>();
+    let pathResolutionMap = new Map<string, any>();
+
     if (!forceReset) {
       try {
         onAddLog("info", "Firestoreから最新のディレクトリ一覧を同期中...");
         const freshSnap = await getDocs(collection(db, "users", userId, "directories"));
         freshSnap.forEach(docSnap => {
           const d = docSnap.data();
-          localDirsMap.set(docSnap.id, {
+          const obj = {
             drive_id: docSnap.id,
             name: d.name || "",
             parents: d.parent_id ? [d.parent_id] : [],
@@ -646,21 +652,26 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             last_traversed_at: d.last_traversed_at || null,
             next_page_token: d.next_page_token || null,
             index_status: d.index_status || "pending"
-          });
+          };
+          persistedDirsMap.set(docSnap.id, obj);
+          pathResolutionMap.set(docSnap.id, obj);
         });
-        onAddLog("info", `Firestoreから ${localDirsMap.size} 件のディレクトリ情報を正確に読み込みました。`);
+        onAddLog("info", `Firestoreから ${persistedDirsMap.size} 件のディレクトリ情報を正確に読み込みました。`);
       } catch (e: any) {
         onAddLog("warn", "Firestoreからの直接同期に失敗しました。ローダーのローカル状態を使用します:", e.message || e);
         dirs.forEach(d => {
-          localDirsMap.set(d.drive_id, {
+          const obj = {
             drive_id: d.drive_id,
-            name: (d.path || "").split("/").pop() || d.drive_id,
+            name: d.name || (d.path || "").split("/").pop() || d.drive_id,
             parents: d.parent_id ? [d.parent_id] : [],
             depth: d.depth || 1,
             path: d.path,
             last_traversed_at: d.last_traversed_at || null,
-            next_page_token: d.next_page_token || null
-          });
+            next_page_token: d.next_page_token || null,
+            index_status: d.index_status || "pending"
+          };
+          persistedDirsMap.set(d.drive_id, obj);
+          pathResolutionMap.set(d.drive_id, obj);
         });
       }
     }
@@ -686,6 +697,8 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
           // ==========================================
           // 1. STANDARD FLAT CRAWLING MODE
           // ==========================================
+          setCrawlMode("flat");
+          setActiveScanFolder(null);
           onAddLog("info", `Google Drive APIフォルダ走査中 (フラット): ページ ${page}...`);
           
           const response = await fetch("/api/drive/scan", {
@@ -733,13 +746,13 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             setTotalCacheMisses(prev => prev + 1);
           }
           
-          // Populate temp directory mapping with new files
+          // Populate path resolution mapping first (do not classify as persisted)
           filesReceived.forEach((file: any) => {
             let resolvedId = file.id;
             if (file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails) {
               resolvedId = file.shortcutDetails.targetId;
             }
-            localDirsMap.set(resolvedId, {
+            pathResolutionMap.set(resolvedId, {
               drive_id: resolvedId,
               name: file.name,
               parents: file.parents || []
@@ -748,7 +761,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
 
           // Compute path recursion helper
           const resolvePathAndDepth = (folderId: string): { path: string; depth: number } => {
-            return resolvePathAndDepthHelper(folderId, localDirsMap);
+            return resolvePathAndDepthHelper(folderId, pathResolutionMap);
           };
 
           // Write batch metadata directly to Firestore
@@ -764,7 +777,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             }
 
             // Ignored folder check
-            const { path: resolvedFullPath } = resolvePathAndDepth(resolvedId); // 変数名変更
+            const { path: resolvedFullPath } = resolvePathAndDepth(resolvedId);
             const isNameIgnored = isIgnoredFolderName(file.name, ignoredFolderNames);
             const isPathIgnored = isIgnoredPath(resolvedFullPath, ignoredFolderNames);
 
@@ -772,7 +785,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
               if (isNameIgnored) {
                 setCrawlStats(prev => ({ ...prev, ignored: prev.ignored + 1 }));
               }
-              const existsInDb = dirs.some(d => d.drive_id === resolvedId);
+              const existsInDb = persistedDirsMap.has(resolvedId);
               if (existsInDb) {
                 onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
                 setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
@@ -800,7 +813,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             setCurrentTaskName(file.name);
             setCurrentTaskPath(fullPath || `/${file.name}`);
 
-            const existingDir = localDirsMap.get(resolvedId);
+            const existingDir = persistedDirsMap.get(resolvedId);
 
             if (skipExistingFolders && existingDir) {
               onAddLog("info", `⏩ すでに登録済みのフォルダ「${file.name}」をスキップしました。`);
@@ -833,6 +846,21 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             batchWriteCount++;
             scannedCount++;
             setCrawlStats(prev => ({ ...prev, discovered: prev.discovered + 1 }));
+
+            // Update local mappings (both!)
+            const savedFolder = {
+              drive_id: resolvedId,
+              name: file.name,
+              parents: file.parents || [],
+              parent_id: parentId,
+              depth: computedDepth || 1,
+              path: fullPath || `/${file.name}`,
+              last_traversed_at: flatUpdateData.last_traversed_at,
+              last_updated_at: flatUpdateData.last_updated_at,
+              index_status: flatUpdateData.index_status
+            };
+            persistedDirsMap.set(resolvedId, savedFolder);
+            pathResolutionMap.set(resolvedId, savedFolder);
 
             if (batchWriteCount === 450) {
               await batch.commit();
@@ -869,8 +897,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
           // ==========================================
           // 2. RESILIENT FOLDER-BY-FOLDER CRAWLING MODE (User Proposal)
           // ==========================================
-          // Progressive mode doesn't need its own separate count check here if we have the global one above, 
-          // but if we want to be specific:
+          setCrawlMode("progressive");
           if (scanLimit > 0 && scannedCount >= scanLimit) {
             break;
           } else if (scanLimit === 0 && resilientCrawlMode && forceReset) {
@@ -881,7 +908,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
           if (!activeOldestFolder) {
             // Re-fetch existing directories from memory map to evaluate oldest traversed folder candidate
             const currentDirsList: any[] = [];
-            localDirsMap.forEach((val, key) => {
+            persistedDirsMap.forEach((val, key) => {
               currentDirsList.push({
                 drive_id: key,
                 name: val.name || key,
@@ -889,7 +916,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
                 depth: val.depth || 1,
                 last_traversed_at: val.last_traversed_at || null,
                 next_page_token: val.next_page_token || null,
-                parent_id: val.parents?.[0] || null
+                parent_id: val.parent_id || val.parents?.[0] || null
               });
             });
 
@@ -907,7 +934,9 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             const candidates = [rootItem, ...currentDirsList];
             // Sort by last_traversed_at ascending (nulls/empty strings first)
             candidates.sort((a, b) => {
-              if (!a.last_traversed_at && !b.last_traversed_at) return 0;
+              if (!a.last_traversed_at && !b.last_traversed_at) {
+                return (a.path || "").localeCompare(b.path || "");
+              }
               if (!a.last_traversed_at) return -1;
               if (!b.last_traversed_at) return 1;
               return new Date(a.last_traversed_at).getTime() - new Date(b.last_traversed_at).getTime();
@@ -915,6 +944,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
 
             activeOldestFolder = candidates[0];
             folderToken = activeOldestFolder.next_page_token || null;
+            setActiveScanFolder({ name: activeOldestFolder.name, path: activeOldestFolder.path });
             onAddLog("info", `[プログレッシブ走査] 起点として最も走査日時が古い（または未走査の）フォルダを選択しました: "${activeOldestFolder.name}" (${activeOldestFolder.path})`);
           }
 
@@ -960,6 +990,19 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
           let folderBatchCount = 0;
           const parentCleanPath = activeOldestFolder.path === "/" ? "" : activeOldestFolder.path;
 
+          // Populate pathResolutionMap directory mapping with new files first (not persistedDirsMap)
+          subdirsReceived.forEach((file: any) => {
+            let resolvedId = file.id;
+            if (file.mimeType === "application/vnd.google-apps.shortcut" && file.shortcutDetails) {
+              resolvedId = file.shortcutDetails.targetId;
+            }
+            pathResolutionMap.set(resolvedId, {
+              drive_id: resolvedId,
+              name: file.name,
+              parents: [activeOldestFolder.drive_id]
+            });
+          });
+
           for (const file of subdirsReceived) {
             if (!crawlActiveRef.current) break;
 
@@ -977,7 +1020,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
               if (isNameIgnored) {
                 setCrawlStats(prev => ({ ...prev, ignored: prev.ignored + 1 }));
               }
-              const existsInDb = localDirsMap.has(resolvedId);
+              const existsInDb = persistedDirsMap.has(resolvedId);
               if (existsInDb) {
                 onAddLog("info", `🚫 無視設定パスに一致するため「${file.name}」をDBから除外/削除しました。`);
                 setCrawlStats(prev => ({ ...prev, removed: prev.removed + 1 }));
@@ -1007,7 +1050,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             setCurrentTaskName(file.name);
             setCurrentTaskPath(fullPath);
 
-            const existingDir = localDirsMap.get(resolvedId);
+            const existingDir = persistedDirsMap.get(resolvedId);
             
             if (skipExistingFolders && existingDir) {
               onAddLog("info", `⏩ すでに登録済みのフォルダ「${file.name}」をスキップしました。`);
@@ -1044,23 +1087,27 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
               scannedCount++;
               setCrawlStats(prev => ({ ...prev, discovered: prev.discovered + 1 }));
 
+              // Update local mappings (both!)
+              const savedFolder = {
+                drive_id: resolvedId,
+                name: file.name,
+                parents: [parentId],
+                parent_id: parentId,
+                depth: computedDepth,
+                path: fullPath,
+                last_traversed_at: progressiveUpdateData.last_traversed_at,
+                last_updated_at: progressiveUpdateData.last_updated_at,
+                index_status: progressiveUpdateData.index_status
+              };
+              persistedDirsMap.set(resolvedId, savedFolder);
+              pathResolutionMap.set(resolvedId, savedFolder);
+
               if (folderBatchCount === 450) {
                 await folderBatch.commit();
                 folderBatch = writeBatch(db);
                 folderBatchCount = 0;
               }
             }
-
-            localDirsMap.set(resolvedId, {
-              ...existingDir,
-              drive_id: resolvedId,
-              name: file.name,
-              parents: [parentId],
-              parent_id: parentId,
-              depth: computedDepth,
-              path: fullPath,
-              last_traversed_at: existingDir ? existingDir.last_traversed_at : null
-            });
           }
 
           if (folderBatchCount > 0) {
@@ -1075,6 +1122,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
             localRootNextPageToken = folderToken;
             localRootLastTraversedAt = finishedTime;
             await saveSyncStateToDb(currentToken, "running", baselineTime, false, localRootNextPageToken, localRootLastTraversedAt);
+            onAddLog("info", `🔄 [プログレッシブ走査] マイドライブ（Root）の走査タイムスタンプを更新しました。次のページトークン: ${folderToken ? 'あり' : 'なし'}`);
           } else {
             const parentFolderRef = doc(db, "users", userId, "directories", activeOldestFolder.drive_id);
             await setDoc(parentFolderRef, {
@@ -1082,11 +1130,17 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
               next_page_token: folderToken
             }, { merge: true });
 
-            const existingInMap = localDirsMap.get(activeOldestFolder.drive_id);
+            const existingInMap = persistedDirsMap.get(activeOldestFolder.drive_id);
             if (existingInMap) {
               existingInMap.last_traversed_at = finishedTime;
               existingInMap.next_page_token = folderToken;
             }
+            const existingInResMap = pathResolutionMap.get(activeOldestFolder.drive_id);
+            if (existingInResMap) {
+              existingInResMap.last_traversed_at = finishedTime;
+              existingInResMap.next_page_token = folderToken;
+            }
+            onAddLog("info", `🔄 [プログレッシブ走査] フォルダ「${activeOldestFolder.name}」の走査タイムスタンプを更新しました。次のページトークン: ${folderToken ? 'あり' : 'なし'}`);
           }
 
           if (!folderToken) {
@@ -1099,6 +1153,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
           progressiveCount++;
           // Set activeOldestFolder to null so the next loop cycle picks the next oldest candidate (Round Robin)
           activeOldestFolder = null;
+          setActiveScanFolder(null);
         }
 
         // Delay between iterations to conform with rate limits
@@ -1130,6 +1185,8 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
       }
     } finally {
       setIsCrawlActive(false);
+      setCrawlMode(null);
+      setActiveScanFolder(null);
     }
   };
 
@@ -1806,11 +1863,18 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
             {isCrawlActive && (
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg mb-4 animate-in fade-in slide-in-from-top-1 duration-300">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <RefreshCw className="w-3 h-3 animate-spin text-indigo-500" />
-                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                      Google Drive API 走査中...
-                    </span>
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="w-3 h-3 animate-spin text-indigo-500" />
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                        {crawlMode === "flat" ? "Google Drive API 走査中 (フラット検出スキャン)..." : "Google Drive API 走査中 (プログレッシブ更新走査)..."}
+                      </span>
+                    </div>
+                    {crawlMode === "progressive" && activeScanFolder && (
+                      <span className="text-[9px] text-indigo-600 font-medium">
+                        対象起点: {activeScanFolder.name} ({activeScanFolder.path})
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm" title="新規/更新">
@@ -1909,7 +1973,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
                     {nextPageToken ? (
                       <div className="space-y-1">
-                        <p>前回の走査の続きから再開します。</p>
+                        <p>{isCrawlActive && crawlMode === "flat" ? "現在、この継続トークンを使用してフラット走査を実行中です。" : "前回の走査の続きから再開します。"}</p>
                         <code className="block p-1 bg-white border border-amber-100 rounded text-[9px] font-mono truncate select-all">{nextPageToken}</code>
                       </div>
                     ) : (
@@ -1931,7 +1995,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
                         {unvisited ? (
                           <div className="space-y-1">
-                            <p>発見済みで未訪問のフォルダから開始します。</p>
+                            <p>{isCrawlActive && crawlMode === "progressive" && activeScanFolder?.name === unvisited.name ? "現在、プログレッシブ走査でこのフォルダを処理中です。" : isCrawlActive && crawlMode === "flat" ? "フラット走査が完了後、この未走査フォルダからプログレッシブ走査を開始します。" : "発見済みで未訪問のフォルダから開始します。"}</p>
                             <div className="flex items-center gap-1 text-indigo-600 font-bold truncate">
                               <Folder className="w-3 h-3" />
                               <span className="truncate">{unvisited.name || unvisited.path}</span>
@@ -1958,7 +2022,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
                         {oldest ? (
                           <div className="space-y-1">
-                            <p>最後に訪問してから最も時間が経過したフォルダを再訪します。</p>
+                            <p>{isCrawlActive && crawlMode === "progressive" && activeScanFolder?.name === oldest.name ? "現在、プログレッシブ走査でこの最古フォルダを処理中です。" : "最後に訪問してから最も時間が経過したフォルダを再訪します。"}</p>
                             <div className="flex items-center gap-1 text-slate-700 font-bold truncate">
                               <Folder className="w-3 h-3" />
                               <span className="truncate">{oldest.name || oldest.path}</span>
