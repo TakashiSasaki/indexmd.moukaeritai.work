@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { canGenerateSummary } from './SummaryDebugger';
+import { canGenerateSummary } from '../lib/summaryDebuggerUtils';
 
 test("canGenerateSummary evaluates correctly", () => {
   assert.strictEqual(canGenerateSummary("drive", "123", "", false), true);

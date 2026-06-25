@@ -1,0 +1,111 @@
+{
+  "summary": {
+    "oneLine": "A minimal example document detailing core system setup.",
+    "detailed": "This is a minimal detailed summary explaining that the system setup was completed with standard configurations and basic parameters."
+  },
+  "titleInfo": {
+    "explicitTitle": null,
+    "fileNameTitle": {
+      "value": "setup.txt",
+      "isGeneric": true,
+      "genericReason": "setup.txt contains very common filename suffix with little context"
+    },
+    "inferredTitle": "System Initialization Reference Guide",
+    "displayTitle": {
+      "value": "System Initialization Reference Guide",
+      "source": "inferredTitle",
+      "reason": "The filename is generic, so the AI inferred title was chosen for display."
+    }
+  },
+  "documentKindInfo": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "kinds": [
+      {
+        "kind": "note",
+        "confidence": 0.9,
+        "reason": "Short, unstructured document detailing setup steps."
+      }
+    ]
+  },
+  "fileFormatInfo": {
+    "mimeType": "text/plain",
+    "extension": "txt"
+  },
+  "subjectAreas": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "domains": [
+      {
+        "domain": "computerScience",
+        "confidence": 0.95,
+        "reason": "Deals with system configuration and software properties.",
+        "labels": [
+          {
+            "label": "System Configuration",
+            "kind": "topic",
+            "confidence": 0.9,
+            "language": "en",
+            "script": "Latn",
+            "source": "controlledVocabulary",
+            "reason": "Matches standard IT operations taxonomy.",
+            "evidenceKeywords": ["setup", "configuration"]
+          }
+        ]
+      }
+    ]
+  },
+  "languageInfo": {
+    "primary": "en",
+    "detected": ["en"]
+  },
+  "indexing": {
+    "keywords": [
+      {
+        "value": "setup",
+        "language": "en",
+        "script": "Latn",
+        "source": "surface",
+        "confidence": 0.95,
+        "importance": 0.8,
+        "normalizedValue": "setup",
+        "searchVariants": [
+          {
+            "value": "installation",
+            "kind": "synonym",
+            "language": "en",
+            "script": "Latn",
+            "confidence": 0.9
+          }
+        ]
+      },
+      {
+        "value": "configuration",
+        "language": "en",
+        "script": "Latn",
+        "source": "surface",
+        "confidence": 0.95,
+        "importance": 0.85,
+        "normalizedValue": "configuration",
+        "searchVariants": [
+          {
+            "value": "config",
+            "kind": "acronym",
+            "language": "en",
+            "script": "Latn",
+            "confidence": 0.95
+          }
+        ]
+      }
+    ],
+    "namedEntities": [],
+    "resourceReferences": []
+  },
+  "extractedFacts": {
+    "temporalReferences": [],
+    "parties": [],
+    "monetaryAmounts": []
+  },
+  "quality": {
+    "confidence": 0.85,
+    "warnings": []
+  }
+}

@@ -1,0 +1,348 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://indexmd.moukaeritai.work/schemas/summary-analysis.v1.2.0-draft.2.schema.json",
+  "title": "Summary Analysis Schema v1.2.0-draft.2",
+  "description": "Exchange-oriented schema for AI structured one-file metadata summaries. Incorporates linguistic metadata for keywords and subject area labels.",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "object",
+      "description": "Concise and detailed summary of the document's content.",
+      "properties": {
+        "oneLine": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Concise single-sentence summary suitable for file/directory listings."
+        },
+        "detailed": {
+          "type": "string",
+          "description": "Detailed multi-paragraph description of the document's structure, context, and key takeaways."
+        }
+      },
+      "required": ["oneLine", "detailed"]
+    },
+    "titleInfo": {
+      "type": "object",
+      "description": "Heuristic selection and inferencing of titles from various sources.",
+      "properties": {
+        "explicitTitle": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "value": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "enum": ["embeddedMetadata", "documentHeading"] }
+              },
+              "required": ["value", "source"]
+            },
+            { "type": "null" }
+          ],
+          "description": "Explicit title found within document headings or standard embedded metadata."
+        },
+        "fileNameTitle": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "value": { "type": "string", "minLength": 1 },
+                "isGeneric": { "type": "boolean" },
+                "genericReason": { "type": "string" }
+              },
+              "required": ["value", "isGeneric"]
+            },
+            { "type": "null" }
+          ],
+          "description": "Title extracted or derived from the filename."
+        },
+        "inferredTitle": {
+          "type": "string",
+          "description": "AI-inferred title based on global comprehension of the document body."
+        },
+        "displayTitle": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "minLength": 1 },
+            "source": { "type": "string", "enum": ["explicitTitle", "fileNameTitle", "inferredTitle", "systemFallback"] },
+            "reason": { "type": "string" }
+          },
+          "required": ["value", "source", "reason"],
+          "description": "The best user-facing title chosen to represent this document in listings and index files."
+        }
+      },
+      "required": ["explicitTitle", "fileNameTitle", "inferredTitle", "displayTitle"]
+    },
+    "documentKindInfo": {
+      "type": "object",
+      "description": "Categorization of the document's cognitive type (invoice, manual, report, etc.).",
+      "properties": {
+        "vocabularyVersion": { "type": "string", "description": "Version of the document kinds vocabulary used (e.g. '1.0.0-draft.1')" },
+        "kinds": {
+          "type": "array",
+          "maxItems": 5,
+          "$comment": "Vocabulary governance constraints are handled by custom validators. Kinds must not contain empty or multiple values if unknown is present.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string", "description": "String representation of the document kind governed by vocabulary (e.g. invoice, specification)." },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "reason": { "type": "string" }
+            },
+            "required": ["kind", "confidence", "reason"]
+          }
+        }
+      },
+      "required": ["vocabularyVersion", "kinds"]
+    },
+    "fileFormatInfo": {
+      "type": "object",
+      "description": "Physical structure and representation format of the file.",
+      "properties": {
+        "mimeType": { "type": ["string", "null"], "description": "Standard MIME type representation (e.g., application/pdf)." },
+        "extension": { "type": ["string", "null"], "description": "Standard file extension (e.g., pdf, md)." }
+      },
+      "required": ["mimeType", "extension"]
+    },
+    "subjectAreas": {
+      "type": "object",
+      "description": "Facet classification of subject areas/domains with detailed custom labels.",
+      "properties": {
+        "vocabularyVersion": { "type": "string", "description": "Version of the subject domains vocabulary used." },
+        "domains": {
+          "type": "array",
+          "maxItems": 5,
+          "$comment": "Controlled domain checks are performed by custom validator. Limits and other-labels relations are checked in code.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain": { "type": "string", "description": "Subject domain from controlled vocabulary." },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "reason": { "type": "string" },
+              "labels": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": { "type": "string" },
+                    "kind": { "type": "string", "description": "Subject label kind category (e.g. field, topic, method)." },
+                    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "language": { "type": "string", "description": "Optional BCP 47 language tag." },
+                    "script": { "type": "string", "description": "Optional ISO 15924 script code." },
+                    "source": { "type": "string", "enum": ["surface", "inferred", "controlledVocabulary"], "description": "The extraction source/method for this label." },
+                    "reason": { "type": "string", "description": "Linguistic or contextual reasoning for the label." },
+                    "evidenceKeywords": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "Supporting keyword terms extracted from text."
+                    }
+                  },
+                  "required": ["label", "kind", "confidence", "source"]
+                }
+              }
+            },
+            "required": ["domain", "confidence", "reason", "labels"]
+          }
+        }
+      },
+      "required": ["vocabularyVersion", "domains"]
+    },
+    "languageInfo": {
+      "type": "object",
+      "description": "Natural languages present in the document.",
+      "properties": {
+        "primary": { "type": "string", "minLength": 1, "description": "Primary language code or name of the document." },
+        "detected": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All languages detected within the document body."
+        }
+      },
+      "required": ["primary", "detected"]
+    },
+    "indexing": {
+      "type": "object",
+      "description": "Metadata specifically extracted to facilitate indexing, categorization, and search.",
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "description": "High-fidelity keyword terms, indexed with rich linguistic and provenance metadata.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The exact keyword string."
+              },
+              "language": {
+                "type": "string",
+                "description": "Optional BCP 47 language tag (e.g., 'ja', 'en')."
+              },
+              "script": {
+                "type": "string",
+                "description": "Optional ISO 15924 script code (e.g., 'Jpan', 'Latn')."
+              },
+              "source": {
+                "type": "string",
+                "enum": ["surface", "inferred", "controlledVocabulary"],
+                "description": "The extraction source/method for this keyword."
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Confidence level of the extraction/categorization."
+              },
+              "importance": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Significance level of this keyword to the overall document."
+              },
+              "normalizedValue": {
+                "type": "string",
+                "description": "Optional normalized canonical representation of the keyword."
+              },
+              "searchVariants": {
+                "type": "array",
+                "description": "Alternative search phrases or representations.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["synonym", "acronym", "translation", "transliteration", "stem", "misspelling"]
+                    },
+                    "language": {
+                      "type": "string"
+                    },
+                    "script": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["value", "kind", "confidence"]
+                }
+              }
+            },
+            "required": ["value", "source", "confidence", "importance", "searchVariants"]
+          }
+        },
+        "namedEntities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "type": { "type": "string", "enum": ["person", "organization", "location", "artifact", "initiative", "unclassified"] }
+            },
+            "required": ["name", "type"]
+          }
+        },
+        "resourceReferences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "uri": { "type": "string" },
+              "label": { "type": "string" },
+              "raw": { "type": "string", "maxLength": 240 }
+            },
+            "required": ["uri"]
+          }
+        }
+      },
+      "required": ["keywords", "namedEntities", "resourceReferences"]
+    },
+    "extractedFacts": {
+      "type": "object",
+      "description": "Detailed references, actors, and financial figures extracted from text.",
+      "properties": {
+        "temporalReferences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "normalizedDate": { "type": "string" },
+              "role": { "type": "string", "description": "Open role name (e.g. issued, due, billingStart)." },
+              "roleCategory": { "type": "string", "description": "Controlled category for the role (e.g. transaction, validity)." },
+              "raw": { "type": "string", "maxLength": 240 },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "required": ["value", "role", "roleCategory", "confidence"]
+          }
+        },
+        "parties": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "kind": { "type": "string", "description": "Controlled category of the party (e.g. person, organization)." },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": { "type": "string" },
+                    "roleCategory": { "type": "string" },
+                    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                  },
+                  "required": ["role", "roleCategory", "confidence"]
+                }
+              }
+            },
+            "required": ["name", "kind", "roles"]
+          }
+        },
+        "monetaryAmounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "amount": { "type": "number" },
+              "currency": { "type": "string" },
+              "role": { "type": "string" },
+              "roleCategory": { "type": "string" },
+              "raw": { "type": "string", "maxLength": 240 },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "required": ["amount", "currency", "role", "roleCategory", "confidence"]
+          }
+        }
+      },
+      "required": ["temporalReferences", "parties", "monetaryAmounts"]
+    },
+    "quality": {
+      "type": "object",
+      "description": "Metadata extraction quality information and warnings.",
+      "properties": {
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["confidence", "warnings"]
+    }
+  },
+  "required": [
+    "summary",
+    "titleInfo",
+    "documentKindInfo",
+    "fileFormatInfo",
+    "subjectAreas",
+    "languageInfo",
+    "indexing",
+    "extractedFacts",
+    "quality"
+  ]
+}

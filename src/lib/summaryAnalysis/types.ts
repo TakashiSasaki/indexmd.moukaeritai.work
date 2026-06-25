@@ -68,6 +68,11 @@ export interface SubjectLabel {
   label: string;
   kind: string;
   confidence: number;
+  language?: string;
+  script?: string;
+  source: string; // e.g. surface, inferred, controlledVocabulary
+  reason?: string;
+  evidenceKeywords?: string[];
 }
 
 export interface SubjectDomainInfo {
@@ -98,9 +103,27 @@ export interface ResourceReference {
   raw?: string;
 }
 
+export interface SearchVariant {
+  value: string;
+  kind: string; // e.g. synonym, acronym, translation, transliteration, stem, misspelling
+  language?: string;
+  script?: string;
+  confidence: number;
+}
+
+export interface KeywordTerm {
+  value: string;
+  language?: string;
+  script?: string;
+  source: string; // e.g. surface, inferred, controlledVocabulary
+  confidence: number;
+  importance: number;
+  normalizedValue?: string;
+  searchVariants: SearchVariant[];
+}
+
 export interface IndexingInfo {
-  topics: string[];
-  keywords: string[];
+  keywords: KeywordTerm[];
   namedEntities: NamedEntity[];
   resourceReferences: ResourceReference[];
 }

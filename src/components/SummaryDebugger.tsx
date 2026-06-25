@@ -10,6 +10,7 @@ import { db, doc, getDoc, setDoc, auth, handleFirestoreError, OperationType, col
 import { buildFileSummaryMetadata, sanitizeSummaryMetadataForFirestore, getFileSummaryDocPath, isPersistableStructuredSummary, getSummaryMetadataStatus } from '../lib/summaryMetadata';
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from '../lib/summaryAnalysisSchema';
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from '../lib/promptSpecs';
+import { canGenerateSummary } from '../lib/summaryDebuggerUtils';
 
 interface SummaryDebuggerProps {
   token: string | null;
@@ -23,12 +24,6 @@ const SELECTED_FILE_ID_KEY = 'gemini_selected_file_id';
 const SELECTED_MODEL_KEY = 'gemini_selected_model';
 
 const MODELS = MODELS_INFO as ModelInfo[];
-
-export function canGenerateSummary(inputMode: 'drive' | 'manual', fileId: string, manualText: string, loading: boolean): boolean {
-  if (loading) return false;
-  if (inputMode === 'drive') return !!fileId.trim();
-  return !!manualText.trim();
-}
 
 export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({ token, onSessionExpiry, userId, setActiveTab }) => {
   const [inputMode, setInputMode] = useState<"drive" | "manual">("drive");

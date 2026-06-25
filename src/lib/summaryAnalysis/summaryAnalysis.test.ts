@@ -18,9 +18,7 @@ import { getSummaryAnalysisV12ValidationErrors, validateSummaryAnalysisV12 } fro
 import { normalizeSummaryAnalysisV12 } from "./normalize.js";
 import {
   minimalExample,
-  technicalNoteExample,
-  invoiceExample,
-  mixedMedicalFinanceExample
+  japaneseMixedExample
 } from "./examples.js";
 
 // Helper to get a valid base v1.2 object for mutation testing
@@ -68,7 +66,8 @@ function getValidV12Base(): any {
             {
               label: "TypeScript",
               kind: "topic",
-              confidence: 0.9
+              confidence: 0.9,
+              source: "controlledVocabulary"
             }
           ]
         }
@@ -79,8 +78,33 @@ function getValidV12Base(): any {
       detected: ["en"]
     },
     indexing: {
-      topics: ["software"],
-      keywords: ["testing", "validation"],
+      keywords: [
+        {
+          value: "testing",
+          source: "surface",
+          confidence: 0.95,
+          importance: 0.9,
+          language: "en",
+          script: "Latn",
+          normalizedValue: "testing",
+          searchVariants: [
+            {
+              value: "test",
+              kind: "stem",
+              language: "en",
+              script: "Latn",
+              confidence: 0.99
+            }
+          ]
+        },
+        {
+          value: "validation",
+          source: "surface",
+          confidence: 0.95,
+          importance: 0.85,
+          searchVariants: []
+        }
+      ],
       namedEntities: [
         {
           name: "Blue Co.",
@@ -140,7 +164,7 @@ function getValidV12Base(): any {
 // 1. JSON Schema Loading Tests
 test("v1.2: JSON Schema is loaded and parses correctly", () => {
   assert.ok(SUMMARY_ANALYSIS_SCHEMA_V12);
-  assert.strictEqual(SUMMARY_ANALYSIS_SCHEMA_V12.title, "Summary Analysis Schema v1.2.0-draft.1");
+  assert.strictEqual(SUMMARY_ANALYSIS_SCHEMA_V12.title, "Summary Analysis Schema v1.2.0-draft.2");
 });
 
 // 2. Vocabulary Sync Tests
@@ -165,11 +189,9 @@ test("v1.2: TypeScript vocabulary constants match JSON sources", () => {
 });
 
 // 3. Synthetic Example Validation Tests
-test("v1.2: all four synthetic examples pass schema and custom validations", () => {
+test("v1.2: all synthetic examples pass schema and custom validations", () => {
   assert.ok(validateSummaryAnalysisV12(minimalExample), `Minimal example failed: ${getSummaryAnalysisV12ValidationErrors(minimalExample).join(", ")}`);
-  assert.ok(validateSummaryAnalysisV12(technicalNoteExample), `Technical note example failed: ${getSummaryAnalysisV12ValidationErrors(technicalNoteExample).join(", ")}`);
-  assert.ok(validateSummaryAnalysisV12(invoiceExample), `Invoice example failed: ${getSummaryAnalysisV12ValidationErrors(invoiceExample).join(", ")}`);
-  assert.ok(validateSummaryAnalysisV12(mixedMedicalFinanceExample), `Mixed medical/finance example failed: ${getSummaryAnalysisV12ValidationErrors(mixedMedicalFinanceExample).join(", ")}`);
+  assert.ok(validateSummaryAnalysisV12(japaneseMixedExample), `Japanese mixed example failed: ${getSummaryAnalysisV12ValidationErrors(japaneseMixedExample).join(", ")}`);
 });
 
 // 4. Semantic Rules & Validator Mutation Tests

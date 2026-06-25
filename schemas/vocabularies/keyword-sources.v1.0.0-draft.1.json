@@ -1,0 +1,13 @@
+{
+  "vocabularyId": "keyword-sources",
+  "version": "1.0.0-draft.1",
+  "terms": [
+    { "value": "wikipedia", "description": "Wikipedia article titles", "deprecated": false, "aliases": [] },
+    { "value": "wikidata", "description": "Wikidata items/concepts", "deprecated": false, "aliases": [] },
+    { "value": "mesh", "description": "Medical Subject Headings", "deprecated": false, "aliases": [] },
+    { "value": "loc", "description": "Library of Congress Subject Headings", "deprecated": false, "aliases": [] },
+    { "value": "rvm", "description": "Répertoire de vedettes-matière", "deprecated": false, "aliases": [] },
+    { "value": "ndl", "description": "National Diet Library Subject Headings", "deprecated": false, "aliases": [] },
+    { "value": "custom", "description": "Document-specific custom vocabulary terms", "deprecated": false, "aliases": [] }
+  ]
+}
