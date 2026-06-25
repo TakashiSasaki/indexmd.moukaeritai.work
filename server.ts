@@ -422,7 +422,11 @@ app.get("/api/validation-history", (req, res) => {
   }
 });
 
-// API to fetch experiment history
+/**
+ * API to fetch experiment history.
+ * Reads from `cache/experiment-history/experiment_history.json`.
+ * Falls back to the old path `src/data/experiment_history.json` if necessary.
+ */
 app.get("/api/experiment-history", (req, res) => {
   try {
     if (fs.existsSync(EXPERIMENT_HISTORY_PATH)) {
@@ -438,7 +442,10 @@ app.get("/api/experiment-history", (req, res) => {
   }
 });
 
-// API to clear experiment history
+/**
+ * API to clear experiment history.
+ * Deletes `cache/experiment-history/experiment_history.json` to reset local experiment history.
+ */
 app.post("/api/experiment-history/clear", (req, res) => {
   try {
     if (fs.existsSync(EXPERIMENT_HISTORY_PATH)) {
@@ -1250,6 +1257,11 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
 });
 
 
+/**
+ * API to generate a summary for manually inputted text (Manual Input Test feature).
+ * Used for testing prompts, evaluating schemas, and debugging model responses
+ * without requiring real files from Google Drive.
+ */
 app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
   try {
     const { text, customInstruction, modelName, outputMode, inputLabel } = req.body;

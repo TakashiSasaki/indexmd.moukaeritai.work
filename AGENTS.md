@@ -15,7 +15,9 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
     - **Collections**:
       - `users/{userId}/state/global_sync`: Tracks global sync tokens.
       - `users/{userId}/directories/{directoryId}`: Stores metadata for each directory.
-  - **Local Filesystem**: `src/data/validation_history.json` tracks processing success/fails.
+  - **Local Filesystem**:
+    - `src/data/validation_history.json` tracks processing success/fails.
+    - `cache/experiment-history/experiment_history.json` tracks local experiment history (previously in `src/data/experiment_history.json`).
 - **APIs**: Google Drive API (Advanced scope required for file manipulation).
 
 ## ⚠️ Critical Logic Constraints (Maintain at all costs)
@@ -37,6 +39,9 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 
 ### 4. Error Management (`src/main.tsx`)
 - Benign errors (401 Expiry, Model Fallback warnings, Firestore temporary disconnects) are **muted** in the UI to prevent cluttering the user experience during transient network/API issues.
+
+### 5. Testing & Debugging
+- **Manual Input Test**: The application supports a "Manual Input Test" feature (accessible in `SummaryDebugger.tsx` and via `/api/drive/debug/generate-manual-summary`) to evaluate the schema and test models without requiring real Google Drive files.
 
 ## 🎨 Design Rules
 - **Typography**: Primary font is `Inter`. Display/Headings use `Space Grotesk` or `Outfit` for a tech-focused feel.

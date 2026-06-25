@@ -2,6 +2,8 @@ export const SUMMARY_ANALYSIS_SCHEMA_VERSION = "1.1.0-draft.1";
 
 // This is an experimental schema intended for AI Summary Test validation,
 // not a final stable schema.
+// Version 1.1.0-draft.1 is actively used by the "Manual Input Test" feature
+// and is tracked in the local experiment history.
 
 export const DOCUMENT_TYPES = [
   "note", "report", "specification", "manual", "academicPaper", "abstract",
