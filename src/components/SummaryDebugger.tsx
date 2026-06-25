@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronUp,
   LayoutGrid,
+  Braces,
 } from "lucide-react";
 import { getDriveAuthHeaders } from "../lib/driveToken";
 import { CompatibilityMatrix } from "./CompatibilityMatrix";
@@ -1087,10 +1088,11 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (targetMode: "text" | "structured") => {
     if (inputMode === "drive" && !fileId.trim()) return;
     if (inputMode === "manual" && !manualText.trim()) return;
 
+    setOutputMode(targetMode);
     setLoading(true);
     setResult(null);
     setError(null);
@@ -1125,7 +1127,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             fileId: parsedId,
             modelName,
             customInstruction: customPrompt,
-            outputMode,
+            outputMode: targetMode,
             includeRequestPreview: true,
           }),
         });
@@ -1140,7 +1142,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             text: manualText,
             modelName,
             customInstruction: customPrompt,
-            outputMode,
+            outputMode: targetMode,
             inputLabel: manualInputLabel,
             includeRequestPreview: true,
           }),
@@ -1982,26 +1984,6 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
         )}
       </div>
 
-      <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4">
-        <label className="text-sm font-semibold text-slate-700">
-          出力モード:
-        </label>
-        <div className="flex bg-slate-100 p-1 rounded-lg">
-          <button
-            onClick={() => setOutputMode("text")}
-            className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${outputMode === "text" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            自由文要約
-          </button>
-          <button
-            onClick={() => setOutputMode("structured")}
-            className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${outputMode === "structured" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            構造化分析(JSON)
-          </button>
-        </div>
-      </div>
-
       <div className="mt-6">
         <label className="block text-sm font-semibold text-slate-700 mb-1">
           カスタム要約指示
@@ -2017,26 +1999,49 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
         />
       </div>
 
-      <button
-        onClick={handleGenerate}
-        disabled={
-          loading ||
-          (inputMode === "drive" ? !fileId.trim() : !manualText.trim())
-        }
-        className="w-full mt-2 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-4 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98]"
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            要約を生成中...
-          </>
-        ) : (
-          <>
-            <Play className="w-5 h-5" />
-            要約を生成する
-          </>
-        )}
-      </button>
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button
+          onClick={() => handleGenerate("text")}
+          disabled={
+            loading ||
+            (inputMode === "drive" ? !fileId.trim() : !manualText.trim())
+          }
+          className="w-full flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-4 rounded-xl transition-all shadow-lg hover:shadow-slate-500/20 active:scale-[0.98]"
+        >
+          {loading && outputMode === "text" ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              生成中...
+            </>
+          ) : (
+            <>
+              <FileText className="w-5 h-5" />
+              自由文要約を生成
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={() => handleGenerate("structured")}
+          disabled={
+            loading ||
+            (inputMode === "drive" ? !fileId.trim() : !manualText.trim())
+          }
+          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-4 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98]"
+        >
+          {loading && outputMode === "structured" ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              生成中...
+            </>
+          ) : (
+            <>
+              <Braces className="w-5 h-5" />
+              構造化分析(JSON)を生成
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Results Section */}
       <div className="mt-10 space-y-6">
