@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { repairSummaryAnalysisV12ControlledVocabularies } from './repair';
+import { repairSummaryAnalysisV12ControlledVocabularies, normalizeAndRepairSummaryAnalysisV12 } from './repair';
 import { SummaryAnalysisResultV12 } from './types';
 import { getSummaryAnalysisV12ValidationErrors } from './validate';
 
@@ -91,5 +91,62 @@ describe('repairSummaryAnalysisV12ControlledVocabularies', () => {
     const temps = repaired.extractedFacts?.temporalReferences;
     assert.strictEqual(temps?.[0].roleCategory, "publication");
     assert.strictEqual(temps?.[1].roleCategory, "other");
+  });
+
+  it('full cycle: normalize, repair, and validate passes strict checks', () => {
+    // A highly "dirty" but logically sound summary from an LLM that ignored some strict constraints
+    const dirtyInput: any = {
+      summary: { 
+        oneLine: "Testing repair full cycle",
+        detailed: "Detailed summary text here."
+      },
+      titleInfo: {
+        inferredTitle: "Repaired Title",
+        displayTitle: { value: "Repaired Title", source: "inferredTitle" }
+      },
+      languageInfo: {
+        primary: "en",
+        detected: ["en"]
+      },
+      documentKindInfo: { 
+        vocabularyVersion: "1.0.0", // old version
+        kinds: [{ kind: "spreadsheet" }] // alias
+      },
+      subjectAreas: {
+        vocabularyVersion: "1.0", // invalid format
+        domains: [
+          { 
+            domain: "Computing and Internet", // alias
+            confidence: 0.9,
+            reason: "Discusses web technologies",
+            labels: [{ label: "Web", kind: "service", confidence: 0.9, source: "surface" }] // invalid label kind
+          }
+        ]
+      },
+      extractedFacts: {
+        parties: [
+          { 
+            name: "Test Corp", 
+            roles: [{ role: "sponsor", roleCategory: "transaction" }] // alias
+          }
+        ],
+        temporalReferences: [
+          { role: "publishedDate", value: "2023-01-01", roleCategory: "none" } // publication mapping
+        ]
+      }
+    };
+
+    const { repaired, warnings } = normalizeAndRepairSummaryAnalysisV12(dirtyInput);
+    
+    // Repaired values should be correct
+    assert.strictEqual(repaired.documentKindInfo?.kinds?.[0].kind, "dataset");
+    assert.strictEqual(repaired.subjectAreas?.domains?.[0].domain, "technology");
+    assert.strictEqual(repaired.subjectAreas?.domains?.[0].labels?.[0].kind, "product");
+    assert.strictEqual(repaired.extractedFacts?.parties?.[0].roles?.[0].roleCategory, "commerce");
+    assert.strictEqual(repaired.extractedFacts?.temporalReferences?.[0].roleCategory, "publication");
+
+    // Validation checks
+    const errors = getSummaryAnalysisV12ValidationErrors(repaired);
+    assert.strictEqual(errors.length, 0, `Should have zero validation errors after repair: ${errors.join(', ')}`);
   });
 });

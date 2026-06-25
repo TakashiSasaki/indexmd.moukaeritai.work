@@ -129,7 +129,7 @@ export function repairSummaryAnalysisV12ControlledVocabularies(value: SummaryAna
     result.extractedFacts.temporalReferences.forEach(t => {
       if (t.role) {
         const normRole = t.role.toLowerCase();
-        if (["publishedat", "publicationdate", "postedat"].includes(normRole)) {
+        if (["publishedat", "publicationdate", "publisheddate", "postedat"].includes(normRole)) {
           if (t.roleCategory !== "publication") {
             const old = t.roleCategory || "none";
             t.roleCategory = "publication";
