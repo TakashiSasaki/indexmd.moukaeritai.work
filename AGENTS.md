@@ -47,6 +47,21 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - `src/components/DriveDashboard.tsx`: The heart of the application. Contains the scan orchestration, Firestore sync logic, and drive API calls.
 - `server.ts`: Handles secure Gemini requests, Drive API proxying (to keep tokens secret), and history persistence.
 
+## 🌿 Branch workflow for Google AI Studio and Jules
+
+`main` is the source-of-truth branch used by Google AI Studio. Do not rename it.
+
+`jules/integration` is the integration branch used by Jules. The workflow
+`.github/workflows/sync-main-to-jules-integration.yml` keeps it up to date with
+`main`.
+
+Do not remove this workflow as unused or deprecated. It is repository-operation
+infrastructure, not application runtime code.
+
+The workflow may merge `main` into `jules/integration`, but must never reset or
+force-push `jules/integration`. If a merge conflict occurs, it opens or updates a
+PR from `automation/sync-main-to-jules-integration` into `jules/integration`.
+
 ## 🔒 Hard Safety Constraints
 - **Drive Safety**: Do NOT delete Google Drive files, folders, or generated `index.md` files. Do NOT run full Drive-wide indexing.
 - **Data Safety**: Firestore database ID is `indexmd-db`. Do not loosen security rules or re-add `(default)`.
