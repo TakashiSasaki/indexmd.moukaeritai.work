@@ -172,6 +172,28 @@ function configureStructuredOptions(targetModel: string, configOption: any) {
   }
 }
 
+function buildRequestPreview(params: any): any {
+  return {
+    model: params.model,
+    requestedOutputMode: params.outputMode,
+    effectiveStructuredExecutionMode: params.configOption?.effectiveStructuredExecutionMode || null,
+    supportsNativeResponseSchema: params.configOption?.supportsNativeResponseSchema || false,
+    responseMimeType: params.configOption?.responseMimeType || null,
+    responseSchemaEnabled: !!params.configOption?.responseSchema,
+    temperature: params.configOption?.temperature,
+    topP: params.configOption?.topP,
+    topK: params.configOption?.topK,
+    systemInstruction: params.configOption?.systemInstruction || null,
+    taskPrompt: params.taskPrompt || null,
+    contentSampleLength: params.contentSample?.length || 0,
+    contentSamplePreview: params.contentSample ? params.contentSample.substring(0, 500) + (params.contentSample.length > 500 ? "..." : "") : null,
+    customInstruction: params.customInstruction || null,
+    inputKind: params.inputKind || null,
+    mimeType: params.mimeType || null,
+    binaryInlineDataUsed: !!params.binaryInlineDataUsed
+  };
+}
+
 function sanitizeResult(result: any): any {
   if (result.outputMode === "structured") {
     const sanitized = { ...result };
@@ -902,7 +924,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
     return;
   }
 
-  const { fileId, modelName, temperature, topP, topK, customInstruction, outputMode } = req.body;
+  const { fileId, modelName, temperature, topP, topK, customInstruction, outputMode, includeRequestPreview } = req.body;
   if (!fileId) {
     return res.status(400).json({ error: "fileId is required" });
   }
@@ -1017,6 +1039,20 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
              result.summary = summaryText;
            }
 
+           if (includeRequestPreview) {
+             result.requestPreview = buildRequestPreview({
+               model: targetModel,
+               outputMode: mode,
+               configOption,
+               taskPrompt: filePrompt,
+               contentSample: null,
+               customInstruction,
+               inputKind: "driveFile",
+               mimeType: mimeType,
+               binaryInlineDataUsed: true
+             });
+           }
+
            const sanitizedResult = sanitizeResult(result);
            if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, sanitizedResult); }
            return res.json(sanitizedResult);
@@ -1111,6 +1147,20 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
       error: result.error
     });
 
+    if (includeRequestPreview) {
+      result.requestPreview = buildRequestPreview({
+        model: targetModel,
+        outputMode: mode,
+        configOption,
+        taskPrompt: filePrompt,
+        contentSample: contentSample,
+        customInstruction,
+        inputKind: "driveFile",
+        mimeType: mimeType,
+        binaryInlineDataUsed: false
+      });
+    }
+
     const sanitizedResult = sanitizeResult(result);
     if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, sanitizedResult); }
     
@@ -1146,16 +1196,26 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
       errorMessage = err.message || "Failed to generate file summary.";
     }
 
-    const rawStatus = err.status || err.response?.status;
+    const rawStatus = err.statusCode || err.status || err.response?.status;
     const statusCode = rawStatus ? Number(rawStatus) : 500;
-    res.status(statusCode).json({ error: errorMessage });
+    
+    let errorResponse: any = { error: errorMessage };
+    if (err.name === "ProviderError") {
+      errorResponse.providerError = {
+        statusCode: err.statusCode,
+        providerStatus: err.providerStatus,
+        rawMessageSummary: err.rawMessageSummary
+      };
+    }
+    
+    res.status(statusCode).json(errorResponse);
   }
 });
 
 
 app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
   try {
-    const { text, customInstruction, modelName, outputMode, inputLabel } = req.body;
+    const { text, customInstruction, modelName, outputMode, inputLabel, includeRequestPreview } = req.body;
     if (!text || typeof text !== "string") {
       return res.status(400).json({ error: "Missing or invalid 'text' field" });
     }
@@ -1228,10 +1288,36 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
       manualTextHash: textHash.toString(16)
     });
 
+    if (includeRequestPreview) {
+      result.requestPreview = buildRequestPreview({
+        model: targetModel,
+        outputMode: mode,
+        configOption,
+        taskPrompt: prompt,
+        contentSample: contentSample,
+        customInstruction,
+        inputKind: "manualText",
+        mimeType: "text/plain",
+        binaryInlineDataUsed: false
+      });
+    }
+
     res.json(sanitizeResult(result));
   } catch (err: any) {
     console.error("Manual text summary error:", err);
-    res.status(500).json({ error: err.message || "Failed to process manual text" });
+    const rawStatus = err.statusCode || err.status || err.response?.status;
+    const statusCode = rawStatus ? Number(rawStatus) : 500;
+    
+    let errorResponse: any = { error: err.message || "Failed to process manual text" };
+    if (err.name === "ProviderError") {
+      errorResponse.providerError = {
+        statusCode: err.statusCode,
+        providerStatus: err.providerStatus,
+        rawMessageSummary: err.rawMessageSummary
+      };
+    }
+    
+    res.status(statusCode).json(errorResponse);
   }
 });
 
