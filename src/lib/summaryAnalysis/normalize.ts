@@ -273,10 +273,10 @@ export function normalizeSummaryAnalysisV12(value: any): SummaryAnalysisResultV1
     })
     .filter((kw: any) => kw !== null);
 
-  // Deduplicate keywords stably by composite key: value + language + script
+  // Deduplicate keywords stably by composite key: value + language + script + source
   const uniqueKwMap = new Map<string, any>();
   for (const kw of normalizedKeywords) {
-    const key = `${kw.value.toLowerCase()}\u0000${(kw.language || "").toLowerCase()}\u0000${(kw.script || "").toLowerCase()}`;
+    const key = `${kw.value.toLowerCase()}\u0000${(kw.language || "").toLowerCase()}\u0000${(kw.script || "").toLowerCase()}\u0000${kw.source}`;
     if (!uniqueKwMap.has(key)) {
       uniqueKwMap.set(key, kw);
     } else {
