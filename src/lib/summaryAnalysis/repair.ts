@@ -73,26 +73,40 @@ export function repairSummaryAnalysisV12ControlledVocabularies(value: SummaryAna
         const normalized = orig.toLowerCase().replace(/[^a-z]/g, "");
         
         if (["computingandinternet", "internet", "web", "technology"].includes(normalized)) {
-          d.domain = "technology";
-          warnings.push(`Repaired subject domain "${orig}" to "technology".`);
+          if (d.domain !== "technology") {
+            d.domain = "technology";
+            warnings.push(`Repaired subject domain "${orig}" to "technology".`);
+          }
         } else if (["computerscience", "computing"].includes(normalized)) {
-          d.domain = "computerScience";
-          warnings.push(`Repaired subject domain "${orig}" to "computerScience".`);
+          if (d.domain !== "computerScience") {
+            d.domain = "computerScience";
+            warnings.push(`Repaired subject domain "${orig}" to "computerScience".`);
+          }
         } else if (["cultureandentertainment", "entertainment", "artsandculture"].includes(normalized)) {
-          d.domain = "artsAndCulture";
-          warnings.push(`Repaired subject domain "${orig}" to "artsAndCulture".`);
+          if (d.domain !== "artsAndCulture") {
+            d.domain = "artsAndCulture";
+            warnings.push(`Repaired subject domain "${orig}" to "artsAndCulture".`);
+          }
         } else if (normalized === "personal") {
-          d.domain = "personal";
-          warnings.push(`Repaired subject domain "${orig}" to "personal".`);
+          if (d.domain !== "personal") {
+            d.domain = "personal";
+            warnings.push(`Repaired subject domain "${orig}" to "personal".`);
+          }
         } else if (normalized === "business") {
-          d.domain = "business";
-          warnings.push(`Repaired subject domain "${orig}" to "business".`);
+          if (d.domain !== "business") {
+            d.domain = "business";
+            warnings.push(`Repaired subject domain "${orig}" to "business".`);
+          }
         } else if (normalized === "finance") {
-          d.domain = "finance";
-          warnings.push(`Repaired subject domain "${orig}" to "finance".`);
+          if (d.domain !== "finance") {
+            d.domain = "finance";
+            warnings.push(`Repaired subject domain "${orig}" to "finance".`);
+          }
         } else if (normalized === "education") {
-          d.domain = "education";
-          warnings.push(`Repaired subject domain "${orig}" to "education".`);
+          if (d.domain !== "education") {
+            d.domain = "education";
+            warnings.push(`Repaired subject domain "${orig}" to "education".`);
+          }
         } else if (!SUBJECT_DOMAINS.includes(d.domain)) {
           d.domain = "other";
           d.labels = d.labels || [];
@@ -178,15 +192,15 @@ export function repairSummaryAnalysisV12ControlledVocabularies(value: SummaryAna
   }
 
   // 7. Repair temporal role category quality
+  let temporalRepairCount = 0;
   if (Array.isArray(result.extractedFacts?.temporalReferences)) {
     result.extractedFacts.temporalReferences.forEach(t => {
       if (t.role) {
         const normRole = t.role.toLowerCase();
         if (["publishedat", "publicationdate", "publisheddate", "postedat"].includes(normRole)) {
           if (t.roleCategory !== "publication") {
-            const old = t.roleCategory || "none";
             t.roleCategory = "publication";
-            warnings.push(`Repaired temporal role category "${old}" to "publication" based on role "${t.role}".`);
+            temporalRepairCount++;
           }
         }
       }
@@ -196,6 +210,13 @@ export function repairSummaryAnalysisV12ControlledVocabularies(value: SummaryAna
         warnings.push(`Repaired invalid temporal role category "${old}" to "other".`);
       }
     });
+  }
+  if (temporalRepairCount > 0) {
+    if (temporalRepairCount === 1) {
+      warnings.push(`Repaired 1 temporal role category to "publication" based on publishedAt-like roles.`);
+    } else {
+      warnings.push(`Repaired ${temporalRepairCount} temporal role categories to "publication" based on publishedAt-like roles.`);
+    }
   }
 
   // 8. Repair monetary role categories

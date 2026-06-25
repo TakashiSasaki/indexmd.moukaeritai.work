@@ -2445,6 +2445,67 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                 </div>
               </div>
 
+              {/* Structured Metadata Box */}
+              {result.outputMode === "structured" && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+                    構造化生成実行メタデータ
+                  </h4>
+                  <div className="bg-slate-800 rounded-md p-3 border border-slate-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4 text-xs">
+                      <div className="flex justify-between md:justify-start">
+                        <span className="text-slate-500 w-44">有効な実行モード:</span>
+                        <span className="font-mono text-indigo-300 font-bold">
+                          {result.effectiveStructuredExecutionMode || "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between md:justify-start">
+                        <span className="text-slate-500 w-44">レスポンススキーマ有効化:</span>
+                        <span className={`font-mono font-bold ${result.responseSchemaEnabled ? "text-emerald-400" : "text-amber-400"}`}>
+                          {result.responseSchemaEnabled ? "有効" : "無効"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between md:justify-start">
+                        <span className="text-slate-500 w-44">ネイティブスキーマサポート:</span>
+                        <span className="font-mono text-slate-300">
+                          {result.supportsNativeResponseSchema ? "対応" : "非対応"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between md:justify-start">
+                        <span className="text-slate-500 w-44">プロバイダーファミリー:</span>
+                        <span className="font-mono text-slate-300">
+                          {result.providerFamily || "N/A"}
+                        </span>
+                      </div>
+                      {result.failureKind && (
+                        <div className="flex justify-between md:justify-start col-span-1 md:col-span-2">
+                          <span className="text-rose-400 w-44">失敗種別 (failureKind):</span>
+                          <span className="font-mono text-rose-300 font-bold bg-rose-950/40 px-1.5 py-0.5 rounded">
+                            {result.failureKind}
+                          </span>
+                        </div>
+                      )}
+                      {result.emptyStructuredOutput && (
+                        <div className="flex justify-between md:justify-start col-span-1 md:col-span-2">
+                          <span className="text-rose-400 w-44">空の構造化出力検出:</span>
+                          <span className="font-mono text-rose-300 font-bold bg-rose-950/40 px-1.5 py-0.5 rounded">
+                            検出
+                          </span>
+                        </div>
+                      )}
+                      {result.underGeneratedStructuredOutput && (
+                        <div className="flex justify-between md:justify-start col-span-1 md:col-span-2">
+                          <span className="text-rose-400 w-44">未充足(underGenerated)検出:</span>
+                          <span className="font-mono text-rose-300 font-bold bg-rose-950/40 px-1.5 py-0.5 rounded">
+                            検出
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Content Sample Box */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
