@@ -17,15 +17,17 @@
     <meta property="og:url" content="https://indexmd.moukaeritai.work/" />
     <meta property="og:title" content="indexmd (Drive Indexer)" />
     <meta property="og:description" content="Google Driveのディレクトリ情報を高度なGemini AIで解析し、美しく構造化されたindex.mdファイルを自動作成・更新する高性能・低コストのインデクサーツールです。" />
-    <meta property="og:image" content="https://indexmd.moukaeritai.work/icon.svg" />
+    <meta property="og:image" content="https://indexmd.moukaeritai.work/og-image.png" />
+    <meta property="og:image:alt" content="indexmd app icon" />
     <meta property="og:site_name" content="indexmd" />
 
     <!-- Twitter Card Tags -->
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://indexmd.moukaeritai.work/" />
     <meta name="twitter:title" content="indexmd (Drive Indexer)" />
     <meta name="twitter:description" content="Google Driveのディレクトリ情報を高度なGemini AIで解析し、美しく構造化されたindex.mdファイルを自動作成・更新する高性能・低コストのインデクサーツールです。" />
-    <meta name="twitter:image" content="https://indexmd.moukaeritai.work/icon.svg" />
+    <meta name="twitter:image" content="https://indexmd.moukaeritai.work/og-image.png" />
+    <meta name="twitter:image:alt" content="indexmd app icon" />
 
     <!-- PWA iOS Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -37,17 +39,6 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#4F46E5" />
-    
-    <!-- Service Worker Registration -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('ServiceWorker registered:', reg))
-            .catch(err => console.error('ServiceWorker registration failed:', err));
-        });
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,6 +1,6 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Allow: /$
+Allow: /
 Disallow: /dashboard
 Disallow: /debugger
 Disallow: /summary-debugger
