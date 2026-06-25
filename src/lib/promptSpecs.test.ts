@@ -86,7 +86,7 @@ test("buildDebugBinaryFileSummaryPrompt constructs valid prompt", () => {
 test("buildSummaryDebugSystemInstruction returns correct string", () => {
   const result = buildSummaryDebugSystemInstruction();
   assert.ok(result.includes("Japanese"));
-  assert.ok(result.includes("oneLineSummary"));
+  assert.ok(result.includes("oneLine"));
 });
 
 test("buildStructuredSummaryTaskPrompt constructs valid prompt with custom instruction", () => {
@@ -124,16 +124,15 @@ test("buildStructuredSummaryTaskPrompt constructs valid prompt without custom in
 test("buildSummaryDebugSystemInstruction and TaskPrompt adhere to constraints", () => {
   const sysInst = buildSummaryDebugSystemInstruction();
 
-  // Mention resourceReferences and avoid urls
-  assert.ok(sysInst.includes("resourceReferences"));
-  assert.ok(sysInst.includes("urls")); // the instruction says "instead of urls" or similar, so it will contain "urls", but we want to make sure it mentions resourceReferences.
+  // Mention indexing
+  assert.ok(sysInst.includes("indexing"));
 
-  // DocumentTypes, not documentType
-  assert.ok(sysInst.includes("documentTypes"));
+  // documentKindInfo
+  assert.ok(sysInst.includes("documentKindInfo"));
 
-  // primaryLanguage and languages
-  assert.ok(sysInst.includes("primaryLanguage"));
-  assert.ok(sysInst.includes("languages"));
+  // languageInfo and primary
+  assert.ok(sysInst.includes("languageInfo"));
+  assert.ok(sysInst.includes("primary"));
 
   // JSON only
   assert.ok(sysInst.toLowerCase().includes("json"));
@@ -144,8 +143,8 @@ test("buildSummaryDebugSystemInstruction and TaskPrompt adhere to constraints", 
   assert.ok(sysInst.includes("keywords"));
   assert.ok(sysInst.includes("subjectAreas"));
 
-  // Distinguishes namedEntities and parties
-  assert.ok(sysInst.includes("namedEntities"));
+  // Distinguishes named entities and parties
+  assert.ok(sysInst.includes("named entities"));
   assert.ok(sysInst.includes("parties"));
 
   const taskPromptWithSample = buildStructuredSummaryTaskPrompt({

@@ -1,6 +1,6 @@
-import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from "./summaryAnalysisSchema";
+import { SCHEMA_VERSION_V12 } from "./summaryAnalysis/schema";
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from "./promptSpecs";
-import { getStructuredSummaryDisplaySummary } from "./summaryAnalysis/versioned";
+import { SummaryAnalysisResultV12 } from "./summaryAnalysis/types";
 
 export interface FileSummaryMetadata {
   fileId: string;
@@ -14,7 +14,7 @@ export interface FileSummaryMetadata {
   model: string;
   outputMode: "structured";
   summary: string;
-  structured: any;
+  structured: SummaryAnalysisResultV12;
   validationErrors: string[];
   parseSuccess: boolean;
   validationSuccess: boolean;
@@ -31,7 +31,7 @@ export interface BuildFileSummaryMetadataInput {
   modifiedTime?: string;
   parentId?: string;
   model: string;
-  structured: any;
+  structured: SummaryAnalysisResultV12;
   validationErrors: string[];
   parseSuccess: boolean;
   validationSuccess: boolean;
@@ -96,11 +96,12 @@ export function shouldSkipFirestoreSummaryWrite(existingMetadata: any, nextMetad
 }
 
 export function buildFileSummaryMetadata(input: BuildFileSummaryMetadataInput): FileSummaryMetadata {
-  const schemaVersion = input.schemaVersion || SUMMARY_ANALYSIS_SCHEMA_VERSION;
+  const schemaVersion = input.schemaVersion || SCHEMA_VERSION_V12;
   const promptVersion = input.promptVersion || SUMMARY_ANALYSIS_PROMPT_VERSION;
   const systemInstructionVersion = input.systemInstructionVersion || SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION;
 
-  const summaryText = getStructuredSummaryDisplaySummary(input.structured, schemaVersion);
+  const struct = (input.structured || {}) as Partial<SummaryAnalysisResultV12>;
+  const summaryText = struct.summary?.oneLine || struct.summary?.detailed || struct.titleInfo?.displayTitle?.value || "";
 
   const metadata: FileSummaryMetadata = {
     fileId: input.fileId,
