@@ -8,7 +8,8 @@ export type AppTabId =
   | "firestore-test"
   | "logs"
   | "cache-stats"
-  | "icon-test";
+  | "icon-test"
+  | "image-experiment";
 
 export interface AppTab {
   id: AppTabId;
@@ -26,6 +27,7 @@ export const APP_TABS: readonly AppTab[] = [
   { id: "logs", label: "システムログ", shortLabel: "ログ", icon: Terminal },
   { id: "cache-stats", label: "キャッシュ統計", shortLabel: "キャッシュ", icon: Zap },
   { id: "icon-test", label: "アイコンテスト", shortLabel: "アイコン", icon: ImageIcon },
+  { id: "image-experiment", label: "画像解析実験", shortLabel: "画像解析", icon: ImageIcon },
 ];
 
 export const VALID_TAB_IDS = APP_TABS.map(tab => tab.id);

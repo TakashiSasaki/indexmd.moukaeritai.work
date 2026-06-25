@@ -31,6 +31,11 @@ import {
   sanitizeResultForHistory,
   isDriveContentCacheEnabled
 } from "./src/lib/privacyAndCache";
+import { buildVisualAnalysisSystemInstruction, buildVisualAnalysisTaskPrompt } from "./src/lib/visualAnalysis/prompts";
+import { normalizeVisualAnalysis } from "./src/lib/visualAnalysis/normalize";
+import { validateVisualAnalysis } from "./src/lib/visualAnalysis/validate";
+import { evaluateVisualAnalysisQuality } from "./src/lib/visualAnalysis/qualityGate";
+import VISUAL_ANALYSIS_SCHEMA from "./schemas/visual-analysis.v0.1.0-draft.1.schema.json" assert { type: "json" };
 
 import { generateContentWithRetry } from "./src/lib/gemini";
 
@@ -1327,6 +1332,134 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
   }
 });
 
+
+app.post("/api/drive/debug/analyze-image", async (req, res) => {
+  try {
+    const { fileId, modelName = "gemini-3.5-flash", customInstruction, includeRequestPreview = false } = req.body;
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Missing Authorization header" });
+    const token = authHeader.replace("Bearer ", "");
+
+    if (!fileId) return res.status(400).json({ error: "fileId is required" });
+
+    // 1. Fetch File Metadata
+    const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,modifiedTime`;
+    const metaRes = await fetch(metaUrl, { headers: { Authorization: `Bearer ${token}` } });
+    if (!metaRes.ok) {
+      return res.status(metaRes.status).json({ error: `Drive API error: ${metaRes.statusText}` });
+    }
+    const fileMeta = await metaRes.json();
+
+    if (!fileMeta.mimeType.startsWith("image/")) {
+      return res.status(400).json({ error: "File must be an image" });
+    }
+
+    // 2. Fetch Image Bytes
+    const contentUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+    const fileRes = await fetch(contentUrl, { headers: { Authorization: `Bearer ${token}` } });
+    if (!fileRes.ok) {
+      return res.status(fileRes.status).json({ error: `Drive media download error: ${fileRes.statusText}` });
+    }
+    const arrBuffer = await fileRes.arrayBuffer();
+    const base64Data = Buffer.from(arrBuffer).toString("base64");
+
+    // 3. Prepare Prompt & Options
+    const targetModel = modelName;
+    const isGemma = targetModel.includes("gemma");
+    const mode = getStructuredExecutionMode(targetModel);
+    
+    // We only support gemini native schema or gemma prompted json for this experiment
+    const isPromptedJson = mode === "promptedJson";
+
+    const systemInstruction = buildVisualAnalysisSystemInstruction();
+    const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
+
+    let configOption: any = { 
+      temperature: 0.2, 
+      topP: 0.95, 
+      topK: 40,
+      systemInstruction
+    };
+
+    if (mode === "nativeSchema") {
+      configOption.responseMimeType = "application/json";
+      configOption.responseSchema = VISUAL_ANALYSIS_SCHEMA;
+    }
+
+    // 4. Call Model
+    const aiRes = await generateContentWithRetry(targetModel, [
+      { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
+      { text: taskPrompt }
+    ], 4, configOption);
+
+    let outputText = aiRes.text?.trim() || "{}";
+    
+    // 5. Parse and Validate
+    let parsed: any;
+    try {
+      parsed = JSON.parse(outputText);
+    } catch (e) {
+      // Strip markdown block if Gemma gave it anyway
+      const cleaned = outputText.replace(/^```(json)?|```$/gm, '').trim();
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (e2) {
+        return res.status(500).json({ error: "Model returned invalid JSON", rawOutput: outputText });
+      }
+    }
+
+    const normalized = normalizeVisualAnalysis(parsed);
+    const validation = validateVisualAnalysis(normalized);
+    
+    let qualityStatus = "invalid";
+    let qualityScore = 0;
+    let qualityIssues = validation.errors.map(err => ({ code: "SCHEMA_ERROR", message: err, severity: "blocking" }));
+    let isExperimental = mode === "promptedJson";
+
+    if (validation.isValid) {
+      const qReport = evaluateVisualAnalysisQuality(normalized, {
+        modelName: targetModel,
+        providerFamily: isGemma ? "gemma" : "gemini",
+        effectiveStructuredExecutionMode: mode
+      });
+      qualityStatus = qReport.status;
+      qualityScore = qReport.score;
+      qualityIssues = qReport.issues;
+      isExperimental = qReport.experimentalModel;
+    }
+
+    const result: any = {
+      success: validation.isValid,
+      outputMode: "structured",
+      metadata: fileMeta,
+      visualAnalysis: normalized,
+      qualityStatus,
+      qualityScore,
+      qualityIssues,
+      experimentalModel: isExperimental,
+      usedModelName: targetModel,
+      providerFamily: isGemma ? "gemma" : "gemini",
+      effectiveStructuredExecutionMode: mode
+    };
+
+    if (includeRequestPreview) {
+      result.requestPreview = {
+        model: targetModel,
+        outputMode: "structured",
+        taskPrompt,
+        systemInstruction,
+        mimeType: fileMeta.mimeType,
+        binaryInlineDataUsed: true
+      };
+    }
+
+    // Immediate debug response only. Do not cache or persist.
+    res.json(result);
+  } catch (err: any) {
+    console.error("Image analysis error:", err);
+    res.status(500).json({ error: err.message || "Failed to process image" });
+  }
+});
 
 app.get("/api/cache/stats", async (req, res) => {
   const stats = await getCacheMetricsResponse({

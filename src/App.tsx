@@ -455,6 +455,8 @@ export default function App() {
               } />
               <Route path="/logs" element={null} />
               <Route path="/cache-stats" element={null} />
+              <Route path="/icon-test" element={null} />
+              <Route path="/image-experiment" element={null} />
             </Routes>
           </div>
         )}
