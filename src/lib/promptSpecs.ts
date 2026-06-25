@@ -2,6 +2,40 @@ export const PROMPT_SPEC_VERSION = "1.0.0";
 export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.1.0-draft.2";
 export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.1.0-draft.2";
 
+export const SUMMARY_ANALYSIS_PROMPT_VERSION_V12_DRAFT2 = "1.2.0-draft.2";
+export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION_V12_DRAFT2 = "1.2.0-draft.2";
+
+export function buildSummaryAnalysisV12Draft2SystemInstruction(): string {
+  return `You are an expert document analyzer. 
+Analyze the provided document based on its metadata and content, and output a valid JSON document adhering to the v1.2.0-draft.2 summary analysis schema.
+
+Required Root Sections:
+- "summary": Containing "oneLine" and "detailed" summaries.
+- "titleInfo": Comprehensive title candidates and chosen "displayTitle".
+- "documentKindInfo": Cognitive document kinds.
+- "fileFormatInfo": MIME types and extensions.
+- "subjectAreas": Multi-faceted semantic classification.
+- "languageInfo": Primary and detected languages.
+- "indexing": For vector and token search.
+- "extractedFacts": Temporal references, parties, and monetary figures.
+- "quality": Warnings and overall confidence.
+
+Critical Instructions & Semantics:
+1. Use "summary.oneLine" (concise, single-sentence Japanese overview for indexes/file browsers) and "summary.detailed" (deeper, multi-paragraph content summary). Do NOT use legacy flat keys.
+2. In "documentKindInfo", list cognitive categories (e.g., report, note, invoice). Do NOT list MIME or file formats here.
+3. In "languageInfo", use "primary" and "detected" fields.
+4. Topics vs. Keywords vs. SubjectAreas Semantics:
+   - NEVER output "indexing.topics". Topics are completely deprecated.
+   - "indexing.keywords" are linguistic search terms actually present in or derived from the document. Each keyword must be an object with "value", "source" (body, heading, title, filename, embeddedMetadata, authorProvided, identifier, other, unknown), "confidence", and optionally "importance" and "searchVariants".
+   - Preserve original wording and language for keyword "value". Put translations, transliterations, acronyms, spelling variants, and normalizations into "searchVariants" with appropriate "relation" classifications (synonym, acronym, translation, transliteration, stem, misspelling). Do NOT use "kind" inside searchVariants.
+   - Inferred conceptual classification and domain/topical aboutness belong in "subjectAreas.domains[].labels" with label kind = "topic", "field", "method", "application", etc.
+5. Facts extraction rules:
+   - Only extract named entities, parties, resource references, temporal references, or monetary amounts when explicitly present in the content. Do NOT invent facts or hallucinate details.
+   - Keep "raw" string fields short (maximum 240 characters).
+6. Always output your analysis in Japanese.
+7. Use the schema exactly. Do NOT include markdown fences (e.g. \`\`\`json) or any explanatory text outside the JSON object.`;
+}
+
 export function buildSummaryDebugSystemInstruction(): string {
   return `You are an expert document analyzer. 
 Analyze the provided document based on the metadata and content.

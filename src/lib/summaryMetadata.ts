@@ -1,6 +1,6 @@
 import { SUMMARY_ANALYSIS_SCHEMA_VERSION } from "./summaryAnalysisSchema";
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from "./promptSpecs";
-import { SummaryAnalysisResult } from "../types";
+import { getStructuredSummaryDisplaySummary } from "./summaryAnalysis/versioned";
 
 export interface FileSummaryMetadata {
   fileId: string;
@@ -14,13 +14,14 @@ export interface FileSummaryMetadata {
   model: string;
   outputMode: "structured";
   summary: string;
-  structured: SummaryAnalysisResult;
+  structured: any;
   validationErrors: string[];
   parseSuccess: boolean;
   validationSuccess: boolean;
   generatedAt: string;
   source: "ai-summary-test" | "drive-debugger" | "future-indexing";
   cacheKey?: string;
+  normalizedPayloadHash?: string;
 }
 
 export interface BuildFileSummaryMetadataInput {
@@ -30,28 +31,86 @@ export interface BuildFileSummaryMetadataInput {
   modifiedTime?: string;
   parentId?: string;
   model: string;
-  structured: SummaryAnalysisResult;
+  structured: any;
   validationErrors: string[];
   parseSuccess: boolean;
   validationSuccess: boolean;
   source: "ai-summary-test" | "drive-debugger" | "future-indexing";
   cacheKey?: string;
   generatedAt?: string;
+  schemaVersion?: string;
+  promptVersion?: string;
+  systemInstructionVersion?: string;
+}
+
+function sortObjectKeys(obj: any): any {
+  if (obj === null || typeof obj !== "object") {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sortObjectKeys);
+  }
+  const sorted: any = {};
+  const keys = Object.keys(obj).sort();
+  for (const key of keys) {
+    sorted[key] = sortObjectKeys(obj[key]);
+  }
+  return sorted;
+}
+
+function cyrb53(str: string, seed = 0): string {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334903);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
+}
+
+export function buildCanonicalSummaryPayload(metadataOrStructured: any): any {
+  if (!metadataOrStructured || typeof metadataOrStructured !== "object") return null;
+  const structured = metadataOrStructured.structured && typeof metadataOrStructured.structured === "object"
+    ? metadataOrStructured.structured
+    : metadataOrStructured;
+  return sortObjectKeys(structured);
+}
+
+export function buildNormalizedPayloadHash(value: unknown): string {
+  const canonical = buildCanonicalSummaryPayload(value);
+  if (!canonical) return "";
+  const serialized = JSON.stringify(canonical);
+  return cyrb53(serialized);
+}
+
+export function shouldSkipFirestoreSummaryWrite(existingMetadata: any, nextMetadata: any): boolean {
+  if (!existingMetadata || !nextMetadata) return false;
+  const hash1 = existingMetadata.normalizedPayloadHash;
+  const hash2 = nextMetadata.normalizedPayloadHash;
+  if (!hash1 || !hash2) return false;
+  return hash1 === hash2;
 }
 
 export function buildFileSummaryMetadata(input: BuildFileSummaryMetadataInput): FileSummaryMetadata {
-  // Use oneLineSummary as default summary, fallback to detailedSummary, then empty string
-  const summaryText = input.structured?.oneLineSummary || input.structured?.detailedSummary || "";
+  const schemaVersion = input.schemaVersion || SUMMARY_ANALYSIS_SCHEMA_VERSION;
+  const promptVersion = input.promptVersion || SUMMARY_ANALYSIS_PROMPT_VERSION;
+  const systemInstructionVersion = input.systemInstructionVersion || SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION;
 
-  return {
+  const summaryText = getStructuredSummaryDisplaySummary(input.structured, schemaVersion);
+
+  const metadata: FileSummaryMetadata = {
     fileId: input.fileId,
     fileName: input.fileName || undefined,
     mimeType: input.mimeType || undefined,
     modifiedTime: input.modifiedTime || undefined,
     parentId: input.parentId || undefined,
-    schemaVersion: SUMMARY_ANALYSIS_SCHEMA_VERSION,
-    promptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
-    systemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
+    schemaVersion,
+    promptVersion,
+    systemInstructionVersion,
     model: input.model,
     outputMode: "structured",
     summary: summaryText,
@@ -63,6 +122,13 @@ export function buildFileSummaryMetadata(input: BuildFileSummaryMetadataInput): 
     source: input.source,
     cacheKey: input.cacheKey || undefined,
   };
+
+  const hash = buildNormalizedPayloadHash(input.structured);
+  if (hash) {
+    metadata.normalizedPayloadHash = hash;
+  }
+
+  return metadata;
 }
 
 export function getFileSummaryDocPath(userId: string, fileId: string): string {

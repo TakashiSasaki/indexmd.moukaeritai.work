@@ -273,10 +273,10 @@ export function normalizeSummaryAnalysisV12(value: any): SummaryAnalysisResultV1
     })
     .filter((kw: any) => kw !== null);
 
-  // Deduplicate keywords stably by composite key: value + language + script
+  // Deduplicate keywords stably by composite key: value + language + script + source
   const uniqueKwMap = new Map<string, any>();
   for (const kw of normalizedKeywords) {
-    const key = `${kw.value.toLowerCase()}||${(kw.language || "").toLowerCase()}||${(kw.script || "").toLowerCase()}`;
+    const key = `${kw.value.toLowerCase()}\u0000${(kw.language || "").toLowerCase()}\u0000${(kw.script || "").toLowerCase()}\u0000${kw.source}`;
     if (!uniqueKwMap.has(key)) {
       uniqueKwMap.set(key, kw);
     } else {
@@ -290,7 +290,9 @@ export function normalizeSummaryAnalysisV12(value: any): SummaryAnalysisResultV1
           const svExists = existingKw.searchVariants.some(
             (exSv: any) =>
               exSv.value.toLowerCase() === sv.value.toLowerCase() &&
-              exSv.relation.toLowerCase() === sv.relation.toLowerCase()
+              exSv.relation.toLowerCase() === sv.relation.toLowerCase() &&
+              (exSv.language || "").toLowerCase() === (sv.language || "").toLowerCase() &&
+              (exSv.script || "").toLowerCase() === (sv.script || "").toLowerCase()
           );
           if (!svExists) {
             existingKw.searchVariants.push(sv);
