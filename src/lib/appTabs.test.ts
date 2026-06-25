@@ -4,7 +4,7 @@ import { APP_TABS, VALID_TAB_IDS, isValidTabId, resolveActiveTab } from './appTa
 
 describe('appTabs', () => {
   test('APP_TABS has all required tabs', () => {
-    assert.strictEqual(APP_TABS.length, 8);
+    assert.strictEqual(APP_TABS.length, 9);
     assert.ok(APP_TABS.find(t => t.id === 'dashboard'));
     assert.ok(APP_TABS.find(t => t.id === 'debugger'));
     assert.ok(APP_TABS.find(t => t.id === 'summary-debugger'));
@@ -13,10 +13,11 @@ describe('appTabs', () => {
     assert.ok(APP_TABS.find(t => t.id === 'summary-browser'));
     assert.ok(APP_TABS.find(t => t.id === 'cache-stats'));
     assert.ok(APP_TABS.find(t => t.id === 'icon-test'));
+    assert.ok(APP_TABS.find(t => t.id === 'image-experiment'));
   });
 
   test('VALID_TAB_IDS has all ids', () => {
-    assert.strictEqual(VALID_TAB_IDS.length, 8);
+    assert.strictEqual(VALID_TAB_IDS.length, 9);
     assert.ok(VALID_TAB_IDS.includes('dashboard'));
   });
 

@@ -301,7 +301,7 @@ function saveToHistory(entry: {
     return null;
   }
 }
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 // Apply JSON parsing middleware
@@ -1509,4 +1509,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NODE_ENV !== "test") {
+  startServer();
+}

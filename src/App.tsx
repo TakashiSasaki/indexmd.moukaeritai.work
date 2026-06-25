@@ -170,6 +170,8 @@ export default function App() {
       // AI Studio specific: the popup might fail due to iframe restrictions / COOP headers.
       if (err.message && err.message.includes("Cross-Origin-Opener-Policy") || err.code === "auth/popup-closed-by-user") {
         setAuthError("【重要】 iframe内でポップアップがブロックされました。「新しいタブで開く」アイコンからアプリを開き直してログインしてください。");
+      } else if (err.code === "auth/network-request-failed") {
+        setAuthError("ネットワークエラーが発生しました。インターネット接続を確認するか、広告ブロック（AdBlock等）を無効にしてから再度お試しください。");
       } else {
         setAuthError(`ログイン認証に失敗しました。詳細: ${formatErrorMessage(err)}`);
       }

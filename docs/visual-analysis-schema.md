@@ -22,11 +22,18 @@ A controlled vocabulary for elements detected in the scene.
 - **Natural/Scenic**: `landscapeElement`, `weatherOrSky`, `waterBody`, `terrain`, `roadOrPath`
 - **Text/Structural**: `signage`, `textRegion`, `chart`, `table`
 - **Fallback**: `unknown`
-- **Constraints**: Each element must have a `label`, `category`, and `confidence` (0.0 to 1.0). `attributes` and `count` are optional.
+- **Constraints**: Each element must have a `label`, `category`, and `confidence` (0.0 to 1.0). 
+- **Optional Attributes**: 
+    - `primary`: Boolean indicating if this is the focal point.
+    - `count`: Number of items.
+    - `attributes`: Array of strings describing properties (e.g., colors, textures).
+    - `evidence`: Text explaining why the model made this classification.
+    - `locationHint`: Description of where the element is in the image (e.g., "top-left", "center background").
 
 ### `visualInfo.visibleText`
 For extracting readable text present in the image.
 - **Properties**: `text`, `confidence` (0.0 to 1.0), `language` (ISO 639-1).
+- **Optional**: `locationHint` for spatial context of the text region.
 - **Usage**: Critical for document photos, receipts, screenshots, and signage.
 
 ## Specific Image Guidelines
