@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileSearch, Sparkles, Database, Terminal, Zap, LucideIcon, History as HistoryIcon } from 'lucide-react';
+import { LayoutDashboard, FileSearch, Sparkles, Database, Terminal, Zap, LucideIcon, History as HistoryIcon, Image as ImageIcon } from 'lucide-react';
 
 export type AppTabId =
   | "dashboard"
@@ -7,7 +7,8 @@ export type AppTabId =
   | "summary-browser"
   | "firestore-test"
   | "logs"
-  | "cache-stats";
+  | "cache-stats"
+  | "icon-test";
 
 export interface AppTab {
   id: AppTabId;
@@ -24,6 +25,7 @@ export const APP_TABS: readonly AppTab[] = [
   { id: "firestore-test", label: "Firestoreテスト", shortLabel: "Firestore", icon: Database },
   { id: "logs", label: "システムログ", shortLabel: "ログ", icon: Terminal },
   { id: "cache-stats", label: "キャッシュ統計", shortLabel: "キャッシュ", icon: Zap },
+  { id: "icon-test", label: "アイコンテスト", shortLabel: "アイコン", icon: ImageIcon },
 ];
 
 export const VALID_TAB_IDS = APP_TABS.map(tab => tab.id);
