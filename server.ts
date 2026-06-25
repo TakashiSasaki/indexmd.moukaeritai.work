@@ -28,7 +28,9 @@ import { validateSummaryAnalysisV12, getSummaryAnalysisV12ValidationErrors } fro
 import { normalizeAndRepairSummaryAnalysisV12 } from "./src/lib/summaryAnalysis/repair";
 import { normalizeSummaryAnalysisV12 } from "./src/lib/summaryAnalysis/normalize";
 import { SummaryAnalysisResultV12 } from "./src/lib/summaryAnalysis/types";
+import { getStructuredExecutionMode } from "./src/lib/modelCapabilities";
 import { processStructuredSummaryOutput } from "./src/lib/summaryAnalysis/serverUtils";
+
 import { generateContentWithRetry, getGeminiClient } from "./src/lib/gemini";
 
 initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory']);
@@ -145,11 +147,38 @@ async function setCachedSummary(key: string, content: any): Promise<void> {
 
 const HISTORY_PATH = path.join(process.cwd(), "src/data/validation_history.json");
 const OLD_EXPERIMENT_HISTORY_PATH = path.join(process.cwd(), "src/data/experiment_history.json");
+import { getModelCapability } from "./src/lib/modelCapabilities";
+
 const EXPERIMENT_HISTORY_DIR = path.join(process.cwd(), "cache", "experiment-history");
 const EXPERIMENT_HISTORY_PATH = path.join(EXPERIMENT_HISTORY_DIR, "experiment_history.json");
 
 if (!fs.existsSync(EXPERIMENT_HISTORY_DIR)) {
   fs.mkdirSync(EXPERIMENT_HISTORY_DIR, { recursive: true });
+}
+
+function configureStructuredOptions(targetModel: string, configOption: any) {
+  configOption.systemInstruction = buildSummaryAnalysisV12Draft2SystemInstruction();
+  const execMode = getStructuredExecutionMode(targetModel);
+  configOption.effectiveStructuredExecutionMode = execMode;
+  configOption.supportsNativeResponseSchema = getModelCapability(targetModel).supportsNativeResponseSchema;
+
+  if (execMode === "nativeSchema") {
+    configOption.responseMimeType = "application/json";
+    configOption.responseSchema = SUMMARY_ANALYSIS_SCHEMA_V12;
+  } else if (execMode === "promptedJson") {
+    configOption.systemInstruction += "\n\nCRITICAL INSTRUCTION: You MUST return ONLY a valid JSON object. Do NOT wrap the JSON in Markdown formatting (e.g. ```json). Just the raw JSON object.";
+    delete configOption.responseMimeType;
+    delete configOption.responseSchema;
+  }
+}
+
+function sanitizeResult(result: any): any {
+  if (result.outputMode === "structured") {
+    const sanitized = { ...result };
+    delete sanitized.rawText;
+    return sanitized;
+  }
+  return result;
 }
 
 function saveExperimentHistory(entry: any) {
@@ -958,9 +987,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
                name: fileMeta.name,
                mimeType: fileMeta.mimeType
              }, customInstruction);
-             configOption.systemInstruction = buildSummaryAnalysisV12Draft2SystemInstruction();
-             configOption.responseMimeType = "application/json";
-             configOption.responseSchema = SUMMARY_ANALYSIS_SCHEMA_V12;
+             configureStructuredOptions(targetModel, configOption);
            } else {
              filePrompt = buildDebugBinaryFileSummaryPrompt({
                name: fileMeta.name,
@@ -990,8 +1017,9 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
              result.summary = summaryText;
            }
 
-           if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, result); }
-           return res.json(result);
+           const sanitizedResult = sanitizeResult(result);
+           if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, sanitizedResult); }
+           return res.json(sanitizedResult);
          } catch(e: any) {
            return res.status(500).json({ error: `${mimeType.startsWith('image') ? 'Image' : 'PDF'} generation failed: ${e.message}` });
          }
@@ -1034,9 +1062,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
         mimeType: fileMeta.mimeType,
         contentSample: contentSample
       }, customInstruction);
-      configOption.systemInstruction = buildSummaryAnalysisV12Draft2SystemInstruction();
-      configOption.responseMimeType = "application/json";
-      configOption.responseSchema = SUMMARY_ANALYSIS_SCHEMA_V12;
+      configureStructuredOptions(targetModel, configOption);
     } else {
       filePrompt = buildDebugTextFileSummaryPrompt({
         name: fileMeta.name,
@@ -1085,9 +1111,10 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
       error: result.error
     });
 
-    if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, result); }
+    const sanitizedResult = sanitizeResult(result);
+    if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, sanitizedResult); }
     
-    res.json(result);
+    res.json(sanitizedResult);
   } catch (err: any) {
     console.error("Debug file summary error:", err);
     let errorMessage = "要約の生成に失敗しました。";
@@ -1150,9 +1177,7 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
         mimeType: "text/plain",
         contentSample: contentSample
       }, customInstruction);
-      configOption.systemInstruction = buildSummaryAnalysisV12Draft2SystemInstruction();
-      configOption.responseMimeType = "application/json";
-      configOption.responseSchema = SUMMARY_ANALYSIS_SCHEMA_V12;
+      configureStructuredOptions(targetModel, configOption);
     } else {
       prompt = buildDebugTextFileSummaryPrompt({
         name: "Manual Text Input",
@@ -1203,7 +1228,7 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
       manualTextHash: textHash.toString(16)
     });
 
-    res.json(result);
+    res.json(sanitizeResult(result));
   } catch (err: any) {
     console.error("Manual text summary error:", err);
     res.status(500).json({ error: err.message || "Failed to process manual text" });

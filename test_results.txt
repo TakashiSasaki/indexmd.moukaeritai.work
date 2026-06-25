@@ -1,0 +1,661 @@
+TAP version 13
+# Subtest: canGenerateSummary evaluates correctly
+ok 1 - canGenerateSummary evaluates correctly
+  ---
+  duration_ms: 1.379144
+  type: 'test'
+  ...
+# Subtest: appTabs
+    # Subtest: APP_TABS has all required tabs
+    not ok 1 - APP_TABS has all required tabs
+      ---
+      duration_ms: 3.855139
+      type: 'test'
+      location: '/app/applet/src/lib/appTabs.test.ts:1:171'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        8 !== 7
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 7
+      actual: 8
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/app/applet/src/lib/appTabs.test.ts:7:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        node:internal/test_runner/test:1440:71
+        node:internal/per_context/primordials:466:82
+        new Promise (<anonymous>)
+        new SafePromise (node:internal/per_context/primordials:435:3)
+        node:internal/per_context/primordials:466:9
+        Array.map (<anonymous>)
+      ...
+    # Subtest: VALID_TAB_IDS has all ids
+    not ok 2 - VALID_TAB_IDS has all ids
+      ---
+      duration_ms: 0.995957
+      type: 'test'
+      location: '/app/applet/src/lib/appTabs.test.ts:1:604'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        8 !== 7
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 7
+      actual: 8
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/app/applet/src/lib/appTabs.test.ts:18:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
+        Test.postRun (node:internal/test_runner/test:1173:19)
+        Test.run (node:internal/test_runner/test:1101:12)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1442:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: isValidTabId returns true for valid tabs
+    ok 3 - isValidTabId returns true for valid tabs
+      ---
+      duration_ms: 0.313352
+      type: 'test'
+      ...
+    # Subtest: isValidTabId returns false for invalid tabs
+    ok 4 - isValidTabId returns false for invalid tabs
+      ---
+      duration_ms: 0.334576
+      type: 'test'
+      ...
+    # Subtest: No duplicate tab IDs
+    ok 5 - No duplicate tab IDs
+      ---
+      duration_ms: 0.219692
+      type: 'test'
+      ...
+    # Subtest: resolveActiveTab resolves paths correctly
+    ok 6 - resolveActiveTab resolves paths correctly
+      ---
+      duration_ms: 0.354401
+      type: 'test'
+      ...
+    1..6
+not ok 2 - appTabs
+  ---
+  duration_ms: 7.888585
+  type: 'suite'
+  location: '/app/applet/src/lib/appTabs.test.ts:1:147'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Failed to load drive token from sessionStorage SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+#     at JSON.parse (<anonymous>)
+#     at loadDriveTokenState (/app/applet/src/lib/driveToken.ts:37:24)
+#     at TestContext.<anonymous> (/app/applet/src/lib/driveToken.test.ts:86:27)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+#     at Test.postRun (node:internal/test_runner/test:1173:19)
+#     at Test.run (node:internal/test_runner/test:1101:12)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Failed to load drive token from sessionStorage SyntaxError: Unexpected token 'i', "invalid{json" is not valid JSON
+#     at JSON.parse (<anonymous>)
+#     at loadDriveTokenState (/app/applet/src/lib/driveToken.ts:37:24)
+#     at <anonymous> (/app/applet/src/lib/driveToken.test.ts:95:20)
+#     at getActual (node:assert:609:5)
+#     at Function.doesNotThrow (node:assert:777:32)
+#     at TestContext.<anonymous> (/app/applet/src/lib/driveToken.test.ts:94:10)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+#     at Test.postRun (node:internal/test_runner/test:1173:19)
+# Subtest: Drive token state lifecycle
+ok 3 - Drive token state lifecycle
+  ---
+  duration_ms: 1.600542
+  type: 'test'
+  ...
+# Subtest: Drive token state expiration and parsing
+ok 4 - Drive token state expiration and parsing
+  ---
+  duration_ms: 5.772418
+  type: 'test'
+  ...
+# Subtest: Drive token handles malformed JSON without throwing
+ok 5 - Drive token handles malformed JSON without throwing
+  ---
+  duration_ms: 1.645151
+  type: 'test'
+  ...
+# Subtest: Drive token missing item
+ok 6 - Drive token missing item
+  ---
+  duration_ms: 0.423637
+  type: 'test'
+  ...
+# Subtest: isDriveTokenLikelyExpired handles null
+ok 7 - isDriveTokenLikelyExpired handles null
+  ---
+  duration_ms: 0.317114
+  type: 'test'
+  ...
+# Subtest: getDriveAuthHeaders returns Authorization Bearer header
+ok 8 - getDriveAuthHeaders returns Authorization Bearer header
+  ---
+  duration_ms: 0.39425
+  type: 'test'
+  ...
+# Subtest: resolvePathAndDepth resolves paths and depths correctly
+ok 9 - resolvePathAndDepth resolves paths and depths correctly
+  ---
+  duration_ms: 2.814277
+  type: 'test'
+  ...
+# Subtest: resolvePathAndDepth handles self-cycles
+ok 10 - resolvePathAndDepth handles self-cycles
+  ---
+  duration_ms: 0.242287
+  type: 'test'
+  ...
+# Subtest: runWithExplicitResult classifies promise outcomes correctly
+ok 11 - runWithExplicitResult classifies promise outcomes correctly
+  ---
+  duration_ms: 54.508618
+  type: 'test'
+  ...
+# Subtest: ignoreRules helper behaves correctly
+ok 12 - ignoreRules helper behaves correctly
+  ---
+  duration_ms: 2.804205
+  type: 'test'
+  ...
+# Subtest: buildAutoGeneratedIndexSection constructs correct format
+ok 13 - buildAutoGeneratedIndexSection constructs correct format
+  ---
+  duration_ms: 1.317771
+  type: 'test'
+  ...
+# Subtest: buildAutoGeneratedIndexSection handles empty files and subdirs
+ok 14 - buildAutoGeneratedIndexSection handles empty files and subdirs
+  ---
+  duration_ms: 0.27081
+  type: 'test'
+  ...
+# Subtest: buildAutoGeneratedIndexSection does not emit undefined or null
+ok 15 - buildAutoGeneratedIndexSection does not emit undefined or null
+  ---
+  duration_ms: 0.347486
+  type: 'test'
+  ...
+# Subtest: buildAutoGeneratedIndexSection deterministic output for fixed nowIso
+ok 16 - buildAutoGeneratedIndexSection deterministic output for fixed nowIso
+  ---
+  duration_ms: 0.275694
+  type: 'test'
+  ...
+# Subtest: index.md hybrid merge helper
+    # Subtest: buildAutoGeneratedBlock wraps content correctly or preserves if already wrapped
+    ok 1 - buildAutoGeneratedBlock wraps content correctly or preserves if already wrapped
+      ---
+      duration_ms: 1.361172
+      type: 'test'
+      ...
+    # Subtest: hasAutoGeneratedBlock and extractAutoGeneratedBlock verify presence and extract correctly
+    ok 2 - hasAutoGeneratedBlock and extractAutoGeneratedBlock verify presence and extract correctly
+      ---
+      duration_ms: 0.281577
+      type: 'test'
+      ...
+    # Subtest: stripUnsafePreviewMetadata filters secret tokens and credentials perfectly
+    ok 3 - stripUnsafePreviewMetadata filters secret tokens and credentials perfectly
+      ---
+      duration_ms: 0.279942
+      type: 'test'
+      ...
+    # Subtest: replaces existing auto-generated block and preserves user notes before and after
+    ok 4 - replaces existing auto-generated block and preserves user notes before and after
+      ---
+      duration_ms: 0.476629
+      type: 'test'
+      ...
+    # Subtest: appends block only when allowAppendIfMissing is true
+    ok 5 - appends block only when allowAppendIfMissing is true
+      ---
+      duration_ms: 0.259706
+      type: 'test'
+      ...
+    # Subtest: refuses malformed markers or reversed marker order
+    ok 6 - refuses malformed markers or reversed marker order
+      ---
+      duration_ms: 0.339171
+      type: 'test'
+      ...
+    # Subtest: refuses empty generated content
+    ok 7 - refuses empty generated content
+      ---
+      duration_ms: 0.222999
+      type: 'test'
+      ...
+    1..7
+ok 17 - index.md hybrid merge helper
+  ---
+  duration_ms: 4.838952
+  type: 'suite'
+  ...
+# Subtest: mergeIndexMd hybrid-merges content correctly
+ok 18 - mergeIndexMd hybrid-merges content correctly
+  ---
+  duration_ms: 1.786758
+  type: 'test'
+  ...
+# Subtest: indexMdMerge marker constants are stable
+ok 19 - indexMdMerge marker constants are stable
+  ---
+  duration_ms: 0.266387
+  type: 'test'
+  ...
+# Subtest: indexMdMerge preserves multiple unrelated sections
+ok 20 - indexMdMerge preserves multiple unrelated sections
+  ---
+  duration_ms: 0.255853
+  type: 'test'
+  ...
+# Subtest: indexMdPreflight pure helper
+    # Subtest: returns missing-index when no candidates
+    ok 1 - returns missing-index when no candidates
+      ---
+      duration_ms: 1.205518
+      type: 'test'
+      ...
+    # Subtest: returns multiple-index-candidates when multiple files match
+    ok 2 - returns multiple-index-candidates when multiple files match
+      ---
+      duration_ms: 0.246005
+      type: 'test'
+      ...
+    # Subtest: returns read-error if single candidate but existingMarkdown is null
+    ok 3 - returns read-error if single candidate but existingMarkdown is null
+      ---
+      duration_ms: 0.216924
+      type: 'test'
+      ...
+    # Subtest: returns merge-ready when successfully replaced existing block
+    ok 4 - returns merge-ready when successfully replaced existing block
+      ---
+      duration_ms: 0.689063
+      type: 'test'
+      ...
+    # Subtest: returns merge-blocked if missing markers and not allowing append
+    ok 5 - returns merge-blocked if missing markers and not allowing append
+      ---
+      duration_ms: 0.2405
+      type: 'test'
+      ...
+    # Subtest: returns merge-ready if missing markers but allowing append
+    ok 6 - returns merge-ready if missing markers but allowing append
+      ---
+      duration_ms: 0.235933
+      type: 'test'
+      ...
+    1..6
+ok 21 - indexMdPreflight pure helper
+  ---
+  duration_ms: 4.326506
+  type: 'suite'
+  ...
+# Subtest: indexMdPreview generation
+    # Subtest: handles empty directory cleanly with instruction placeholder
+    ok 1 - handles empty directory cleanly with instruction placeholder
+      ---
+      duration_ms: 15.159585
+      type: 'test'
+      ...
+    # Subtest: handles directory with saved file summaries, missing names, stale/invalid metadata, empty subjectAreas, unknown types
+    ok 2 - handles directory with saved file summaries, missing names, stale/invalid metadata, empty subjectAreas, unknown types
+      ---
+      duration_ms: 0.568753
+      type: 'test'
+      ...
+    1..2
+ok 22 - indexMdPreview generation
+  ---
+  duration_ms: 17.213491
+  type: 'suite'
+  ...
+# Subtest: Model Capabilities Registry
+    # Subtest: gemini-3.5-flash uses nativeSchema
+    ok 1 - gemini-3.5-flash uses nativeSchema
+      ---
+      duration_ms: 1.099761
+      type: 'test'
+      ...
+    # Subtest: gemini-2.5-flash uses nativeSchema
+    ok 2 - gemini-2.5-flash uses nativeSchema
+      ---
+      duration_ms: 0.178888
+      type: 'test'
+      ...
+    # Subtest: gemini-3.1-flash-lite uses nativeSchema
+    ok 3 - gemini-3.1-flash-lite uses nativeSchema
+      ---
+      duration_ms: 0.200511
+      type: 'test'
+      ...
+    # Subtest: gemini-3.1-pro-preview uses nativeSchema
+    ok 4 - gemini-3.1-pro-preview uses nativeSchema
+      ---
+      duration_ms: 0.207876
+      type: 'test'
+      ...
+    # Subtest: gemma-4-31b-it uses promptedJson
+    ok 5 - gemma-4-31b-it uses promptedJson
+      ---
+      duration_ms: 0.313672
+      type: 'test'
+      ...
+    # Subtest: unknown model uses promptedJson
+    ok 6 - unknown model uses promptedJson
+      ---
+      duration_ms: 0.398769
+      type: 'test'
+      ...
+    1..6
+ok 23 - Model Capabilities Registry
+  ---
+  duration_ms: 4.512634
+  type: 'test'
+  ...
+# Subtest: buildSummaryDebugSystemInstruction
+    # Subtest: prompt does not list invalid document kinds
+    ok 1 - prompt does not list invalid document kinds
+      ---
+      duration_ms: 0.928632
+      type: 'test'
+      ...
+    # Subtest: prompt does not list invalid subject domains
+    ok 2 - prompt does not list invalid subject domains
+      ---
+      duration_ms: 0.215166
+      type: 'test'
+      ...
+    # Subtest: prompt does not list invalid role categories
+    ok 3 - prompt does not list invalid role categories
+      ---
+      duration_ms: 0.217937
+      type: 'test'
+      ...
+    # Subtest: prompt includes exact source token embeddedMetadata
+    ok 4 - prompt includes exact source token embeddedMetadata
+      ---
+      duration_ms: 0.277914
+      type: 'test'
+      ...
+    # Subtest: prompt includes mapping examples
+    ok 5 - prompt includes mapping examples
+      ---
+      duration_ms: 0.186257
+      type: 'test'
+      ...
+    1..5
+ok 24 - buildSummaryDebugSystemInstruction
+  ---
+  duration_ms: 3.867847
+  type: 'test'
+  ...
+# Subtest: savedSummaryBrowser helpers
+    # Subtest: sortSavedSummariesByGeneratedAt sorts by date descending and handles malformed dates without throwing
+    ok 1 - sortSavedSummariesByGeneratedAt sorts by date descending and handles malformed dates without throwing
+      ---
+      duration_ms: 1.641244
+      type: 'test'
+      ...
+    # Subtest: filterSavedSummaries handles empty lists and matches searches/filters correctly
+    ok 2 - filterSavedSummaries handles empty lists and matches searches/filters correctly
+      ---
+      duration_ms: 0.560437
+      type: 'test'
+      ...
+    # Subtest: summarizeSubjectAreas formats areas correctly
+    ok 3 - summarizeSubjectAreas formats areas correctly
+      ---
+      duration_ms: 0.360516
+      type: 'test'
+      ...
+    # Subtest: getDocumentTypeOptions and getSubjectAreaOptions extract unique sorted options
+    ok 4 - getDocumentTypeOptions and getSubjectAreaOptions extract unique sorted options
+      ---
+      duration_ms: 2.03365
+      type: 'test'
+      ...
+    # Subtest: sanitizeSavedSummaryForClipboard strips raw fields and secrets perfectly
+    ok 5 - sanitizeSavedSummaryForClipboard strips raw fields and secrets perfectly
+      ---
+      duration_ms: 0.324701
+      type: 'test'
+      ...
+    1..5
+ok 25 - savedSummaryBrowser helpers
+  ---
+  duration_ms: 6.999486
+  type: 'suite'
+  ...
+# Subtest: buildScanCacheKeyParts normalizes and produces correct outputs
+ok 26 - buildScanCacheKeyParts normalizes and produces correct outputs
+  ---
+  duration_ms: 1.733151
+  type: 'test'
+  ...
+# Subtest: scanTraversal
+    # Subtest: Drive API response nodes added to pathResolutionMap are not considered persisted
+    ok 1 - Drive API response nodes added to pathResolutionMap are not considered persisted
+      ---
+      duration_ms: 1.751291
+      type: 'test'
+      ...
+    # Subtest: skipExistingFolders skips only IDs present in persistedDirsMap
+    ok 2 - skipExistingFolders skips only IDs present in persistedDirsMap
+      ---
+      duration_ms: 0.36219
+      type: 'test'
+      ...
+    # Subtest: newly fetched but not persisted folder is written/discovered when skipExistingFolders is true
+    ok 3 - newly fetched but not persisted folder is written/discovered when skipExistingFolders is true
+      ---
+      duration_ms: 0.209055
+      type: 'test'
+      ...
+    # Subtest: existing persisted folder is skipped when skipExistingFolders is true
+    ok 4 - existing persisted folder is skipped when skipExistingFolders is true
+      ---
+      duration_ms: 0.185278
+      type: 'test'
+      ...
+    # Subtest: ignored-folder deletion checks use persisted state, not temporary path-resolution state
+    ok 5 - ignored-folder deletion checks use persisted state, not temporary path-resolution state
+      ---
+      duration_ms: 0.271633
+      type: 'test'
+      ...
+    # Subtest: traversal queue sorts null last_traversed_at before timestamped folders
+    ok 6 - traversal queue sorts null last_traversed_at before timestamped folders
+      ---
+      duration_ms: 0.475444
+      type: 'test'
+      ...
+    # Subtest: root uses root-specific state rather than a directory document
+    ok 7 - root uses root-specific state rather than a directory document
+      ---
+      duration_ms: 0.26164
+      type: 'test'
+      ...
+    # Subtest: active folder receives last_traversed_at update even when zero children are returned
+    ok 8 - active folder receives last_traversed_at update even when zero children are returned
+      ---
+      duration_ms: 0.407762
+      type: 'test'
+      ...
+    # Subtest: active folder receives last_traversed_at update even when all children are skipped
+    ok 9 - active folder receives last_traversed_at update even when all children are skipped
+      ---
+      duration_ms: 0.344743
+      type: 'test'
+      ...
+    # Subtest: active folder receives next_page_token when continuation exists
+    ok 10 - active folder receives next_page_token when continuation exists
+      ---
+      duration_ms: 0.602022
+      type: 'test'
+      ...
+    # Subtest: when next_page_token is null, the folder no longer qualifies as unscanned in the next queue build
+    ok 11 - when next_page_token is null, the folder no longer qualifies as unscanned in the next queue build
+      ---
+      duration_ms: 0.320466
+      type: 'test'
+      ...
+    # Subtest: local maps are updated immediately after traversal timestamp write
+    ok 12 - local maps are updated immediately after traversal timestamp write
+      ---
+      duration_ms: 0.19036
+      type: 'test'
+      ...
+    1..12
+ok 27 - scanTraversal
+  ---
+  duration_ms: 7.679037
+  type: 'suite'
+  ...
+# Subtest: summaryMetadata
+    # Subtest: builds metadata from valid structured response
+    ok 1 - builds metadata from valid structured response
+      ---
+      duration_ms: 6.231152
+      type: 'test'
+      ...
+    # Subtest: handles missing fileName/mimeType safely
+    ok 2 - handles missing fileName/mimeType safely
+      ---
+      duration_ms: 0.850627
+      type: 'test'
+      ...
+    # Subtest: getFileSummaryDocPath creates stable Firestore path under user scoped uid
+    ok 3 - getFileSummaryDocPath creates stable Firestore path under user scoped uid
+      ---
+      duration_ms: 0.360157
+      type: 'test'
+      ...
+    # Subtest: getFileSummaryDocPath rejects empty or invalid inputs to prevent path poisoning
+    ok 4 - getFileSummaryDocPath rejects empty or invalid inputs to prevent path poisoning
+      ---
+      duration_ms: 0.595768
+      type: 'test'
+      ...
+    # Subtest: isPersistableStructuredSummary works correctly
+    ok 5 - isPersistableStructuredSummary works correctly
+      ---
+      duration_ms: 0.359632
+      type: 'test'
+      ...
+    # Subtest: sanitizes undefined fields recursively
+    ok 6 - sanitizes undefined fields recursively
+      ---
+      duration_ms: 0.670731
+      type: 'test'
+      ...
+    # Subtest: preserves nested structures correctly (subjectAreas, resourceReferences, parties)
+    ok 7 - preserves nested structures correctly (subjectAreas, resourceReferences, parties)
+      ---
+      duration_ms: 0.622967
+      type: 'test'
+      ...
+    # Subtest: getSummaryMetadataStatus
+        # Subtest: returns missing if savedMetadata is null or undefined
+        ok 1 - returns missing if savedMetadata is null or undefined
+          ---
+          duration_ms: 2.004628
+          type: 'test'
+          ...
+        # Subtest: returns invalid if fileId is empty or parsing failed or required fields are missing
+        ok 2 - returns invalid if fileId is empty or parsing failed or required fields are missing
+          ---
+          duration_ms: 1.317952
+          type: 'test'
+          ...
+        # Subtest: returns stale-schema on schema mismatch
+        ok 3 - returns stale-schema on schema mismatch
+          ---
+          duration_ms: 0.653583
+          type: 'test'
+          ...
+        # Subtest: returns stale-prompt on prompt or system instruction mismatch
+        ok 4 - returns stale-prompt on prompt or system instruction mismatch
+          ---
+          duration_ms: 0.263163
+          type: 'test'
+          ...
+        # Subtest: returns stale-file on file modifiedTime mismatch
+        ok 5 - returns stale-file on file modifiedTime mismatch
+          ---
+          duration_ms: 0.24311
+          type: 'test'
+          ...
+        # Subtest: returns current when all matches perfectly
+        ok 6 - returns current when all matches perfectly
+          ---
+          duration_ms: 0.211844
+          type: 'test'
+          ...
+        # Subtest: getSummaryMetadataStatusReasons
+            # Subtest: identifies missing data reason
+            ok 1 - identifies missing data reason
+              ---
+              duration_ms: 0.579899
+              type: 'test'
+              ...
+            # Subtest: identifies incomplete fields reason
+            ok 2 - identifies incomplete fields reason
+              ---
+              duration_ms: 0.227975
+              type: 'test'
+              ...
+            # Subtest: identifies mismatch reasons
+            ok 3 - identifies mismatch reasons
+              ---
+              duration_ms: 24.432722
+              type: 'test'
+              ...
+            1..3
+        ok 7 - getSummaryMetadataStatusReasons
+          ---
+          duration_ms: 25.652813
+          type: 'suite'
+          ...
+        1..7
+    ok 8 - getSummaryMetadataStatus
+      ---
+      duration_ms: 31.770619
+      type: 'suite'
+      ...
+    1..8
+ok 28 - summaryMetadata
+  ---
+  duration_ms: 45.397272
+  type: 'suite'
+  ...
+1..28
+# tests 86
+# suites 9
+# pass 84
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8954.801672

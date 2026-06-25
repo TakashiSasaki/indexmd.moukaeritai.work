@@ -59,7 +59,8 @@ export async function processStructuredSummaryOutput(
   };
 
   try {
-    const parsed = JSON.parse(summaryText);
+    const cleanJson = summaryText.replace(/^```(json)?\s*/i, "").replace(/```$/i, "").trim();
+    const parsed = JSON.parse(cleanJson);
     let { repaired: normalized, warnings } = normalizeAndRepairSummaryAnalysisV12(parsed);
     let validationErrors = getSummaryAnalysisV12ValidationErrors(normalized);
     let repairFallbackUsed = false;

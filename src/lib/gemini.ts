@@ -6,6 +6,20 @@ export function getGeminiClient(modelName: string) {
   return ai;
 }
 
+export class ProviderError extends Error {
+  statusCode?: number;
+  providerStatus?: string;
+  rawMessageSummary?: string;
+
+  constructor(message: string, statusCode?: number, providerStatus?: string, rawMessageSummary?: string) {
+    super(message);
+    this.name = "ProviderError";
+    this.statusCode = statusCode;
+    this.providerStatus = providerStatus;
+    this.rawMessageSummary = rawMessageSummary;
+  }
+}
+
 export async function generateContentWithRetry(
   modelName: string, 
   contents: any, 
@@ -57,20 +71,53 @@ export async function generateContentWithRetry(
     } catch (err: any) {
       lastError = err;
       
+      let statusCode = err.status || err.response?.status || err.error?.code;
+      if (!statusCode && err.message) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error?.code) {
+             statusCode = parsed.error.code;
+          }
+        } catch(e) {}
+      }
+
+      const rawMessage = err.message || "";
+      const errorBody = err.response?.error || err.error || {};
+      const providerStatus = errorBody.status || "UNKNOWN";
+      
+      lastError = new ProviderError(
+        `Generate content failed for model ${currentModel}`,
+        statusCode,
+        providerStatus,
+        rawMessage.substring(0, 150)
+      );
+      
+      const isQuotaExceeded = statusCode === 429;
+      const isNotFound = statusCode === 404;
+      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500;
+      
       // Fallback logic
       const fallbackModels: Record<string, string> = {
         "gemini-3.5-pro": "gemini-3.1-pro-preview",
         "gemini-3.1-pro-preview": "gemini-3.5-flash",
       };
 
-      if (fallbackModels[currentModel] && !attemptedModels.has(fallbackModels[currentModel])) {
+      if ((isNotFound || isQuotaExceeded) && fallbackModels[currentModel] && !attemptedModels.has(fallbackModels[currentModel])) {
         currentModel = fallbackModels[currentModel];
         attemptedModels.add(currentModel);
         client = getGeminiClient(currentModel);
-        console.log(`[Retry] Model ${currentModel} failed, trying ${fallbackModels[currentModel]}...`);
+        // Do not log noisy fallback messages or raw tokens
         i--; // Don't count this as a full retry
         continue;
       }
+      
+      if (isRetryable && i < maxRetries) {
+        const delay = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      break;
     }
   }
   throw lastError;
