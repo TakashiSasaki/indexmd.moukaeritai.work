@@ -580,6 +580,76 @@ const RenderStructuredSummary: React.FC<{
   );
 };
 
+const RequestPreviewPanel: React.FC<{ preview: any }> = ({ preview }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!preview) return null;
+
+  return (
+    <div className="mt-8 border border-slate-700/50 rounded-lg overflow-hidden bg-slate-900/50">
+      <div 
+        className="px-4 py-3 bg-slate-800 flex items-center justify-between cursor-pointer hover:bg-slate-700 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <Code className="w-4 h-4 text-indigo-400" />
+          <h3 className="text-sm font-semibold text-slate-200">Request Preview & Debug Info</h3>
+        </div>
+        {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </div>
+      
+      {expanded && (
+        <div className="p-4 space-y-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Model</p>
+              <p className="text-slate-300 font-mono">{preview.model}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Effective Execution Mode</p>
+              <p className="text-indigo-400 font-mono">{preview.effectiveStructuredExecutionMode || preview.requestedOutputMode}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Response Schema</p>
+              <p className="text-slate-300 font-mono">{preview.responseSchemaEnabled ? "Sent" : "Omitted"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase font-bold">Native Schema Support</p>
+              <p className="text-slate-300 font-mono">{preview.supportsNativeResponseSchema ? "Yes" : "No"}</p>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(JSON.stringify(preview, null, 2));
+              }}
+              className="px-3 py-1.5 text-xs text-indigo-300 hover:text-white border border-indigo-900 hover:border-indigo-500 rounded bg-indigo-950/50 transition-colors flex items-center gap-1"
+            >
+              <Clipboard className="w-3 h-3" />
+              Copy Request Preview
+            </button>
+            
+            {preview.taskPrompt && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(preview.taskPrompt);
+                }}
+                className="px-3 py-1.5 text-xs text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 rounded bg-slate-800 transition-colors flex items-center gap-1"
+              >
+                <Clipboard className="w-3 h-3" />
+                Copy Effective Prompt
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
   token,
   onSessionExpiry,
@@ -604,6 +674,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [rawErrorResponse, setRawErrorResponse] = useState<string | null>(null);
+  const [providerError, setProviderError] = useState<any>(null);
   const [refinedErrorText, setRefinedErrorText] = useState<string | null>(null);
   const [fullErrorText, setFullErrorText] = useState<string | null>(null);
   const [responseTitle, setResponseTitle] = useState<string | null>(null);
@@ -1024,6 +1095,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
     setResult(null);
     setError(null);
     setRawErrorResponse(null);
+    setProviderError(null);
     setUsedModel(modelName);
 
     let parsedId = fileId.trim();
@@ -1054,6 +1126,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             modelName,
             customInstruction: customPrompt,
             outputMode,
+            includeRequestPreview: true,
           }),
         });
       } else {
@@ -1069,6 +1142,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             customInstruction: customPrompt,
             outputMode,
             inputLabel: manualInputLabel,
+            includeRequestPreview: true,
           }),
         });
       }
@@ -1091,6 +1165,9 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
           try {
             // If it's JSON, try to extract the error message nicely
             const jsonObj = JSON.parse(text);
+            if (jsonObj.providerError) {
+              setProviderError(jsonObj.providerError);
+            }
             const extractedText =
               jsonObj.error?.message ||
               jsonObj.message ||
@@ -2014,6 +2091,19 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
               </div>
             )}
 
+            {providerError && (
+              <div className="mt-4 p-4 bg-amber-950/30 border border-amber-900/50 rounded-lg">
+                <h4 className="text-xs font-bold text-amber-400 mb-2">Provider API Error</h4>
+                <div className="space-y-1 text-sm font-mono text-amber-200/80">
+                  <p><span className="text-amber-500/70">Status Code:</span> {providerError.statusCode}</p>
+                  <p><span className="text-amber-500/70">Provider Status:</span> {providerError.providerStatus}</p>
+                  {providerError.rawMessageSummary && (
+                    <p><span className="text-amber-500/70">Message:</span> {providerError.rawMessageSummary}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {rawErrorResponse && (
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-4 mb-2 border-b border-rose-900/30 pb-0">
@@ -2366,6 +2456,8 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                   </p>
                 </div>
               </div>
+
+              <RequestPreviewPanel preview={result.requestPreview} />
             </div>
           </div>
         )}
