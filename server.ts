@@ -87,6 +87,7 @@ async function setCachedScan(key: string, data: any): Promise<void> {
 }
 
 async function getCachedSnippet(fileId: string): Promise<string | null> {
+  if (process.env.ENABLE_DRIVE_CONTENT_CACHE !== 'true') return null;
   const filePath = path.join(CACHE_DIR, `${fileId}.txt`);
   try {
     const content = await fsPromises.readFile(filePath, "utf-8");
@@ -103,6 +104,7 @@ async function getCachedSnippet(fileId: string): Promise<string | null> {
 }
 
 async function setCachedSnippet(fileId: string, content: string): Promise<void> {
+  if (process.env.ENABLE_DRIVE_CONTENT_CACHE !== 'true') return;
   const filePath = path.join(CACHE_DIR, `${fileId}.txt`);
   try {
     await fsPromises.writeFile(filePath, content, "utf-8");
@@ -160,7 +162,11 @@ function configureStructuredOptions(targetModel: string, configOption: any) {
     configOption.responseMimeType = "application/json";
     configOption.responseSchema = SUMMARY_ANALYSIS_SCHEMA_V12;
   } else if (execMode === "promptedJson") {
-    configOption.systemInstruction += "\n\nCRITICAL INSTRUCTION: You MUST return ONLY a valid JSON object. Do NOT wrap the JSON in Markdown formatting (e.g. ```json). Just the raw JSON object.";
+    configOption.systemInstruction += `
+
+CRITICAL INSTRUCTION: You MUST return ONLY a valid JSON object. Do NOT wrap the JSON in Markdown formatting (e.g. \`\`\`json). Just the raw JSON object. Do NOT return an empty object "{}".
+You MUST include ALL of the following root sections: "summary", "titleInfo", "documentKindInfo", "fileFormatInfo", "subjectAreas", "languageInfo", "indexing", "extractedFacts", "quality".
+You MUST ensure that "summary.oneLine", "titleInfo.inferredTitle", and "titleInfo.displayTitle.value" are non-empty strings.`;
     delete configOption.responseMimeType;
     delete configOption.responseSchema;
   }
@@ -204,6 +210,9 @@ function sanitizeResultForCache(result: any): any {
   delete sanitized.rawText;
   delete sanitized.rawPrompt;
   delete sanitized.taskPrompt;
+  delete sanitized.systemInstruction;
+  delete sanitized.customInstruction;
+  delete sanitized.rawOutput;
   return sanitized;
 }
 
@@ -214,6 +223,9 @@ function sanitizeResultForHistory(result: any): any {
   delete sanitized.rawText;
   delete sanitized.rawPrompt;
   delete sanitized.taskPrompt;
+  delete sanitized.systemInstruction;
+  delete sanitized.customInstruction;
+  delete sanitized.rawOutput;
   return sanitized;
 }
 

@@ -12,6 +12,15 @@ export const PROMPT_SPEC_VERSION = "1.0.0";
 export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.2.0-draft.2";
 export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.2.0-draft.2";
 
+/**
+ * Builds the system instruction for generating structured summaries.
+ * 
+ * Note on `embeddedMetadata`: The keyword source `embeddedMetadata` was added to 
+ * distinguish internal file metadata (e.g., EXIF, ID3, PDF properties) from 
+ * external/system metadata. The legacy `metadata` token was found to be too 
+ * ambiguous and caused models to hallucinate or conflate external system properties 
+ * with the document's actual conceptual keywords.
+ */
 export function buildSummaryDebugSystemInstruction(): string {
   return `You are an expert document analyzer. 
 Analyze the provided document based on its metadata and content, and output a valid JSON document adhering to the v1.2.0-draft.2 summary analysis schema.

@@ -47,6 +47,41 @@ describe('repairSummaryAnalysisV12ControlledVocabularies', () => {
     assert.ok(warnings.some(w => w.includes("Computing and Internet")));
   });
 
+  it('suppresses no-op warnings for already correct domains', () => {
+    const input: any = {
+      subjectAreas: {
+        domains: [
+          { domain: "computerScience" },
+          { domain: "finance" }
+        ]
+      }
+    };
+    
+    const { warnings } = repairSummaryAnalysisV12ControlledVocabularies(input);
+    assert.ok(!warnings.some(w => w.includes("computerScience")));
+    assert.ok(!warnings.some(w => w.includes("finance")));
+  });
+
+  it('aggregates temporal role category warnings', () => {
+    const input: any = {
+      extractedFacts: {
+        temporalReferences: [
+          { role: "publishedAt", roleCategory: "none" },
+          { role: "postedAt", roleCategory: "unknown" },
+          { role: "publicationDate", roleCategory: "none" }
+        ]
+      }
+    };
+    
+    const { repaired, warnings } = repairSummaryAnalysisV12ControlledVocabularies(input);
+    assert.strictEqual(repaired.extractedFacts?.temporalReferences?.[0].roleCategory, "publication");
+    assert.strictEqual(repaired.extractedFacts?.temporalReferences?.[1].roleCategory, "publication");
+    assert.strictEqual(repaired.extractedFacts?.temporalReferences?.[2].roleCategory, "publication");
+    
+    const countWarning = warnings.find(w => w.includes("Repaired 3 temporal role categories"));
+    assert.ok(countWarning);
+  });
+
   it('repairs subject label kinds', () => {
     const input: any = {
       subjectAreas: {

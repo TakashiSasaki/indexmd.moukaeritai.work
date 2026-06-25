@@ -1,3 +1,18 @@
+/**
+ * Model Capabilities Registry
+ * 
+ * Defines how different AI models interact with structured output.
+ * 
+ * - Gemini Models (gemini-*): Use `nativeSchema` (structuredExecutionMode). 
+ *   They support passing a JSON schema natively to the API (`responseSchema`), 
+ *   ensuring strict conformity to the requested structure.
+ * 
+ * - Gemma Models (gemma-*): Use `promptedJson`.
+ *   They do NOT reliably support the native `responseSchema` property.
+ *   Passing `responseSchema` to a Gemma model often causes generation failures
+ *   or severe hallucinations. Therefore, Gemma models must be prompted to output
+ *   JSON via text instructions, and we parse the raw output block.
+ */
 export type StructuredExecutionMode = "nativeSchema" | "promptedJson" | "textOnly";
 
 export interface ModelCapability {
