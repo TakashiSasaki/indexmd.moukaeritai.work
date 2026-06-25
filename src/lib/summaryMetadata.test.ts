@@ -8,7 +8,7 @@ import {
   getSummaryMetadataStatus,
   getSummaryMetadataStatusReasons,
 } from "./summaryMetadata";
-import { SCHEMA_VERSION_V12 } from "./summaryAnalysis/versioned";
+import { SCHEMA_VERSION_V12 } from "./summaryAnalysis/schema";
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from "./promptSpecs";
 
 describe("summaryMetadata", () => {

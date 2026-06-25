@@ -6,7 +6,8 @@ import {
 import { db, collection, getDocs, query, limit } from '../lib/firebase';
 import { getSummaryMetadataStatus, getSummaryMetadataStatusReasons } from '../lib/summaryMetadata';
 import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION } from '../lib/promptSpecs';
-import { SCHEMA_VERSION_V12, getStructuredSummaryDisplaySummary } from '../lib/summaryAnalysis/versioned';
+import { SCHEMA_VERSION_V12 } from '../lib/summaryAnalysis/schema';
+import { getStructuredSummaryDisplaySummary } from '../lib/summaryAnalysis/versioned';
 import { 
   sortSavedSummariesByGeneratedAt, 
   filterSavedSummaries, 

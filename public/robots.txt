@@ -1,0 +1,12 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /$
+Disallow: /dashboard
+Disallow: /debugger
+Disallow: /summary-debugger
+Disallow: /summary-browser
+Disallow: /firestore-test
+Disallow: /logs
+Disallow: /cache-stats
+
+Sitemap: https://indexmd.moukaeritai.work/sitemap.xml
