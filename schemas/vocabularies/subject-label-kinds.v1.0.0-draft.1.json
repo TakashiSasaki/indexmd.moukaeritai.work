@@ -1,0 +1,15 @@
+{
+  "vocabularyId": "subject-label-kinds",
+  "version": "1.0.0-draft.1",
+  "terms": [
+    { "value": "field", "description": "Broad sub-discipline or field of study", "deprecated": false, "aliases": [] },
+    { "value": "topic", "description": "Specific subject, concept, or theme", "deprecated": false, "aliases": [] },
+    { "value": "method", "description": "Algorithm, process methodology, formula, or technique", "deprecated": false, "aliases": [] },
+    { "value": "application", "description": "Practical application, context, or use-case", "deprecated": false, "aliases": [] },
+    { "value": "object", "description": "Physical entity, material, document, or tangible item", "deprecated": false, "aliases": [] },
+    { "value": "process", "description": "Dynamic procedure, system run, or active workflow", "deprecated": false, "aliases": [] },
+    { "value": "organization", "description": "Company, group, body, or institution governing the domain", "deprecated": false, "aliases": [] },
+    { "value": "product", "description": "Software product, tool, commercial item, or library name", "deprecated": false, "aliases": [] },
+    { "value": "other", "description": "Other classification kind", "deprecated": false, "aliases": [] }
+  ]
+}

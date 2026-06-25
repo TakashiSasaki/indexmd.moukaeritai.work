@@ -1,0 +1,173 @@
+{
+  "summary": {
+    "oneLine": "Invoice INV-2026-904 for consulting services provided in May 2026.",
+    "detailed": "This invoice represents a charge of $4,500.00 USD for professional enterprise cloud architecture consulting services delivered by Cloud Solutions Inc. to Acme Corp during the month of May 2026."
+  },
+  "titleInfo": {
+    "explicitTitle": {
+      "value": "Invoice INV-2026-904",
+      "source": "documentHeading"
+    },
+    "fileNameTitle": {
+      "value": "INV_2026_904_CloudSolutions.pdf",
+      "isGeneric": false
+    },
+    "inferredTitle": "Cloud Solutions Consulting Invoice INV-2026-904",
+    "displayTitle": {
+      "value": "Invoice INV-2026-904",
+      "source": "explicitTitle",
+      "reason": "Explicit document title was chosen as it matches the standard legal billing header of the document."
+    }
+  },
+  "documentKindInfo": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "kinds": [
+      {
+        "kind": "invoice",
+        "confidence": 1.0,
+        "reason": "Clear billing layout containing line items, client and vendor details, taxes, and payment instructions."
+      }
+    ]
+  },
+  "fileFormatInfo": {
+    "mimeType": "application/pdf",
+    "extension": "pdf"
+  },
+  "subjectAreas": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "domains": [
+      {
+        "domain": "finance",
+        "confidence": 1.0,
+        "reason": "Includes detailed commercial billing, monetary figures, and taxation rules.",
+        "labels": [
+          {
+            "label": "Professional Services Billing",
+            "kind": "topic",
+            "confidence": 0.95
+          },
+          {
+            "label": "Accounts Payable",
+            "kind": "process",
+            "confidence": 0.9
+          }
+        ]
+      },
+      {
+        "domain": "business",
+        "confidence": 0.8,
+        "reason": "Transactions are structured as B2B service vendor delivery.",
+        "labels": [
+          {
+            "label": "B2B Consulting",
+            "kind": "field",
+            "confidence": 0.85
+          }
+        ]
+      }
+    ]
+  },
+  "languageInfo": {
+    "primary": "en",
+    "detected": ["en"]
+  },
+  "indexing": {
+    "topics": ["invoices", "cloud-consulting"],
+    "keywords": ["INV-2026-904", "consulting", "billing", "architecture-review"],
+    "namedEntities": [
+      {
+        "name": "Cloud Solutions Inc.",
+        "type": "organization"
+      },
+      {
+        "name": "Acme Corp",
+        "type": "organization"
+      }
+    ],
+    "resourceReferences": []
+  },
+  "extractedFacts": {
+    "temporalReferences": [
+      {
+        "value": "2026-06-01",
+        "normalizedDate": "2026-06-01",
+        "role": "issued",
+        "roleCategory": "transaction",
+        "raw": "Invoice Date: June 1, 2026",
+        "confidence": 1.0
+      },
+      {
+        "value": "2026-07-01",
+        "normalizedDate": "2026-07-01",
+        "role": "due",
+        "roleCategory": "deadline",
+        "raw": "Payment Due: July 1, 2026",
+        "confidence": 1.0
+      }
+    ],
+    "parties": [
+      {
+        "name": "Cloud Solutions Inc.",
+        "kind": "organization",
+        "roles": [
+          {
+            "role": "vendor",
+            "roleCategory": "commerce",
+            "confidence": 1.0
+          },
+          {
+            "role": "payee",
+            "roleCategory": "payment",
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Acme Corp",
+        "kind": "organization",
+        "roles": [
+          {
+            "role": "client",
+            "roleCategory": "commerce",
+            "confidence": 1.0
+          },
+          {
+            "role": "payer",
+            "roleCategory": "payment",
+            "confidence": 1.0
+          }
+        ]
+      }
+    ],
+    "monetaryAmounts": [
+      {
+        "amount": 4500.0,
+        "currency": "USD",
+        "role": "subtotal",
+        "roleCategory": "price",
+        "raw": "Subtotal: $4,500.00",
+        "confidence": 1.0
+      },
+      {
+        "amount": 0.0,
+        "currency": "USD",
+        "role": "tax",
+        "roleCategory": "tax",
+        "raw": "Tax (0%): $0.00",
+        "confidence": 1.0
+      },
+      {
+        "amount": 4500.0,
+        "currency": "USD",
+        "role": "totalDue",
+        "roleCategory": "balance",
+        "raw": "Total Due: $4,500.00",
+        "confidence": 1.0
+      }
+    ]
+  },
+  "quality": {
+    "confidence": 1.0,
+    "warnings": []
+  }
+}

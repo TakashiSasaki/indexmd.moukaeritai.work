@@ -47,3 +47,11 @@ test("resolvePathAndDepth resolves paths and depths correctly", () => {
   const cyclicRes = resolvePathAndDepth("folderA", cyclicMap);
   assert.strictEqual(cyclicRes.path, "/CYCLE_DETECTED/B/A");
 });
+
+test("resolvePathAndDepth handles self-cycles", () => {
+  const selfCyclicMap = new Map<string, DriveFolderInfo>();
+  selfCyclicMap.set("folderA", { name: "A", parents: ["folderA"] });
+
+  const cyclicRes = resolvePathAndDepth("folderA", selfCyclicMap);
+  assert.strictEqual(cyclicRes.path, "/CYCLE_DETECTED/A");
+});

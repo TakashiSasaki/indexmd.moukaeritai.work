@@ -1,0 +1,123 @@
+{
+  "summary": {
+    "oneLine": "Technical specification for optimizing compiler cache invalidation.",
+    "detailed": "This technical note outlines a new algorithm for optimizing compiler cache invalidation in distributed build systems. It defines caching boundaries, dependency graphs, and introduces performance benchmarks comparing v1 with v2 of the engine."
+  },
+  "titleInfo": {
+    "explicitTitle": {
+      "value": "Distributed Compiler Cache Optimization Specs",
+      "source": "documentHeading"
+    },
+    "fileNameTitle": {
+      "value": "compiler_cache_spec_v2.md",
+      "isGeneric": false
+    },
+    "inferredTitle": "Distributed Build Compiler Cache Specification",
+    "displayTitle": {
+      "value": "Distributed Compiler Cache Optimization Specs",
+      "source": "explicitTitle",
+      "reason": "Explicit document heading chosen over filename title as it has higher structural fidelity."
+    }
+  },
+  "documentKindInfo": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "kinds": [
+      {
+        "kind": "specification",
+        "confidence": 0.95,
+        "reason": "Defines strict protocol rules, dependency graphs, and algorithm parameters."
+      },
+      {
+        "kind": "note",
+        "confidence": 0.7,
+        "reason": "Includes informal developers notes and experimental benchmarks."
+      }
+    ]
+  },
+  "fileFormatInfo": {
+    "mimeType": "text/markdown",
+    "extension": "md"
+  },
+  "subjectAreas": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "domains": [
+      {
+        "domain": "computerScience",
+        "confidence": 1.0,
+        "reason": "Covers compiler optimizations, caching mechanisms, and distributed systems algorithms.",
+        "labels": [
+          {
+            "label": "Compiler Optimizations",
+            "kind": "field",
+            "confidence": 0.98
+          },
+          {
+            "label": "Cache Invalidation",
+            "kind": "method",
+            "confidence": 0.95
+          },
+          {
+            "label": "Distributed Systems",
+            "kind": "topic",
+            "confidence": 0.9
+          }
+        ]
+      }
+    ]
+  },
+  "languageInfo": {
+    "primary": "en",
+    "detected": ["en"]
+  },
+  "indexing": {
+    "topics": ["compiler-caching", "distributed-builds"],
+    "keywords": ["compilation", "caching", "invalidation", "directed-acyclic-graph"],
+    "namedEntities": [
+      {
+        "name": "V8 Engine",
+        "type": "artifact"
+      },
+      {
+        "name": "Build Systems Committee",
+        "type": "organization"
+      }
+    ],
+    "resourceReferences": [
+      {
+        "uri": "https://specs.example.com/compiler/caching",
+        "label": "Official Compiler Caching Standards Spec",
+        "raw": "standards spec reference on page 12"
+      }
+    ]
+  },
+  "extractedFacts": {
+    "temporalReferences": [
+      {
+        "value": "2026-03-15",
+        "normalizedDate": "2026-03-15",
+        "role": "issued",
+        "roleCategory": "documentLifecycle",
+        "raw": "Issued March 15, 2026",
+        "confidence": 0.95
+      }
+    ],
+    "parties": [
+      {
+        "name": "Jane Doe",
+        "kind": "person",
+        "roles": [
+          {
+            "role": "author",
+            "roleCategory": "authorship",
+            "confidence": 1.0
+          }
+        ]
+      }
+    ],
+    "monetaryAmounts": []
+  },
+  "quality": {
+    "confidence": 0.98,
+    "warnings": []
+  }
+}

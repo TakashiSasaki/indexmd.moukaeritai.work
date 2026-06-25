@@ -1,5 +1,19 @@
 # Summary Analysis Schema Changelog
 
+## v1.2.0-draft.1
+- Type: major structural schema and vocabulary refinement
+- **Repository Artifacts**:
+  - Established `/schemas/summary-analysis.v1.2.0-draft.1.schema.json` as the JSON Schema source of truth.
+  - Divided vocabularies into modular versioned files under `/schemas/vocabularies/` (kinds, domains, subject label kinds, extraction roles).
+- **Structural Overhaul**:
+  - Replaced flat `oneLineSummary` and `detailedSummary` with structured `summary.oneLine` and `summary.detailed`.
+  - Added robust `titleInfo` modeling multi-source heuristics (`explicitTitle`, `fileNameTitle`, `inferredTitle`, and selected `displayTitle`).
+  - Separated cognitive `documentKindInfo` from representation `fileFormatInfo`.
+  - Introduced hierarchical `subjectAreas` utilizing controlled domains mapped to open-vocabulary AI-generated labels.
+  - Designed `extractedFacts` using Role Category + Open Role configurations for temporal, party, and monetary entities.
+- **Privacy & Safety**:
+  - Hard-capped `raw` fields to 240 characters and added automated redactors for credential-like or secret-bearing patterns.
+
 ## v1.2.0
 - Type: metadata & persistence structure change
 - **Workbench Persistence**:

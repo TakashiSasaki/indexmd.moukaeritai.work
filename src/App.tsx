@@ -10,6 +10,7 @@ import {
   collection,
   getDocs,
   addDoc,
+  setDoc,
   deleteDoc,
   writeBatch,
   doc,
@@ -32,7 +33,7 @@ import { VALID_TAB_IDS, resolveActiveTab, AppTabId } from "./lib/appTabs";
 
 import DriveDashboard from "./components/DriveDashboard";
 import DriveLogs from "./components/DriveLogs";
-import SettingsPanel from "./components/SettingsPanel";
+
 
 import { 
   BookOpen, 
@@ -55,6 +56,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig>(defaultAppConfig);
+  const [configLoading, setConfigLoading] = useState<boolean>(true);
   const [logs, setLogs] = useState<DriveLog[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -92,6 +94,10 @@ export default function App() {
       if (firebaseUser) {
         // Load initial logs for the user
         syncUserLogs(firebaseUser.uid);
+        // Load user config
+        loadUserConfig(firebaseUser.uid);
+      } else {
+        setConfigLoading(false);
       }
     });
 
@@ -195,21 +201,51 @@ export default function App() {
     setAuthError("Google認証の有効期限が切れました。安全のため再度ログインしてください。");
   };
 
+  // Load user config from Firestore
+  const loadUserConfig = async (uid: string) => {
+    try {
+      const configDoc = await getDocs(collection(db, "users", uid, "state"));
+      const configTarget = configDoc.docs.find(d => d.id === "config");
+      if (configTarget) {
+        const savedConfig = configTarget.data() as AppConfig;
+        setConfig({ ...defaultAppConfig, ...savedConfig });
+      }
+    } catch (e) {
+      console.warn("Failed to load user config from Firestore:", e);
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
+  // Save user config to Firestore
+  const saveUserConfig = async (uid: string, newConfig: AppConfig) => {
+    try {
+      await addDoc(collection(db, "users", uid, "state"), { ...newConfig, id: "config" });
+      // Actually use setDoc for a specific ID to overwrite
+      const configRef = doc(db, "users", uid, "state", "config");
+      await setDoc(configRef, newConfig, { merge: true });
+    } catch (e: any) {
+      console.error("Failed to save user config:", e);
+      handleFirestoreError(e, OperationType.WRITE, `users/${uid}/state/config`);
+    }
+  };
+
   const updateConfig = (newConfig: AppConfig) => {
     setConfig(newConfig);
     if (user) {
-      handleAddLog("info", "システム稼働設定が更新されました。", JSON.stringify(newConfig, null, 2));
+      saveUserConfig(user.uid, newConfig);
+      handleAddLog("info", "システム稼働設定が保存されました。", JSON.stringify(newConfig, null, 2));
     }
   };
 
   // Authenticate Wrapper layout
-  if (authLoading) {
+  if (authLoading || (user && configLoading)) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center font-sans text-slate-800">
         <div className="flex flex-col items-center gap-4">
           <FolderOpen className="w-12 h-12 text-indigo-600 animate-bounce" />
           <p className="text-sm font-semibold tracking-wide text-slate-600 font-display animate-pulse">
-            認証ステータスを読み込み中...
+            {authLoading ? "認証ステータスを読み込み中..." : "ユーザー設定を同期中..."}
           </p>
         </div>
       </div>
@@ -392,6 +428,7 @@ export default function App() {
               userId={user.uid}
               token={googleAccessToken}
               config={config}
+              onUpdateConfig={updateConfig}
               logs={logs}
               onAddLog={handleAddLog}
               onClearLogs={handleClearLogs}
@@ -404,39 +441,17 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <SettingsPanel config={config} onSaveConfig={updateConfig} />
-                  <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 text-slate-700 font-bold text-xs uppercase tracking-wider mb-2">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                      インデックス生成のヒント
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      フォルダ内のファイル数が多い場合、AI要約の生成に時間がかかることがあります。
-                      大規模な構造を同期する場合は、設定から「スキャン上限」を調整して少しずつ進めることをお勧めします。
-                    </p>
-                    <div className="pt-2 border-t border-slate-100">
-                      <p className="text-[10px] text-slate-400 italic">
-                        ※ ログは上部の「システムログ」タブから確認できます。
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" />
               } />
               <Route path="/debugger" element={
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <SettingsPanel config={config} onSaveConfig={updateConfig} />
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 shadow-inner">
-                    <h4 className="text-xs font-bold text-slate-600 mb-2 uppercase">Debugger Mode Active</h4>
-                    <p className="text-[11px] text-slate-500 italic">設定パネルを使用してデバッグ時の挙動（スキャン上限など）を調整できます。</p>
-                  </div>
+
                 </div>
               } />
               <Route path="/summary-debugger" element={null} />
+              <Route path="/summary-browser" element={null} />
               <Route path="/firestore-test" element={
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                   <SettingsPanel config={config} onSaveConfig={updateConfig} />
-                </div>
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" />
               } />
               <Route path="/logs" element={null} />
               <Route path="/cache-stats" element={null} />

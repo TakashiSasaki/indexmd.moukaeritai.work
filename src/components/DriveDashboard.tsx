@@ -46,6 +46,7 @@ import {
   Trash2,
   Bug,
   ChevronDown,
+  ChevronUp,
   Copy,
   LinkIcon,
   List,
@@ -63,6 +64,7 @@ import {
 import { APP_TABS } from "../lib/appTabs";
 import DriveLogs from "./DriveLogs";
 import { SummaryDebugger } from "./SummaryDebugger";
+import { SavedSummariesBrowser } from "./SavedSummariesBrowser";
 import { CacheStatsTab } from "./CacheStatsTab";
 import { motion } from "motion/react";
 import { getDriveAuthHeaders } from "../lib/driveToken";
@@ -81,6 +83,7 @@ interface DriveDashboardProps {
   userId: string;
   token: string;
   config: AppConfig;
+  onUpdateConfig: (config: AppConfig) => void;
   logs: DriveLog[];
   onAddLog: (level: "info" | "success" | "warn" | "error", message: string, details?: string) => void;
   onClearLogs: () => void;
@@ -89,7 +92,7 @@ interface DriveDashboardProps {
   setActiveTab: (tab: AppTabId) => void;
 }
 
-export default function DriveDashboard({ userId, token, config, logs, onAddLog, onClearLogs, onSessionExpiry, activeTab, setActiveTab }: DriveDashboardProps) {
+export default function DriveDashboard({ userId, token, config, onUpdateConfig, logs, onAddLog, onClearLogs, onSessionExpiry, activeTab, setActiveTab }: DriveDashboardProps) {
   const [dirs, setDirs] = useState<Directory[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
@@ -1591,49 +1594,40 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   <FolderSync className="w-3.5 h-3.5" />
                   スキャン
                 </button>
+              </div>
+            </div>
 
-                <button
-                  onClick={() => setShowIgnoreSettings(!showIgnoreSettings)}
-                  className={`flex items-center justify-center gap-2 px-3 py-2 border rounded-md shadow-sm transition-all text-[10px] sm:text-xs font-bold w-full sm:w-auto ${
-                    showIgnoreSettings 
-                    ? "bg-slate-700 text-white border-slate-700" 
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-                  title="スキャン設定"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  設定
+            {/* Configuration Panels */}
+            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+              <button 
+                onClick={() => setShowIgnoreSettings(!showIgnoreSettings)}
+                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center gap-2 text-slate-700">
+                  <Settings className={`w-4 h-4 transition-colors ${showIgnoreSettings ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-500"}`} />
+                  <h3 className="text-xs font-bold uppercase tracking-wider">フォルダスキャン設定</h3>
+                </div>
+                <div className="flex items-center gap-2">
                   {ignoredFolderNames.length > 0 && (
                     <span className="flex items-center justify-center w-4 h-4 bg-indigo-500 text-[10px] text-white rounded-full">
                       {ignoredFolderNames.length}
                     </span>
                   )}
-                </button>
-
-              </div>
-            </div>
-
-            {/* Configuration Panels */}
-            {showIgnoreSettings && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4 overflow-hidden"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <Settings className="w-4 h-4 text-slate-400" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider">スキャン設定</h3>
-                  </div>
-                  <button 
-                    onClick={() => setShowIgnoreSettings(false)}
-                    className="text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  {showIgnoreSettings ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
                 </div>
-                
-                <div className="space-y-4">
+              </button>
+
+              {showIgnoreSettings && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  className="p-4 pt-0 border-t border-slate-100 bg-slate-50/30 overflow-hidden"
+                >
+                  <div className="mt-4 space-y-4">
                   {/* Scan Limit */}
                   <div className="bg-white border border-slate-200 rounded p-3">
                     <div className="flex items-center justify-between">
@@ -1675,6 +1669,26 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                     <label htmlFor="skip-existing-folders" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
                       登録済みのフォルダをスキップする (高速化)
                     </label>
+                  </div>
+
+                  {/* Drive API Delay Setting */}
+                  <div className="bg-white border border-slate-200 rounded p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-700">Drive API 実行遅延</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">レート制限を回避するためのリクエスト間隔</p>
+                      </div>
+                      <span className="font-mono text-indigo-600 font-bold text-[10px]">{config.rate_limit_delay_ms}ms</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="100"
+                      max="5000"
+                      step="100"
+                      value={config.rate_limit_delay_ms}
+                      onChange={(e) => onUpdateConfig({ ...config, rate_limit_delay_ms: parseInt(e.target.value) })}
+                      className="w-full h-1 bg-slate-200 rounded-full appearance-none cursor-pointer"
+                    />
                   </div>
 
                   {/* Ignore folders */}
@@ -1742,6 +1756,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                 </div>
               </motion.div>
             )}
+            </div>
 
             {isCrawlActive && (
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg mb-4 animate-in fade-in slide-in-from-top-1 duration-300">
@@ -1836,7 +1851,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
             <div className="space-y-3 bg-slate-50 border border-slate-200/85 p-4 rounded-lg" id="extremes-traversed-panel">
               <div className="flex items-center gap-2 text-slate-700 font-bold text-xs uppercase tracking-wider mb-2">
                 <Zap className="w-3.5 h-3.5 text-indigo-500" />
-                次回のスキャン開始予定
+                フォルダスキャン開始位置
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1914,77 +1929,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
               </div>
             </div>
 
-            {/* Directory Structure Tree / List Table */}
-            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-inner">
-              <div className="grid grid-cols-12 gap-2 bg-slate-50 p-2.5 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                <div className="col-span-5 md:col-span-6">フォルダ階層 (Path)</div>
-                <div className="col-span-2 text-center">階層 (Depth)</div>
-                <div className="col-span-3 text-center">インデックス状態</div>
-                <div className="col-span-2 text-right">フォルダID</div>
-              </div>
-
-              <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto custom-scrollbar">
-                {isInitialSyncing && filteredDirs.length === 0 ? (
-                  <div className="p-12 text-center text-xs text-slate-500 font-mono italic block flex flex-col items-center justify-center space-y-4">
-                    <Database className="w-6 h-6 animate-bounce text-indigo-500 opacity-75" />
-                    <div className="space-y-1">
-                      <p className="font-bold text-slate-700 not-italic">Firestore データベースとリアルタイム同期中...</p>
-                      {syncProgress && (
-                        <p className="text-slate-400">
-                          {syncProgress.current} 件のフォルダメタデータを取得済み
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  filteredDirs.length === 0 ? (
-                    <div className="p-20 text-center space-y-3">
-                      <div className="inline-flex p-3 bg-slate-50 rounded-full text-slate-300">
-                        <Folder className="w-6 h-6" />
-                      </div>
-                      <p className="text-xs text-slate-400 font-medium italic">フォルダが見つかりません</p>
-                    </div>
-                  ) : (
-                    filteredDirs.slice(0, 100).map((dir) => (
-                      <div key={dir.drive_id} className="grid grid-cols-12 gap-2 p-3 items-center hover:bg-slate-50 transition-colors group">
-                        <div className="col-span-5 md:col-span-6 flex items-center gap-2.5 overflow-hidden">
-                          <div className="shrink-0 w-8 h-8 rounded bg-slate-50 flex items-center justify-center group-hover:bg-white transition-colors">
-                            <Folder className="w-4 h-4 text-slate-400" />
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[11px] font-bold text-slate-700 truncate" title={dir.path}>
-                              {dir.name || (dir.path === "/" ? "マイドライブ" : (dir.path || "").split('/').pop())}
-                            </span>
-                            <span className="text-[9px] text-slate-400 truncate font-mono" title={dir.path}>{dir.path}</span>
-                          </div>
-                        </div>
-                        <div className="col-span-2 text-center">
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
-                            L{dir.depth}
-                          </span>
-                        </div>
-                        <div className="col-span-3 text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter ${
-                              dir.index_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                              dir.index_status === 'processing' ? 'bg-indigo-100 text-indigo-700 animate-pulse' :
-                              'bg-slate-100 text-slate-50'
-                            }`}>
-                              {dir.index_status}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="col-span-2 text-right">
-                          <span className="text-[9px] font-mono text-slate-300 select-all" title={dir.drive_id}>
-                            {(dir.drive_id || "").slice(0, 8)}...
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )
-                )}
-              </div>
-            </div>
           </div>
         )}
 
@@ -2428,8 +2372,38 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} userId={userId} setActiveTab={setActiveTab} />
       )}
 
-      {activeTab === "logs" && (
+      {activeTab === "summary-browser" && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <SavedSummariesBrowser 
+            userId={userId} 
+            token={token} 
+            dirs={dirs} 
+            setActiveTab={setActiveTab} 
+          />
+        </div>
+      )}
+
+      {activeTab === "logs" && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+             <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-slate-400" />
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">ログ保存設定</h4>
+                </div>
+                <span className="font-mono text-indigo-600 font-bold text-[10px]">{config.max_logs_count} logs</span>
+             </div>
+             <p className="text-[10px] text-slate-500 mb-3">ブラウザメモリ上に保持する最大ログ件数（超過分は古い順に破棄されます）</p>
+             <input
+                type="range"
+                min="50"
+                max="2000"
+                step="50"
+                value={config.max_logs_count}
+                onChange={(e) => onUpdateConfig({ ...config, max_logs_count: parseInt(e.target.value) })}
+                className="w-full h-1 bg-slate-200 rounded-full appearance-none cursor-pointer"
+              />
+          </div>
           <DriveLogs logs={logs} onClearLogs={onClearLogs} />
         </div>
       )}
