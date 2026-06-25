@@ -1610,15 +1610,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   )}
                 </button>
 
-                <button
-                  onClick={startGenerationJob}
-                  disabled={isCrawlActive || isIndexActive || filteredDirs.length === 0}
-                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:pointer-events-none transition-colors text-white font-bold px-4 py-2 rounded-md text-[10px] sm:text-xs cursor-pointer shadow-sm w-full sm:w-auto"
-                  id="btn-generate-indices"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  インデックス
-                </button>
               </div>
             </div>
 

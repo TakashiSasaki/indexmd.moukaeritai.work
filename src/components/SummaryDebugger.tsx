@@ -1853,6 +1853,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ''}${refinedErrorText ? `Re
           setFileId={setFileId}
           setInputMode={setInputMode}
           setActiveSubView={setActiveSubView}
+          token={token}
         />
       )}
     </div>

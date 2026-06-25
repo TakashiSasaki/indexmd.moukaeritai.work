@@ -72,6 +72,32 @@ The `getSummaryMetadataStatusReasons` helper dynamically compiles descriptive us
 
 ---
 
+## 🛠 Features
+
+1. **Metadata Inspector**: Examine JSON metadata (ID, version, prompt info) for each folder.
+2. **Read-only Index Preview**: See how the `index.md` would look with the saved metadata.
+3. **Hybrid Merge (Dry-run)**:
+   - **Manual Mode**: Paste existing markdown to test user-content preservation.
+   - **Drive-connected Preflight**: 
+     - Automatically finds `index.md` in the folder on Google Drive.
+     - Fetches content read-only.
+     - Runs a dry-run merge and reports write-readiness status.
+     - **Safety**: No data is written to Drive or Firestore during this process.
+
+---
+
+## 🚦 Preflight Statuses
+
+The workbench analyzes the Drive state and the generated preview to output a preflight result:
+
+- `merge-ready`: Successfully matched markers or appended. Ready for future writes.
+- `missing-index`: No existing file. Future write will create a new one.
+- `multiple-index-candidates`: Multiple `index.md` files found. Automatic merge blocked for safety.
+- `read-error`: File found but could not be read as text.
+- `merge-blocked`: Existing file found but markers are missing (and append is disabled) or malformed.
+
+---
+
 ## 📄 Read-Only `index.md` Preview Behavior
 
 The workbench includes a fully isolated visual previewer for directories:

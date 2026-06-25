@@ -951,6 +951,73 @@ app.get("/api/drive/debug/sample-files", async (req, res) => {
   }
 });
 
+/**
+ * Part B: Read-only Drive lookup for index.md in the selected folder.
+ * Queries only the selected folder's direct children for the name "index.md".
+ */
+app.get("/api/drive/index-preflight/lookup", async (req, res) => {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Missing x-google-drive-token header" });
+    return;
+  }
+
+  const { folderId } = req.query;
+  if (!folderId) {
+    res.status(400).json({ error: "folderId query parameter is required" });
+    return;
+  }
+
+  try {
+    const q = `'${folderId}' in parents and name = 'index.md' and trashed = false`;
+    const fields = "files(id,name,mimeType,modifiedTime,parents)";
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}`;
+    
+    const response = await fetchGoogleDrive(url, token);
+    const data = await response.json();
+    
+    // Part B: 18. Safe metadata may be shown: fileId, fileName, mimeType, modifiedTime, parentId
+    const candidates = (data.files || []).map((f: any) => ({
+      fileId: f.id,
+      fileName: f.name,
+      mimeType: f.mimeType,
+      modifiedTime: f.modifiedTime,
+      parentId: f.parents?.[0]
+    }));
+
+    res.json({ candidates });
+  } catch (err: any) {
+    res.status(err.status || 500).json({ error: err.message || "Failed to lookup index.md" });
+  }
+});
+
+/**
+ * Part C: Read-only fetch of existing index.md content.
+ */
+app.get("/api/drive/index-preflight/content", async (req, res) => {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Missing x-google-drive-token header" });
+    return;
+  }
+
+  const { fileId } = req.query;
+  if (!fileId) {
+    res.status(400).json({ error: "fileId query parameter is required" });
+    return;
+  }
+
+  try {
+    const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+    const response = await fetchGoogleDrive(url, token);
+    const content = await response.text();
+    
+    res.json({ content });
+  } catch (err: any) {
+    res.status(err.status || 500).json({ error: err.message || "Failed to fetch index.md content" });
+  }
+});
+
 app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
   const token = extractToken(req);
   if (!token) {
