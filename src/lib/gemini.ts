@@ -96,7 +96,20 @@ export async function generateContentWithRetry(
       const isNotFound = statusCode === 404;
       const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500;
       
-      // Fallback logic
+      // Fallback logic for 500 errors with native schema
+      if (statusCode === 500 && configOption?.responseSchema) {
+        configOption = { ...configOption };
+        delete configOption.responseSchema;
+        delete configOption.responseMimeType;
+        configOption.systemInstruction = (configOption.systemInstruction || "") + 
+          "\n\nCRITICAL INSTRUCTION: You MUST return ONLY a valid JSON object. Do NOT wrap the JSON in Markdown formatting (e.g. ```json). Just the raw JSON object.";
+        
+        const delay = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      // Model Fallback logic
       const fallbackModels: Record<string, string> = {
         "gemini-3.5-pro": "gemini-3.1-pro-preview",
         "gemini-3.1-pro-preview": "gemini-3.5-flash",
