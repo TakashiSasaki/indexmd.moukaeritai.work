@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { buildReadOnlyIndexMdPreview } from "./indexMdPreview";
 
 describe("indexMdPreview generation", () => {
-  const currentPromptVersion = "1.1.0-draft.2";
+  const currentPromptVersion = "1.2.0-draft.2";
   const nowIso = "2026-06-24T17:00:00.000Z";
 
   test("handles empty directory cleanly with instruction placeholder", () => {
@@ -17,7 +17,7 @@ describe("indexMdPreview generation", () => {
     assert.ok(preview.includes("## AI Summary (生成日時: 2026-06-24T17:00:00.000Z)"));
     assert.ok(preview.includes("現在システム上に保存されている要約ファイルがありません"));
     assert.ok(preview.includes("直接配置された要約済みファイルが存在しません"));
-    assert.ok(preview.includes("promptSpecVersion: 1.1.0-draft.2"));
+    assert.ok(preview.includes("promptSpecVersion: 1.2.0-draft.2"));
     
     // Safety check: ensure no raw outputs or tokens
     assert.ok(!preview.includes("rawOutput"));

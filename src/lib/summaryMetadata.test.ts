@@ -184,8 +184,8 @@ describe("summaryMetadata", () => {
       parseSuccess: true,
       validationSuccess: true,
       schemaVersion: SCHEMA_VERSION_V12,
-      promptVersion: "1.1.0-draft.2",
-      systemInstructionVersion: "1.1.0-draft.2",
+      promptVersion: "1.2.0-draft.2",
+      systemInstructionVersion: "1.2.0-draft.2",
       modifiedTime: "2026-06-24T12:00:00Z",
       model: "gemini-2.5-pro",
       outputMode: "structured" as const,
@@ -199,8 +199,8 @@ describe("summaryMetadata", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: null,
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
       });
       assert.strictEqual(status, "missing");
     });
@@ -209,24 +209,24 @@ describe("summaryMetadata", () => {
       const status1 = getSummaryMetadataStatus({
         savedMetadata: { ...baseSaved, fileId: "" },
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
       });
       assert.strictEqual(status1, "invalid");
 
       const status2 = getSummaryMetadataStatus({
         savedMetadata: { ...baseSaved, parseSuccess: false },
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
       });
       assert.strictEqual(status2, "invalid");
 
       const status3 = getSummaryMetadataStatus({
         savedMetadata: { ...baseSaved, validationSuccess: false },
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
       });
       assert.strictEqual(status3, "invalid");
 
@@ -236,8 +236,8 @@ describe("summaryMetadata", () => {
           fileId: "file-123"
         },
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
       });
       assert.strictEqual(status4, "invalid");
     });
@@ -246,8 +246,8 @@ describe("summaryMetadata", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
         currentSchemaVersion: "other-version",
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
       });
       assert.strictEqual(status, "stale-schema");
     });
@@ -257,14 +257,14 @@ describe("summaryMetadata", () => {
         savedMetadata: baseSaved,
         currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: "1.2.0",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
       });
       assert.strictEqual(status1, "stale-prompt");
 
       const status2 = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
         currentSystemInstructionVersion: "1.2.0",
       });
       assert.strictEqual(status2, "stale-prompt");
@@ -274,8 +274,8 @@ describe("summaryMetadata", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
         currentFileModifiedTime: "2026-06-25T00:00:00Z", // newer file modification
       });
       assert.strictEqual(status, "stale-file");
@@ -285,8 +285,8 @@ describe("summaryMetadata", () => {
       const status = getSummaryMetadataStatus({
         savedMetadata: baseSaved,
         currentSchemaVersion: SCHEMA_VERSION_V12,
-        currentPromptVersion: "1.1.0-draft.2",
-        currentSystemInstructionVersion: "1.1.0-draft.2",
+        currentPromptVersion: "1.2.0-draft.2",
+        currentSystemInstructionVersion: "1.2.0-draft.2",
         currentFileModifiedTime: "2026-06-24T12:00:00Z",
       });
       assert.strictEqual(status, "current");
@@ -297,8 +297,8 @@ describe("summaryMetadata", () => {
         const reasons = getSummaryMetadataStatusReasons({
           savedMetadata: null,
           currentSchemaVersion: SCHEMA_VERSION_V12,
-          currentPromptVersion: "1.1.0-draft.2",
-          currentSystemInstructionVersion: "1.1.0-draft.2",
+          currentPromptVersion: "1.2.0-draft.2",
+          currentSystemInstructionVersion: "1.2.0-draft.2",
         });
         assert.deepStrictEqual(reasons, ["要約データが存在しません"]);
       });
@@ -307,8 +307,8 @@ describe("summaryMetadata", () => {
         const reasons = getSummaryMetadataStatusReasons({
           savedMetadata: { fileId: "file-123" },
           currentSchemaVersion: SCHEMA_VERSION_V12,
-          currentPromptVersion: "1.1.0-draft.2",
-          currentSystemInstructionVersion: "1.1.0-draft.2",
+          currentPromptVersion: "1.2.0-draft.2",
+          currentSystemInstructionVersion: "1.2.0-draft.2",
         });
         assert.ok(reasons[0].includes("必須フィールドが不足"));
       });
@@ -322,7 +322,7 @@ describe("summaryMetadata", () => {
           },
           currentSchemaVersion: "new-schema",
           currentPromptVersion: "new-prompt",
-          currentSystemInstructionVersion: "1.1.0-draft.2",
+          currentSystemInstructionVersion: "1.2.0-draft.2",
           currentFileModifiedTime: "2026-06-25T00:00:00Z", // modified time mismatch
         });
 
