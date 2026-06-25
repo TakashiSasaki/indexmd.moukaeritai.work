@@ -23,3 +23,7 @@ The Google Drive folder crawler orchestrates changes via a Hybrid Discovery and 
 - `persistedDirsMap`: Represents folders actively saved in the database.
 - `pathResolutionMap`: Includes temporary fetched records to properly calculate `depth` and `path` variables in-flight before being permanently persisted.
 - A progressive traversal safely clears its "Unscanned" status (assigning a `last_traversed_at` timestamp) regardless of whether children were discovered, thereby removing it from the immediate queue loop to prevent endless cycles.
+
+## Metrics & Progress
+- **crawlStats.discovered**: This metric strictly counts the number of newly written or explicitly updated child folder records in Firestore. It is *not* a count of how many times an `activeScanFolder` has been traversed.
+- If a progress bar is displayed based on limits, it reflects `crawlStats.discovered` (the volume of new/updated metadata) versus the user-defined scan limit.

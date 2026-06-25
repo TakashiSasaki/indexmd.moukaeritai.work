@@ -1,5 +1,15 @@
 # Summary Analysis Schema Changelog
 
+## v1.2.0-draft.2
+- Type: structural schema and prompt refinement
+- **Changes**:
+  - Legacy schemas (`v1.1.0` and older) are fully abolished and no longer supported. No migration logic remains.
+  - Replaced the vocabulary JSON definitions with their draft.2 versions (or draft.1 if unversioned but logically updated).
+  - Merged and removed `indexing.topics`.
+  - Defined rigid keyword sources (`heading`, `body`, `metadata`, `other`) and enforced keyword `searchVariants` deduplication.
+  - Refined the extraction roles and subject label schemas for robustness.
+  - Enforced strict deterministic `shouldSkipFirestoreSummaryWrite` hash equivalence (ignoring external DB fetches).
+
 ## v1.2.0-draft.1
 - Type: major structural schema and vocabulary refinement
 - **Repository Artifacts**:

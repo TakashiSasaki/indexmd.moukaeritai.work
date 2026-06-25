@@ -100,7 +100,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
   // Job 1 State (Scanning)
   const [isCrawlActive, setIsCrawlActive] = useState<boolean>(false);
   const [crawlMode, setCrawlMode] = useState<"flat" | "progressive" | null>(null);
-  const [activeScanFolder, setActiveScanFolder] = useState<{ name: string; path: string } | null>(null);
+  const [activeScanFolder, setActiveScanFolder] = useState<{ drive_id: string; name: string; path: string } | null>(null);
   const crawlActiveRef = useRef<boolean>(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [rootNextPageToken, setRootNextPageToken] = useState<string | null>(null);
@@ -941,7 +941,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
 
             activeOldestFolder = candidates[0];
             folderToken = activeOldestFolder.next_page_token || null;
-            setActiveScanFolder({ name: activeOldestFolder.name, path: activeOldestFolder.path });
+            setActiveScanFolder({ drive_id: activeOldestFolder.drive_id, name: activeOldestFolder.name, path: activeOldestFolder.path });
             onAddLog("info", `[プログレッシブ走査] 起点として最も走査日時が古い（または未走査の）フォルダを選択しました: "${activeOldestFolder.name}" (${activeOldestFolder.path})`);
           }
 
@@ -1990,7 +1990,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
                         {unvisited ? (
                           <div className="space-y-1">
-                            <p>{isCrawlActive && crawlMode === "progressive" && activeScanFolder?.name === unvisited.name ? "現在、プログレッシブ走査でこのフォルダを処理中です。" : isCrawlActive && crawlMode === "flat" ? "フラット走査が完了後、この未走査フォルダからプログレッシブ走査を開始します。" : "発見済みで未訪問のフォルダから開始します。"}</p>
+                            <p>{isCrawlActive && crawlMode === "progressive" && activeScanFolder?.drive_id === unvisited.drive_id ? "現在、プログレッシブ走査でこのフォルダを処理中です。" : isCrawlActive && crawlMode === "flat" ? "フラット走査が完了後、この未走査フォルダからプログレッシブ走査を開始します。" : "発見済みで未訪問のフォルダから開始します。"}</p>
                             <div className="flex items-center gap-1 text-indigo-600 font-bold truncate">
                               <Folder className="w-3 h-3" />
                               <span className="truncate">{unvisited.name || unvisited.path}</span>
@@ -2017,7 +2017,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       <div className="text-[11px] font-medium text-slate-600 leading-relaxed">
                         {oldest ? (
                           <div className="space-y-1">
-                            <p>{isCrawlActive && crawlMode === "progressive" && activeScanFolder?.name === oldest.name ? "現在、プログレッシブ走査でこの最古フォルダを処理中です。" : "最後に訪問してから最も時間が経過したフォルダを再訪します。"}</p>
+                            <p>{isCrawlActive && crawlMode === "progressive" && activeScanFolder?.drive_id === oldest.drive_id ? "現在、プログレッシブ走査でこの最古フォルダを処理中です。" : "最後に訪問してから最も時間が経過したフォルダを再訪します。"}</p>
                             <div className="flex items-center gap-1 text-slate-700 font-bold truncate">
                               <Folder className="w-3 h-3" />
                               <span className="truncate">{oldest.name || oldest.path}</span>
