@@ -747,13 +747,37 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
           });
           onAddLog("info", `空のフォルダをスキップしました: ${item.path}`);
           skipCount++;
+        } else if (data.emptyStructuredOutput || data.underGeneratedStructuredOutput || data.structuredParseFailed || data.failureKind) {
+          await updateDoc(itemRef, {
+            index_status: "error",
+            last_updated_at: new Date().toISOString()
+          });
+          onAddLog("error", `構造化解析エラーのためスキップしました: ${item.path} (${data.failureKind || "解析失敗"})`);
         } else {
           // Core update
-          await updateDoc(itemRef, {
+          const safeData: any = {
             index_status: "indexed",
             ai_summary: data.aiSummary || "",
             last_updated_at: new Date().toISOString()
-          });
+          };
+          
+          if (data.structured) {
+            safeData.structured = data.structured;
+          }
+          if (data.summary) safeData.summary = data.summary;
+          if (data.titleInfo) safeData.titleInfo = data.titleInfo;
+          if (data.documentKindInfo) safeData.documentKindInfo = data.documentKindInfo;
+          if (data.subjectAreas) safeData.subjectAreas = data.subjectAreas;
+          
+          // Explicitly NEVER save these keys
+          delete safeData.rawFullText;
+          delete safeData.rawOutput;
+          delete safeData.rawPrompt;
+          delete safeData.systemInstruction;
+          delete safeData.customInstruction;
+          delete safeData.responsePreview;
+
+          await updateDoc(itemRef, safeData);
           onAddLog("success", `[完了] ${item.path} の index.md ファイルを生成・配置しました。`);
           successCount++;
         }

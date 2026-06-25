@@ -33,12 +33,28 @@ test('buildSummaryDebugSystemInstruction', async (t) => {
     assert.ok(!prompt.includes('"reference"'));
   });
 
-  await t.test('prompt includes exact source token embeddedMetadata', () => {
+  await t.test('prompt includes exact source token embeddedMetadata and avoids metadata as valid', () => {
     assert.ok(prompt.includes('"embeddedMetadata"'));
+    assert.ok(!prompt.includes('source: "metadata"'));
+    assert.ok(prompt.includes('DO NOT use "metadata"'));
   });
 
   await t.test('prompt includes mapping examples', () => {
     assert.ok(prompt.includes('dataset'));
     assert.ok(prompt.includes('DO NOT use "spreadsheet"'));
+  });
+
+  await t.test('prompt includes draft.2 root sections and omits legacy', () => {
+    assert.ok(prompt.includes('documentKindInfo'));
+    assert.ok(prompt.includes('fileFormatInfo'));
+    assert.ok(prompt.includes('subjectAreas'));
+    assert.ok(prompt.includes('languageInfo'));
+    assert.ok(prompt.includes('indexing'));
+    assert.ok(prompt.includes('extractedFacts'));
+    assert.ok(prompt.includes('quality'));
+    
+    assert.ok(!prompt.includes('documentClassification'));
+    assert.ok(!prompt.includes('controlledVocabulary'));
+    assert.ok(!prompt.includes('legalAndSignatures'));
   });
 });

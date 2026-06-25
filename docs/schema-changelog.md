@@ -1,5 +1,14 @@
 # Summary Analysis Schema Changelog
 
+## Unreleased
+- Type: structural schema, prompt refinement, and strict execution modes
+- **Changes**:
+  - Implemented model-aware structured output configurations (`nativeSchema` for Gemini vs `promptedJson` for Gemma).
+  - Fixed `processStructuredSummaryOutput` to reliably detect `emptyStructuredOutput` and `underGeneratedStructuredOutput` using correct draft.2 root sections.
+  - Hardened metadata caching and experiment history logging to explicitly strip `rawFullText`, `rawOutput`, `rawPrompt`, `requestPreview`, `systemInstruction` and `customInstruction`.
+  - Suppressed no-op warning logs in `repairSummaryAnalysisV12ControlledVocabularies` and aggregated temporal role warnings.
+  - Added rigorous unit tests for model capabilities, prompt assertions, server utility methods, and repair functions.
+
 ## v1.2.0-draft.2
 - Type: structural schema and prompt refinement
 - **Changes**:

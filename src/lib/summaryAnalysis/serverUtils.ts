@@ -92,7 +92,10 @@ export async function processStructuredSummaryOutput(
     }
 
     // Detect Empty Structured Output
-    const rootSections = ["summary", "titleInfo", "documentClassification", "controlledVocabulary", "legalAndSignatures"];
+    const rootSections = [
+      "summary", "titleInfo", "documentKindInfo", "fileFormatInfo", 
+      "subjectAreas", "languageInfo", "indexing", "extractedFacts", "quality"
+    ];
     const hasNoSections = !parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0 || rootSections.every(sec => !(sec in parsed));
     if (hasNoSections) {
       result.error = "Structured output was empty or under-generated";
