@@ -1,0 +1,148 @@
+{
+  "summary": {
+    "oneLine": "API設定とクライアントライブラリの初期化手順に関する和英混在の開発者向け仕様書。",
+    "detailed": "本ドキュメントは、プロジェクト管理用のAPIキー設定およびクライアントの初期化フローについて解説したガイドです。環境変数からAPI_KEYを読み込んで認証ヘッダーを構築する手法や、エラーハンドリングの実装手順、並びにTypeScriptを用いた接続テストコード例を含んでいます。英語表記のAPI用語やエラーコード（UNAUTHORIZEDなど）が混在しています。"
+  },
+  "titleInfo": {
+    "explicitTitle": {
+      "value": "API接続・初期化仕様書",
+      "source": "documentHeading"
+    },
+    "fileNameTitle": {
+      "value": "api-init-guide.md",
+      "isGeneric": false
+    },
+    "inferredTitle": "API接続と初期化手順解説書 (V2)",
+    "displayTitle": {
+      "value": "API接続・初期化仕様書",
+      "source": "explicitTitle",
+      "reason": "明確なドキュメント見出しが存在するため、最優先で表示用タイトルとして選択しました。"
+    }
+  },
+  "documentKindInfo": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "kinds": [
+      {
+        "kind": "specification",
+        "confidence": 0.95,
+        "reason": "APIの初期化手順やコード仕様が詳細に定義されています。"
+      }
+    ]
+  },
+  "fileFormatInfo": {
+    "mimeType": "text/markdown",
+    "extension": "md"
+  },
+  "subjectAreas": {
+    "vocabularyVersion": "1.0.0-draft.1",
+    "domains": [
+      {
+        "domain": "computerScience",
+        "confidence": 0.98,
+        "reason": "ソフトウェア開発およびAPI統合に関する実装内容です。",
+        "labels": [
+          {
+            "label": "ソフトウェア開発",
+            "kind": "field",
+            "confidence": 0.95,
+            "language": "ja",
+            "script": "Jpan",
+            "source": "controlledVocabulary",
+            "reason": "APIライブラリの実装を対象としているため。",
+            "evidenceKeywords": ["API", "初期化"]
+          },
+          {
+            "label": "Software Integration",
+            "kind": "topic",
+            "confidence": 0.9,
+            "language": "en",
+            "script": "Latn",
+            "source": "inferred",
+            "reason": "Related to setting up keys and initial connections.",
+            "evidenceKeywords": ["API_KEY", "client"]
+          }
+        ]
+      }
+    ]
+  },
+  "languageInfo": {
+    "primary": "ja",
+    "detected": ["ja", "en"]
+  },
+  "indexing": {
+    "keywords": [
+      {
+        "value": "初期化",
+        "language": "ja",
+        "script": "Jpan",
+        "source": "surface",
+        "confidence": 0.95,
+        "importance": 0.9,
+        "normalizedValue": "初期化",
+        "searchVariants": [
+          {
+            "value": "セットアップ",
+            "kind": "synonym",
+            "language": "ja",
+            "script": "Jpan",
+            "confidence": 0.9
+          },
+          {
+            "value": "initialization",
+            "kind": "translation",
+            "language": "en",
+            "script": "Latn",
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "value": "API",
+        "language": "en",
+        "script": "Latn",
+        "source": "surface",
+        "confidence": 0.99,
+        "importance": 0.85,
+        "normalizedValue": "api",
+        "searchVariants": [
+          {
+            "value": "Application Programming Interface",
+            "kind": "synonym",
+            "language": "en",
+            "script": "Latn",
+            "confidence": 0.95
+          }
+        ]
+      }
+    ],
+    "namedEntities": [
+      {
+        "name": "TypeScript",
+        "type": "artifact"
+      }
+    ],
+    "resourceReferences": [
+      {
+        "uri": "https://api.example.com/v2/docs",
+        "label": "V2 API Reference Documentation"
+      }
+    ]
+  },
+  "extractedFacts": {
+    "temporalReferences": [
+      {
+        "value": "2026年6月",
+        "normalizedDate": "2026-06",
+        "role": "lastModified",
+        "roleCategory": "validity",
+        "confidence": 0.9
+      }
+    ],
+    "parties": [],
+    "monetaryAmounts": []
+  },
+  "quality": {
+    "confidence": 0.95,
+    "warnings": []
+  }
+}

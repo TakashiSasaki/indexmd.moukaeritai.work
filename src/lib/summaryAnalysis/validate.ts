@@ -194,7 +194,7 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
         if (Array.isArray(labels)) {
           for (const l of labels) {
             if (!l || typeof l !== "object") continue;
-            const { label, kind, confidence: labelConfidence } = l;
+            const { label, kind, confidence: labelConfidence, source, language, script, reason, evidenceKeywords } = l;
 
             if (typeof label !== "string" || label.trim() === "") {
               errors.push("Subject label must be a non-empty string");
@@ -206,6 +206,28 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
 
             if (typeof labelConfidence !== "number" || !Number.isFinite(labelConfidence) || labelConfidence < 0 || labelConfidence > 1) {
               errors.push(`Subject label confidence must be between 0 and 1, got ${labelConfidence}`);
+            }
+
+            if (typeof source !== "string" || !["surface", "inferred", "controlledVocabulary"].includes(source)) {
+              errors.push(`Invalid subject label source: "${source}"`);
+            }
+
+            if (language !== undefined && typeof language !== "string") {
+              errors.push("Subject label language must be a string");
+            }
+
+            if (script !== undefined && typeof script !== "string") {
+              errors.push("Subject label script must be a string");
+            }
+
+            if (reason !== undefined && typeof reason !== "string") {
+              errors.push("Subject label reason must be a string");
+            }
+
+            if (evidenceKeywords !== undefined) {
+              if (!Array.isArray(evidenceKeywords) || !evidenceKeywords.every((ek: any) => typeof ek === "string")) {
+                errors.push("Subject label evidenceKeywords must be an array of strings");
+              }
             }
           }
         }
@@ -229,7 +251,80 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
 
   // 8. Indexing Validation
   if (value.indexing && typeof value.indexing === "object") {
-    const { resourceReferences } = value.indexing;
+    const { keywords, resourceReferences } = value.indexing;
+
+    if (Array.isArray(keywords)) {
+      for (const kw of keywords) {
+        if (!kw || typeof kw !== "object") {
+          errors.push("Keyword term must be an object");
+          continue;
+        }
+        const { value: kwVal, source, confidence, importance, language, script, normalizedValue, searchVariants } = kw;
+
+        if (typeof kwVal !== "string" || kwVal.trim() === "") {
+          errors.push("Keyword value must be a non-empty string");
+        }
+
+        if (typeof source !== "string" || !["surface", "inferred", "controlledVocabulary"].includes(source)) {
+          errors.push(`Invalid keyword source: "${source}"`);
+        }
+
+        if (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+          errors.push(`Keyword confidence must be between 0 and 1, got ${confidence}`);
+        }
+
+        if (typeof importance !== "number" || !Number.isFinite(importance) || importance < 0 || importance > 1) {
+          errors.push(`Keyword importance must be between 0 and 1, got ${importance}`);
+        }
+
+        if (language !== undefined && typeof language !== "string") {
+          errors.push("Keyword language must be a string");
+        }
+
+        if (script !== undefined && typeof script !== "string") {
+          errors.push("Keyword script must be a string");
+        }
+
+        if (normalizedValue !== undefined && typeof normalizedValue !== "string") {
+          errors.push("Keyword normalizedValue must be a string");
+        }
+
+        if (Array.isArray(searchVariants)) {
+          for (const sv of searchVariants) {
+            if (!sv || typeof sv !== "object") {
+              errors.push("Search variant must be an object");
+              continue;
+            }
+            const { value: svVal, kind, confidence: svConfidence, language: svLang, script: svScript } = sv;
+
+            if (typeof svVal !== "string" || svVal.trim() === "") {
+              errors.push("Search variant value must be a non-empty string");
+            }
+
+            if (typeof kind !== "string" || !["synonym", "acronym", "translation", "transliteration", "stem", "misspelling"].includes(kind)) {
+              errors.push(`Invalid search variant kind: "${kind}"`);
+            }
+
+            if (typeof svConfidence !== "number" || !Number.isFinite(svConfidence) || svConfidence < 0 || svConfidence > 1) {
+              errors.push(`Search variant confidence must be between 0 and 1, got ${svConfidence}`);
+            }
+
+            if (svLang !== undefined && typeof svLang !== "string") {
+              errors.push("Search variant language must be a string");
+            }
+
+            if (svScript !== undefined && typeof svScript !== "string") {
+              errors.push("Search variant script must be a string");
+            }
+          }
+        } else {
+          errors.push("Keyword searchVariants must be an array");
+        }
+      }
+    } else {
+      errors.push("indexing.keywords must be an array");
+    }
+
     if (Array.isArray(resourceReferences)) {
       for (const rr of resourceReferences) {
         if (!rr || typeof rr !== "object") continue;

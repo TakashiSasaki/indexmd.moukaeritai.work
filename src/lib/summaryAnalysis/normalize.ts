@@ -34,7 +34,7 @@ function dedupArray(arr: any): string[] {
 function isSensitiveToken(val: string): boolean {
   const clean = val.trim();
   // Match Google/Gemini API keys (AIzaSy...)
-  if (/AIzaSy[A-Za-z0-9_-]{33}/.test(clean)) return true;
+  if (/AIzaSy[A-Za-z0-9_-]{32,40}/.test(clean)) return true;
   // Match Google OAuth access tokens (ya29...)
   if (/ya29\.[A-Za-z0-9_-]+/.test(clean)) return true;
   // Match generic bearer headers
@@ -157,11 +157,24 @@ export function normalizeSummaryAnalysisV12(value: any): SummaryAnalysisResultV1
           labels: labels
             .map((l: any) => {
               if (!l || typeof l !== "object") return null;
-              return {
+              const normLabel: any = {
                 label: trimStr(l.label),
                 kind: trimStr(l.kind),
-                confidence: typeof l.confidence === "number" ? Math.min(1, Math.max(0, l.confidence)) : 0
+                confidence: typeof l.confidence === "number" ? Math.min(1, Math.max(0, l.confidence)) : 0,
+                source: trimStr(l.source) || "controlledVocabulary"
               };
+              const lang = trimStr(l.language);
+              if (lang !== "") normLabel.language = lang;
+              const scr = trimStr(l.script);
+              if (scr !== "") normLabel.script = scr;
+              const reas = trimStr(l.reason);
+              if (reas !== "") normLabel.reason = reas;
+              if (Array.isArray(l.evidenceKeywords)) {
+                normLabel.evidenceKeywords = l.evidenceKeywords
+                  .map((ek: any) => trimStr(ek))
+                  .filter((ek: string) => ek !== "");
+              }
+              return normLabel;
             })
             .filter((l: any) => l !== null && l.label !== "")
         };
@@ -185,9 +198,63 @@ export function normalizeSummaryAnalysisV12(value: any): SummaryAnalysisResultV1
   const idxInfo = value.indexing || {};
   const nEntities = Array.isArray(idxInfo.namedEntities) ? idxInfo.namedEntities : [];
   const rRefs = Array.isArray(idxInfo.resourceReferences) ? idxInfo.resourceReferences : [];
+  const rawKeywords = Array.isArray(idxInfo.keywords) ? idxInfo.keywords : [];
+
+  // Re-map and normalize keywords
+  const normalizedKeywords = rawKeywords
+    .map((kw: any) => {
+      if (!kw || typeof kw !== "object") return null;
+      const val = trimStr(kw.value);
+      if (val === "") return null;
+
+      const normKw: any = {
+        value: val,
+        source: trimStr(kw.source) || "surface",
+        confidence: typeof kw.confidence === "number" ? Math.min(1, Math.max(0, kw.confidence)) : 0,
+        importance: typeof kw.importance === "number" ? Math.min(1, Math.max(0, kw.importance)) : 0,
+        searchVariants: Array.isArray(kw.searchVariants)
+          ? kw.searchVariants
+              .map((sv: any) => {
+                if (!sv || typeof sv !== "object") return null;
+                const svVal = trimStr(sv.value);
+                if (svVal === "") return null;
+                const normSv: any = {
+                  value: svVal,
+                  kind: trimStr(sv.kind) || "synonym",
+                  confidence: typeof sv.confidence === "number" ? Math.min(1, Math.max(0, sv.confidence)) : 0
+                };
+                const svLang = trimStr(sv.language);
+                if (svLang !== "") normSv.language = svLang;
+                const svScr = trimStr(sv.script);
+                if (svScr !== "") normSv.script = svScr;
+                return normSv;
+              })
+              .filter((sv: any) => sv !== null)
+          : []
+      };
+
+      const lang = trimStr(kw.language);
+      if (lang !== "") normKw.language = lang;
+      const scr = trimStr(kw.script);
+      if (scr !== "") normKw.script = scr;
+      const normVal = trimStr(kw.normalizedValue);
+      if (normVal !== "") normKw.normalizedValue = normVal;
+
+      return normKw;
+    })
+    .filter((kw: any) => kw !== null);
+
+  // Deduplicate keywords by value
+  const uniqueKwMap = new Map<string, any>();
+  for (const kw of normalizedKeywords) {
+    if (!uniqueKwMap.has(kw.value)) {
+      uniqueKwMap.set(kw.value, kw);
+    }
+  }
+  const dedupedKeywords = Array.from(uniqueKwMap.values());
+
   result.indexing = {
-    topics: dedupArray(idxInfo.topics),
-    keywords: dedupArray(idxInfo.keywords),
+    keywords: dedupedKeywords,
     namedEntities: nEntities
       .map((ne: any) => {
         if (!ne || typeof ne !== "object") return null;
