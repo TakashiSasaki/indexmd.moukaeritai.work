@@ -4,8 +4,8 @@
   "description": "Google Drive Folder recursion indexer generating OKF-compliant index.md files with AI summaries.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#10b981",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
   "icons": [
     {
       "src": "/icon.svg",

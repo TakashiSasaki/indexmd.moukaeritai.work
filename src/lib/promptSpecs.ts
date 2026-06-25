@@ -2,10 +2,7 @@ export const PROMPT_SPEC_VERSION = "1.0.0";
 export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.2.0-draft.2";
 export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.2.0-draft.2";
 
-export const SUMMARY_ANALYSIS_PROMPT_VERSION_V12_DRAFT2 = "1.2.0-draft.2";
-export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION_V12_DRAFT2 = "1.2.0-draft.2";
-
-export function buildSummaryAnalysisV12Draft2SystemInstruction(): string {
+export function buildSummaryDebugSystemInstruction(): string {
   return `You are an expert document analyzer. 
 Analyze the provided document based on its metadata and content, and output a valid JSON document adhering to the v1.2.0-draft.2 summary analysis schema.
 
@@ -36,8 +33,8 @@ Critical Instructions & Semantics:
 7. Use the schema exactly. Do NOT include markdown fences (e.g. \`\`\`json) or any explanatory text outside the JSON object.`;
 }
 
-export function buildSummaryDebugSystemInstruction(): string {
-  return buildSummaryAnalysisV12Draft2SystemInstruction();
+export function buildSummaryAnalysisV12Draft2SystemInstruction(): string {
+  return buildSummaryDebugSystemInstruction();
 }
 
 export function buildStructuredSummaryTaskPrompt(input: DebugTextFileInput | DebugBinaryFileInput, customInstruction?: string): string {

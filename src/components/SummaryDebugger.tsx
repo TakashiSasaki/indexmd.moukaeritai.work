@@ -55,7 +55,7 @@ import {
 } from "../lib/promptSpecs";
 import {
   SCHEMA_VERSION_V12,
-} from "../lib/summaryAnalysis/versioned";
+} from "../lib/summaryAnalysis/schema";
 import { canGenerateSummary } from "../lib/summaryDebuggerUtils";
 
 interface SummaryDebuggerProps {
@@ -1885,16 +1885,29 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
               <tbody className="text-[10px] sm:text-xs text-slate-600">
                 {experimentHistory.map((item) => {
                   const summaryPreview =
-                    item.structuredResult?.oneLineSummary ||
+                    item.structuredResult?.summary?.oneLine ||
                     (item.outputMode !== "structured" && item.rawOutput) ||
                     "-";
-                  const docTypes =
-                    item.structuredResult?.documentTypes?.join(", ") || "-";
-                  const docIntent =
-                    item.structuredResult?.documentIntent || "-";
-                  const subjects = item.structuredResult?.subjectAreas
-                    ? Object.keys(item.structuredResult.subjectAreas).join(", ")
-                    : "-";
+                  
+                  const docKinds =
+                    item.structuredResult?.documentKindInfo?.kinds?.join(", ") || "-";
+                  
+                  const domainsPreview =
+                    item.structuredResult?.subjectAreas?.domains?.map((d: any) => d.domain).join(", ") || "-";
+
+                  const topicLabelsList: string[] = [];
+                  if (item.structuredResult?.subjectAreas?.domains) {
+                    for (const dom of item.structuredResult.subjectAreas.domains) {
+                      if (dom.labels) {
+                        for (const lbl of dom.labels) {
+                          if (lbl.kind === "topic" && lbl.label) {
+                            topicLabelsList.push(lbl.label);
+                          }
+                        }
+                      }
+                    }
+                  }
+                  const topicLabels = topicLabelsList.length > 0 ? topicLabelsList.join(", ") : "-";
 
                   return (
                     <tr
@@ -1913,7 +1926,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                       <td className="p-2 whitespace-nowrap">{item.model}</td>
                       <td className="p-2 whitespace-nowrap">
                         {item.outputMode === "structured"
-                          ? item.schemaVersion
+                           ? item.schemaVersion
                           : item.outputMode}
                       </td>
                       <td className="p-2 whitespace-nowrap">
@@ -1942,14 +1955,14 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                           item.parseSuccess && (
                             <div
                               className="text-[9px] text-slate-400 truncate"
-                              title={`Type: ${docTypes} | Intent: ${docIntent} | Areas: ${subjects}`}
+                              title={`Kinds: ${docKinds} | Topics: ${topicLabels} | Domains: ${domainsPreview}`}
                             >
+                              <span className="text-slate-500">K:</span>{" "}
+                              {docKinds} /{" "}
                               <span className="text-slate-500">T:</span>{" "}
-                              {docTypes} /{" "}
-                              <span className="text-slate-500">I:</span>{" "}
-                              {docIntent} /{" "}
-                              <span className="text-slate-500">A:</span>{" "}
-                              {subjects}
+                              {topicLabels} /{" "}
+                              <span className="text-slate-500">D:</span>{" "}
+                              {domainsPreview}
                             </div>
                           )}
                       </td>
@@ -1966,7 +1979,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                                   ? item.rawOutput ||
                                     item.summary ||
                                     "No summary (raw output not persisted)"
-                                  : item.structuredResult?.oneLineSummary ||
+                                  : item.structuredResult?.summary?.oneLine ||
                                     "No summary",
                               rawText: item.rawOutput,
                               schemaVersion: item.schemaVersion,
