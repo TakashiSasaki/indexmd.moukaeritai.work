@@ -20,6 +20,10 @@ test('Model Capabilities Registry', async (t) => {
     assert.strictEqual(getStructuredExecutionMode('gemini-3.1-pro-preview'), 'nativeSchema');
   });
 
+  await t.test('gemini-flash-latest uses nativeSchema', () => {
+    assert.strictEqual(getStructuredExecutionMode('gemini-flash-latest'), 'nativeSchema');
+  });
+
   await t.test('gemma-4-31b-it uses promptedJson', () => {
     assert.strictEqual(getStructuredExecutionMode('gemma-4-31b-it'), 'promptedJson');
     assert.strictEqual(shouldUseNativeResponseSchema('gemma-4-31b-it'), false);

@@ -3,6 +3,7 @@ import { getSummaryAnalysisV12ValidationErrors } from "./validate";
 import { normalizeAndRepairSummaryAnalysisV12 } from "./repair";
 import { SummaryAnalysisResultV12 } from "./types";
 import { generateContentWithRetry } from "../gemini";
+import { getModelCapability } from "../modelCapabilities";
 
 async function repairOutputWithLLM(
   targetModel: string,
@@ -52,20 +53,81 @@ export async function processStructuredSummaryOutput(
   repairApplied?: boolean;
   repairFallbackUsed?: boolean;
   rawText: string;
+  failureKind?: "providerError" | "emptyStructuredOutput" | "jsonParseError" | "schemaValidationError" | "controlledVocabularyValidationError" | "repairFallbackFailed";
+  emptyStructuredOutput?: boolean;
+  underGeneratedStructuredOutput?: boolean;
+  effectiveStructuredExecutionMode?: string;
+  supportsNativeResponseSchema?: boolean;
+  providerFamily?: string;
+  responseSchemaEnabled?: boolean;
 }> {
+  const cap = getModelCapability(targetModel);
   const result: any = {
     schemaVersion: SCHEMA_VERSION_V12,
-    rawText: summaryText
+    rawText: summaryText,
+    effectiveStructuredExecutionMode: configOption?.effectiveStructuredExecutionMode || cap.structuredExecutionMode,
+    supportsNativeResponseSchema: configOption?.supportsNativeResponseSchema !== undefined ? configOption.supportsNativeResponseSchema : cap.supportsNativeResponseSchema,
+    providerFamily: configOption?.providerFamily || cap.providerFamily,
+    responseSchemaEnabled: configOption?.responseSchemaEnabled !== undefined ? configOption.responseSchemaEnabled : (cap.structuredExecutionMode === "nativeSchema")
   };
 
+  const trimmed = (summaryText || "").trim();
+  if (!trimmed) {
+    result.structuredParseFailed = true;
+    result.error = "JSON parse failed: Empty output";
+    result.failureKind = "jsonParseError";
+    return result;
+  }
+
   try {
-    const cleanJson = summaryText.replace(/^```(json)?\s*/i, "").replace(/```$/i, "").trim();
-    const parsed = JSON.parse(cleanJson);
+    const cleanJson = trimmed.replace(/^```(json)?\s*/i, "").replace(/```$/i, "").trim();
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleanJson);
+    } catch (e: any) {
+      result.structuredParseFailed = true;
+      result.error = "JSON parse failed: " + e.message;
+      result.failureKind = "jsonParseError";
+      return result;
+    }
+
+    // Detect Empty Structured Output
+    const rootSections = ["summary", "titleInfo", "documentClassification", "controlledVocabulary", "legalAndSignatures"];
+    const hasNoSections = !parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0 || rootSections.every(sec => !(sec in parsed));
+    if (hasNoSections) {
+      result.error = "Structured output was empty or under-generated";
+      result.failureKind = "emptyStructuredOutput";
+      result.emptyStructuredOutput = true;
+      result.structuredParseFailed = false;
+      return result;
+    }
+
     let { repaired: normalized, warnings } = normalizeAndRepairSummaryAnalysisV12(parsed);
+
+    // Detect Under-Generated Structured Output
+    const hasOneLine = !!(normalized?.summary?.oneLine && normalized.summary.oneLine.trim());
+    const hasDetailed = !!(normalized?.summary?.detailed && normalized.summary.detailed.trim());
+    const hasDisplayTitle = !!(normalized?.titleInfo?.displayTitle?.value && normalized.titleInfo.displayTitle.value.trim());
+    const hasInferredTitle = !!(normalized?.titleInfo?.inferredTitle && normalized.titleInfo.inferredTitle.trim());
+    const presentSections = rootSections.filter(sec => sec in parsed);
+    const mostMissing = presentSections.length <= 2;
+
+    const isUnderGenerated = (!hasOneLine && !hasDetailed) || (!hasDisplayTitle && !hasInferredTitle) || mostMissing;
+    if (isUnderGenerated) {
+      result.error = "Structured output was empty or under-generated";
+      result.failureKind = "underGeneratedStructuredOutput";
+      result.underGeneratedStructuredOutput = true;
+      result.structuredParseFailed = false;
+      return result;
+    }
+
     let validationErrors = getSummaryAnalysisV12ValidationErrors(normalized);
     let repairFallbackUsed = false;
 
     if (validationErrors.length > 0) {
+      const hasVocabError = validationErrors.some((err: any) => err.path?.includes("controlledVocabulary"));
+      result.failureKind = hasVocabError ? "controlledVocabularyValidationError" : "schemaValidationError";
+
       const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);
       try {
         const repairedParsed = JSON.parse(repairedText);
@@ -80,9 +142,11 @@ export async function processStructuredSummaryOutput(
         } else {
           validationErrors = newValidationErrors;
           warnings = [...warnings, "Repair-only LLM fallback also failed validation."];
+          result.failureKind = "repairFallbackFailed";
         }
       } catch (e: any) {
         warnings = [...warnings, `Repair-only LLM fallback failed to parse as JSON: ${e.message}`];
+        result.failureKind = "repairFallbackFailed";
       }
     }
 
@@ -101,6 +165,7 @@ export async function processStructuredSummaryOutput(
   } catch (e: any) {
     result.structuredParseFailed = true;
     result.error = "JSON parse failed: " + e.message;
+    result.failureKind = "jsonParseError";
   }
 
   return result;
