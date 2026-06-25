@@ -1,3 +1,13 @@
+import {
+  DOCUMENT_KINDS,
+  SUBJECT_DOMAINS,
+  SUBJECT_LABEL_KINDS,
+  KEYWORD_SOURCES,
+  TEMPORAL_ROLE_CATEGORIES,
+  PARTY_ROLE_CATEGORIES,
+  MONETARY_ROLE_CATEGORIES
+} from "./summaryAnalysis/vocabularies";
+
 export const PROMPT_SPEC_VERSION = "1.0.0";
 export const SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION = "1.2.0-draft.2";
 export const SUMMARY_ANALYSIS_PROMPT_VERSION = "1.2.0-draft.2";
@@ -20,25 +30,25 @@ Required Root Sections:
 Critical Instructions & Semantics:
 1. Use "summary.oneLine" (concise, single-sentence Japanese overview for indexes/file browsers) and "summary.detailed" (deeper, multi-paragraph content summary). Do NOT use legacy flat keys.
 2. Controlled Vocabularies & Aliases (CRITICAL):
-   - documentKindInfo.kinds: MUST use exact tokens (e.g., "dataset", "report", "note", "article", "manual", "agreement", "correspondence", "presentation", "financialStatement", "unknown"). 
+   - documentKindInfo.kinds: MUST use exact tokens (e.g., ${DOCUMENT_KINDS.slice(0, 8).map(k => `"${k}"`).join(", ")}). 
      DO NOT use "spreadsheet", "sheet", "csv", "json". Use "dataset" for table/spreadsheet data.
      Use documentKindInfo.vocabularyVersion = "1.0.0-draft.1" exactly.
-   - subjectAreas.domains: MUST use exact tokens (e.g., "technology", "computerScience", "artsAndCulture", "personal", "business", "finance", "education", "health", "law", "science", "governance", "other", "unknown"). 
+   - subjectAreas.domains: MUST use exact tokens (e.g., ${SUBJECT_DOMAINS.slice(0, 8).map(k => `"${k}"`).join(", ")}). 
      DO NOT use natural-language labels like "Computing and Internet". Use "technology" or "computerScience".
      Use subjectAreas.vocabularyVersion = "1.0.0-draft.1" exactly.
-   - subjectAreas.domains[].labels[].kind: MUST use exact tokens (e.g., "topic", "field", "method", "product", "application", "other"). 
+   - subjectAreas.domains[].labels[].kind: MUST use exact tokens (e.g., ${SUBJECT_LABEL_KINDS.slice(0, 5).map(k => `"${k}"`).join(", ")}). 
      DO NOT use "service" or "software". Use "product" or "application".
-   - extractedFacts.parties[].roles[].roleCategory: MUST use exact tokens (e.g., "commerce", "payment", "legal", "academic", "other", "unknown"). 
+   - extractedFacts.parties[].roles[].roleCategory: MUST use exact tokens (e.g., ${PARTY_ROLE_CATEGORIES.slice(0, 5).map(k => `"${k}"`).join(", ")}). 
      DO NOT use "transaction" or "sponsor". Use "commerce" or "payment".
-   - extractedFacts.temporalReferences[].roleCategory: MUST use exact tokens (e.g., "publication", "reference", "deadline", "event", "other", "unknown").
-   - extractedFacts.monetaryAmounts[].roleCategory: MUST use exact tokens (e.g., "price", "fee", "payment", "tax", "budget", "other", "unknown").
+   - extractedFacts.temporalReferences[].roleCategory: MUST use exact tokens (e.g., ${TEMPORAL_ROLE_CATEGORIES.slice(0, 5).map(k => `"${k}"`).join(", ")}).
+   - extractedFacts.monetaryAmounts[].roleCategory: MUST use exact tokens (e.g., ${MONETARY_ROLE_CATEGORIES.slice(0, 5).map(k => `"${k}"`).join(", ")}).
      DO NOT use "transaction" or "purchase". Use "payment" or "price".
 3. In "languageInfo", use "primary" and "detected" fields.
 4. Topics vs. Keywords vs. SubjectAreas Semantics:
    - NEVER output "indexing.topics". Topics are completely deprecated.
-   - "indexing.keywords" are linguistic search terms actually present in or derived from the document. Each keyword must be an object with "value", "source" (body, heading, title, filename, embeddedMetadata, authorProvided, identifier, other, unknown), "confidence", and optionally "importance" and "searchVariants".
-   - Keyword sources: MUST be one of "body", "heading", "title", "filename", "embeddedMetadata", "authorProvided", "identifier", "other", "unknown".
-     DO NOT use "metadata" or "surface".
+   - "indexing.keywords" are linguistic search terms actually present in or derived from the document. Each keyword must be an object with "value", "source" (${KEYWORD_SOURCES.map(k => `"${k}"`).join(", ")}), "confidence", and optionally "importance" and "searchVariants".
+   - Keyword sources: MUST be one of those exact tokens.
+     DO NOT use "metadata" or "surface". Use "embeddedMetadata" for embedded metadata.
    - Preserve original wording and language for keyword "value". Put translations, transliterations, acronyms, spelling variants, and normalizations into "searchVariants" with appropriate "relation" classifications (synonym, acronym, translation, transliteration, stem, misspelling). Do NOT use "kind" inside searchVariants.
    - Inferred conceptual classification and domain/topical aboutness belong in "subjectAreas.domains[].labels" with label kind = "topic", "field", "method", "application", etc.
 5. Facts extraction rules:

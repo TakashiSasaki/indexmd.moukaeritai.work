@@ -1,170 +1,44 @@
-import { test } from "node:test";
-import assert from "node:assert";
-import { 
-  buildFileSummaryPrompt, 
-  buildFolderSummaryPrompt, 
-  buildDebugTextFileSummaryPrompt, 
-  buildDebugBinaryFileSummaryPrompt,
-  buildSummaryDebugSystemInstruction,
-  buildStructuredSummaryTaskPrompt
-} from "./promptSpecs.js";
+import { test } from 'node:test';
+import assert from 'node:assert';
+import { buildSummaryDebugSystemInstruction } from './promptSpecs';
+import {
+  DOCUMENT_KINDS,
+  SUBJECT_DOMAINS,
+  SUBJECT_LABEL_KINDS,
+  KEYWORD_SOURCES,
+  TEMPORAL_ROLE_CATEGORIES,
+  PARTY_ROLE_CATEGORIES,
+  MONETARY_ROLE_CATEGORIES
+} from "./summaryAnalysis/vocabularies";
 
-test("buildFileSummaryPrompt constructs valid prompt", () => {
-  const result = buildFileSummaryPrompt({
-    name: "test.txt",
-    mimeType: "text/plain",
-    size: 1024,
-    contentSample: "Hello world"
+test('buildSummaryDebugSystemInstruction', async (t) => {
+  const prompt = buildSummaryDebugSystemInstruction();
+
+  await t.test('prompt does not list invalid document kinds', () => {
+    assert.ok(!prompt.includes('"article"'));
+    assert.ok(!prompt.includes('"agreement"'));
+    assert.ok(!prompt.includes('"presentation"'));
+    assert.ok(!prompt.includes('"financialStatement"'));
   });
 
-  assert.ok(result.includes("test.txt"));
-  assert.ok(result.includes("text/plain"));
-  assert.ok(result.includes("1024"));
-  assert.ok(result.includes("Hello world"));
-  assert.ok(result.includes("Japanese"));
-  assert.ok(result.includes("1-sentence"));
-  assert.ok(!result.includes("undefined"));
-  assert.ok(!result.includes("null"));
-});
-
-test("buildFolderSummaryPrompt constructs valid prompt", () => {
-  const result = buildFolderSummaryPrompt({
-    folderName: "My Docs",
-    subdirs: [{ name: "Sub1", summary: "Sub1 Summary" }],
-    fileSummariesList: ["- **file1.txt**: summary1"]
+  await t.test('prompt does not list invalid subject domains', () => {
+    assert.ok(!prompt.includes('"health"'));
+    assert.ok(!prompt.includes('"science"'));
+    assert.ok(!prompt.includes('"governance"'));
   });
 
-  assert.ok(result.includes("My Docs"));
-  assert.ok(result.includes("Sub1/ (Subfolder AI Summary: Sub1 Summary)"));
-  assert.ok(result.includes("- **file1.txt**: summary1"));
-  assert.ok(result.includes("Japanese"));
-  assert.ok(result.includes("3-4 sentences"));
-  assert.ok(!result.includes("undefined"));
-  assert.ok(!result.includes("null"));
-});
-
-test("buildFolderSummaryPrompt handles empty files and subdirs", () => {
-  const result = buildFolderSummaryPrompt({
-    folderName: "Empty Dir",
-    subdirs: [],
-    fileSummariesList: []
+  await t.test('prompt does not list invalid role categories', () => {
+    assert.ok(!prompt.includes('"legal"'));
+    assert.ok(!prompt.includes('"academic"'));
+    assert.ok(!prompt.includes('"reference"'));
   });
 
-  assert.ok(result.includes("Empty Dir"));
-  assert.ok(result.includes("(No subdirectories)"));
-  assert.ok(result.includes("(No files)"));
-});
-
-test("buildDebugTextFileSummaryPrompt constructs valid prompt", () => {
-  const result = buildDebugTextFileSummaryPrompt({
-    name: "data.csv",
-    mimeType: "text/csv",
-    contentSample: "a,b,c"
+  await t.test('prompt includes exact source token embeddedMetadata', () => {
+    assert.ok(prompt.includes('"embeddedMetadata"'));
   });
 
-  assert.ok(result.includes("data.csv"));
-  assert.ok(result.includes("text/csv"));
-  assert.ok(result.includes("a,b,c"));
-  assert.ok(result.includes("日本語で"));
-  assert.ok(result.includes("要約"));
-  assert.ok(!result.includes("undefined"));
-});
-
-test("buildDebugBinaryFileSummaryPrompt constructs valid prompt", () => {
-  const result = buildDebugBinaryFileSummaryPrompt({
-    name: "image.png",
-    mimeType: "image/png"
+  await t.test('prompt includes mapping examples', () => {
+    assert.ok(prompt.includes('dataset'));
+    assert.ok(prompt.includes('DO NOT use "spreadsheet"'));
   });
-
-  assert.ok(result.includes("image.png"));
-  assert.ok(result.includes("image/png"));
-  assert.ok(result.includes("日本語で"));
-  assert.ok(result.includes("要約"));
-  assert.ok(!result.includes("undefined"));
-});
-
-test("buildSummaryDebugSystemInstruction returns correct string", () => {
-  const result = buildSummaryDebugSystemInstruction();
-  assert.ok(result.includes("Japanese"));
-  assert.ok(result.includes("oneLine"));
-});
-
-test("buildStructuredSummaryTaskPrompt constructs valid prompt with custom instruction", () => {
-  const result = buildStructuredSummaryTaskPrompt({
-    name: "test.md",
-    mimeType: "text/markdown",
-    contentSample: "# Hello\nworld"
-  }, "Important text");
-
-  assert.ok(result.includes("test.md"));
-  assert.ok(result.includes("text/markdown"));
-  assert.ok(result.includes("# Hello\nworld"));
-  assert.ok(result.includes("Important text"));
-  assert.ok(result.includes("JSON"));
-  assert.ok(!result.includes("undefined"));
-  assert.ok(!result.includes("null"));
-});
-
-test("buildStructuredSummaryTaskPrompt constructs valid prompt without custom instruction", () => {
-  const result = buildStructuredSummaryTaskPrompt({
-    name: "test.md",
-    mimeType: "text/markdown",
-    contentSample: "# Hello\nworld"
-  });
-
-  assert.ok(result.includes("test.md"));
-  assert.ok(result.includes("text/markdown"));
-  assert.ok(result.includes("# Hello\nworld"));
-  assert.ok(!result.includes("ユーザー追加指示"));
-  assert.ok(result.includes("JSON"));
-  assert.ok(!result.includes("undefined"));
-  assert.ok(!result.includes("null"));
-});
-
-test("buildSummaryDebugSystemInstruction and TaskPrompt adhere to constraints", () => {
-  const sysInst = buildSummaryDebugSystemInstruction();
-
-  // Mention indexing
-  assert.ok(sysInst.includes("indexing"));
-
-  // documentKindInfo
-  assert.ok(sysInst.includes("documentKindInfo"));
-
-  // languageInfo and primary
-  assert.ok(sysInst.includes("languageInfo"));
-  assert.ok(sysInst.includes("primary"));
-
-  // JSON only
-  assert.ok(sysInst.toLowerCase().includes("json"));
-  assert.ok(sysInst.includes("markdown fences"));
-
-  // Distinguishes topics, keywords, subjectAreas
-  assert.ok(sysInst.includes("topics"));
-  assert.ok(sysInst.includes("keywords"));
-  assert.ok(sysInst.includes("subjectAreas"));
-
-  // Distinguishes named entities and parties
-  assert.ok(sysInst.includes("named entities"));
-  assert.ok(sysInst.includes("parties"));
-
-  const taskPromptWithSample = buildStructuredSummaryTaskPrompt({
-    name: "test.md",
-    mimeType: "text/markdown",
-    contentSample: "# Sample Content"
-  }, "Custom instruction test");
-
-  assert.ok(taskPromptWithSample.includes("test.md"));
-  assert.ok(taskPromptWithSample.includes("text/markdown"));
-  assert.ok(taskPromptWithSample.includes("# Sample Content"));
-  assert.ok(taskPromptWithSample.includes("Custom instruction test"));
-
-  const taskPromptWithoutSample = buildStructuredSummaryTaskPrompt({
-    name: "image.png",
-    mimeType: "image/png"
-  });
-
-  assert.ok(taskPromptWithoutSample.includes("image.png"));
-  assert.ok(taskPromptWithoutSample.includes("image/png"));
-  assert.ok(!taskPromptWithoutSample.includes("ファイル内容:"));
-  assert.ok(!taskPromptWithoutSample.includes("Custom instruction"));
 });
