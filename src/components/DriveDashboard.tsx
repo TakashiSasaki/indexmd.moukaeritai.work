@@ -66,6 +66,7 @@ import DriveLogs from "./DriveLogs";
 import { SummaryDebugger } from "./SummaryDebugger";
 import { SavedSummariesBrowser } from "./SavedSummariesBrowser";
 import { CacheStatsTab } from "./CacheStatsTab";
+import { IconTestTab } from "./IconTestTab";
 import { motion } from "motion/react";
 import { getDriveAuthHeaders } from "../lib/driveToken";
 import { 
@@ -1992,6 +1993,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       {activeTab === "cache-stats" && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
           <CacheStatsTab />
+        </div>
+      )}
+
+      {activeTab === "icon-test" && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <IconTestTab />
         </div>
       )}
       </div>
