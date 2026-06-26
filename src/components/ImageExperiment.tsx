@@ -199,13 +199,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           </div>
           <div className="flex items-center p-1 bg-slate-200 rounded-lg">
             <button
-              onClick={() => setMode("drive")}
+              onClick={() => { setMode("drive"); setResult(null); }}
               className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "drive" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               Drive Image
             </button>
             <button
-              onClick={() => setMode("public")}
+              onClick={() => { setMode("public"); setResult(null); }}
               className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "public" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               Public Sample
