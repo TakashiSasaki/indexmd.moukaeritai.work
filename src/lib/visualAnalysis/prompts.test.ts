@@ -17,4 +17,11 @@ describe('prompts', () => {
     const taskJson = buildVisualAnalysisTaskPrompt(true);
     assert.ok(taskJson.includes("visual-analysis.v0.1.0-draft.1"));
   });
+
+  it('should include people safety instructions', () => {
+    const task = buildVisualAnalysisTaskPrompt(false);
+    assert.ok(task.includes("do not identify people"));
+    assert.ok(task.includes("sensitive attributes"));
+    assert.ok(task.includes("Describe only visible non-sensitive elements"));
+  });
 });

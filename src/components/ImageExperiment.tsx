@@ -10,6 +10,14 @@ interface ImageExperimentProps {
   onSessionExpiry: () => void;
 }
 
+function PublicSamplePreview({ sampleId }: { sampleId: string }) {
+  return (
+    <div className="w-full h-48 bg-slate-100 rounded flex items-center justify-center overflow-hidden border border-slate-200">
+      <img src={`/api/visual/public-samples/${sampleId}/image?variant=preview`} alt="Sample Preview" className="max-w-full max-h-full object-contain" />
+    </div>
+  );
+}
+
 function ImagePreview({ fileId, token }: { fileId: string; token: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,12 +60,28 @@ function ImagePreview({ fileId, token }: { fileId: string; token: string }) {
 }
 
 export default function ImageExperiment({ token, config, onAddLog, onSessionExpiry }: ImageExperimentProps) {
+  const [mode, setMode] = useState<"drive" | "public">("drive");
+
+  // Drive mode state
   const [fileId, setFileId] = useState("");
+
+  // Public sample mode state
+  const [samples, setSamples] = useState<any[]>([]);
+  const [selectedSampleId, setSelectedSampleId] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [licenseFilter, setLicenseFilter] = useState<string>("all");
+  const [isLoadingSamples, setIsLoadingSamples] = useState(false);
+
+  // Shared state
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [modelName, setModelName] = useState(config.gemini_model);
   const [copied, setCopied] = useState<string | null>(null);
   const [includePreview, setIncludePreview] = useState(false);
+
+  const selectedSample = samples.find(s => s.id === selectedSampleId) || null;
+  const isPublicResult = !!result?.sampleMetadata;
+  const isDriveResult = !!result?.metadata;
 
   const visualCap = getVisualModelCapability(modelName);
 
@@ -67,7 +91,37 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const handleAnalyze = async () => {
+  useEffect(() => {
+    if (mode === "public" && samples.length === 0) {
+      setIsLoadingSamples(true);
+      fetch("/api/visual/public-samples")
+        .then(res => res.json())
+        .then(data => {
+          setSamples(data);
+          if (data.length > 0) setSelectedSampleId(data[0].id);
+        })
+        .catch(err => onAddLog("error", "Failed to fetch public samples", err.message))
+        .finally(() => setIsLoadingSamples(false));
+    }
+  }, [mode, samples.length, onAddLog]);
+
+  const filteredSamples = samples.filter(s => {
+    if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
+    if (licenseFilter !== "all" && s.licenseKind !== licenseFilter) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    if (mode === "public" && samples.length > 0) {
+      if (filteredSamples.length === 0) {
+        setSelectedSampleId("");
+      } else if (!filteredSamples.find(s => s.id === selectedSampleId)) {
+        setSelectedSampleId(filteredSamples[0].id);
+      }
+    }
+  }, [filteredSamples, mode, samples.length, selectedSampleId]);
+
+  const handleAnalyzeDrive = async () => {
     if (!fileId.trim()) {
       onAddLog("warn", "File ID is required");
       return;
@@ -107,6 +161,43 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
+  const handleAnalyzePublic = async () => {
+    if (!selectedSampleId) {
+      onAddLog("warn", "Please select a public sample.");
+      return;
+    }
+
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/visual/public-samples/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sampleId: selectedSampleId,
+          modelName,
+          includeRequestPreview: includePreview
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) onSessionExpiry();
+        throw new Error(data.error || "Failed to analyze public sample");
+      }
+
+      setResult(data);
+      onAddLog(data.success ? "success" : "warn", `[Image Analysis] Complete for sample ${selectedSampleId}`);
+    } catch (err: any) {
+      onAddLog("error", `[Image Analysis] Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -117,25 +208,94 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-800">画像解析実験 (Visual Analysis RC Verification)</h2>
-              <p className="text-[11px] text-slate-500">Google Drive上の画像ファイルを対象に、共通スキーマに基づいた視覚的インデックス用メタデータを抽出します。</p>
+              <p className="text-[11px] text-slate-500">Test the visual analysis schema against Drive images or public samples.</p>
             </div>
+          </div>
+          <div className="flex items-center p-1 bg-slate-200 rounded-lg">
+            <button
+              onClick={() => { setMode("drive"); setResult(null); }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "drive" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              Drive Image
+            </button>
+            <button
+              onClick={() => { setMode("public"); setResult(null); }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "public" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              Public Sample
+            </button>
           </div>
         </div>
         <div className="p-5">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1 space-y-1 w-full">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Drive File ID</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Google Drive Image File ID (e.g. 1A2B3C...)"
-                  value={fileId}
-                  onChange={(e) => setFileId(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
+          {mode === "drive" ? (
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1 space-y-1 w-full">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Drive File ID</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Google Drive Image File ID (e.g. 1A2B3C...)"
+                    value={fileId}
+                    onChange={(e) => setFileId(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
               </div>
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Category</label>
+                  <select
+                    value={categoryFilter}
+                    onChange={e => setCategoryFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="all">All Categories</option>
+                    {Array.from(new Set(samples.map(s => s.category))).map(cat => (
+                      <option key={cat as string} value={cat as string}>{cat as string}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">License</label>
+                  <select
+                    value={licenseFilter}
+                    onChange={e => setLicenseFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="all">All Licenses</option>
+                    <option value="publicDomain">Public Domain</option>
+                    <option value="cc0">CC0</option>
+                    <option value="ccBy">CC BY</option>
+                    <option value="ccBySa">CC BY-SA</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Sample</label>
+                {filteredSamples.length > 0 ? (
+                  <select
+                    value={selectedSampleId}
+                    onChange={e => setSelectedSampleId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {filteredSamples.map(s => (
+                      <option key={s.id} value={s.id}>{s.title} ({s.category})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 italic">
+                    No samples match the selected filters.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col md:flex-row gap-4 items-end mt-4">
             <div className="flex flex-col gap-1 w-full md:w-auto">
               <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">AI Model</label>
               <select
@@ -174,8 +334,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </label>
             </div>
             <button
-              onClick={handleAnalyze}
-              disabled={loading || !fileId.trim()}
+              onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
+              disabled={mode === "drive" ? loading || !fileId.trim() : loading || !selectedSampleId || isLoadingSamples}
               className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] w-full md:w-auto justify-center"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
@@ -189,30 +349,62 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 gap-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  {result.metadata?.name}
-                  <a 
-                    href={`https://drive.google.com/open?id=${result.metadata?.id}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-indigo-600"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </h3>
-                <p className="text-[11px] text-slate-500 flex items-center gap-3">
-                  <span>{result.metadata?.mimeType}</span>
-                  <span>•</span>
-                  <span>Size: {result.metadata?.size ? (result.metadata.size / 1024).toFixed(1) : "-"} KB</span>
-                  {result.metadata?.modifiedTime && (
-                    <>
+              {isDriveResult && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    {result.metadata?.name}
+                    <a
+                      href={`https://drive.google.com/open?id=${result.metadata?.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-indigo-600"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-3">
+                    <span>{result.metadata?.mimeType}</span>
+                    <span>•</span>
+                    <span>Size: {result.metadata?.size ? (result.metadata.size / 1024).toFixed(1) : "-"} KB</span>
+                    {result.metadata?.modifiedTime && (
+                      <>
+                        <span>•</span>
+                        <span>Modified: {new Date(result.metadata.modifiedTime).toLocaleString()}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+              {isPublicResult && result.sampleMetadata && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    {result.sampleMetadata.title}
+                    {result.sampleMetadata.sourcePageUrl && (
+                      <a
+                        href={result.sampleMetadata.sourcePageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-400 hover:text-indigo-600"
+                        title="View Source Page"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </h3>
+                  <div className="flex flex-col gap-1 mt-1">
+                    <p className="text-[11px] text-slate-500 flex items-center gap-3">
+                      <span>Category: <span className="font-bold">{result.sampleMetadata.category}</span></span>
                       <span>•</span>
-                      <span>Modified: {new Date(result.metadata.modifiedTime).toLocaleString()}</span>
-                    </>
-                  )}
-                </p>
-              </div>
+                      <span>License: {result.sampleMetadata.licenseName} ({result.sampleMetadata.licenseKind})</span>
+                    </p>
+                    {result.sampleMetadata.attributionText && (
+                      <p className="text-[10px] text-slate-400 italic">
+                        {result.sampleMetadata.attributionText}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded border flex items-center gap-1 ${result.success ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                   {result.success ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}

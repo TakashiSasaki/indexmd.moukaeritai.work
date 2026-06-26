@@ -22,3 +22,9 @@ The "画像解析実験" (Image Experiment) tab provides a sandboxed environment
 2. Enter the Google Drive file ID of an image (e.g., `.jpg`, `.png`).
 3. Select the target model.
 4. Click `解析実行` to view the parsed visual indexing metadata and quality report.
+
+## Public Sample Matrix
+The Image Experiment tab now supports a **Public Sample** mode.
+This allows testing the visual schema against a curated matrix of public-domain and CC-licensed images across 14 diverse categories (including synthetic receipts and tickets).
+- Previews and analyses run through a CORS-safe server proxy.
+- Expected metadata from a local registry is compared against the live model output.
