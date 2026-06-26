@@ -48,3 +48,6 @@ Visual Information is treated as an independent indexing channel compared to the
 
 ## Current Experimental Status
 This schema is currently in `v0.1.0-draft.1`. It operates exclusively in the "画像解析実験" (Image Experiment) tab to ensure it does not destabilize the existing `Summary Analysis v1.2.0-draft.2` flow. No visual data or raw image bytes are persisted in this phase.
+
+## Testing with Public Samples
+The schema is validated against a curated **Public Visual Sample Matrix**. This covers landscapes, people, objects, and synthetic documents to ensure the model responds with well-formed `visibleElements` and `visibleText` arrays across diverse input types.

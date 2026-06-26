@@ -27,6 +27,13 @@ You must always classify the "imageKind" and enumerate "visibleElements".
 - Use "visibleElements" for objects AND scene components (like sky, terrain).
 - Provide a clear label, category, and confidence.
 
+### People Safety Guidelines:
+- If the image contains people, do not identify people.
+- Do not infer real names, identity, ethnicity, nationality, religion, health status, emotion, socioeconomic status, or other sensitive attributes.
+- Describe only visible non-sensitive elements such as person count, clothing, pose, activity context, and surrounding objects.
+- Do not classify a real person as a public figure or named individual.
+- For public sample people images, focus on visual indexing metadata only.
+
 ### Uncertainties:
 - Do not overclaim. If unsure about an element or text, list it under uncertainties.
 `;

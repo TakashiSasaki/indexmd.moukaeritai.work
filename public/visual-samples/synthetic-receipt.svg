@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" style="background-color: white; font-family: monospace;">
+    <rect width="300" height="400" fill="white" />
+    <text x="150" y="40" text-anchor="middle" font-size="20" font-weight="bold">SYNTHETIC MARKET</text>
+    <text x="150" y="60" text-anchor="middle" font-size="12">123 Fake Street, Imaginary City</text>
+    <text x="150" y="80" text-anchor="middle" font-size="12">Date: 2024-01-01 12:34:56</text>
+
+    <line x1="20" y1="100" x2="280" y2="100" stroke="black" stroke-dasharray="4" />
+
+    <text x="20" y="130" font-size="14">Apples (1kg)</text>
+    <text x="280" y="130" text-anchor="end" font-size="14">$3.50</text>
+
+    <text x="20" y="150" font-size="14">Milk (1L)</text>
+    <text x="280" y="150" text-anchor="end" font-size="14">$1.20</text>
+
+    <text x="20" y="170" font-size="14">Bread</text>
+    <text x="280" y="170" text-anchor="end" font-size="14">$2.00</text>
+
+    <line x1="20" y1="190" x2="280" y2="190" stroke="black" stroke-dasharray="4" />
+
+    <text x="20" y="220" font-size="14">Subtotal</text>
+    <text x="280" y="220" text-anchor="end" font-size="14">$6.70</text>
+
+    <text x="20" y="240" font-size="14">Tax (10%)</text>
+    <text x="280" y="240" text-anchor="end" font-size="14">$0.67</text>
+
+    <text x="20" y="270" font-size="16" font-weight="bold">TOTAL</text>
+    <text x="280" y="270" text-anchor="end" font-size="16" font-weight="bold">$7.37</text>
+
+    <text x="20" y="310" font-size="14">Payment: CASH</text>
+    <text x="20" y="330" font-size="14">Change: $2.63</text>
+
+    <line x1="20" y1="360" x2="280" y2="360" stroke="black" stroke-dasharray="4" />
+
+    <text x="150" y="380" text-anchor="middle" font-size="12">Thank you for your visit!</text>
+</svg>
