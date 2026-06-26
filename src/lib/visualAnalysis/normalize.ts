@@ -16,6 +16,9 @@ export function normalizeVisualAnalysis(result: any): any {
 
   const normalized = { ...result };
 
+  // Set default schemaVersion if missing or invalid to ensure robustness
+  normalized.schemaVersion = result.schemaVersion || "visual-analysis.v0.1.0-draft.1";
+
   // Summary
   if (!normalized.summary || typeof normalized.summary !== 'object') {
     normalized.summary = { caption: "", description: "" };

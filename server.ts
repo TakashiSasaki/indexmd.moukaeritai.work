@@ -9,6 +9,8 @@ import crypto from "crypto";
 import { buildScanCacheKeyParts } from "./src/lib/scanCache";
 import { mergeIndexMd } from "./src/lib/indexMdMerge";
 import { initCacheMetrics, resetCacheMetrics, recordCacheHit, recordCacheMiss, recordCacheWrite, recordCacheBypass, recordCacheError, getCacheMetricsResponse } from "./src/lib/cacheMetrics";
+import { getAllPublicSamples, getPublicSampleById } from "./src/lib/visualAnalysis/publicSamples/registry";
+import { fetchPublicSampleImage } from "./src/lib/visualAnalysis/publicSamples/serverFetch";
 import { 
   buildFileSummaryPrompt, 
   buildFolderSummaryPrompt, 
@@ -1329,6 +1331,181 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
     }
     
     res.status(statusCode).json(errorResponse);
+  }
+});
+
+
+app.get("/api/visual/public-samples", (req, res) => {
+  const samples = getAllPublicSamples().map(s => ({
+    id: s.id,
+    title: s.title,
+    category: s.category,
+    expectedImageKind: s.expectedImageKind,
+    expectedElementCategories: s.expectedElementCategories,
+    expectedVisibleElementLabels: s.expectedVisibleElementLabels,
+    thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`,
+    licenseKind: s.source.licenseKind,
+    licenseName: s.source.licenseName,
+    attributionText: s.source.attributionText,
+    sourcePageUrl: s.source.pageUrl
+  }));
+  res.json(samples);
+});
+
+app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
+  try {
+    const { sampleId } = req.params;
+    const variant = (req.query.variant as any) || "full";
+    if (!["preview", "thumbnail", "full"].includes(variant)) {
+      return res.status(400).json({ error: "Invalid variant" });
+    }
+
+    const result = await fetchPublicSampleImage(sampleId, variant as "preview" | "thumbnail" | "full");
+
+    // Set safe headers
+    res.setHeader("Content-Type", result.mimeType);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+
+    res.send(result.buffer);
+  } catch (err: any) {
+    if (err.message.includes("not found")) {
+      return res.status(404).json({ error: "Sample not found" });
+    }
+    console.error("Public sample image fetch error:", err.message);
+    res.status(400).json({ error: err.message || "Failed to fetch public sample image" });
+  }
+});
+
+app.post("/api/visual/public-samples/analyze", async (req, res) => {
+  try {
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false } = req.body;
+
+    if (!sampleId) return res.status(400).json({ error: "sampleId is required" });
+
+    const sample = getPublicSampleById(sampleId);
+    if (!sample) return res.status(404).json({ error: "Sample not found" });
+
+    // Fetch Image Bytes
+    const { buffer, mimeType } = await fetchPublicSampleImage(sampleId, "full");
+    const base64Data = buffer.toString("base64");
+
+    // Prepare Prompt & Options
+    const visualCap = getVisualModelCapability(modelName);
+    if (visualCap.recommendation === "unsupported") {
+      return res.status(400).json({ error: `Model ${modelName} is not supported for visual analysis.` });
+    }
+
+    const targetModel = modelName;
+    const isGemma = visualCap.providerFamily === "gemma";
+    const mode = getStructuredExecutionMode(targetModel);
+    const isPromptedJson = mode === "promptedJson";
+
+    const systemInstruction = buildVisualAnalysisSystemInstruction();
+    const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson);
+
+    let configOption: any = {
+      temperature: 0.2,
+      topP: 0.95,
+      topK: 40,
+      systemInstruction
+    };
+
+    if (mode === "nativeSchema") {
+      configOption.responseMimeType = "application/json";
+      configOption.responseSchema = VISUAL_ANALYSIS_SCHEMA;
+    }
+
+    // Call Model
+    const aiRes = await generateContentWithRetry(targetModel, [
+      { inlineData: { data: base64Data, mimeType: mimeType } },
+      { text: taskPrompt }
+    ], 4, configOption);
+
+    let outputText = aiRes.text?.trim() || "{}";
+
+    // Parse and Validate
+    let parsed: any;
+    try {
+      parsed = JSON.parse(outputText);
+    } catch (e) {
+      const cleaned = outputText.replace(/^```(json)?|```$/gm, '').trim();
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (e2) {
+        return res.status(500).json({
+          success: false,
+          error: "Model returned invalid JSON",
+          failureKind: "jsonParseError",
+          rawOutputLength: outputText.length,
+          parseErrorMessage: e2 instanceof Error ? e2.message : String(e2)
+        });
+      }
+    }
+
+    const normalized = normalizeVisualAnalysis(parsed);
+    const validation = validateVisualAnalysis(normalized);
+
+    let qualityStatus = "invalid";
+    let qualityScore = 0;
+    let qualityIssues = validation.errors.map(err => ({ code: "SCHEMA_ERROR", message: err, severity: "blocking" }));
+    let isExperimental = mode === "promptedJson";
+
+    if (validation.isValid) {
+      const qReport = evaluateVisualAnalysisQuality(normalized, {
+        modelName: targetModel,
+        providerFamily: isGemma ? "gemma" : "gemini",
+        effectiveStructuredExecutionMode: mode
+      });
+      qualityStatus = qReport.status;
+      qualityScore = qReport.score;
+      qualityIssues = qReport.issues;
+      isExperimental = qReport.experimentalModel;
+    }
+
+    const result: any = {
+      success: validation.isValid,
+      sampleMetadata: {
+        id: sample.id,
+        title: sample.title,
+        category: sample.category,
+        licenseKind: sample.source.licenseKind,
+        licenseName: sample.source.licenseName,
+        attributionText: sample.source.attributionText,
+        sourcePageUrl: sample.source.pageUrl
+      },
+      expectedMetadata: {
+        imageKind: sample.expectedImageKind,
+        elementCategories: sample.expectedElementCategories,
+        visibleElementLabels: sample.expectedVisibleElementLabels
+      },
+      visualAnalysis: normalized,
+      qualityStatus,
+      qualityScore,
+      qualityIssues,
+      experimentalModel: isExperimental,
+      usedModelName: targetModel,
+      providerFamily: isGemma ? "gemma" : "gemini",
+      effectiveStructuredExecutionMode: mode
+    };
+
+    if (includeRequestPreview) {
+      result.requestPreview = {
+        model: targetModel,
+        outputMode: "structured",
+        taskPrompt,
+        systemInstruction,
+        mimeType: mimeType,
+        binaryInlineDataUsed: true
+      };
+    }
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("Public sample analysis error:", err.message);
+    res.status(500).json({ error: err.message || "Failed to analyze public sample" });
   }
 });
 

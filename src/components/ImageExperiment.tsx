@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, ExternalLink, Info } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
@@ -8,6 +8,14 @@ interface ImageExperimentProps {
   config: AppConfig;
   onAddLog: (level: "info"|"success"|"warn"|"error", msg: string, details?: string) => void;
   onSessionExpiry: () => void;
+}
+
+function PublicSamplePreview({ sampleId }: { sampleId: string }) {
+  return (
+    <div className="w-full h-48 bg-slate-100 rounded flex items-center justify-center overflow-hidden border border-slate-200">
+      <img src={`/api/visual/public-samples/${sampleId}/image?variant=preview`} alt="Sample Preview" className="max-w-full max-h-full object-contain" />
+    </div>
+  );
 }
 
 function ImagePreview({ fileId, token }: { fileId: string; token: string }) {
@@ -52,12 +60,54 @@ function ImagePreview({ fileId, token }: { fileId: string; token: string }) {
 }
 
 export default function ImageExperiment({ token, config, onAddLog, onSessionExpiry }: ImageExperimentProps) {
-  const [fileId, setFileId] = useState("");
+  const [mode, setMode] = useState<"drive" | "public">(() => {
+    const saved = localStorage.getItem("image_experiment_mode");
+    return (saved === "drive" || saved === "public") ? saved : "drive";
+  });
+
+  // Drive mode state
+  const [fileId, setFileId] = useState(() => {
+    return localStorage.getItem("image_experiment_file_id") || "";
+  });
+  const [debouncedFileId, setDebouncedFileId] = useState("");
+
+  useEffect(() => {
+    const trimmed = fileId.trim();
+    if (!trimmed) {
+      setDebouncedFileId("");
+      return;
+    }
+    const handler = setTimeout(() => {
+      setDebouncedFileId(trimmed);
+    }, 600);
+    return () => clearTimeout(handler);
+  }, [fileId]);
+
+  // Public sample mode state
+  const [samples, setSamples] = useState<any[]>([]);
+  const [selectedSampleId, setSelectedSampleId] = useState<string>(() => {
+    return localStorage.getItem("image_experiment_selected_sample_id") || "";
+  });
+  const [categoryFilter, setCategoryFilter] = useState<string>(() => {
+    return localStorage.getItem("image_experiment_category_filter") || "all";
+  });
+  const [licenseFilter, setLicenseFilter] = useState<string>(() => {
+    return localStorage.getItem("image_experiment_license_filter") || "all";
+  });
+  const [isLoadingSamples, setIsLoadingSamples] = useState(false);
+
+  // Shared state
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
-  const [modelName, setModelName] = useState(config.gemini_model);
+  const [modelName, setModelName] = useState<string>(() => {
+    return localStorage.getItem("image_experiment_model_name") || config.gemini_model || "gemini-3.5-flash";
+  });
   const [copied, setCopied] = useState<string | null>(null);
   const [includePreview, setIncludePreview] = useState(false);
+
+  const selectedSample = samples.find(s => s.id === selectedSampleId) || null;
+  const isPublicResult = !!result?.sampleMetadata;
+  const isDriveResult = !!result?.metadata;
 
   const visualCap = getVisualModelCapability(modelName);
 
@@ -67,7 +117,76 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const handleAnalyze = async () => {
+  // Synchronize state changes to localStorage
+  useEffect(() => {
+    localStorage.setItem("image_experiment_mode", mode);
+  }, [mode]);
+
+  useEffect(() => {
+    localStorage.setItem("image_experiment_file_id", fileId);
+  }, [fileId]);
+
+  useEffect(() => {
+    if (selectedSampleId) {
+      localStorage.setItem("image_experiment_selected_sample_id", selectedSampleId);
+    } else {
+      localStorage.removeItem("image_experiment_selected_sample_id");
+    }
+  }, [selectedSampleId]);
+
+  useEffect(() => {
+    localStorage.setItem("image_experiment_category_filter", categoryFilter);
+  }, [categoryFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("image_experiment_license_filter", licenseFilter);
+  }, [licenseFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("image_experiment_model_name", modelName);
+  }, [modelName]);
+
+  useEffect(() => {
+    if (mode === "public" && samples.length === 0) {
+      setIsLoadingSamples(true);
+      fetch("/api/visual/public-samples")
+        .then(res => res.json())
+        .then(data => {
+          setSamples(data);
+          const savedId = localStorage.getItem("image_experiment_selected_sample_id");
+          if (savedId && data.some((s: any) => s.id === savedId)) {
+            setSelectedSampleId(savedId);
+          } else if (data.length > 0 && !selectedSampleId) {
+            setSelectedSampleId(data[0].id);
+          }
+        })
+        .catch(err => onAddLog("error", "Failed to fetch public samples", err.message))
+        .finally(() => setIsLoadingSamples(false));
+    }
+  }, [mode, samples.length, onAddLog, selectedSampleId]);
+
+  const filteredSamples = samples.filter(s => {
+    if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
+    if (licenseFilter !== "all" && s.licenseKind !== licenseFilter) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    if (mode === "public" && samples.length > 0) {
+      if (filteredSamples.length === 0) {
+        setSelectedSampleId("");
+      } else if (!selectedSampleId || !filteredSamples.find(s => s.id === selectedSampleId)) {
+        const savedId = localStorage.getItem("image_experiment_selected_sample_id");
+        if (savedId && filteredSamples.find(s => s.id === savedId)) {
+          setSelectedSampleId(savedId);
+        } else {
+          setSelectedSampleId(filteredSamples[0].id);
+        }
+      }
+    }
+  }, [filteredSamples, mode, samples.length, selectedSampleId]);
+
+  const handleAnalyzeDrive = async () => {
     if (!fileId.trim()) {
       onAddLog("warn", "File ID is required");
       return;
@@ -107,6 +226,43 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
+  const handleAnalyzePublic = async () => {
+    if (!selectedSampleId) {
+      onAddLog("warn", "Please select a public sample.");
+      return;
+    }
+
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/visual/public-samples/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sampleId: selectedSampleId,
+          modelName,
+          includeRequestPreview: includePreview
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) onSessionExpiry();
+        throw new Error(data.error || "Failed to analyze public sample");
+      }
+
+      setResult(data);
+      onAddLog(data.success ? "success" : "warn", `[Image Analysis] Complete for sample ${selectedSampleId}`);
+    } catch (err: any) {
+      onAddLog("error", `[Image Analysis] Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -117,70 +273,179 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-800">画像解析実験 (Visual Analysis RC Verification)</h2>
-              <p className="text-[11px] text-slate-500">Google Drive上の画像ファイルを対象に、共通スキーマに基づいた視覚的インデックス用メタデータを抽出します。</p>
+              <p className="text-[11px] text-slate-500">Test the visual analysis schema against Drive images or public samples.</p>
             </div>
+          </div>
+          <div className="flex items-center p-1 bg-slate-200 rounded-lg">
+            <button
+              onClick={() => { setMode("drive"); setResult(null); }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "drive" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              Drive Image
+            </button>
+            <button
+              onClick={() => { setMode("public"); setResult(null); }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "public" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              Public Sample
+            </button>
           </div>
         </div>
         <div className="p-5">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1 space-y-1 w-full">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Drive File ID</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Google Drive Image File ID (e.g. 1A2B3C...)"
-                  value={fileId}
-                  onChange={(e) => setFileId(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left side: Inputs */}
+            <div className="lg:col-span-8 space-y-4">
+              {mode === "drive" ? (
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-1 w-full">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Drive File ID</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Google Drive Image File ID (e.g. 1A2B3C...)"
+                        value={fileId}
+                        onChange={(e) => setFileId(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Category</label>
+                      <select
+                        value={categoryFilter}
+                        onChange={e => setCategoryFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      >
+                        <option value="all">All Categories</option>
+                        {Array.from(new Set(samples.map(s => s.category))).map(cat => (
+                          <option key={cat as string} value={cat as string}>{cat as string}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">License</label>
+                      <select
+                        value={licenseFilter}
+                        onChange={e => setLicenseFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      >
+                        <option value="all">All Licenses</option>
+                        <option value="publicDomain">Public Domain</option>
+                        <option value="cc0">CC0</option>
+                        <option value="ccBy">CC BY</option>
+                        <option value="ccBySa">CC BY-SA</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Sample</label>
+                    {filteredSamples.length > 0 ? (
+                      <select
+                        value={selectedSampleId}
+                        onChange={e => setSelectedSampleId(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      >
+                        {filteredSamples.map(s => (
+                          <option key={s.id} value={s.id}>{s.title} ({s.category})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 italic">
+                        No samples match the selected filters.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col md:flex-row gap-4 items-end pt-2">
+                <div className="flex flex-col gap-1 w-full md:w-auto flex-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">AI Model</label>
+                  <select
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    className={`w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 min-w-[220px] h-[38px] ${visualCap.recommendation === 'experimental' ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
+                  >
+                    <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended)</option>
+                    <option value="gemini-flash-latest">Gemini Flash Latest</option>
+                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Recommended)</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Experimental)</option>
+                    <option value="gemma-4-31b-it">Gemma 4 31B IT (Not Recommended)</option>
+                    <option value="gemma-4-26b-a4b-it">Gemma 4 26B (Not Recommended)</option>
+                  </select>
+                  <div className="flex items-center justify-between px-1">
+                    {visualCap.recommendation === 'recommended' ? (
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Recommended
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Experimental for Vision
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 h-[38px] justify-center px-2">
+                  <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
+                    <input 
+                      type="checkbox" 
+                      checked={includePreview} 
+                      onChange={(e) => setIncludePreview(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-[11px] text-slate-600 group-hover:text-slate-900 transition-colors">
+                      リクエストプレビュー
+                    </span>
+                  </label>
+                </div>
+                <button
+                  onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
+                  disabled={mode === "drive" ? loading || !fileId.trim() : loading || !selectedSampleId || isLoadingSamples}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] w-full md:w-auto justify-center"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                  {loading ? "解析中..." : "解析実行"}
+                </button>
               </div>
             </div>
-            <div className="flex flex-col gap-1 w-full md:w-auto">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">AI Model</label>
-              <select
-                value={modelName}
-                onChange={(e) => setModelName(e.target.value)}
-                className={`px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 min-w-[220px] h-[38px] ${visualCap.recommendation === 'experimental' ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
-              >
-                <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended)</option>
-                <option value="gemini-flash-latest">Gemini Flash Latest</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Experimental)</option>
-                <option value="gemma-4-31b-it">Gemma 4 31B IT (Not Recommended)</option>
-              </select>
-              <div className="flex items-center justify-between px-1">
-                {visualCap.recommendation === 'recommended' ? (
-                  <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" /> Recommended
-                  </span>
+
+            {/* Right side: Real-time pre-analysis preview */}
+            <div className="lg:col-span-4 flex flex-col justify-start">
+              <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block ml-1">
+                選択中の画像プレビュー (Selected Preview)
+              </label>
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 flex flex-col items-center justify-center min-h-[180px] h-full overflow-hidden">
+                {mode === "drive" ? (
+                  debouncedFileId ? (
+                    <div className="w-full flex justify-center max-h-48 overflow-hidden rounded-lg">
+                      <ImagePreview fileId={debouncedFileId} token={token} />
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-400 p-4 space-y-2">
+                      <ImageIcon className="w-8 h-8 mx-auto text-slate-300" />
+                      <p className="text-xs">DriveのファイルIDを入力するとプレビューが表示されます</p>
+                    </div>
+                  )
                 ) : (
-                  <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> Experimental for Vision
-                  </span>
+                  selectedSampleId ? (
+                    <div className="w-full">
+                      <PublicSamplePreview sampleId={selectedSampleId} />
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-400 p-4 space-y-2">
+                      <ImageIcon className="w-8 h-8 mx-auto text-slate-300" />
+                      <p className="text-xs">サンプル画像を選択してください</p>
+                    </div>
+                  )
                 )}
               </div>
             </div>
-            <div className="flex flex-col gap-2 h-[38px] justify-center px-2">
-              <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
-                <input 
-                  type="checkbox" 
-                  checked={includePreview} 
-                  onChange={(e) => setIncludePreview(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="text-[11px] text-slate-600 group-hover:text-slate-900 transition-colors">
-                  リクエストプレビュー
-                </span>
-              </label>
-            </div>
-            <button
-              onClick={handleAnalyze}
-              disabled={loading || !fileId.trim()}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] w-full md:w-auto justify-center"
-            >
-              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-              {loading ? "解析中..." : "解析実行"}
-            </button>
           </div>
         </div>
       </div>
@@ -189,33 +454,65 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 gap-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  {result.metadata?.name}
-                  <a 
-                    href={`https://drive.google.com/open?id=${result.metadata?.id}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-indigo-600"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </h3>
-                <p className="text-[11px] text-slate-500 flex items-center gap-3">
-                  <span>{result.metadata?.mimeType}</span>
-                  <span>•</span>
-                  <span>Size: {result.metadata?.size ? (result.metadata.size / 1024).toFixed(1) : "-"} KB</span>
-                  {result.metadata?.modifiedTime && (
-                    <>
+              {isDriveResult && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    {result.metadata?.name}
+                    <a
+                      href={`https://drive.google.com/open?id=${result.metadata?.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-indigo-600"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-3">
+                    <span>{result.metadata?.mimeType}</span>
+                    <span>•</span>
+                    <span>Size: {result.metadata?.size ? (result.metadata.size / 1024).toFixed(1) : "-"} KB</span>
+                    {result.metadata?.modifiedTime && (
+                      <>
+                        <span>•</span>
+                        <span>Modified: {new Date(result.metadata.modifiedTime).toLocaleString()}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+              {isPublicResult && result.sampleMetadata && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    {result.sampleMetadata.title}
+                    {result.sampleMetadata.sourcePageUrl && (
+                      <a
+                        href={result.sampleMetadata.sourcePageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-400 hover:text-indigo-600"
+                        title="View Source Page"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </h3>
+                  <div className="flex flex-col gap-1 mt-1">
+                    <p className="text-[11px] text-slate-500 flex items-center gap-3">
+                      <span>Category: <span className="font-bold">{result.sampleMetadata.category}</span></span>
                       <span>•</span>
-                      <span>Modified: {new Date(result.metadata.modifiedTime).toLocaleString()}</span>
-                    </>
-                  )}
-                </p>
-              </div>
+                      <span>License: {result.sampleMetadata.licenseName} ({result.sampleMetadata.licenseKind})</span>
+                    </p>
+                    {result.sampleMetadata.attributionText && (
+                      <p className="text-[10px] text-slate-400 italic">
+                        {result.sampleMetadata.attributionText}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded border flex items-center gap-1 ${result.success ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                  {result.success ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                   {result.success ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
                   Schema: {result.success ? "VALID" : "INVALID"}
                 </span>
                 <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded border ${result.qualityStatus === 'validLowQuality' ? 'bg-amber-50 text-amber-600 border-amber-200' : result.qualityStatus === 'valid' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
@@ -248,6 +545,79 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </button>
             </div>
 
+            {isPublicResult && result.expectedMetadata && (
+              <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl space-y-4">
+                <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-600" /> Expected vs Detected Schema Comparison
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  {/* Image Kind Comparison */}
+                  <div className="bg-white p-3 rounded-lg border border-indigo-100/80 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Image Kind</span>
+                    <div className="flex flex-col gap-1 mt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Expected:</span>
+                        <span className="font-mono font-semibold text-slate-700">{result.expectedMetadata.imageKind}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Detected:</span>
+                        <span className={`font-mono font-semibold ${result.expectedMetadata.imageKind === result.visualAnalysis.visualInfo?.imageKind ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {result.visualAnalysis.visualInfo?.imageKind || 'none'}
+                        </span>
+                      </div>
+                      {result.expectedMetadata.imageKind === result.visualAnalysis.visualInfo?.imageKind ? (
+                        <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
+                          <CheckCircle className="w-3 h-3" /> Exact Match
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3 h-3" /> Diverged
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Element Categories Comparison */}
+                  <div className="bg-white p-3 rounded-lg border border-indigo-100/80 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Categories Coverage</span>
+                    <div className="space-y-1.5 mt-1">
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-slate-400 block text-[10px] w-full">Expected Categories:</span>
+                        {result.expectedMetadata.elementCategories?.map((cat: string) => {
+                          const detected = (result.visualAnalysis.visualInfo?.visibleElements || [])
+                            .some((el: any) => el.category === cat);
+                          return (
+                            <span key={cat} className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${detected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-50 text-slate-400 border border-slate-200'}`}>
+                              {cat} {detected && "✓"}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visible Labels Comparison */}
+                  <div className="bg-white p-3 rounded-lg border border-indigo-100/80 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Key Labels Match</span>
+                    <div className="space-y-1.5 mt-1">
+                      <div className="flex flex-wrap gap-1">
+                        <span className="text-slate-400 block text-[10px] w-full">Expected Labels:</span>
+                        {result.expectedMetadata.visibleElementLabels?.map((lbl: string) => {
+                          const detected = (result.visualAnalysis.visualInfo?.visibleElements || [])
+                            .some((el: any) => el.label?.toLowerCase() === lbl.toLowerCase());
+                          return (
+                            <span key={lbl} className={`px-1.5 py-0.5 rounded text-[9px] ${detected ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-slate-50 text-slate-400 border border-slate-200'}`}>
+                              {lbl} {detected && "✓"}
+                            </span>
+                          );
+                        }) || <span className="text-slate-400 italic">No labels checklist</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {result.qualityIssues && result.qualityIssues.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
                 <h4 className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-2">
@@ -266,7 +636,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="lg:col-span-4 space-y-6">
                   <div>
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Image Preview</h4>
-                    <ImagePreview fileId={result.metadata?.id} token={token} />
+                    {isDriveResult && <ImagePreview fileId={result.metadata?.id} token={token} />}
+                    {isPublicResult && <PublicSamplePreview sampleId={result.sampleMetadata?.id} />}
                   </div>
 
                   <div>
