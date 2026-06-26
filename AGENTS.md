@@ -1,6 +1,10 @@
 # indexmd Agent Instructions & Context
 
-This file provides critical context and constraints for AI coding agents working on the `indexmd` project. **Read this before making any logic changes.**
+**AGENT-NEUTRAL REPOSITORY CONTRACT**
+
+This repository may be edited by multiple coding agents, including but not limited to Google Jules, OpenAI Codex, GitHub Copilot, and Google AI Studio assisted editing. Treat this file as an agent-neutral repository contract. Do not assume agent-specific memory, prior chat context, local setup, or hidden project knowledge. Work only from repository files and explicitly supplied task context.
+
+**All agents MUST read this before making any logic changes.**
 
 ## 🎯 Core Mission
 Build a high-performance, cost-effective Google Drive indexer that generates/updates `index.md` files in every directory with AI-generated summaries.
@@ -19,6 +23,7 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - **APIs**: Google Drive API (Advanced scope required for file manipulation).
 
 ## ⚠️ Critical Logic Constraints (Maintain at all costs)
+These constraints cannot be relaxed by any agent without explicit human approval.
 
 ### 1. Firestore Write Optimization (Billing Awareness)
 - **Do NOT** perform unconditional `set` operations. Always check if data has changed (path, depth, parent_id) BEFORE writing to Firestore.
@@ -47,24 +52,25 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - `src/components/DriveDashboard.tsx`: The heart of the application. Contains the scan orchestration, Firestore sync logic, and drive API calls.
 - `server.ts`: Handles secure Gemini requests, Drive API proxying (to keep tokens secret), and history persistence.
 
-## 🌿 Branch workflow for Google AI Studio and Jules
+## 🌿 Branch Workflow & Conflict Resolution
 
-`main` is the source-of-truth branch used by Google AI Studio. Do not rename it.
+`main` is the source-of-truth branch used by Google AI Studio. **Do not rename it.**
 
-`jules/integration` is the integration branch used by Jules. The workflow
-`.github/workflows/sync-main-to-jules-integration.yml` keeps it up to date with
-`main`.
+`jules/integration` is the integration branch used by Jules and automated audits. The workflow `.github/workflows/sync-main-to-jules-integration.yml` keeps it up to date with `main`.
 
-Do not remove this workflow as unused or deprecated. It is repository-operation
-infrastructure, not application runtime code.
-
-The workflow may merge `main` into `jules/integration`, but must never reset or
-force-push `jules/integration`. If a merge conflict occurs, it opens or updates a
-PR from `automation/sync-main-to-jules-integration` into `jules/integration`.
+- **Never force-push or reset** `jules/integration`.
+- **Conflict Resolution**: If a merge conflict occurs, the workflow opens a PR from `automation/sync-main-to-jules-integration` to `jules/integration`. The `main` branch is considered the source of truth for features. When resolving conflicts, ensure schema histories, `AGENTS.md` rules, and lockfiles are preserved, not blindly overwritten.
 
 ## 🔒 Hard Safety Constraints
 - **Drive Safety**: Do NOT delete Google Drive files, folders, or generated `index.md` files. Do NOT run full Drive-wide indexing.
 - **Data Safety**: Firestore database ID is `indexmd-db`. Do not loosen security rules or re-add `(default)`.
 - **Auth Safety**: Do NOT store refresh tokens anywhere. Do NOT store Drive access tokens in localStorage. Do NOT log OAuth tokens or API URLs.
 - **File Safety**: Do NOT commit `cache/` contents. Do NOT use real private user documents as fixtures.
-- **Quality Safety**: Always run `npm run lint`, `npm run test:unit`, and `npm run build` before committing. Use latest schema/prompt versions and keep schema changelogs updated.
+- **Quality Safety**: Always run `npm run lint`, `npm run test:unit`, and `npm run build` before committing. Use latest schema/prompt versions and keep schema changelogs updated. If tests cannot be run, clearly state the reason in your summary/PR description.
+
+## 📖 Additional Agent Documentation
+For more detailed instructions on specific operational environments and workflows, see the `docs/` directory:
+- `docs/RUNTIME_ENVIRONMENTS.md`: Differences between AI Studio, Cloud Run, Local, etc.
+- `docs/AGENT_WORKFLOWS.md`: PR, review, and conflict resolution rules.
+- `docs/SECURITY.md`: Detailed security, token, and data boundaries.
+- `docs/SEO_PWA.md`: Notes on SEO metadata and Service Worker caching.
