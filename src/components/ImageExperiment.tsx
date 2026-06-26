@@ -79,6 +79,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [copied, setCopied] = useState<string | null>(null);
   const [includePreview, setIncludePreview] = useState(false);
 
+  const selectedSample = samples.find(s => s.id === selectedSampleId) || null;
+  const isPublicResult = !!result?.sampleMetadata;
+  const isDriveResult = !!result?.metadata;
+
   const visualCap = getVisualModelCapability(modelName);
 
   const handleCopy = (text: string, id: string) => {
@@ -345,30 +349,62 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 gap-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  {result.metadata?.name}
-                  <a 
-                    href={`https://drive.google.com/open?id=${result.metadata?.id}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-indigo-600"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </h3>
-                <p className="text-[11px] text-slate-500 flex items-center gap-3">
-                  <span>{result.metadata?.mimeType}</span>
-                  <span>•</span>
-                  <span>Size: {result.metadata?.size ? (result.metadata.size / 1024).toFixed(1) : "-"} KB</span>
-                  {result.metadata?.modifiedTime && (
-                    <>
+              {isDriveResult && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    {result.metadata?.name}
+                    <a
+                      href={`https://drive.google.com/open?id=${result.metadata?.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-indigo-600"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-3">
+                    <span>{result.metadata?.mimeType}</span>
+                    <span>•</span>
+                    <span>Size: {result.metadata?.size ? (result.metadata.size / 1024).toFixed(1) : "-"} KB</span>
+                    {result.metadata?.modifiedTime && (
+                      <>
+                        <span>•</span>
+                        <span>Modified: {new Date(result.metadata.modifiedTime).toLocaleString()}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+              {isPublicResult && result.sampleMetadata && (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    {result.sampleMetadata.title}
+                    {result.sampleMetadata.sourcePageUrl && (
+                      <a
+                        href={result.sampleMetadata.sourcePageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-400 hover:text-indigo-600"
+                        title="View Source Page"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </h3>
+                  <div className="flex flex-col gap-1 mt-1">
+                    <p className="text-[11px] text-slate-500 flex items-center gap-3">
+                      <span>Category: <span className="font-bold">{result.sampleMetadata.category}</span></span>
                       <span>•</span>
-                      <span>Modified: {new Date(result.metadata.modifiedTime).toLocaleString()}</span>
-                    </>
-                  )}
-                </p>
-              </div>
+                      <span>License: {result.sampleMetadata.licenseName} ({result.sampleMetadata.licenseKind})</span>
+                    </p>
+                    {result.sampleMetadata.attributionText && (
+                      <p className="text-[10px] text-slate-400 italic">
+                        {result.sampleMetadata.attributionText}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded border flex items-center gap-1 ${result.success ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                   {result.success ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
