@@ -1059,8 +1059,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     }
   };
 
-  // Find oldest and newest traversed folders
-  const traversalQueue = useMemo(() => {
+  // ⚡ Bolt: Find oldest and unvisited traversed folders in O(N) instead of O(N log N) sort
+  const { unvisitedExtreme, oldestExtreme } = useMemo(() => {
     const allFoldersForStats = [
       ...filteredDirs,
       {
@@ -1074,50 +1074,35 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       }
     ];
 
-    // Calculate the queue FIRST with deterministic tie-breaking (Oldest first)
-    if (allFoldersForStats.length === 0) return [];
+    let unvisited: any = null;
+    let oldest: any = null;
 
-    return [...allFoldersForStats].sort((a, b) => {
-      // Null/undefined last_traversed_at comes first (highest priority)
-      if (!a.last_traversed_at && !b.last_traversed_at) {
-        return (a.path || "").localeCompare(b.path || "");
-      }
-      if (!a.last_traversed_at) return -1;
-      if (!b.last_traversed_at) return 1;
-
-      const timeA = new Date(a.last_traversed_at).getTime();
-      const timeB = new Date(b.last_traversed_at).getTime();
-
-      if (timeA === timeB) {
-        return (a.path || "").localeCompare(b.path || "");
-      }
-      return timeA - timeB;
-    });
-  }, [filteredDirs, rootLastTraversedAt, rootNextPageToken]);
-
-  const buildBreadcrumbPath = (dirId: string): { id: string, name: string }[] => {
-    let currentId: string | null = dirId;
-    const breadcrumb: { id: string, name: string }[] = [];
-    
-    const visited = new Set<string>();
-    
-    while (currentId && !visited.has(currentId)) {
-      visited.add(currentId);
-      const dir = dirs.find(d => d.drive_id === currentId);
-      if (dir) {
-        const pathStr = dir.path || "";
-        const parts = pathStr.replace(/\/$/, '').split('/');
-        const dirName = parts.length > 0 && parts[parts.length - 1] ? parts[parts.length - 1] : currentId;
-        breadcrumb.unshift({ id: dir.drive_id, name: dirName || currentId });
-        currentId = dir.parent_id;
+    for (const folder of allFoldersForStats) {
+      if (!folder.last_traversed_at) {
+        if (!unvisited) {
+          unvisited = folder;
+        } else if ((folder.path || "").localeCompare(unvisited.path || "") < 0) {
+          unvisited = folder;
+        }
       } else {
-        breadcrumb.unshift({ id: currentId, name: currentId === "root" ? "マイドライブ" : "..." });
-        break;
+        if (!oldest) {
+          oldest = folder;
+        } else {
+          const folderTime = new Date(folder.last_traversed_at).getTime();
+          const oldestTime = new Date(oldest.last_traversed_at).getTime();
+          if (folderTime < oldestTime) {
+            oldest = folder;
+          } else if (folderTime === oldestTime) {
+            if ((folder.path || "").localeCompare(oldest.path || "") < 0) {
+              oldest = folder;
+            }
+          }
+        }
       }
     }
-    
-    return breadcrumb;
-  };
+
+    return { unvisitedExtreme: unvisited, oldestExtreme: oldest };
+  }, [filteredDirs, rootLastTraversedAt, rootNextPageToken]);
 
   const handleStopProcessing = () => {
     if (isCrawlActive) {
@@ -1482,7 +1467,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
                 {/* Priority 2: Unvisited */}
                 {(() => {
-                  const unvisited = traversalQueue.find(f => !f.last_traversed_at);
+                  const unvisited = unvisitedExtreme;
                   const isActive = !nextPageToken && unvisited;
                   return (
                     <div className={`p-3 rounded-lg border transition-all ${isActive ? 'bg-indigo-50 border-indigo-200 ring-2 ring-indigo-500/20' : 'bg-white border-slate-200 opacity-50'}`}>
@@ -1509,8 +1494,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
                 {/* Priority 3: Oldest */}
                 {(() => {
-                  const oldest = traversalQueue.find(f => f.last_traversed_at);
-                  const isActive = !nextPageToken && !traversalQueue.find(f => !f.last_traversed_at) && oldest;
+                  const oldest = oldestExtreme;
+                  const isActive = !nextPageToken && !unvisitedExtreme && oldest;
                   return (
                     <div className={`p-3 rounded-lg border transition-all ${isActive ? 'bg-slate-100 border-slate-300 ring-2 ring-slate-500/20' : 'bg-white border-slate-200 opacity-50'}`}>
                       <div className="flex items-center justify-between mb-2">
