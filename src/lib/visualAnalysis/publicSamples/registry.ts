@@ -51,8 +51,8 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Sleeping_cat_on_her_back.jpg",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/b/bc/Sleeping_cat_on_her_back.jpg",
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Sleeping_cat_on_her_back.jpg/640px-Sleeping_cat_on_her_back.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Sleeping_cat_on_her_back.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Sleeping_cat_on_her_back.jpg/640px-Sleeping_cat_on_her_back.jpg",
       licenseKind: "ccBySa",
       licenseName: "CC BY-SA 3.0",
       licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0/",
@@ -171,7 +171,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Line_graph.svg",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/8/84/Line_graph.svg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Line_graph.svg/640px-Line_graph.svg.png",
       thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Line_graph.svg/640px-Line_graph.svg.png",
       licenseKind: "publicDomain",
       licenseName: "Public Domain",
@@ -230,8 +230,8 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedVisibleElementLabels: ["receipt", "text", "prices", "items", "total"],
     source: {
       provider: "localFixture",
-      imageUrl: "/visual-samples/synthetic-receipt.svg",
-      thumbnailUrl: "/visual-samples/synthetic-receipt.svg",
+      imageUrl: "/visual-samples/synthetic-receipt.png",
+      thumbnailUrl: "/visual-samples/synthetic-receipt.png",
       licenseKind: "publicDomain",
       licenseName: "Public Domain",
       author: "indexmd test fixture",
@@ -248,8 +248,8 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedVisibleElementLabels: ["ticket", "text", "gate", "seat", "event"],
     source: {
       provider: "localFixture",
-      imageUrl: "/visual-samples/synthetic-ticket.svg",
-      thumbnailUrl: "/visual-samples/synthetic-ticket.svg",
+      imageUrl: "/visual-samples/synthetic-ticket.png",
+      thumbnailUrl: "/visual-samples/synthetic-ticket.png",
       licenseKind: "publicDomain",
       licenseName: "Public Domain",
       author: "indexmd test fixture",
