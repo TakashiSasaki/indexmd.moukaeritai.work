@@ -99,7 +99,23 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         .catch(err => onAddLog("error", "Failed to fetch public samples", err.message))
         .finally(() => setIsLoadingSamples(false));
     }
-  }, [mode]);
+  }, [mode, samples.length, onAddLog]);
+
+  const filteredSamples = samples.filter(s => {
+    if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
+    if (licenseFilter !== "all" && s.licenseKind !== licenseFilter) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    if (mode === "public" && samples.length > 0) {
+      if (filteredSamples.length === 0) {
+        setSelectedSampleId("");
+      } else if (!filteredSamples.find(s => s.id === selectedSampleId)) {
+        setSelectedSampleId(filteredSamples[0].id);
+      }
+    }
+  }, [filteredSamples, mode, samples.length, selectedSampleId]);
 
   const handleAnalyzeDrive = async () => {
     if (!fileId.trim()) {
@@ -177,12 +193,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       setLoading(false);
     }
   };
-
-  const filteredSamples = samples.filter(s => {
-    if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
-    if (licenseFilter !== "all" && s.licenseKind !== licenseFilter) return false;
-    return true;
-  });
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
@@ -263,15 +273,21 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Sample</label>
-                <select
-                  value={selectedSampleId}
-                  onChange={e => setSelectedSampleId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  {filteredSamples.map(s => (
-                    <option key={s.id} value={s.id}>{s.title} ({s.category})</option>
-                  ))}
-                </select>
+                {filteredSamples.length > 0 ? (
+                  <select
+                    value={selectedSampleId}
+                    onChange={e => setSelectedSampleId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {filteredSamples.map(s => (
+                      <option key={s.id} value={s.id}>{s.title} ({s.category})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 italic">
+                    No samples match the selected filters.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -315,7 +331,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             </div>
             <button
               onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
-              disabled={loading || !fileId.trim()}
+              disabled={mode === "drive" ? loading || !fileId.trim() : loading || !selectedSampleId || isLoadingSamples}
               className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] w-full md:w-auto justify-center"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
