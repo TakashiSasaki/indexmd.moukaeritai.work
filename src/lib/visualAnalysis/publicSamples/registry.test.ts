@@ -1,0 +1,68 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { getAllPublicSamples } from './registry';
+
+describe('Public Visual Sample Registry', () => {
+  it('all sample IDs should be unique', () => {
+    const samples = getAllPublicSamples();
+    const ids = new Set();
+    for (const sample of samples) {
+      assert.ok(!ids.has(sample.id), `Duplicate ID found: ${sample.id}`);
+      ids.add(sample.id);
+    }
+  });
+
+  it('every sample has license metadata', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      assert.ok(sample.source.licenseKind, `Missing licenseKind for ${sample.id}`);
+      assert.ok(sample.source.licenseName, `Missing licenseName for ${sample.id}`);
+      assert.notEqual(sample.source.licenseKind, 'unknown', `License kind is unknown for ${sample.id}`);
+    }
+  });
+
+  it('no sample has NC or ND licenses', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      const name = sample.source.licenseName;
+      assert.ok(!name.includes('NC') && !name.includes('NonCommercial'), `NC license found for ${sample.id}`);
+      assert.ok(!name.includes('ND') && !name.includes('NoDerivatives'), `ND license found for ${sample.id}`);
+    }
+  });
+
+  it('every CC BY / CC BY-SA sample has attributionText', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (['ccBy', 'ccBySa'].includes(sample.source.licenseKind)) {
+        assert.ok(sample.source.attributionText, `Missing attribution for CC BY/SA sample ${sample.id}`);
+      }
+    }
+  });
+
+  it('every external sample has source page URL and image URL', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (sample.source.provider !== 'localFixture') {
+        assert.ok(sample.source.pageUrl, `Missing page URL for ${sample.id}`);
+        assert.ok(sample.source.imageUrl, `Missing image URL for ${sample.id}`);
+      }
+    }
+  });
+
+  it('every synthetic sample references a local public asset', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (sample.source.provider === 'localFixture') {
+        assert.ok(sample.source.imageUrl?.startsWith('/visual-samples/'), `Local fixture image URL should start with /visual-samples/ for ${sample.id}`);
+      }
+    }
+  });
+
+  it('every sample has expectedImageKind and expectedElementCategories', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      assert.ok(sample.expectedImageKind, `Missing expectedImageKind for ${sample.id}`);
+      assert.ok(sample.expectedElementCategories && sample.expectedElementCategories.length > 0, `Missing expectedElementCategories for ${sample.id}`);
+    }
+  });
+});

@@ -391,12 +391,15 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
       const count = freshDirs.length;
       
       // Compute last processed folder path based on last traversed/updated time
-      const sortedByUpdate = freshDirs.slice().sort((a, b) => {
-        const timeA = a.last_traversed_at || a.last_updated_at || '';
-        const timeB = b.last_traversed_at || b.last_updated_at || '';
-        return String(timeB).localeCompare(String(timeA));
-      });
-      const lastProcessedPath = sortedByUpdate[0]?.path || "";
+      let lastProcessedPath = "";
+      let maxTime = "";
+      for (const dir of freshDirs) {
+        const time = dir.last_traversed_at || dir.last_updated_at || "";
+        if (time > maxTime) {
+          maxTime = time;
+          lastProcessedPath = dir.path || "";
+        }
+      }
       
       setSyncProgress({ current: count, lastPath: lastProcessedPath });
       
@@ -1057,38 +1060,40 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
   };
 
   // Find oldest and newest traversed folders
-  const allFoldersForStats = [
-    ...filteredDirs,
-    {
-      drive_id: "root",
-      name: "マイドライブ (Root)",
-      path: "/",
-      depth: 0,
-      last_traversed_at: rootLastTraversedAt,
-      next_page_token: rootNextPageToken,
-      index_status: "pending" as const,
-    }
-  ];
-  
-  // Calculate the queue FIRST with deterministic tie-breaking (Oldest first)
-  const traversalQueue = allFoldersForStats.length > 0
-    ? [...allFoldersForStats].sort((a, b) => {
-        // Null/undefined last_traversed_at comes first (highest priority)
-        if (!a.last_traversed_at && !b.last_traversed_at) {
-          return (a.path || "").localeCompare(b.path || "");
-        }
-        if (!a.last_traversed_at) return -1;
-        if (!b.last_traversed_at) return 1;
-        
-        const timeA = new Date(a.last_traversed_at).getTime();
-        const timeB = new Date(b.last_traversed_at).getTime();
-        
-        if (timeA === timeB) {
-          return (a.path || "").localeCompare(b.path || "");
-        }
-        return timeA - timeB;
-      })
-    : [];
+  const traversalQueue = useMemo(() => {
+    const allFoldersForStats = [
+      ...filteredDirs,
+      {
+        drive_id: "root",
+        name: "マイドライブ (Root)",
+        path: "/",
+        depth: 0,
+        last_traversed_at: rootLastTraversedAt,
+        next_page_token: rootNextPageToken,
+        index_status: "pending" as const,
+      }
+    ];
+
+    // Calculate the queue FIRST with deterministic tie-breaking (Oldest first)
+    if (allFoldersForStats.length === 0) return [];
+
+    return [...allFoldersForStats].sort((a, b) => {
+      // Null/undefined last_traversed_at comes first (highest priority)
+      if (!a.last_traversed_at && !b.last_traversed_at) {
+        return (a.path || "").localeCompare(b.path || "");
+      }
+      if (!a.last_traversed_at) return -1;
+      if (!b.last_traversed_at) return 1;
+
+      const timeA = new Date(a.last_traversed_at).getTime();
+      const timeB = new Date(b.last_traversed_at).getTime();
+
+      if (timeA === timeB) {
+        return (a.path || "").localeCompare(b.path || "");
+      }
+      return timeA - timeB;
+    });
+  }, [filteredDirs, rootLastTraversedAt, rootNextPageToken]);
 
   const buildBreadcrumbPath = (dirId: string): { id: string, name: string }[] => {
     let currentId: string | null = dirId;

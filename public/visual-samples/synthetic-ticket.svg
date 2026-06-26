@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" style="background-color: #f0f0f0; font-family: sans-serif;">
+    <rect x="10" y="10" width="380" height="180" rx="10" fill="white" stroke="#333" stroke-width="2" />
+    <line x1="280" y1="10" x2="280" y2="190" stroke="#333" stroke-width="2" stroke-dasharray="8" />
+
+    <text x="30" y="40" font-size="24" font-weight="bold" fill="#2c3e50">SYNTHETIC FESTIVAL 2024</text>
+    <text x="30" y="70" font-size="14" fill="#7f8c8d">Date: October 15, 2024 - 18:00</text>
+    <text x="30" y="90" font-size="14" fill="#7f8c8d">Venue: Virtual Arena</text>
+
+    <text x="30" y="130" font-size="16" font-weight="bold">GATE</text>
+    <text x="30" y="155" font-size="24">A</text>
+
+    <text x="100" y="130" font-size="16" font-weight="bold">SECTION</text>
+    <text x="100" y="155" font-size="24">101</text>
+
+    <text x="190" y="130" font-size="16" font-weight="bold">SEAT</text>
+    <text x="190" y="155" font-size="24">42</text>
+
+    <text x="295" y="40" font-size="16" font-weight="bold">ADMIT ONE</text>
+    <text x="295" y="70" font-size="12">Gate A</text>
+    <text x="295" y="90" font-size="12">Sec 101, Seat 42</text>
+    <text x="295" y="120" font-size="10" fill="#e74c3c">FAKE TICKET</text>
+    <text x="295" y="135" font-size="10" fill="#e74c3c">TEST FIXTURE ONLY</text>
+
+    <text x="295" y="170" font-size="12" font-family="monospace">TKT-000-000-000</text>
+</svg>
