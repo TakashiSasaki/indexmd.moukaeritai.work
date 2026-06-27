@@ -1314,6 +1314,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
       try {
         const data = JSON.parse(text);
         setResult(data);
+        fetchExperimentHistory();
       } catch (e) {
         setRawErrorResponse(text);
         if (
@@ -2088,23 +2089,23 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xs sm:max-w-none mx-auto w-full">
         <button
           onClick={() => handleGenerate("text")}
           disabled={
             loading ||
             (inputMode === "drive" ? !fileId.trim() : !manualText.trim())
           }
-          className="w-full flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-4 rounded-xl transition-all shadow-lg hover:shadow-slate-500/20 active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 rounded-lg text-sm transition-all shadow-md hover:shadow-slate-500/10 active:scale-[0.98]"
         >
           {loading && outputMode === "text" ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
               生成中...
             </>
           ) : (
             <>
-              <FileText className="w-5 h-5" />
+              <FileText className="w-4 h-4" />
               自由文要約を生成
             </>
           )}
@@ -2116,16 +2117,16 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
             loading ||
             (inputMode === "drive" ? !fileId.trim() : !manualText.trim())
           }
-          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-4 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 rounded-lg text-sm transition-all shadow-md hover:shadow-indigo-500/10 active:scale-[0.98]"
         >
           {loading && outputMode === "structured" ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
               生成中...
             </>
           ) : (
             <>
-              <Braces className="w-5 h-5" />
+              <Braces className="w-4 h-4" />
               構造化分析(JSON)を生成
             </>
           )}

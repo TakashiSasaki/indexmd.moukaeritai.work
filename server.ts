@@ -1076,7 +1076,28 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
            const responseResult = sanitizeResultForResponse(result);
            const cacheResult = sanitizeResultForCache(result);
            if (mode !== "structured" || result.success) { await setCachedSummary(cacheKey, cacheResult); }
-           return res.json(responseResult);
+           // Save to Experiment History
+            saveExperimentHistory({
+              inputKind: "driveFile",
+              inputLabel: fileMeta.name,
+              fileMetadata: {
+                name: fileMeta.name,
+                mimeType: fileMeta.mimeType
+              },
+              model: targetModel,
+              outputMode: mode,
+              schemaVersion: SCHEMA_VERSION_V12,
+              parseSuccess: result.success && !result.structuredParseFailed,
+              validationSuccess: result.success && !result.structuredParseFailed && !result.error,
+              structuredResult: result.structured,
+              validationErrors: result.validationErrors,
+              warnings: result.warnings,
+              repairApplied: result.repairApplied,
+              repairFallbackUsed: result.repairFallbackUsed,
+              error: result.error
+            });
+
+            return res.json(responseResult);
          } catch(e: any) {
            return res.status(500).json({ error: `${mimeType.startsWith('image') ? 'Image' : 'PDF'} generation failed: ${e.message}` });
          }

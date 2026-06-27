@@ -114,6 +114,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
   const [currentTaskName, setCurrentTaskName] = useState<string | null>(null);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [currentTaskPath, setCurrentTaskPath] = useState<string | null>(null);
+  const [showScanWaitingHelp, setShowScanWaitingHelp] = useState<boolean>(false);
 
   // Debugger specific states
   const debugAbortControllerRef = useRef<AbortController | null>(null);
@@ -1139,12 +1140,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
       {/* View Mode Tabs */}
       {/* Mobile Tab Selector */}
-      <div className="sm:hidden border-b border-slate-200 pb-3" id="tabs-navigation-mobile">
+      <div className="sm:hidden sticky top-14 bg-white/95 backdrop-blur-md z-40 py-2.5 px-4 -mx-4 border-b border-slate-200/80 shadow-xs" id="tabs-navigation-mobile">
         <select
           id="mobile-tab-select"
           value={activeTab}
           onChange={(e) => setActiveTab(e.target.value as AppTabId)}
-          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 shadow-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 cursor-pointer"
         >
           {APP_TABS.map((tab) => (
             <option key={tab.id} value={tab.id}>
@@ -1375,36 +1376,36 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
             {isCrawlActive && (
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg mb-4 animate-in fade-in slide-in-from-top-1 duration-300">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 pb-2 border-b border-slate-100/80">
+                  <div className="flex flex-col gap-0.5 min-w-0">
                     <div className="flex items-center gap-2">
-                      <RefreshCw className="w-3 h-3 animate-spin text-indigo-500" />
-                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                        {crawlMode === "flat" ? "Google Drive API 走査中 (フラット検出スキャン)..." : "Google Drive API 走査中 (プログレッシブ更新走査)..."}
+                      <RefreshCw className="w-3 h-3 animate-spin text-indigo-500 shrink-0" />
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider truncate">
+                        {crawlMode === "flat" ? "Google Drive 走査中 (フラット検出スキャン)..." : "Google Drive 走査中 (プログレッシブ更新走査)..."}
                       </span>
                     </div>
                     {crawlMode === "progressive" && activeScanFolder && (
-                      <span className="text-[9px] text-indigo-600 font-medium">
-                        対象起点: {activeScanFolder.name} ({activeScanFolder.path})
+                      <span className="text-[9px] text-indigo-600 font-medium truncate" title={`${activeScanFolder.name} (${activeScanFolder.path})`}>
+                        対象起点: {activeScanFolder.name}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm" title="新規/更新">
-                      <Database className="w-2.5 h-2.5 text-indigo-500" />
-                      <span className="text-[10px] font-mono font-bold text-slate-700">{crawlStats.discovered} {scanLimit > 0 ? `/ ${scanLimit}` : ""}</span>
+                  <div className="grid grid-cols-2 xs:grid-cols-4 sm:flex sm:items-center gap-1.5 w-full sm:w-auto shrink-0">
+                    <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded border border-slate-200/60 shadow-xs justify-center sm:justify-start min-w-[65px] h-6" title="新規/更新">
+                      <Database className="w-3 h-3 text-indigo-500 shrink-0" />
+                      <span className="text-[10px] font-mono font-bold text-slate-700 whitespace-nowrap truncate">{crawlStats.discovered} {scanLimit > 0 ? `/${scanLimit}` : ""}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 shadow-sm" title="既存スキップ">
-                      <FastForward className="w-2.5 h-2.5 text-amber-500" />
-                      <span className="text-[10px] font-mono font-bold text-amber-700">{crawlStats.skipped}</span>
+                    <div className="flex items-center gap-1.5 bg-amber-50/70 px-2 py-1 rounded border border-amber-100 shadow-xs justify-center sm:justify-start min-w-[50px] h-6" title="既存スキップ">
+                      <FastForward className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span className="text-[10px] font-mono font-bold text-amber-700 whitespace-nowrap truncate">{crawlStats.skipped}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 shadow-sm" title="設定による無視">
-                      <EyeOff className="w-2.5 h-2.5 text-slate-500" />
-                      <span className="text-[10px] font-mono font-bold text-slate-700">{crawlStats.ignored}</span>
+                    <div className="flex items-center gap-1.5 bg-slate-100/70 px-2 py-1 rounded border border-slate-200 shadow-xs justify-center sm:justify-start min-w-[50px] h-6" title="設定による無視">
+                      <EyeOff className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="text-[10px] font-mono font-bold text-slate-700 whitespace-nowrap truncate">{crawlStats.ignored}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 shadow-sm" title="DBから削除">
-                      <FolderX className="w-2.5 h-2.5 text-rose-500" />
-                      <span className="text-[10px] font-mono font-bold text-rose-700">{crawlStats.removed}</span>
+                    <div className="flex items-center gap-1.5 bg-rose-50/70 px-2 py-1 rounded border border-rose-100 shadow-xs justify-center sm:justify-start min-w-[50px] h-6" title="DBから削除">
+                      <FolderX className="w-3 h-3 text-rose-500 shrink-0" />
+                      <span className="text-[10px] font-mono font-bold text-rose-700 whitespace-nowrap truncate">{crawlStats.removed}</span>
                     </div>
                   </div>
                 </div>
@@ -1423,20 +1424,61 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                 </div>
                 
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 bg-white/50 px-2 py-1.5 rounded border border-slate-100/50">
-                    <div className="shrink-0 w-4 h-4 rounded-sm bg-indigo-100 flex items-center justify-center">
-                      <Folder className="w-2.5 h-2.5 text-indigo-600" />
+                  <div className="flex items-center gap-2.5 bg-white px-2.5 py-1.5 rounded border border-slate-200/60 shadow-xs h-[44px] min-h-[44px] max-h-[44px] overflow-hidden">
+                    <div className="shrink-0 w-5 h-5 rounded bg-indigo-50 flex items-center justify-center">
+                      <Folder className="w-3 h-3 text-indigo-600 animate-pulse" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold text-slate-700 truncate">{currentTaskName || "待機中..."}</span>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-[10px] font-bold text-slate-700 truncate" title={currentTaskName || "待機中..."}>{currentTaskName || "待機中..."}</span>
+                          {!currentTaskName && (
+                            <button
+                              onClick={() => setShowScanWaitingHelp(!showScanWaitingHelp)}
+                              className="p-0.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors focus:outline-none shrink-0"
+                              title="待機中とは？"
+                              type="button"
+                            >
+                              <HelpCircle className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                         <span className="text-[8px] font-mono text-slate-400 shrink-0 select-all">{currentTaskId}</span>
                       </div>
-                      <div className="text-[9px] font-mono text-slate-500 truncate mt-0.5">
+                      <div className="text-[9px] font-mono text-slate-500 truncate mt-0.5" title={currentTaskPath || "/"}>
                         <span className="text-slate-300 mr-1">Path:</span>{currentTaskPath || "/"}
                       </div>
                     </div>
                   </div>
+
+                  {showScanWaitingHelp && !currentTaskName && (
+                    <div className="bg-indigo-50/70 border border-indigo-100 p-2.5 rounded text-[10px] text-indigo-950 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="flex items-center justify-between font-bold text-indigo-900 mb-1">
+                        <span className="flex items-center gap-1">💡 「待機中...」状態について</span>
+                        <button 
+                          onClick={() => setShowScanWaitingHelp(false)}
+                          className="text-indigo-400 hover:text-indigo-700 font-bold px-1 rounded hover:bg-indigo-100"
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <p className="mb-1.5 leading-relaxed text-indigo-900/90">
+                        スキャン処理がバックグラウンドで準備・調整を行っている、またはAPI制限を回避するために待機している状態です。
+                      </p>
+                      <ul className="list-disc pl-3.5 space-y-1 text-indigo-900/85 leading-relaxed">
+                        <li>
+                          <strong className="font-semibold text-indigo-950">レートリミット回避のウェイト:</strong> Google Drive API の呼び出し制限（クォータ制限）を回避するため、設定されたディレイ（ミリ秒）の一時停止を挟みながら安全にクロールを継続しています。
+                        </li>
+                        <li>
+                          <strong className="font-semibold text-indigo-950">フォルダ・ファイル一覧の取得中:</strong> API から該当フォルダ内のコンテンツ一覧やページネーショントークンの受信を待っています。
+                        </li>
+                        <li>
+                          <strong className="font-semibold text-indigo-950">Firestoreデータベースの同期:</strong> 取得したフォルダ構造のメタデータを Firestore に安全・最適に保存するバッチ処理を実行しています。
+                        </li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
