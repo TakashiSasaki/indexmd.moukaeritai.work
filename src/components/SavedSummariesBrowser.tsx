@@ -254,23 +254,32 @@ These notes must also be completely preserved intact!`);
     return counts;
   }, [processedSummaries]);
 
+  // ⚡ Bolt: Memoize filtered files for selected directory to avoid recalculating on every render
+  const filesInSelectedDir = useMemo(() => {
+    if (!selectedDirId) return [];
+    return processedSummaries.filter(item => item.parentId === selectedDirId);
+  }, [processedSummaries, selectedDirId]);
+
+  // ⚡ Bolt: Memoize expensive topic extraction map/set operation
+  const selectedDirMainTopics = useMemo(() => {
+    if (filesInSelectedDir.length === 0) return '一般事務';
+    return Array.from(new Set(filesInSelectedDir.flatMap(f => f.structured?.topics || []))).slice(0, 5).join('、') || '一般事務';
+  }, [filesInSelectedDir]);
+
   // Directory-wise index.md Auto-Generated code builder (Read-Only Preview)
   const generatedIndexMd = useMemo(() => {
     if (!selectedDirId) return '';
     const folder = dirs.find(d => d.drive_id === selectedDirId);
     const folderName = folder ? (folder.path || folder.name) : 'Selected Directory';
 
-    // Filter file summaries belonging to this directory
-    const filesInFolder = processedSummaries.filter(item => item.parentId === selectedDirId);
-
     // Render index.md via our pure deterministic preview helper
     return buildReadOnlyIndexMdPreview({
       folderName,
-      filesInFolder,
+      filesInFolder: filesInSelectedDir,
       nowIso: new Date().toISOString(),
       promptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION
     });
-  }, [selectedDirId, dirs, processedSummaries]);
+  }, [selectedDirId, dirs, filesInSelectedDir]);
 
   const handleCopyIndexMd = async () => {
     if (!generatedIndexMd) return;
@@ -466,28 +475,25 @@ These notes must also be completely preserved intact!`);
                   実ファイルへの影響はありません。これはFirestore内の要約から構築された読込専用プレビューです。
                 </div>
                 
-                {(() => {
-                  const filesInFolder = processedSummaries.filter(item => item.parentId === selectedDirId);
-                  return (
-                    <div className="space-y-4">
-                      <div>
-                        <h2 className="text-xs font-extrabold text-slate-900 border-b border-slate-100 pb-1 flex items-center gap-1 uppercase tracking-wider">
-                          AI Summary
-                        </h2>
-                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                          {filesInFolder.length > 0 
-                            ? `このディレクトリには ${filesInFolder.length} 件の要約済み重要ドキュメントが配置されています。主要テーマは ${Array.from(new Set(filesInFolder.flatMap(f => f.structured?.topics || []))).slice(0, 5).join('、') || '一般事務'} です。`
-                            : "保存されている要約ファイルはありません。"}
-                        </p>
-                      </div>
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-xs font-extrabold text-slate-900 border-b border-slate-100 pb-1 flex items-center gap-1 uppercase tracking-wider">
+                      AI Summary
+                    </h2>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      {filesInSelectedDir.length > 0
+                        ? `このディレクトリには ${filesInSelectedDir.length} 件の要約済み重要ドキュメントが配置されています。主要テーマは ${selectedDirMainTopics} です。`
+                        : "保存されている要約ファイルはありません。"}
+                    </p>
+                  </div>
 
-                      <div>
-                        <h2 className="text-xs font-extrabold text-slate-900 border-b border-slate-100 pb-1 uppercase tracking-wider">
-                          Files
-                        </h2>
-                        {filesInFolder.length > 0 ? (
-                          <ul className="space-y-2 mt-2 list-none pl-0">
-                            {filesInFolder.map(file => {
+                  <div>
+                    <h2 className="text-xs font-extrabold text-slate-900 border-b border-slate-100 pb-1 uppercase tracking-wider">
+                      Files
+                    </h2>
+                    {filesInSelectedDir.length > 0 ? (
+                      <ul className="space-y-2 mt-2 list-none pl-0">
+                        {filesInSelectedDir.map(file => {
                               let badgeText = "";
                               let badgeColor = "bg-slate-100 text-slate-600";
                               if (file.computedStatus === "stale-schema") {
@@ -533,8 +539,6 @@ These notes must also be completely preserved intact!`);
                         <p className="text-xs text-slate-400 italic mt-1">サブディレクトリ構造は将来のインデックス処理で結合されます。</p>
                       </div>
                     </div>
-                  );
-                })()}
               </div>
 
               {/* Source code block */}
