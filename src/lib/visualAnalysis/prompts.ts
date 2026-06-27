@@ -1,5 +1,8 @@
 import { IMAGE_KINDS, VISIBLE_ELEMENT_CATEGORIES } from './vocabularies';
 
+export const VISUAL_ANALYSIS_PROMPT_VERSION = "visual-analysis-prompt.v0.2.0-rc.1";
+export const VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION = "visual-analysis-system.v0.2.0-rc.1";
+
 export function buildVisualAnalysisSystemInstruction(): string {
   return `You are an expert visual indexing and metadata extraction assistant.
 Your task is to analyze an image (landscape photo, product photo, document photo, screenshot, diagram, chart, handwritten note, or mixed) and extract visual indexing metadata.

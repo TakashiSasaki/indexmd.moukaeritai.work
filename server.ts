@@ -37,7 +37,8 @@ import { buildVisualAnalysisSystemInstruction, buildVisualAnalysisTaskPrompt } f
 import { normalizeVisualAnalysis } from "./src/lib/visualAnalysis/normalize";
 import { validateVisualAnalysis } from "./src/lib/visualAnalysis/validate";
 import { evaluateVisualAnalysisQuality } from "./src/lib/visualAnalysis/qualityGate";
-import VISUAL_ANALYSIS_SCHEMA from "./schemas/visual-analysis.v0.2.0-draft.1.schema.json" assert { type: "json" };
+import { VISUAL_ANALYSIS_SCHEMA, VISUAL_ANALYSIS_SCHEMA_VERSION } from "./src/lib/visualAnalysis/schema";
+import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } from "./src/lib/visualAnalysis/runMetadata";
 
 import { generateContentWithRetry } from "./src/lib/gemini";
 
@@ -1530,9 +1531,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
     let configOption: any = {
-      temperature: 0.2,
-      topP: 0.95,
-      topK: 40,
+      ...VISUAL_ANALYSIS_GENERATION_CONFIG,
       systemInstruction
     };
 
@@ -1540,6 +1539,20 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       configOption.responseMimeType = "application/json";
       configOption.responseSchema = extractedSchema || VISUAL_ANALYSIS_SCHEMA;
     }
+
+    const runMetadata = buildVisualAnalysisRunMetadata({
+      targetModel,
+      providerFamily: isGemma ? "gemma" : "gemini",
+      visualRecommendation: visualCap.recommendation,
+      mode,
+      jsonMode,
+      customInstructionUsed: !!customInstruction,
+      customSchemaUsed: extractedCustomSchema,
+      requestPreviewIncluded: includeRequestPreview,
+      sourceKind: "publicSample",
+      sampleId: sample.id,
+      mimeType: mimeType
+    });
 
     // Call Model
     const aiRes = await generateContentWithRetry(targetModel, [
@@ -1586,6 +1599,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           visibleElementLabels: sample.expectedVisibleElementLabels
         },
         visualAnalysis: parsed,
+        analysisRun: runMetadata,
         qualityStatus: "excellent",
         qualityScore: 100,
         qualityIssues: [],
@@ -1605,7 +1619,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           taskPrompt,
           systemInstruction,
           mimeType: mimeType,
-          binaryInlineDataUsed: true
+          binaryInlineDataUsed: true,
+          generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
         };
       }
 
@@ -1649,6 +1664,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         visibleElementLabels: sample.expectedVisibleElementLabels
       },
       visualAnalysis: normalized,
+      analysisRun: runMetadata,
       qualityStatus,
       qualityScore,
       qualityIssues,
@@ -1665,7 +1681,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         taskPrompt,
         systemInstruction,
         mimeType: mimeType,
-        binaryInlineDataUsed: true
+        binaryInlineDataUsed: true,
+        generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
       };
     }
 
@@ -1739,9 +1756,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
     let configOption: any = { 
-      temperature: 0.2, 
-      topP: 0.95, 
-      topK: 40,
+      ...VISUAL_ANALYSIS_GENERATION_CONFIG,
       systemInstruction
     };
 
@@ -1749,6 +1764,20 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       configOption.responseMimeType = "application/json";
       configOption.responseSchema = extractedSchema || VISUAL_ANALYSIS_SCHEMA;
     }
+
+    const runMetadata = buildVisualAnalysisRunMetadata({
+      targetModel,
+      providerFamily: isGemma ? "gemma" : "gemini",
+      visualRecommendation: visualCap.recommendation,
+      mode,
+      jsonMode,
+      customInstructionUsed: !!customInstruction,
+      customSchemaUsed: extractedCustomSchema,
+      requestPreviewIncluded: includeRequestPreview,
+      sourceKind: "driveFile",
+      fileId: fileId,
+      mimeType: fileMeta.mimeType
+    });
 
     // 4. Call Model
     const aiRes = await generateContentWithRetry(targetModel, [
@@ -1784,6 +1813,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         outputMode: "structured",
         metadata: fileMeta,
         visualAnalysis: parsed,
+        analysisRun: runMetadata,
         qualityStatus: "excellent",
         qualityScore: 100,
         qualityIssues: [],
@@ -1803,7 +1833,8 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
           taskPrompt,
           systemInstruction,
           mimeType: fileMeta.mimeType,
-          binaryInlineDataUsed: true
+          binaryInlineDataUsed: true,
+          generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
         };
       }
 
@@ -1835,6 +1866,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       outputMode: "structured",
       metadata: fileMeta,
       visualAnalysis: normalized,
+      analysisRun: runMetadata,
       qualityStatus,
       qualityScore,
       qualityIssues,
@@ -1851,7 +1883,8 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         taskPrompt,
         systemInstruction,
         mimeType: fileMeta.mimeType,
-        binaryInlineDataUsed: true
+        binaryInlineDataUsed: true,
+        generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
       };
     }
 

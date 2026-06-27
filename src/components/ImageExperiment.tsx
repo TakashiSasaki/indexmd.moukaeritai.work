@@ -653,28 +653,55 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
             </div>
 
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 flex items-center justify-between">
-              <div className="flex flex-wrap items-center gap-4 text-[11px]">
-                <div className="flex items-center gap-1 text-slate-500">
-                  <Activity className="w-3.5 h-3.5" />
-                  <span>Model: <span className="font-bold text-slate-700">{result.usedModelName}</span></span>
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center gap-4 text-[11px]">
+                  <div className="flex items-center gap-1 text-slate-500">
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>Model: <span className="font-bold text-slate-700">{result.analysisRun?.model.name || result.usedModelName}</span></span>
+                  </div>
+                  <div className="flex items-center gap-1 text-slate-500">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Provider: <span className="font-bold text-slate-700">{result.analysisRun?.model.providerFamily || result.providerFamily}</span></span>
+                  </div>
+                  <div className="flex items-center gap-1 text-slate-500">
+                    <Info className="w-3.5 h-3.5" />
+                    <span>Execution: <span className="font-bold text-slate-700">{result.analysisRun?.execution.structuredExecutionMode || result.effectiveStructuredExecutionMode}</span></span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-slate-500">
-                  <Info className="w-3.5 h-3.5" />
-                  <span>Execution: <span className="font-bold text-slate-700">{result.effectiveStructuredExecutionMode}</span></span>
-                </div>
-                <div className="flex items-center gap-1 text-slate-500">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Provider: <span className="font-bold text-slate-700">{result.providerFamily}</span></span>
-                </div>
+                <button
+                  onClick={() => handleCopy(JSON.stringify(result.visualAnalysis, null, 2), 'all')}
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                >
+                  {copied === 'all' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied === 'all' ? "Copied!" : "Copy Result JSON"}
+                </button>
               </div>
-              <button
-                onClick={() => handleCopy(JSON.stringify(result.visualAnalysis, null, 2), 'all')}
-                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-              >
-                {copied === 'all' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'all' ? "Copied!" : "Copy Result JSON"}
-              </button>
+              
+              {result.analysisRun && (
+                <div className="border-t border-slate-200 pt-3 flex flex-wrap gap-x-6 gap-y-2 text-[10px] text-slate-500">
+                   <div className="flex items-center gap-1">
+                     <span className="font-semibold">Run ID:</span>
+                     <span className="font-mono">{result.analysisRun.runId.split('-')[0]}</span>
+                   </div>
+                   <div className="flex items-center gap-1">
+                     <span className="font-semibold">Time:</span>
+                     <span>{new Date(result.analysisRun.timestamp).toLocaleTimeString()}</span>
+                   </div>
+                   <div className="flex items-center gap-1">
+                     <span className="font-semibold">Schema:</span>
+                     <span className="font-mono">{result.analysisRun.schema.resultSchemaVersion}</span>
+                   </div>
+                   <div className="flex items-center gap-1">
+                     <span className="font-semibold">Prompt:</span>
+                     <span className="font-mono">{result.analysisRun.prompt.visualPromptVersion}</span>
+                   </div>
+                   <div className="flex items-center gap-1">
+                     <span className="font-semibold">Generation:</span>
+                     <span>T={result.analysisRun.generationConfig.temperature} / P={result.analysisRun.generationConfig.topP} / K={result.analysisRun.generationConfig.topK}</span>
+                   </div>
+                </div>
+              )}
             </div>
 
             {isPublicResult && result.expectedMetadata && (

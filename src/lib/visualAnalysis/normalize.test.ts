@@ -106,4 +106,16 @@ describe('normalizeVisualAnalysis', () => {
     const norm = normalizeVisualAnalysis(raw);
     assert.strictEqual(norm.visualInfo.visibleElements[0].primary, true);
   });
+
+  it('should remove false primary flag', () => {
+    const raw = {
+      visualInfo: {
+        visibleElements: [
+          { label: "Box", category: "container", confidence: 0.9, primary: false }
+        ]
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual('primary' in norm.visualInfo.visibleElements[0], false);
+  });
 });

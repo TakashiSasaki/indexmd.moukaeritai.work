@@ -1,0 +1,118 @@
+import { VisualAnalysisResultV1, VisualAnalysisResultV2 } from "./types";
+import { VISUAL_ANALYSIS_SCHEMA_VERSION } from "./schema";
+import { VISUAL_ANALYSIS_PROMPT_VERSION, VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION } from "./prompts";
+
+export const VISUAL_ANALYSIS_GENERATION_CONFIG = {
+  temperature: 0.2,
+  topP: 0.95,
+  topK: 40
+} as const;
+
+export interface VisualAnalysisRunMetadata {
+  runId: string;
+  timestamp: string;
+
+  model: {
+    name: string;
+    providerFamily: "gemini" | "gemma" | string;
+    visualRecommendation?: string;
+  };
+
+  execution: {
+    outputMode: "structured";
+    structuredExecutionMode: "nativeSchema" | "promptedJson" | string;
+    jsonMode?: "prompt_only" | "native_schema" | string;
+    customSchemaUsed: boolean;
+    requestPreviewIncluded: boolean;
+  };
+
+  schema: {
+    resultSchemaVersion: "visual-analysis.v0.2.0-draft.1" | string;
+    responseSchemaVersion?: string;
+    customSchemaUsed: boolean;
+  };
+
+  prompt: {
+    visualPromptVersion: string;
+    systemInstructionVersion: string;
+    customInstructionUsed: boolean;
+  };
+
+  generationConfig: {
+    temperature: number;
+    topP: number;
+    topK: number;
+  };
+
+  input: {
+    sourceKind: "publicSample" | "driveFile";
+    sampleId?: string;
+    fileId?: string;
+    mimeType?: string;
+  };
+}
+
+export function buildVisualAnalysisRunMetadata(params: {
+  targetModel: string;
+  providerFamily: string;
+  visualRecommendation?: string;
+  mode: string;
+  jsonMode?: string;
+  customInstructionUsed: boolean;
+  customSchemaUsed: boolean;
+  requestPreviewIncluded: boolean;
+  sourceKind: "publicSample" | "driveFile";
+  sampleId?: string;
+  fileId?: string;
+  mimeType?: string;
+}): VisualAnalysisRunMetadata {
+  return {
+    runId: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    model: {
+      name: params.targetModel,
+      providerFamily: params.providerFamily,
+      visualRecommendation: params.visualRecommendation,
+    },
+    execution: {
+      outputMode: "structured",
+      structuredExecutionMode: params.mode,
+      jsonMode: params.jsonMode,
+      customSchemaUsed: params.customSchemaUsed,
+      requestPreviewIncluded: params.requestPreviewIncluded,
+    },
+    schema: {
+      resultSchemaVersion: params.customSchemaUsed ? "custom" : VISUAL_ANALYSIS_SCHEMA_VERSION,
+      responseSchemaVersion: params.mode === "nativeSchema" && !params.customSchemaUsed ? VISUAL_ANALYSIS_SCHEMA_VERSION : undefined,
+      customSchemaUsed: params.customSchemaUsed,
+    },
+    prompt: {
+      visualPromptVersion: VISUAL_ANALYSIS_PROMPT_VERSION,
+      systemInstructionVersion: VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION,
+      customInstructionUsed: params.customInstructionUsed,
+    },
+    generationConfig: {
+      temperature: VISUAL_ANALYSIS_GENERATION_CONFIG.temperature,
+      topP: VISUAL_ANALYSIS_GENERATION_CONFIG.topP,
+      topK: VISUAL_ANALYSIS_GENERATION_CONFIG.topK,
+    },
+    input: {
+      sourceKind: params.sourceKind,
+      sampleId: params.sampleId,
+      fileId: params.fileId,
+      mimeType: params.mimeType,
+    }
+  };
+}
+
+export interface VisualAnalysisResponse {
+  visualAnalysis: VisualAnalysisResultV1 | VisualAnalysisResultV2;
+  analysisRun?: VisualAnalysisRunMetadata;
+
+  // Legacy fields for backward compatibility
+  usedModelName?: string;
+  providerFamily?: string;
+  effectiveStructuredExecutionMode?: string;
+  quality?: any;
+  requestPreview?: any;
+}

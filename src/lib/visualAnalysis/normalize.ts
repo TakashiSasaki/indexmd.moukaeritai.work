@@ -132,8 +132,8 @@ export function normalizeVisualAnalysis(result: any): any {
           locationHint: trimStr(el.locationHint) || undefined
         };
         
-        if (el.primary !== undefined) {
-          normalizedEl.primary = !!el.primary;
+        if (el.primary === true) {
+          normalizedEl.primary = true;
         }
         
         return normalizedEl;
