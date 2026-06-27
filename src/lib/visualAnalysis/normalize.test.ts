@@ -32,7 +32,7 @@ describe('normalizeVisualAnalysis', () => {
   it('should auto-populate missing schemaVersion with the draft version', () => {
     const raw = {};
     const norm = normalizeVisualAnalysis(raw);
-    assert.strictEqual(norm.schemaVersion, "visual-analysis.v0.1.0-draft.1");
+    assert.strictEqual(norm.schemaVersion, "visual-analysis.v0.2.0-draft.1");
   });
 
   it('should fallback unknown category to "unknown"', () => {

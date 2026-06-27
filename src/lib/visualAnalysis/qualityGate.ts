@@ -1,4 +1,4 @@
-import { VisualAnalysisResultV1 } from './types';
+import { VisualAnalysisResultV1, VisualAnalysisResultV2 } from './types';
 
 export type VisualQualityStatus = "valid" | "validLowQuality" | "invalid";
 
@@ -10,7 +10,7 @@ export interface VisualQualityReport {
 }
 
 export function evaluateVisualAnalysisQuality(
-  result: VisualAnalysisResultV1 | null, 
+  result: VisualAnalysisResultV1 | VisualAnalysisResultV2 | null, 
   context?: { modelName?: string; providerFamily?: string; effectiveStructuredExecutionMode?: string }
 ): VisualQualityReport {
   if (!result) {
@@ -35,6 +35,21 @@ export function evaluateVisualAnalysisQuality(
     score -= 15;
     issues.push({ code: "UNKNOWN_KIND", message: "Image kind is classified as unknown.", severity: "warning" });
   }
+
+  // specific to V2
+  if ('sceneContext' in vi && vi.sceneContext) {
+    if (vi.sceneContext.confidence !== undefined && vi.sceneContext.confidence < 0.4) {
+      score -= 5;
+      issues.push({ code: "LOW_CONFIDENCE_SCENE_CONTEXT", message: "Scene context has low confidence.", severity: "info" });
+    }
+  }
+
+  elements.forEach((el, index) => {
+    if (el.stateContext && el.stateContext.confidence !== undefined && el.stateContext.confidence < 0.4) {
+      score -= 2;
+      issues.push({ code: "LOW_CONFIDENCE_STATE_CONTEXT", message: `Element ${index} (${el.label}) state context has low confidence.`, severity: "info" });
+    }
+  });
 
   // Specific kind vs category checks
   if (vi?.imageKind === "landscapePhoto" || vi?.imageKind === "naturalPhoto") {

@@ -6,7 +6,7 @@ import { IMAGE_KINDS, VISIBLE_ELEMENT_CATEGORIES } from './vocabularies';
 
 describe('Visual Schema Consistency', () => {
   it('should have matching enums between TypeScript and JSON Schema', () => {
-    const schemaPath = path.resolve(process.cwd(), 'schemas/visual-analysis.v0.1.0-draft.1.schema.json');
+    const schemaPath = path.resolve(process.cwd(), 'schemas/visual-analysis.v0.2.0-draft.1.schema.json');
     const schemaContent = fs.readFileSync(schemaPath, 'utf8');
     const schema = JSON.parse(schemaContent);
 

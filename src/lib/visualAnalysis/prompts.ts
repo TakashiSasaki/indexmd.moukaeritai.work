@@ -23,9 +23,15 @@ You must always classify the "imageKind" and enumerate "visibleElements".
 - Extract readable text into "visibleText".
 - If text is present but unreadable, note it in "uncertainties".
 
-### Visible Elements:
+### Visible Elements & State Context:
 - Use "visibleElements" for objects AND scene components (like sky, terrain).
 - Provide a clear label, category, and confidence.
+- Use "stateContext" within visible elements to describe how objects are situated (e.g., containment, placement, usage, interaction, condition). Use "unknown" if unsure.
+
+### Scene Context (Optional):
+- If the image provides enough context, populate "sceneContext" within "visualInfo".
+- Describe the overall environment (indoor/outdoor), weather, lighting, etc.
+- Use "unknown" for any ambiguous fields.
 
 ### People Safety Guidelines:
 - If the image contains people, do not identify people.
@@ -42,9 +48,9 @@ You must always classify the "imageKind" and enumerate "visibleElements".
     prompt += `\n### JSON Output Structure
 You MUST output ONLY a valid JSON object.
 Root keys must be:
-- "schemaVersion": "visual-analysis.v0.1.0-draft.1"
+- "schemaVersion": "visual-analysis.v0.2.0-draft.1"
 - "summary": { "caption": "string", "description": "string" }
-- "visualInfo": { "imageKind": "string", "imageKindConfidence": number, "sceneDescription": "string", "visibleElements": [...], "visibleText": [...], "uncertainties": ["string"] }
+- "visualInfo": { "imageKind": "string", "imageKindConfidence": number, "sceneDescription": "string", "sceneContext": { "environment": "string", "lighting": "string" }, "visibleElements": [{ "label": "string", "category": "string", "confidence": number, "stateContext": { "placement": "string", "usage": "string" } }], "visibleText": [...], "uncertainties": ["string"] }
 - "indexing": { "keywords": [{ "value": "string", "confidence": number, "importance": number }] }
 - "quality": { "confidence": number, "issues": ["string"] }
 

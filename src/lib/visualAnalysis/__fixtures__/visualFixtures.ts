@@ -1,7 +1,7 @@
-import { VisualAnalysisResultV1 } from '../types';
+import { VisualAnalysisResultV2 } from '../types';
 
-export const LANDSCAPE_FIXTURE: VisualAnalysisResultV1 = {
-  schemaVersion: "visual-analysis.v0.1.0-draft.1",
+export const LANDSCAPE_FIXTURE: VisualAnalysisResultV2 = {
+  schemaVersion: "visual-analysis.v0.2.0-draft.1",
   summary: {
     caption: "A vast mountain range under a clear blue sky",
     description: "A wide landscape photograph showing snow-capped peaks, a coniferous forest in the foreground, and a small lake reflecting the sky."
@@ -10,10 +10,16 @@ export const LANDSCAPE_FIXTURE: VisualAnalysisResultV1 = {
     imageKind: "landscapePhoto",
     imageKindConfidence: 0.98,
     sceneDescription: "Alpine mountain landscape with high visibility and natural colors.",
+    sceneContext: {
+      environment: "outdoor",
+      weather: "sunny",
+      lighting: "directSunlight",
+      confidence: 0.95
+    },
     visibleElements: [
       { label: "Mountains", category: "terrain", primary: true, confidence: 0.95, attributes: ["snow-capped", "jagged"] },
       { label: "Forest", category: "plant", confidence: 0.9, count: 1, attributes: ["evergreen", "dense"] },
-      { label: "Lake", category: "waterBody", confidence: 0.92, locationHint: "center foreground" },
+      { label: "Lake", category: "waterBody", confidence: 0.92, locationHint: "center foreground", stateContext: { condition: "intact", confidence: 0.9 } },
       { label: "Sky", category: "weatherOrSky", confidence: 0.99, attributes: ["clear", "blue"] }
     ],
     visibleText: [],
@@ -32,8 +38,8 @@ export const LANDSCAPE_FIXTURE: VisualAnalysisResultV1 = {
   }
 };
 
-export const PRODUCT_FIXTURE: VisualAnalysisResultV1 = {
-  schemaVersion: "visual-analysis.v0.1.0-draft.1",
+export const PRODUCT_FIXTURE: VisualAnalysisResultV2 = {
+  schemaVersion: "visual-analysis.v0.2.0-draft.1",
   summary: {
     caption: "Premium smartphone in original packaging",
     description: "A studio photograph of a sleek black smartphone placed next to its minimalist white retail box."
@@ -42,9 +48,27 @@ export const PRODUCT_FIXTURE: VisualAnalysisResultV1 = {
     imageKind: "productPhoto",
     imageKindConfidence: 0.99,
     sceneDescription: "Clean product photography with soft lighting and neutral background.",
+    sceneContext: {
+      environment: "indoor",
+      lighting: "artificialLight",
+      confidence: 0.98
+    },
     visibleElements: [
-      { label: "Smartphone", category: "product", primary: true, confidence: 0.99, attributes: ["black", "glass back"] },
-      { label: "Retail Box", category: "productPackage", confidence: 0.98, attributes: ["white", "minimalist"] },
+      { 
+        label: "Smartphone", 
+        category: "product", 
+        primary: true, 
+        confidence: 0.99, 
+        attributes: ["black", "glass back"],
+        stateContext: { placement: "onSurface", usage: "displayOnly", condition: "intact", confidence: 0.99 }
+      },
+      { 
+        label: "Retail Box", 
+        category: "productPackage", 
+        confidence: 0.98, 
+        attributes: ["white", "minimalist"],
+        stateContext: { placement: "onSurface", usage: "displayOnly", confidence: 0.95 }
+      },
       { label: "Brand Logo", category: "symbol", confidence: 0.85, locationHint: "on the box" }
     ],
     visibleText: [
@@ -64,8 +88,8 @@ export const PRODUCT_FIXTURE: VisualAnalysisResultV1 = {
   }
 };
 
-export const DOCUMENT_FIXTURE: VisualAnalysisResultV1 = {
-  schemaVersion: "visual-analysis.v0.1.0-draft.1",
+export const DOCUMENT_FIXTURE: VisualAnalysisResultV2 = {
+  schemaVersion: "visual-analysis.v0.2.0-draft.1",
   summary: {
     caption: "Official business letter with header and signature",
     description: "A scanned image of a formal document on letterhead paper, containing several paragraphs of text and a handwritten signature at the bottom."
@@ -74,6 +98,10 @@ export const DOCUMENT_FIXTURE: VisualAnalysisResultV1 = {
     imageKind: "documentPhoto",
     imageKindConfidence: 0.97,
     sceneDescription: "Black and white scan of a printed document.",
+    sceneContext: {
+      environment: "indoor",
+      confidence: 0.9
+    },
     visibleElements: [
       { label: "Document Sheet", category: "document", primary: true, confidence: 0.99 },
       { label: "Signature", category: "textRegion", confidence: 0.92, attributes: ["handwritten"] },
@@ -97,8 +125,9 @@ export const DOCUMENT_FIXTURE: VisualAnalysisResultV1 = {
   }
 };
 
-export const SCREENSHOT_FIXTURE: VisualAnalysisResultV1 = {
-  schemaVersion: "visual-analysis.v0.1.0-draft.1",
+export const SCREENSHOT_FIXTURE: VisualAnalysisResultV2 = {
+  schemaVersion: "visual-analysis.v0.2.0-draft.1",
+
   summary: {
     caption: "Mobile application dashboard screenshot",
     description: "A screenshot of a mobile UI showing a task list, navigation bar, and a floating action button."

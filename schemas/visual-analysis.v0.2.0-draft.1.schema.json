@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Visual Analysis Schema v2",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "visual-analysis.v0.2.0-draft.1"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "caption": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      },
+      "required": ["caption", "description"],
+      "additionalProperties": false
+    },
+    "visualInfo": {
+      "type": "object",
+      "properties": {
+        "imageKind": { 
+          "type": "string",
+          "enum": ["landscapePhoto", "naturalPhoto", "productPhoto", "packageImage", "documentPhoto", "receiptPhoto", "screenshot", "diagram", "chartOrTable", "handwrittenNote", "whiteboardPhoto", "mixed", "unknown"]
+        },
+        "imageKindConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sceneDescription": { "type": "string", "minLength": 1 },
+        "sceneContext": {
+          "type": "object",
+          "properties": {
+            "environment": { "type": "string", "enum": ["indoor", "outdoor", "semiOutdoor", "unknown"] },
+            "cover": { "type": "string", "enum": ["covered", "uncovered", "partiallyCovered", "unknown"] },
+            "weather": { "type": "string", "enum": ["sunny", "cloudy", "rainy", "snowy", "foggy", "unknown"] },
+            "lighting": { "type": "string", "enum": ["directSunlight", "shade", "artificialLight", "mixedLight", "lowLight", "unknown"] },
+            "accessibility": { "type": "string", "enum": ["public", "private", "restricted", "commercial", "industrial", "residential", "unknown"] },
+            "roadwayContext": { "type": "string", "enum": ["onRoad", "nearRoad", "offRoad", "insideBuilding", "unknown"] },
+            "placeType": { "type": "string" },
+            "description": { "type": "string" },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "visibleElements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "category": { 
+                "type": "string",
+                "enum": ["person", "animal", "plant", "food", "product", "productPackage", "document", "screen", "uiElement", "building", "vehicle", "furniture", "container", "tool", "clothing", "landscapeElement", "weatherOrSky", "waterBody", "terrain", "roadOrPath", "signage", "textRegion", "chart", "table", "symbol", "unknown"]
+              },
+              "primary": { "type": "boolean" },
+              "count": { "type": "number", "minimum": 0 },
+              "attributes": { "type": "array", "items": { "type": "string" } },
+              "stateContext": {
+                "type": "object",
+                "properties": {
+                  "containment": { "type": "string", "enum": ["contained", "cased", "packaged", "boxed", "bagged", "uncontained", "unknown"] },
+                  "exposure": { "type": "string", "enum": ["exposed", "covered", "protected", "partiallyExposed", "unknown"] },
+                  "placement": { "type": "string", "enum": ["onSurface", "hanging", "stacked", "mounted", "shelved", "stored", "scattered", "discarded", "unknown"] },
+                  "usage": { "type": "string", "enum": ["inUse", "readyToUse", "displayOnly", "storedNotInUse", "abandoned", "partOfActivity", "unknown"] },
+                  "interaction": { "type": "string", "enum": ["heldByPerson", "usedByPerson", "wornByPerson", "unattended", "insideContainer", "onSurface", "nearOtherObjects", "unknown"] },
+                  "condition": { "type": "string", "enum": ["dry", "wet", "clean", "dirty", "damaged", "intact", "open", "closed", "unknown"] },
+                  "role": { "type": "string" },
+                  "description": { "type": "string" },
+                  "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "additionalProperties": false
+              },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "evidence": { "type": "string" },
+              "locationHint": { "type": "string" }
+            },
+            "required": ["label", "category", "confidence"],
+            "additionalProperties": false
+          }
+        },
+        "visibleText": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string", "minLength": 1 },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "locationHint": { "type": "string" },
+              "language": { "type": "string" }
+            },
+            "required": ["text", "confidence"],
+            "additionalProperties": false
+          }
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["imageKind", "imageKindConfidence", "sceneDescription", "visibleElements", "visibleText", "uncertainties"],
+      "additionalProperties": false
+    },
+    "indexing": {
+      "type": "object",
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string", "minLength": 1 },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "importance": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "required": ["value", "confidence", "importance"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["keywords"],
+      "additionalProperties": false
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["confidence", "issues"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["schemaVersion", "summary", "visualInfo", "indexing", "quality"],
+  "additionalProperties": false
+}

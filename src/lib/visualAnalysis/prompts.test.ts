@@ -15,7 +15,7 @@ describe('prompts', () => {
     assert.ok(task.includes("Document Photo"));
 
     const taskJson = buildVisualAnalysisTaskPrompt(true);
-    assert.ok(taskJson.includes("visual-analysis.v0.1.0-draft.1"));
+    assert.ok(taskJson.includes("visual-analysis.v0.2.0-draft.1"));
   });
 
   it('should include people safety instructions', () => {

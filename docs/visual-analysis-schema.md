@@ -2,7 +2,14 @@
 
 ## Overview
 
-The Visual Analysis Schema (`visual-analysis.v0.1.0-draft.1`) is an experimental schema designed for "visual indexing metadata extraction". This is fundamentally different from standard document summarization. The goal is to accurately classify visual data (such as landscapes, products, documents, and screenshots) and extract meaningful elements and readable text for indexing.
+The Visual Analysis Schema (`visual-analysis.v0.2.0-draft.1`) is an experimental schema designed for "visual indexing metadata extraction". This is fundamentally different from standard document summarization. The goal is to accurately classify visual data (such as landscapes, products, documents, and screenshots) and extract meaningful elements and readable text for indexing.
+
+## What's new in v0.2.0-draft.1
+- **sceneContext**: Added to `visualInfo` to capture overall environmental factors (indoor/outdoor, weather, lighting, cover).
+- **stateContext**: Added to each `visibleElement` to capture object condition, containment, usage, placement, and interaction.
+- **Natural Language Descriptions**: Both contexts allow for `description` text to handle nuances that don't fit strict enums.
+
+*Note: Precision bounding boxes, object relationship graphs, complex OCR structural extraction (block/line/word), and detailed receipt/screenshot schemas are reserved for future work.*
 
 ## Why `visibleElements` Instead of `visibleObjects`?
 We specifically use `visibleElements` rather than `visibleObjects`. This distinction is crucial because many images (like landscapes) contain scene components that are not strictly "objects" (e.g., sky, terrain, water bodies, weather phenomena). The term "elements" is more inclusive of both discrete objects and continuous scene components.

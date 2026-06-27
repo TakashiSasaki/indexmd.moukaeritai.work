@@ -1,5 +1,22 @@
-import { VisualAnalysisResultV1, VisibleElement, VisibleText } from './types';
-import { IMAGE_KINDS, VISIBLE_ELEMENT_CATEGORIES, ImageKind, VisibleElementCategory } from './vocabularies';
+import { VisualAnalysisResultV1, VisualAnalysisResultV2, VisibleElement, VisibleText } from './types';
+import { 
+  IMAGE_KINDS, 
+  VISIBLE_ELEMENT_CATEGORIES, 
+  SCENE_CONTEXT_ENVIRONMENTS,
+  SCENE_CONTEXT_COVERS,
+  SCENE_CONTEXT_WEATHERS,
+  SCENE_CONTEXT_LIGHTINGS,
+  SCENE_CONTEXT_ACCESSIBILITIES,
+  SCENE_CONTEXT_ROADWAYS,
+  STATE_CONTEXT_CONTAINMENTS,
+  STATE_CONTEXT_EXPOSURES,
+  STATE_CONTEXT_PLACEMENTS,
+  STATE_CONTEXT_USAGES,
+  STATE_CONTEXT_INTERACTIONS,
+  STATE_CONTEXT_CONDITIONS,
+  ImageKind, 
+  VisibleElementCategory 
+} from './vocabularies';
 
 function clamp(val: any, min: number = 0, max: number = 1): number {
   if (typeof val !== 'number' || isNaN(val)) return min;
@@ -17,7 +34,7 @@ export function normalizeVisualAnalysis(result: any): any {
   const normalized = { ...result };
 
   // Set default schemaVersion if missing or invalid to ensure robustness
-  normalized.schemaVersion = result.schemaVersion || "visual-analysis.v0.1.0-draft.1";
+  normalized.schemaVersion = result.schemaVersion || "visual-analysis.v0.2.0-draft.1";
 
   // Summary
   if (!normalized.summary || typeof normalized.summary !== 'object') {
@@ -46,17 +63,63 @@ export function normalizeVisualAnalysis(result: any): any {
     vi.imageKindConfidence = clamp(vi.imageKindConfidence);
     vi.sceneDescription = trimStr(vi.sceneDescription);
 
+    if (vi.sceneContext && typeof vi.sceneContext === 'object') {
+      const sc = vi.sceneContext;
+      const normalizedSc = {
+        environment: sc.environment ? (SCENE_CONTEXT_ENVIRONMENTS.includes(sc.environment) ? sc.environment : "unknown") : undefined,
+        cover: sc.cover ? (SCENE_CONTEXT_COVERS.includes(sc.cover) ? sc.cover : "unknown") : undefined,
+        weather: sc.weather ? (SCENE_CONTEXT_WEATHERS.includes(sc.weather) ? sc.weather : "unknown") : undefined,
+        lighting: sc.lighting ? (SCENE_CONTEXT_LIGHTINGS.includes(sc.lighting) ? sc.lighting : "unknown") : undefined,
+        accessibility: sc.accessibility ? (SCENE_CONTEXT_ACCESSIBILITIES.includes(sc.accessibility) ? sc.accessibility : "unknown") : undefined,
+        roadwayContext: sc.roadwayContext ? (SCENE_CONTEXT_ROADWAYS.includes(sc.roadwayContext) ? sc.roadwayContext : "unknown") : undefined,
+        placeType: sc.placeType ? trimStr(sc.placeType) || undefined : undefined,
+        description: sc.description ? trimStr(sc.description) || undefined : undefined,
+        confidence: typeof sc.confidence === 'number' ? clamp(sc.confidence) : undefined
+      };
+      
+      if (Object.values(normalizedSc).every(v => v === undefined)) {
+        delete vi.sceneContext;
+      } else {
+        vi.sceneContext = normalizedSc;
+      }
+    } else {
+      delete vi.sceneContext;
+    }
+
     if (Array.isArray(vi.visibleElements)) {
       vi.visibleElements = vi.visibleElements.map((el: any) => {
         if (!el || typeof el !== 'object') return null;
         const cat = el.category;
         const validCat = VISIBLE_ELEMENT_CATEGORIES.includes(cat) ? cat : "unknown";
+        
+        let stateContext = undefined;
+        if (el.stateContext && typeof el.stateContext === 'object') {
+          const st = el.stateContext;
+          stateContext = {
+            containment: st.containment ? (STATE_CONTEXT_CONTAINMENTS.includes(st.containment) ? st.containment : "unknown") : undefined,
+            exposure: st.exposure ? (STATE_CONTEXT_EXPOSURES.includes(st.exposure) ? st.exposure : "unknown") : undefined,
+            placement: st.placement ? (STATE_CONTEXT_PLACEMENTS.includes(st.placement) ? st.placement : "unknown") : undefined,
+            usage: st.usage ? (STATE_CONTEXT_USAGES.includes(st.usage) ? st.usage : "unknown") : undefined,
+            interaction: st.interaction ? (STATE_CONTEXT_INTERACTIONS.includes(st.interaction) ? st.interaction : "unknown") : undefined,
+            condition: st.condition ? (STATE_CONTEXT_CONDITIONS.includes(st.condition) ? st.condition : "unknown") : undefined,
+            role: st.role ? trimStr(st.role) || undefined : undefined,
+            description: st.description ? trimStr(st.description) || undefined : undefined,
+            confidence: typeof st.confidence === 'number' ? clamp(st.confidence) : undefined
+          };
+          
+          // Remove if completely empty
+          if (Object.values(stateContext).every(v => v === undefined)) {
+            stateContext = undefined;
+          }
+        }
+
         return {
           label: trimStr(el.label),
           category: validCat,
           primary: !!el.primary,
           count: typeof el.count === 'number' ? Math.max(0, el.count) : undefined,
           attributes: Array.isArray(el.attributes) ? el.attributes.map(trimStr).filter(s => s.length > 0) : [],
+          stateContext,
           confidence: clamp(el.confidence),
           evidence: trimStr(el.evidence) || undefined,
           locationHint: trimStr(el.locationHint) || undefined

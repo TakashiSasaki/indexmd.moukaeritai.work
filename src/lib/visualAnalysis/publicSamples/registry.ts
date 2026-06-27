@@ -162,26 +162,6 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     }
   },
   {
-    id: "sample-chart-1",
-    title: "Line Chart",
-    category: "chartOrTable",
-    expectedImageKind: "chartOrTable",
-    expectedElementCategories: ["chart", "textRegion", "uiElement"],
-    expectedVisibleElementLabels: ["chart", "axis", "line", "labels", "legend"],
-    source: {
-      provider: "Wikimedia Commons",
-      pageUrl: "https://commons.wikimedia.org/wiki/File:Line_graph.png",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a2/Line_graph.png",
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a2/Line_graph.png",
-      licenseKind: "publicDomain",
-      licenseName: "Public Domain",
-      licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
-      author: "Unknown",
-      requiresAttribution: false,
-      attributionText: "Unknown, Public domain, via Wikimedia Commons"
-    }
-  },
-  {
     id: "sample-document-1",
     title: "Old manuscript",
     category: "documentLike",

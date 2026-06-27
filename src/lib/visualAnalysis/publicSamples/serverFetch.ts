@@ -181,6 +181,11 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
       }
 
       if (!res.ok) {
+        if (res.status === 404 || res.status === 403 || res.status === 401) {
+          const err: any = new Error(`Fetch failed with status: ${res.status}`);
+          err.noRetry = true;
+          throw err;
+        }
         throw new Error(`Fetch failed with status: ${res.status}`);
       }
 
@@ -210,7 +215,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
       if (err.name === 'AbortError') {
         console.warn(`[serverFetch] Request timed out for ${url}.`);
       }
-      if (i === retries - 1) {
+      if (i === retries - 1 || err.noRetry) {
         throw err;
       }
       console.warn(`[serverFetch] Network/Fetch error for ${url}. Retrying in ${delayMs}ms...`, err.message);
