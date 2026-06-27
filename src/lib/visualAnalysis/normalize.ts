@@ -77,7 +77,11 @@ export function normalizeVisualAnalysis(result: any): any {
         confidence: typeof sc.confidence === 'number' ? clamp(sc.confidence) : undefined
       };
       
-      if (Object.values(normalizedSc).every(v => v === undefined)) {
+      const hasUsefulEnum = ['environment', 'cover', 'weather', 'lighting', 'accessibility', 'roadwayContext']
+        .some(k => (normalizedSc as any)[k] !== undefined && (normalizedSc as any)[k] !== 'unknown');
+      const hasText = !!normalizedSc.placeType || !!normalizedSc.description;
+      
+      if (!hasUsefulEnum && !hasText) {
         delete vi.sceneContext;
       } else {
         vi.sceneContext = normalizedSc;
@@ -107,23 +111,32 @@ export function normalizeVisualAnalysis(result: any): any {
             confidence: typeof st.confidence === 'number' ? clamp(st.confidence) : undefined
           };
           
-          // Remove if completely empty
-          if (Object.values(stateContext).every(v => v === undefined)) {
+          const hasUsefulEnum = ['containment', 'exposure', 'placement', 'usage', 'interaction', 'condition']
+            .some(k => (stateContext as any)[k] !== undefined && (stateContext as any)[k] !== 'unknown');
+          const hasText = !!stateContext.role || !!stateContext.description;
+          
+          // Remove if completely empty or unknown-only
+          if (!hasUsefulEnum && !hasText) {
             stateContext = undefined;
           }
         }
 
-        return {
+        const normalizedEl: any = {
           label: trimStr(el.label),
           category: validCat,
-          primary: !!el.primary,
           count: typeof el.count === 'number' ? Math.max(0, el.count) : undefined,
-          attributes: Array.isArray(el.attributes) ? el.attributes.map(trimStr).filter(s => s.length > 0) : [],
+          attributes: Array.isArray(el.attributes) ? el.attributes.map(trimStr).filter((s: string) => s.length > 0) : [],
           stateContext,
           confidence: clamp(el.confidence),
           evidence: trimStr(el.evidence) || undefined,
           locationHint: trimStr(el.locationHint) || undefined
         };
+        
+        if (el.primary !== undefined) {
+          normalizedEl.primary = !!el.primary;
+        }
+        
+        return normalizedEl;
       }).filter((el: any) => el !== null && el.label.length > 0);
     } else {
       vi.visibleElements = [];

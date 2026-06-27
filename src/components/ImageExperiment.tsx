@@ -837,6 +837,21 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         <span className="text-slate-500 block mb-1 text-[11px]">Scene Description:</span>
                         <p className="text-slate-700 text-xs leading-relaxed">{result.visualAnalysis.visualInfo?.sceneDescription}</p>
                       </div>
+                      {result.visualAnalysis.visualInfo?.sceneContext && (
+                        <div className="pt-2 border-t border-slate-100">
+                          <span className="text-slate-500 block mb-1.5 text-[11px]">Scene Context:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {['environment', 'cover', 'weather', 'lighting', 'accessibility', 'roadwayContext', 'placeType'].map(k => {
+                              const val = result.visualAnalysis.visualInfo.sceneContext[k];
+                              if (!val || val === 'unknown') return null;
+                              return <span key={k} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[9px] font-mono whitespace-nowrap">{val}</span>;
+                            })}
+                          </div>
+                          {result.visualAnalysis.visualInfo.sceneContext.description && (
+                            <p className="text-slate-500 text-[10px] mt-1.5 italic">{result.visualAnalysis.visualInfo.sceneContext.description}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -905,8 +920,20 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                         ))}
                                       </div>
                                     )}
-                                    {el.evidence && <span className="text-[10px] text-slate-500 italic">Evidence: {el.evidence}</span>}
-                                    {!el.attributes?.length && !el.evidence && <span className="text-slate-300">-</span>}
+                                    {el.stateContext && (
+                                      <div className="flex flex-wrap gap-1 mt-0.5">
+                                        {['containment', 'exposure', 'placement', 'usage', 'interaction', 'condition', 'role'].map(k => {
+                                          const val = el.stateContext[k];
+                                          if (!val || val === 'unknown') return null;
+                                          return <span key={k} className="px-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-[2px] text-[9px]">{val}</span>;
+                                        })}
+                                      </div>
+                                    )}
+                                    {el.stateContext?.description && (
+                                      <span className="text-[9px] text-slate-400 italic block mt-0.5">{el.stateContext.description}</span>
+                                    )}
+                                    {el.evidence && <span className="text-[10px] text-slate-500 italic block mt-0.5">Evidence: {el.evidence}</span>}
+                                    {!el.attributes?.length && !el.stateContext && !el.evidence && <span className="text-slate-300">-</span>}
                                   </div>
                                 </td>
                                 <td className="px-3 py-2 text-right">

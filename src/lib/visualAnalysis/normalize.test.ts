@@ -46,4 +46,64 @@ describe('normalizeVisualAnalysis', () => {
     const norm = normalizeVisualAnalysis(raw);
     assert.strictEqual(norm.visualInfo.visibleElements[0].category, "unknown");
   });
+
+  it('should remove unknown-only sceneContext', () => {
+    const raw = {
+      visualInfo: {
+        sceneContext: {
+          environment: "unknown",
+          lighting: "unknown",
+          confidence: 0.9
+        }
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual(norm.visualInfo.sceneContext, undefined);
+  });
+
+  it('should keep sceneContext if it has description', () => {
+    const raw = {
+      visualInfo: {
+        sceneContext: {
+          environment: "unknown",
+          description: "Dark alleyway"
+        }
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual(norm.visualInfo.sceneContext?.description, "Dark alleyway");
+  });
+
+  it('should remove unknown-only stateContext and preserve missing primary flag', () => {
+    const raw = {
+      visualInfo: {
+        visibleElements: [
+          { 
+            label: "Box", 
+            category: "container",
+            confidence: 0.9,
+            stateContext: {
+              containment: "unknown",
+              placement: "unknown"
+            }
+          }
+        ]
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual(norm.visualInfo.visibleElements[0].stateContext, undefined);
+    assert.strictEqual('primary' in norm.visualInfo.visibleElements[0], false);
+  });
+
+  it('should preserve true primary flag', () => {
+    const raw = {
+      visualInfo: {
+        visibleElements: [
+          { label: "Box", category: "container", confidence: 0.9, primary: true }
+        ]
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual(norm.visualInfo.visibleElements[0].primary, true);
+  });
 });

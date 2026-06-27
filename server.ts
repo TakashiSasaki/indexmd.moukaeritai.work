@@ -37,7 +37,7 @@ import { buildVisualAnalysisSystemInstruction, buildVisualAnalysisTaskPrompt } f
 import { normalizeVisualAnalysis } from "./src/lib/visualAnalysis/normalize";
 import { validateVisualAnalysis } from "./src/lib/visualAnalysis/validate";
 import { evaluateVisualAnalysisQuality } from "./src/lib/visualAnalysis/qualityGate";
-import VISUAL_ANALYSIS_SCHEMA from "./schemas/visual-analysis.v0.1.0-draft.1.schema.json" assert { type: "json" };
+import VISUAL_ANALYSIS_SCHEMA from "./schemas/visual-analysis.v0.2.0-draft.1.schema.json" assert { type: "json" };
 
 import { generateContentWithRetry } from "./src/lib/gemini";
 

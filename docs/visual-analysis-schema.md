@@ -8,6 +8,7 @@ The Visual Analysis Schema (`visual-analysis.v0.2.0-draft.1`) is an experimental
 - **sceneContext**: Added to `visualInfo` to capture overall environmental factors (indoor/outdoor, weather, lighting, cover).
 - **stateContext**: Added to each `visibleElement` to capture object condition, containment, usage, placement, and interaction.
 - **Natural Language Descriptions**: Both contexts allow for `description` text to handle nuances that don't fit strict enums.
+- **Context Normalization**: If `sceneContext` or `stateContext` only contains "unknown" enums and lacks descriptive text, the normalizer will automatically remove the context to reduce noise.
 
 *Note: Precision bounding boxes, object relationship graphs, complex OCR structural extraction (block/line/word), and detailed receipt/screenshot schemas are reserved for future work.*
 

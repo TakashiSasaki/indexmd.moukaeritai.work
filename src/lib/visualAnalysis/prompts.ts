@@ -26,12 +26,14 @@ You must always classify the "imageKind" and enumerate "visibleElements".
 ### Visible Elements & State Context:
 - Use "visibleElements" for objects AND scene components (like sky, terrain).
 - Provide a clear label, category, and confidence.
-- Use "stateContext" within visible elements to describe how objects are situated (e.g., containment, placement, usage, interaction, condition). Use "unknown" if unsure.
+- Use "stateContext" within visible elements to describe how objects are situated (e.g., containment, placement, usage, interaction, condition).
+- ONLY include "stateContext" if you can determine at least one useful attribute or description. Do not include an empty stateContext full of "unknown".
+- Use "unknown" for individual fields only when other fields in the context are useful.
 
 ### Scene Context (Optional):
-- If the image provides enough context, populate "sceneContext" within "visualInfo".
-- Describe the overall environment (indoor/outdoor), weather, lighting, etc.
-- Use "unknown" for any ambiguous fields.
+- ONLY populate "sceneContext" if the image provides enough context to determine environmental factors (indoor/outdoor, weather, lighting, etc.).
+- Do not guess the scene for close-up document scans, screenshots, or isolated product images with no background.
+- Do not output a sceneContext filled only with "unknown".
 
 ### People Safety Guidelines:
 - If the image contains people, do not identify people.
