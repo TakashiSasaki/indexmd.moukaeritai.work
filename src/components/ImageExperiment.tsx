@@ -2,6 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
+import { 
+  compareExpectedImageKind, 
+  compareExpectedCategories, 
+  compareExpectedLabels, 
+  compareExpectedVisibleText 
+} from '../lib/visualAnalysis/publicSamples/compare';
 
 export interface ImageDebugLog {
   id: string;
@@ -718,7 +724,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
                   <Activity className="w-4 h-4 text-indigo-600" /> Expected vs Detected Schema Comparison
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                   {/* Image Kind Comparison */}
                   <div className="bg-white p-3 rounded-lg border border-indigo-100/80 space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Image Kind</span>
@@ -729,19 +735,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">Detected:</span>
-                        <span className={`font-mono font-semibold ${result.expectedMetadata.imageKind === result.visualAnalysis.visualInfo?.imageKind ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <span className={`font-mono font-semibold ${compareExpectedImageKind(result.expectedMetadata, result.visualAnalysis.visualInfo?.imageKind).status === 'exact' ? 'text-emerald-600' : (compareExpectedImageKind(result.expectedMetadata, result.visualAnalysis.visualInfo?.imageKind).status === 'acceptable' ? 'text-indigo-600' : 'text-amber-600')}`}>
                           {result.visualAnalysis.visualInfo?.imageKind || 'none'}
                         </span>
                       </div>
-                      {result.expectedMetadata.imageKind === result.visualAnalysis.visualInfo?.imageKind ? (
-                        <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
-                          <CheckCircle className="w-3 h-3" /> Exact Match
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1 mt-1">
-                          <AlertCircle className="w-3 h-3" /> Diverged
-                        </span>
-                      )}
+                      {(() => {
+                        const status = compareExpectedImageKind(result.expectedMetadata, result.visualAnalysis.visualInfo?.imageKind).status;
+                        if (status === 'exact') return <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Exact Match</span>;
+                        if (status === 'acceptable') return <span className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Acceptable Match</span>;
+                        return <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1 mt-1"><AlertCircle className="w-3 h-3" /> Diverged</span>;
+                      })()}
                     </div>
                   </div>
 
@@ -750,16 +753,20 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Categories Coverage</span>
                     <div className="space-y-1.5 mt-1">
                       <div className="flex flex-wrap gap-1">
-                        <span className="text-slate-400 block text-[10px] w-full">Expected Categories:</span>
-                        {result.expectedMetadata.elementCategories?.map((cat: string) => {
-                          const detected = (result.visualAnalysis.visualInfo?.visibleElements || [])
-                            .some((el: any) => el.category === cat);
+                        {(() => {
+                          const detected = (result.visualAnalysis.visualInfo?.visibleElements || []).map((el: any) => el.category);
+                          const comp = compareExpectedCategories(result.expectedMetadata, detected);
                           return (
-                            <span key={cat} className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${detected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-50 text-slate-400 border border-slate-200'}`}>
-                              {cat} {detected && "✓"}
-                            </span>
+                            <>
+                              <span className="text-slate-400 block text-[10px] w-full mb-1">Status:</span>
+                              {comp.exact.map(c => <span key={`ex-${c}`} className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200" title="Exact match">{c} ✓</span>)}
+                              {comp.acceptable.map(c => <span key={`ac-${c}`} className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-200" title="Acceptable alternative">{c} ~</span>)}
+                              {comp.missing.map(c => <span key={`mi-${c}`} className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-rose-50 text-rose-700 border border-rose-200" title="Missing expected category">{c} ✕</span>)}
+                              {comp.extra.length > 0 && <span className="text-slate-400 block text-[10px] w-full mt-1 mb-1 border-t border-slate-100 pt-1">Additional Detected:</span>}
+                              {comp.extra.map((c, i) => <span key={`xt-${i}`} className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-50 text-slate-500 border border-slate-200">{c}</span>)}
+                            </>
                           );
-                        })}
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -769,20 +776,49 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Key Labels Match</span>
                     <div className="space-y-1.5 mt-1">
                       <div className="flex flex-wrap gap-1">
-                        <span className="text-slate-400 block text-[10px] w-full">Expected Labels:</span>
-                        {result.expectedMetadata.visibleElementLabels?.map((lbl: string) => {
-                          const detected = (result.visualAnalysis.visualInfo?.visibleElements || [])
-                            .some((el: any) => el.label?.toLowerCase() === lbl.toLowerCase());
+                        {(() => {
+                          const detected = (result.visualAnalysis.visualInfo?.visibleElements || []).map((el: any) => el.label).filter(Boolean);
+                          const comp = compareExpectedLabels(result.expectedMetadata, detected);
+                          if (!result.expectedMetadata.visibleElementLabels?.length) return <span className="text-slate-400 italic text-[10px]">No expected labels</span>;
                           return (
-                            <span key={lbl} className={`px-1.5 py-0.5 rounded text-[9px] ${detected ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-slate-50 text-slate-400 border border-slate-200'}`}>
-                              {lbl} {detected && "✓"}
-                            </span>
+                            <>
+                              {comp.exact.map(l => <span key={`ex-${l}`} className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200" title="Exact match">{l} ✓</span>)}
+                              {comp.acceptable.map(l => <span key={`ac-${l}`} className="px-1.5 py-0.5 rounded text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200" title="Acceptable alias match">{l} ~</span>)}
+                              {comp.missing.map(l => <span key={`mi-${l}`} className="px-1.5 py-0.5 rounded text-[9px] bg-rose-50 text-rose-700 border border-rose-200" title="Missing expected label">{l} ✕</span>)}
+                            </>
                           );
-                        }) || <span className="text-slate-400 italic">No labels checklist</span>}
+                        })()}
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Expected Visible Text */}
+                  {result.expectedMetadata.visibleText && result.expectedMetadata.visibleText.length > 0 && (
+                    <div className="bg-white p-3 rounded-lg border border-indigo-100/80 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Visible Text Match</span>
+                      <div className="space-y-1.5 mt-1">
+                        <div className="flex flex-wrap gap-1">
+                          {(() => {
+                            const detected = (result.visualAnalysis.visualInfo?.visibleText || []).map((t: any) => t.text);
+                            const comp = compareExpectedVisibleText(result.expectedMetadata, detected);
+                            return (
+                              <>
+                                {comp.matched.map(t => <span key={`ex-${t}`} className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono" title="Matched text">"{t}" ✓</span>)}
+                                {comp.missing.map(t => <span key={`mi-${t}`} className="px-1.5 py-0.5 rounded text-[9px] bg-rose-50 text-rose-700 border border-rose-200 font-mono" title="Missing expected text">"{t}" ✕</span>)}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
+                {result.expectedMetadata.notes && (
+                  <div className="text-[10px] text-indigo-700/80 mt-2 bg-indigo-50/50 p-2 rounded flex gap-1.5 items-start">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{result.expectedMetadata.notes}</span>
+                  </div>
+                )}
               </div>
             )}
 

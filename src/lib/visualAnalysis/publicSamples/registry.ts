@@ -123,11 +123,18 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
   },
   {
     id: "sample-stationery-1",
-    title: "Pencils and Notebook",
+    title: "HB Pencil Close-up",
     category: "stationery",
     expectedImageKind: "productPhoto",
-    expectedElementCategories: ["tool", "document"],
-    expectedVisibleElementLabels: ["pencil", "notebook", "paper", "desk"],
+    expectedElementCategories: ["product", "tool"],
+    expectedVisibleElementLabels: ["pencil", "graphite tip", "ferrule", "eraser"],
+    expectedVisibleElementLabelAliases: {
+      "pencil": ["HB pencil", "blue pencil", "pen"],
+      "graphite tip": ["lead", "tip"],
+      "ferrule": ["metal ring", "metal band"]
+    },
+    expectedVisibleText: ["HB"],
+    expectedNotes: "The source filename is Pencils_hb.jpg, but this sample acts as a close-up pencil image for evaluating product detail extraction.",
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Pencils_hb.jpg",
@@ -167,6 +174,9 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     category: "documentLike",
     expectedImageKind: "documentPhoto",
     expectedElementCategories: ["document", "textRegion"],
+    expectedElementCategoryAlternatives: {
+      "document": ["handwrittenNote"]
+    },
     expectedVisibleElementLabels: ["paper", "text", "ink", "page"],
     source: {
       provider: "Wikimedia Commons",
@@ -208,6 +218,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "receiptPhoto",
     expectedElementCategories: ["document", "textRegion"],
     expectedVisibleElementLabels: ["receipt", "text", "prices", "items", "total"],
+    expectedVisibleText: ["TOTAL", "$"],
     source: {
       provider: "localFixture",
       imageUrl: "/visual-samples/synthetic-receipt.png",
@@ -226,6 +237,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "documentPhoto",
     expectedElementCategories: ["document", "textRegion"],
     expectedVisibleElementLabels: ["ticket", "text", "gate", "seat", "event"],
+    expectedVisibleText: ["ADMIT ONE", "TICKET"],
     source: {
       provider: "localFixture",
       imageUrl: "/visual-samples/synthetic-ticket.png",

@@ -76,5 +76,11 @@ To maintain tracking of how visual analyses are generated, the response includes
 - `analysisRun` is treated as a top-level property of the API response, independent from the core `visualAnalysis` object.
 - Legacy top-level response properties (e.g., `usedModelName`, `providerFamily`) are retained for backwards compatibility, but `analysisRun` is the canonical source of provenance data.
 
-## Testing with Public Samples
+## Testing with Public Samples (Matrix Calibration)
 The schema is validated against a curated **Public Visual Sample Matrix**. This covers landscapes, people, objects, and synthetic documents to ensure the model responds with well-formed `visibleElements` and `visibleText` arrays across diverse input types.
+
+**Public Sample Matrix Calibration:**
+- Expected metadata for public samples is used for regression evaluation, not strict schema validation.
+- `expectedVisibleText` focuses on short, important text visible in the image to verify OCR extraction.
+- We support `expectedElementCategoryAlternatives` and `expectedVisibleElementLabelAliases` to handle vocabulary coarseness and model expression variations.
+- Expected comparison results (Exact, Acceptable, Diverged) act as a secondary quality check separated from the core `qualityGate`.

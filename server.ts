@@ -1596,7 +1596,11 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         expectedMetadata: {
           imageKind: sample.expectedImageKind,
           elementCategories: sample.expectedElementCategories,
-          visibleElementLabels: sample.expectedVisibleElementLabels
+          elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
+          visibleElementLabels: sample.expectedVisibleElementLabels,
+          visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
+          visibleText: sample.expectedVisibleText,
+          notes: sample.expectedNotes
         },
         visualAnalysis: parsed,
         analysisRun: runMetadata,
@@ -1661,7 +1665,11 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       expectedMetadata: {
         imageKind: sample.expectedImageKind,
         elementCategories: sample.expectedElementCategories,
-        visibleElementLabels: sample.expectedVisibleElementLabels
+        elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
+        visibleElementLabels: sample.expectedVisibleElementLabels,
+        visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
+        visibleText: sample.expectedVisibleText,
+        notes: sample.expectedNotes
       },
       visualAnalysis: normalized,
       analysisRun: runMetadata,

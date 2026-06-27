@@ -44,7 +44,11 @@ export interface PublicVisualSample {
   category: PublicVisualSampleCategory;
   expectedImageKind: ImageKind;
   expectedElementCategories: VisibleElementCategory[];
+  expectedElementCategoryAlternatives?: Record<string, VisibleElementCategory[]>;
   expectedVisibleElementLabels?: string[];
+  expectedVisibleElementLabelAliases?: Record<string, string[]>;
+  expectedVisibleText?: string[];
+  expectedNotes?: string;
   source: PublicVisualSampleSource;
   notes?: string;
 }
