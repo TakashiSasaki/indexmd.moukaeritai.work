@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight } from 'lucide-react';
+import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
 
@@ -120,6 +120,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   });
   const [copied, setCopied] = useState<string | null>(null);
   const [includePreview, setIncludePreview] = useState(false);
+  const [customInstruction, setCustomInstruction] = useState<string>("");
+  const [showPreviewHelp, setShowPreviewHelp] = useState(false);
 
   // Debug logs history state
   const [debugLogs, setDebugLogs] = useState<ImageDebugLog[]>([]);
@@ -266,7 +268,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       fileId: fileId.trim(),
       modelName,
       includeRequestPreview: includePreview,
-      jsonMode: config.json_mode
+      jsonMode: config.json_mode,
+      customInstruction: customInstruction.trim()
     };
 
     try {
@@ -312,7 +315,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       sampleId: selectedSampleId,
       modelName,
       includeRequestPreview: includePreview,
-      jsonMode: config.json_mode
+      jsonMode: config.json_mode,
+      customInstruction: customInstruction.trim()
     };
 
     try {
@@ -443,6 +447,21 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </div>
               )}
 
+              <div className="mt-4">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  カスタム指示・カスタムJSONスキーマ (任意)
+                </label>
+                <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
+                  追加の指示や質問を送信できます。対応モデル(Gemini 3.5 Flash等)では、指示内にJSONスキーマオブジェクト(例: <code>{"{ \"type\": \"object\", \"properties\": ... }"}</code>)を含めることで、ネイティブの構造化レスポンススキーマとして自動認識され、その形状のJSONが出力されます。
+                </p>
+                <textarea
+                  value={customInstruction}
+                  onChange={(e) => setCustomInstruction(e.target.value)}
+                  className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-md text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors resize-y placeholder-slate-400"
+                  placeholder='プロンプトやJSONスキーマを入力してください (例: { "type": "object", "properties": { "caption": { "type": "string" } } })'
+                />
+              </div>
+
               <div className="flex flex-col md:flex-row gap-4 items-end pt-2">
                 <div className="flex flex-col gap-1 w-full md:w-auto flex-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">AI Model</label>
@@ -470,7 +489,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 h-[38px] justify-center px-2">
+                <div className="flex items-center gap-1.5 h-[38px] px-2 relative">
                   <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
                     <input 
                       type="checkbox" 
@@ -482,6 +501,40 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       リクエストプレビュー
                     </span>
                   </label>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowPreviewHelp(!showPreviewHelp);
+                    }}
+                    className="text-slate-400 hover:text-slate-600 focus:outline-none p-0.5 rounded-full hover:bg-slate-100 transition-colors flex items-center justify-center"
+                    title="ヘルプを表示"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
+
+                  {showPreviewHelp && (
+                    <div className="absolute top-full right-0 mt-1.5 w-64 bg-slate-800 text-white text-[11px] p-3 rounded-lg shadow-xl z-[99] leading-relaxed border border-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <div className="flex justify-between items-start mb-1 font-bold text-slate-200">
+                        <span>リクエストプレビューとは</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowPreviewHelp(false);
+                          }}
+                          className="text-[10px] text-slate-400 hover:text-white font-semibold underline"
+                        >
+                          閉じる
+                        </button>
+                      </div>
+                      <p className="text-slate-300">
+                        有効にすると、モデルに送信されたシステム指示（System Instruction）やタスクプロンプトなどのAPIリクエスト詳細を、解析結果と一緒に取得し、デバッグプレビュー（Debug: Request Preview）で確認できるようになります。
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
@@ -711,7 +764,45 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             )}
 
             {result.visualAnalysis && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              result.schemaVersion === "custom" ? (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <div className="lg:col-span-4 space-y-6">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Image Preview</h4>
+                      {isDriveResult && <ImagePreview fileId={result.metadata?.id} token={token} />}
+                      {isPublicResult && <PublicSamplePreview sampleId={result.sampleMetadata?.id} />}
+                    </div>
+                  </div>
+                  <div className="lg:col-span-8 space-y-6">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                        <CheckCircle className="w-4 h-4" /> Custom Response Schema Recognized
+                      </div>
+                      <p className="text-[11px] text-emerald-700 mt-1 leading-relaxed">
+                        モデルはユーザーのカスタムJSONスキーマ指示を認識し、そのフォーマットに沿ったデータを生成しました。バリデーションチェックをパスしました。
+                      </p>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">Custom Structured JSON Output</span>
+                        <button
+                          onClick={() => handleCopy(JSON.stringify(result.visualAnalysis, null, 2), 'custom-json')}
+                          className="text-slate-400 hover:text-indigo-600 transition-colors"
+                        >
+                          {copied === 'custom-json' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      <div className="p-4 bg-slate-950">
+                        <pre className="text-xs text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                          {JSON.stringify(result.visualAnalysis, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div className="lg:col-span-4 space-y-6">
                   <div>
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Image Preview</h4>
@@ -881,7 +972,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </div>
                 </div>
               </div>
-            )}
+            )
+          )}
 
             {result.requestPreview && (
               <details className="bg-slate-100 rounded-lg border border-slate-200 overflow-hidden group">

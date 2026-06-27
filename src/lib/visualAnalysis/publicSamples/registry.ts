@@ -170,9 +170,9 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedVisibleElementLabels: ["chart", "axis", "line", "labels", "legend"],
     source: {
       provider: "Wikimedia Commons",
-      pageUrl: "https://commons.wikimedia.org/wiki/File:Simple_line_graph.png",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/3/3b/Simple_line_graph.png",
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/3/3b/Simple_line_graph.png",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Line_graph.png",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a2/Line_graph.png",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a2/Line_graph.png",
       licenseKind: "publicDomain",
       licenseName: "Public Domain",
       licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",

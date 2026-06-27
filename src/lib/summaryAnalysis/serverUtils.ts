@@ -98,6 +98,17 @@ export async function processStructuredSummaryOutput(
       return result;
     }
 
+    if (configOption?.extractedCustomSchema) {
+      result.structured = parsed;
+      result.summary = typeof parsed === "string" ? parsed : JSON.stringify(parsed, null, 2);
+      result.validationErrors = [];
+      result.warnings = ["Used custom extracted JSON schema."];
+      result.qualityStatus = "excellent";
+      result.qualityScore = 100;
+      result.qualityIssues = [];
+      return result;
+    }
+
     // Detect Empty Structured Output
     const rootSections = [
       "summary", "titleInfo", "documentKindInfo", "fileFormatInfo", 

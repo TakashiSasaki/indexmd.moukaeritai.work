@@ -778,6 +778,22 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
   const [loadingExperimentHistory, setLoadingExperimentHistory] =
     useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
+  const [jsonMode, setJsonMode] = useState<"prompt_only" | "native_schema">(() => {
+    try {
+      return (localStorage.getItem("summary_debugger_json_mode") as any) || config.json_mode || "prompt_only";
+    } catch (e) {
+      return config.json_mode || "prompt_only";
+    }
+  });
+
+  const handleJsonModeChange = (mode: "prompt_only" | "native_schema") => {
+    setJsonMode(mode);
+    try {
+      localStorage.setItem("summary_debugger_json_mode", mode);
+    } catch (e) {
+      // Silent
+    }
+  };
   const [firestorePersisted, setFirestorePersisted] = useState<
     "persisted" | "not_persisted" | "checking" | "failed"
   >("checking");
@@ -1043,6 +1059,35 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
       if (res.ok) {
         const data = await res.json();
         setExperimentHistory(data);
+        if (data && data.length > 0) {
+          setResult((currentResult) => {
+            if (currentResult) return currentResult;
+            const item = data[0];
+            setUsedModel(item.model);
+            setError(item.error || null);
+            if (item.fileMetadata?.id) {
+              setFileId(item.fileMetadata.id);
+            }
+            return {
+              success: !item.error,
+              outputMode: item.outputMode,
+              metadata: item.fileMetadata,
+              structured: item.structuredResult,
+              summary:
+                item.outputMode !== "structured"
+                  ? item.rawOutput ||
+                    item.summary ||
+                    "No summary (raw output not persisted)"
+                  : item.structuredResult?.summary?.oneLine ||
+                    "No summary",
+              rawText: item.rawOutput,
+              schemaVersion: item.schemaVersion,
+              error: item.error,
+              validationErrors: item.validationErrors,
+              structuredParseFailed: !item.parseSuccess,
+            };
+          });
+        }
       }
     } catch (e) {
       console.error("Failed to fetch experiment history", e);
@@ -1216,7 +1261,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             customInstruction: customPrompt,
             outputMode: targetMode,
             includeRequestPreview: true,
-            jsonMode: config.json_mode
+            jsonMode: jsonMode
           }),
         });
       } else {
@@ -1233,7 +1278,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             outputMode: targetMode,
             inputLabel: manualInputLabel,
             includeRequestPreview: true,
-            jsonMode: config.json_mode
+            jsonMode: jsonMode
           }),
         });
       }
@@ -2087,6 +2132,57 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
           className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-md text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors resize-y"
           placeholder="プロンプトを入力してください"
         />
+      </div>
+
+      <div className="mt-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <Braces className="w-4 h-4 text-indigo-600" />
+              <label className="text-sm font-bold text-slate-800">
+                JSON出力モード (構造化分析時)
+              </label>
+            </div>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              「構造化分析(JSON)を生成」を実行する際のJSONデータ出力方式を切り替えます。
+            </p>
+          </div>
+          <div className="flex bg-slate-100 p-1 rounded-lg self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => handleJsonModeChange("prompt_only")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                jsonMode === "prompt_only"
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              プロンプト指示
+            </button>
+            <button
+              type="button"
+              onClick={() => handleJsonModeChange("native_schema")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                jsonMode === "native_schema"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              ネイティブスキーマ
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 text-[11px] text-slate-400 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+          {jsonMode === "prompt_only" ? (
+            <span>
+              💡 <strong>プロンプト指示</strong>: モデル宛てのプロンプト本文に「JSONで出力してください」という旨の日本語の指示を含めます。Gemini 1.5 Flash等、どのモデルでも幅広く動きます。
+            </span>
+          ) : (
+            <span>
+              💡 <strong>ネイティブスキーマ</strong>: Gemini APIの <code>responseSchema</code> パラメータにTypeScript/JSON of response schemaを定義して渡します。対応モデルで100%確実に規定のJSON形式で出力させることができます。
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xs sm:max-w-none mx-auto w-full">

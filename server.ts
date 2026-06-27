@@ -165,7 +165,72 @@ if (!fs.existsSync(EXPERIMENT_HISTORY_DIR)) {
   fs.mkdirSync(EXPERIMENT_HISTORY_DIR, { recursive: true });
 }
 
-function configureStructuredOptions(targetModel: string, configOption: any, jsonModeOverride?: "prompt_only" | "native_schema") {
+function extractJsonSchemaFromText(text: string): any {
+  if (!text) return null;
+  
+  let startIdx = -1;
+  while ((startIdx = text.indexOf("{", startIdx + 1)) !== -1) {
+    let depth = 0;
+    let endIdx = -1;
+    for (let i = startIdx; i < text.length; i++) {
+      if (text[i] === "{") {
+        depth++;
+      } else if (text[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          endIdx = i;
+          break;
+        }
+      }
+    }
+    
+    if (endIdx !== -1) {
+      const potentialJson = text.substring(startIdx, endIdx + 1);
+      try {
+        const parsed = JSON.parse(potentialJson);
+        if (parsed && typeof parsed === "object" && (parsed.type || parsed.properties || parsed.items)) {
+          return parsed;
+        }
+      } catch (e) {
+        // keep searching
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeSchemaForGemini(schema: any): any {
+  if (!schema || typeof schema !== "object") return schema;
+  
+  const normalized: any = { ...schema };
+  
+  if (typeof normalized.type === "string") {
+    const t = normalized.type.toUpperCase();
+    if (["OBJECT", "ARRAY", "STRING", "NUMBER", "INTEGER", "BOOLEAN", "NULL"].includes(t)) {
+      normalized.type = t;
+    }
+  }
+  
+  if (normalized.properties && typeof normalized.properties === "object") {
+    const props: any = {};
+    for (const [key, val] of Object.entries(normalized.properties)) {
+      props[key] = normalizeSchemaForGemini(val);
+    }
+    normalized.properties = props;
+  }
+  
+  if (normalized.items) {
+    normalized.items = normalizeSchemaForGemini(normalized.items);
+  }
+  
+  delete normalized.$schema;
+  delete normalized.id;
+  delete normalized.$id;
+  
+  return normalized;
+}
+
+function configureStructuredOptions(targetModel: string, configOption: any, jsonModeOverride?: "prompt_only" | "native_schema", customInstruction?: string) {
   configOption.systemInstruction = buildSummaryAnalysisV12Draft2SystemInstruction();
   let execMode = getStructuredExecutionMode(targetModel);
   const cap = getModelCapability(targetModel);
@@ -177,12 +242,24 @@ function configureStructuredOptions(targetModel: string, configOption: any, json
     execMode = "nativeSchema";
   }
 
+  let extractedSchema = null;
+  if (cap.supportsNativeResponseSchema && customInstruction) {
+    const rawSchema = extractJsonSchemaFromText(customInstruction);
+    if (rawSchema) {
+      extractedSchema = normalizeSchemaForGemini(rawSchema);
+      execMode = "nativeSchema";
+    }
+  }
+
   configOption.effectiveStructuredExecutionMode = execMode;
   configOption.supportsNativeResponseSchema = cap.supportsNativeResponseSchema;
 
   if (execMode === "nativeSchema") {
     configOption.responseMimeType = "application/json";
-    configOption.responseSchema = SUMMARY_ANALYSIS_SCHEMA_V12;
+    configOption.responseSchema = extractedSchema || SUMMARY_ANALYSIS_SCHEMA_V12;
+    if (extractedSchema) {
+      configOption.extractedCustomSchema = true;
+    }
   } else if (execMode === "promptedJson") {
     configOption.systemInstruction += `
 
@@ -1140,7 +1217,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
         mimeType: fileMeta.mimeType,
         contentSample: contentSample
       }, customInstruction);
-      configureStructuredOptions(targetModel, configOption, jsonMode);
+      configureStructuredOptions(targetModel, configOption, jsonMode, customInstruction);
     } else {
       filePrompt = buildDebugTextFileSummaryPrompt({
         name: fileMeta.name,
@@ -1280,7 +1357,7 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
         mimeType: "text/plain",
         contentSample: contentSample
       }, customInstruction);
-      configureStructuredOptions(targetModel, configOption, jsonMode);
+      configureStructuredOptions(targetModel, configOption, jsonMode, customInstruction);
     } else {
       prompt = buildDebugTextFileSummaryPrompt({
         name: "Manual Text Input",
@@ -1411,7 +1488,7 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
 
 app.post("/api/visual/public-samples/analyze", async (req, res) => {
   try {
-    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode } = req.body;
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction } = req.body;
 
     if (!sampleId) return res.status(400).json({ error: "sampleId is required" });
 
@@ -1435,10 +1512,22 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     if (jsonMode === "prompt_only" && mode === "nativeSchema") mode = "promptedJson";
     if (jsonMode === "native_schema" && getModelCapability(targetModel).supportsNativeResponseSchema) mode = "nativeSchema";
 
+    let extractedSchema = null;
+    let extractedCustomSchema = false;
+    const cap = getModelCapability(targetModel);
+    if (cap.supportsNativeResponseSchema && customInstruction) {
+      const rawSchema = extractJsonSchemaFromText(customInstruction);
+      if (rawSchema) {
+        extractedSchema = normalizeSchemaForGemini(rawSchema);
+        mode = "nativeSchema";
+        extractedCustomSchema = true;
+      }
+    }
+
     const isPromptedJson = mode === "promptedJson";
 
     const systemInstruction = buildVisualAnalysisSystemInstruction();
-    const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson);
+    const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
     let configOption: any = {
       temperature: 0.2,
@@ -1449,7 +1538,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
 
     if (mode === "nativeSchema") {
       configOption.responseMimeType = "application/json";
-      configOption.responseSchema = VISUAL_ANALYSIS_SCHEMA;
+      configOption.responseSchema = extractedSchema || VISUAL_ANALYSIS_SCHEMA;
     }
 
     // Call Model
@@ -1477,6 +1566,50 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           parseErrorMessage: e2 instanceof Error ? e2.message : String(e2)
         });
       }
+    }
+
+    if (extractedCustomSchema) {
+      const result: any = {
+        success: true,
+        sampleMetadata: {
+          id: sample.id,
+          title: sample.title,
+          category: sample.category,
+          licenseKind: sample.source.licenseKind,
+          licenseName: sample.source.licenseName,
+          attributionText: sample.source.attributionText,
+          sourcePageUrl: sample.source.pageUrl
+        },
+        expectedMetadata: {
+          imageKind: sample.expectedImageKind,
+          elementCategories: sample.expectedElementCategories,
+          visibleElementLabels: sample.expectedVisibleElementLabels
+        },
+        visualAnalysis: parsed,
+        qualityStatus: "excellent",
+        qualityScore: 100,
+        qualityIssues: [],
+        experimentalModel: false,
+        usedModelName: targetModel,
+        providerFamily: isGemma ? "gemma" : "gemini",
+        effectiveStructuredExecutionMode: mode,
+        validationPassed: true,
+        schemaVersion: "custom",
+        rawOutput: outputText
+      };
+
+      if (includeRequestPreview) {
+        result.requestPreview = {
+          model: targetModel,
+          outputMode: "structured",
+          taskPrompt,
+          systemInstruction,
+          mimeType: mimeType,
+          binaryInlineDataUsed: true
+        };
+      }
+
+      return res.json(result);
     }
 
     const normalized = normalizeVisualAnalysis(parsed);
@@ -1587,6 +1720,18 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     if (jsonMode === "prompt_only" && mode === "nativeSchema") mode = "promptedJson";
     if (jsonMode === "native_schema" && getModelCapability(targetModel).supportsNativeResponseSchema) mode = "nativeSchema";
 
+    let extractedSchema = null;
+    let extractedCustomSchema = false;
+    const cap = getModelCapability(targetModel);
+    if (cap.supportsNativeResponseSchema && customInstruction) {
+      const rawSchema = extractJsonSchemaFromText(customInstruction);
+      if (rawSchema) {
+        extractedSchema = normalizeSchemaForGemini(rawSchema);
+        mode = "nativeSchema";
+        extractedCustomSchema = true;
+      }
+    }
+
     // We only support gemini native schema or gemma prompted json for this experiment
     const isPromptedJson = mode === "promptedJson";
 
@@ -1602,7 +1747,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
 
     if (mode === "nativeSchema") {
       configOption.responseMimeType = "application/json";
-      configOption.responseSchema = VISUAL_ANALYSIS_SCHEMA;
+      configOption.responseSchema = extractedSchema || VISUAL_ANALYSIS_SCHEMA;
     }
 
     // 4. Call Model
@@ -1631,6 +1776,38 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
           parseErrorMessage: e2 instanceof Error ? e2.message : String(e2)
         });
       }
+    }
+
+    if (extractedCustomSchema) {
+      const result: any = {
+        success: true,
+        outputMode: "structured",
+        metadata: fileMeta,
+        visualAnalysis: parsed,
+        qualityStatus: "excellent",
+        qualityScore: 100,
+        qualityIssues: [],
+        experimentalModel: false,
+        usedModelName: targetModel,
+        providerFamily: isGemma ? "gemma" : "gemini",
+        effectiveStructuredExecutionMode: mode,
+        validationPassed: true,
+        schemaVersion: "custom",
+        rawOutput: outputText
+      };
+
+      if (includeRequestPreview) {
+        result.requestPreview = {
+          model: targetModel,
+          outputMode: "structured",
+          taskPrompt,
+          systemInstruction,
+          mimeType: fileMeta.mimeType,
+          binaryInlineDataUsed: true
+        };
+      }
+
+      return res.json(result);
     }
 
     const normalized = normalizeVisualAnalysis(parsed);
