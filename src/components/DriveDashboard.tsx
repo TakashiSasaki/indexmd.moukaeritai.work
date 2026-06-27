@@ -1288,6 +1288,24 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                     />
                   </div>
 
+                  {/* JSON Mode Setting */}
+                  <div className="bg-white border border-slate-200 rounded p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-700">JSON出力モード</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">構造化データの出力方式を選択</p>
+                      </div>
+                      <select 
+                        value={config.json_mode || "prompt_only"}
+                        onChange={(e) => onUpdateConfig({ ...config, json_mode: e.target.value as any })}
+                        className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none cursor-pointer"
+                      >
+                        <option value="prompt_only">プロンプト指示 (Prompt Only)</option>
+                        <option value="native_schema">ネイティブスキーマ (Native Schema)</option>
+                      </select>
+                    </div>
+                  </div>
+
                   {/* Ignore folders */}
                   <div>
                     <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
@@ -1973,7 +1991,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       )}
 
       {activeTab === "summary-debugger" && (
-        <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} userId={userId} setActiveTab={setActiveTab} />
+        <SummaryDebugger token={token} onSessionExpiry={onSessionExpiry} userId={userId} setActiveTab={setActiveTab} config={config} />
       )}
 
       {activeTab === "summary-browser" && (

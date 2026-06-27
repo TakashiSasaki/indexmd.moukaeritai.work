@@ -58,12 +58,14 @@ import {
   SCHEMA_VERSION_V12,
 } from "../lib/summaryAnalysis/schema";
 import { canGenerateSummary } from "../lib/summaryDebuggerUtils";
+import { AppConfig } from "../types";
 
 interface SummaryDebuggerProps {
   token: string | null;
   onSessionExpiry?: () => void;
   userId?: string | null;
   setActiveTab?: (tabId: string) => void;
+  config: AppConfig;
 }
 
 const CACHE_KEY = "gemini_sample_files_cache";
@@ -740,6 +742,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
   onSessionExpiry,
   userId,
   setActiveTab,
+  config
 }) => {
   const [inputMode, setInputMode] = useState<"drive" | "manual">("drive");
   const [manualText, setManualText] = useState("");
@@ -1213,6 +1216,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             customInstruction: customPrompt,
             outputMode: targetMode,
             includeRequestPreview: true,
+            jsonMode: config.json_mode
           }),
         });
       } else {
@@ -1229,6 +1233,7 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
             outputMode: targetMode,
             inputLabel: manualInputLabel,
             includeRequestPreview: true,
+            jsonMode: config.json_mode
           }),
         });
       }

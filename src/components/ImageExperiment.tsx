@@ -204,7 +204,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         body: JSON.stringify({
           fileId: fileId.trim(),
           modelName,
-          includeRequestPreview: includePreview
+          includeRequestPreview: includePreview,
+          jsonMode: config.json_mode
         })
       });
 
@@ -243,7 +244,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         body: JSON.stringify({
           sampleId: selectedSampleId,
           modelName,
-          includeRequestPreview: includePreview
+          includeRequestPreview: includePreview,
+          jsonMode: config.json_mode
         })
       });
 

@@ -82,6 +82,7 @@ export interface AppConfig {
   max_logs_count: number;
   logs_cleanup_threshold: number;
   gemini_model: string;
+  json_mode: "prompt_only" | "native_schema";
 }
 
 export interface NamedEntity {

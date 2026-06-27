@@ -165,11 +165,20 @@ if (!fs.existsSync(EXPERIMENT_HISTORY_DIR)) {
   fs.mkdirSync(EXPERIMENT_HISTORY_DIR, { recursive: true });
 }
 
-function configureStructuredOptions(targetModel: string, configOption: any) {
+function configureStructuredOptions(targetModel: string, configOption: any, jsonModeOverride?: "prompt_only" | "native_schema") {
   configOption.systemInstruction = buildSummaryAnalysisV12Draft2SystemInstruction();
-  const execMode = getStructuredExecutionMode(targetModel);
+  let execMode = getStructuredExecutionMode(targetModel);
+  const cap = getModelCapability(targetModel);
+
+  if (jsonModeOverride === "prompt_only" && execMode === "nativeSchema") {
+    execMode = "promptedJson";
+  }
+  if (jsonModeOverride === "native_schema" && cap.supportsNativeResponseSchema) {
+    execMode = "nativeSchema";
+  }
+
   configOption.effectiveStructuredExecutionMode = execMode;
-  configOption.supportsNativeResponseSchema = getModelCapability(targetModel).supportsNativeResponseSchema;
+  configOption.supportsNativeResponseSchema = cap.supportsNativeResponseSchema;
 
   if (execMode === "nativeSchema") {
     configOption.responseMimeType = "application/json";
@@ -935,7 +944,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
     return;
   }
 
-  const { fileId, modelName, temperature, topP, topK, customInstruction, outputMode, includeRequestPreview } = req.body;
+  const { fileId, modelName, temperature, topP, topK, customInstruction, outputMode, includeRequestPreview, jsonMode } = req.body;
   if (!fileId) {
     return res.status(400).json({ error: "fileId is required" });
   }
@@ -1110,7 +1119,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
         mimeType: fileMeta.mimeType,
         contentSample: contentSample
       }, customInstruction);
-      configureStructuredOptions(targetModel, configOption);
+      configureStructuredOptions(targetModel, configOption, jsonMode);
     } else {
       filePrompt = buildDebugTextFileSummaryPrompt({
         name: fileMeta.name,
@@ -1228,7 +1237,7 @@ app.post("/api/drive/debug/generate-file-summary", async (req, res) => {
 
 app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
   try {
-    const { text, customInstruction, modelName, outputMode, inputLabel, includeRequestPreview } = req.body;
+    const { text, customInstruction, modelName, outputMode, inputLabel, includeRequestPreview, jsonMode } = req.body;
     if (!text || typeof text !== "string") {
       return res.status(400).json({ error: "Missing or invalid 'text' field" });
     }
@@ -1250,7 +1259,7 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
         mimeType: "text/plain",
         contentSample: contentSample
       }, customInstruction);
-      configureStructuredOptions(targetModel, configOption);
+      configureStructuredOptions(targetModel, configOption, jsonMode);
     } else {
       prompt = buildDebugTextFileSummaryPrompt({
         name: "Manual Text Input",
@@ -1381,7 +1390,7 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
 
 app.post("/api/visual/public-samples/analyze", async (req, res) => {
   try {
-    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false } = req.body;
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode } = req.body;
 
     if (!sampleId) return res.status(400).json({ error: "sampleId is required" });
 
@@ -1400,7 +1409,11 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
 
     const targetModel = modelName;
     const isGemma = visualCap.providerFamily === "gemma";
-    const mode = getStructuredExecutionMode(targetModel);
+    let mode = getStructuredExecutionMode(targetModel);
+    
+    if (jsonMode === "prompt_only" && mode === "nativeSchema") mode = "promptedJson";
+    if (jsonMode === "native_schema" && getModelCapability(targetModel).supportsNativeResponseSchema) mode = "nativeSchema";
+
     const isPromptedJson = mode === "promptedJson";
 
     const systemInstruction = buildVisualAnalysisSystemInstruction();
@@ -1512,7 +1525,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
 
 app.post("/api/drive/debug/analyze-image", async (req, res) => {
   try {
-    const { fileId, modelName = "gemini-3.5-flash", customInstruction, includeRequestPreview = false } = req.body;
+    const { fileId, modelName = "gemini-3.5-flash", customInstruction, includeRequestPreview = false, jsonMode } = req.body;
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: "Missing Authorization header" });
     const token = authHeader.replace("Bearer ", "");
@@ -1548,8 +1561,11 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
 
     const targetModel = modelName;
     const isGemma = visualCap.providerFamily === "gemma";
-    const mode = getStructuredExecutionMode(targetModel);
+    let mode = getStructuredExecutionMode(targetModel);
     
+    if (jsonMode === "prompt_only" && mode === "nativeSchema") mode = "promptedJson";
+    if (jsonMode === "native_schema" && getModelCapability(targetModel).supportsNativeResponseSchema) mode = "nativeSchema";
+
     // We only support gemini native schema or gemma prompted json for this experiment
     const isPromptedJson = mode === "promptedJson";
 
