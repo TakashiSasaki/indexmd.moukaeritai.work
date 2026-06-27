@@ -66,15 +66,20 @@ export default function App() {
   // Redirect root to dashboard or last active tab
   useEffect(() => {
     if (location.pathname === "/" && user && !authLoading) {
-      const lastTab = localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
+      let lastTab = localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard";
+      if (!validTabs.includes(lastTab as AppTabId)) {
+        lastTab = "dashboard";
+      }
       navigate(`/${lastTab}`, { replace: true });
     }
-  }, [location.pathname, user, authLoading]);
+  }, [location.pathname, user, authLoading, navigate, validTabs]);
 
   // Persist current tab to localStorage for session recovery
   useEffect(() => {
-    localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
-  }, [activeTab]);
+    if (location.pathname !== "/") {
+      localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+    }
+  }, [activeTab, location.pathname]);
 
   const handleTabChange = (tab: AppTabId) => {
     navigate(`/${tab}`);
