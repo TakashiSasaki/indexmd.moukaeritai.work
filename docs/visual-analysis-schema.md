@@ -54,8 +54,16 @@ For extracting readable text present in the image.
 ## Relationship to Summary Analysis
 Visual Information is treated as an independent indexing channel compared to the `Summary Analysis` schema. The visual schema does not use the extensive document-centric metadata of Summary Analysis (e.g., document kind, parties, monetary amounts).
 
+## Consistency Guidelines (v0.2.1-rc.1)
+
+To improve output reliability and consistency between fields, the following rules are enforced by prompts and normalized:
+
+- **Scene Context Strictness**: `sceneContext` is optional. For isolated product photos, close-up scans, screenshots, or images with no discernible background environment, `sceneContext` should be omitted. The normalizer automatically removes weak or over-inferred `sceneContext` (e.g., guessing "indoor" just because an object has a white background).
+- **Visible Text Evidence**: Any readable text in the image must be placed in `visibleText`. If short text (e.g., alphanumeric codes, short words) is used as an indexing keyword or mentioned in the summary, it should correspond to an entry in `visibleText` (unless noted in `uncertainties`). Cross-field consistency checks emit warnings if this is violated.
+- **Visual Attributes**: When descriptions or captions mention clear visual properties (such as color, material, shape, or condition like "blue wooden pencil"), these properties must be explicitly listed in `visibleElements[].attributes`.
+
 ## Current Experimental Status
-This schema is currently in `v0.2.0-draft.1`. It operates exclusively in the "画像解析実験" (Image Experiment) tab to ensure it does not destabilize the existing `Summary Analysis v1.2.0-draft.2` flow. No visual data or raw image bytes are persisted in this phase.
+This schema is currently in `v0.2.1-rc.1`. It operates exclusively in the "画像解析実験" (Image Experiment) tab to ensure it does not destabilize the existing `Summary Analysis v1.2.0-draft.2` flow. No visual data or raw image bytes are persisted in this phase.
 
 ## Visual Analysis Experiment Provenance (analysisRun)
 

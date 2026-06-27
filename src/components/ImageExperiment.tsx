@@ -669,13 +669,22 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <span>Execution: <span className="font-bold text-slate-700">{result.analysisRun?.execution.structuredExecutionMode || result.effectiveStructuredExecutionMode}</span></span>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleCopy(JSON.stringify(result.visualAnalysis, null, 2), 'all')}
-                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                >
-                  {copied === 'all' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied === 'all' ? "Copied!" : "Copy Result JSON"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleCopy(JSON.stringify(result, null, 2), 'full')}
+                    className="text-[11px] font-bold text-slate-500 hover:text-slate-700 flex items-center gap-1"
+                  >
+                    {copied === 'full' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied === 'full' ? "Copied!" : "Copy Full Response"}
+                  </button>
+                  <button
+                    onClick={() => handleCopy(JSON.stringify(result.visualAnalysis, null, 2), 'all')}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                  >
+                    {copied === 'all' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied === 'all' ? "Copied!" : "Copy Result JSON"}
+                  </button>
+                </div>
               </div>
               
               {result.analysisRun && (

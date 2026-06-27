@@ -75,4 +75,56 @@ describe('evaluateVisualAnalysisQuality', () => {
     const rep = evaluateVisualAnalysisQuality(result);
     assert.ok(rep.issues.some(i => i.code === "MISSING_KEYWORDS"));
   });
+
+  it('should info on possible visible text missing', () => {
+    const result: any = {
+      summary: { caption: "USB-C", description: "Desc" },
+      visualInfo: { imageKind: "productPhoto", visibleElements: [{category: "product"}], visibleText: [] },
+      indexing: { keywords: [{value: "USB-C"}] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(rep.issues.some(i => i.code === "POSSIBLE_VISIBLE_TEXT_MISSING"));
+  });
+
+  it('should not warn on possible visible text missing if visible text is present', () => {
+    const result: any = {
+      summary: { caption: "USB-C", description: "Desc" },
+      visualInfo: { imageKind: "productPhoto", visibleElements: [{category: "product"}], visibleText: [{text: "USB-C"}] },
+      indexing: { keywords: [{value: "USB-C"}] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(!rep.issues.some(i => i.code === "POSSIBLE_VISIBLE_TEXT_MISSING"));
+  });
+
+  it('should info on possible attributes missing for products', () => {
+    const result: any = {
+      summary: { caption: "Test", description: "A blue wooden pencil" },
+      visualInfo: { 
+        imageKind: "productPhoto", 
+        visibleElements: [{category: "product", attributes: []}], 
+        visibleText: [] 
+      },
+      indexing: { keywords: [{value: "pencil"}] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(rep.issues.some(i => i.code === "POSSIBLE_ATTRIBUTES_MISSING"));
+  });
+
+  it('should not info on missing attributes for non-products', () => {
+    const result: any = {
+      summary: { caption: "Test", description: "A blue wooden sign" },
+      visualInfo: { 
+        imageKind: "landscapePhoto", 
+        visibleElements: [{category: "signage", attributes: []}, {category: "terrain"}], 
+        visibleText: [] 
+      },
+      indexing: { keywords: [{value: "sign"}] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(!rep.issues.some(i => i.code === "POSSIBLE_ATTRIBUTES_MISSING"));
+  });
 });

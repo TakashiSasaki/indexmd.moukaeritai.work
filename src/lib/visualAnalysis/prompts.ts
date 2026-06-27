@@ -1,7 +1,7 @@
 import { IMAGE_KINDS, VISIBLE_ELEMENT_CATEGORIES } from './vocabularies';
 
-export const VISUAL_ANALYSIS_PROMPT_VERSION = "visual-analysis-prompt.v0.2.0-rc.1";
-export const VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION = "visual-analysis-system.v0.2.0-rc.1";
+export const VISUAL_ANALYSIS_PROMPT_VERSION = "visual-analysis-prompt.v0.2.1-rc.1";
+export const VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION = "visual-analysis-system.v0.2.1-rc.1";
 
 export function buildVisualAnalysisSystemInstruction(): string {
   return `You are an expert visual indexing and metadata extraction assistant.
@@ -24,11 +24,14 @@ You must always classify the "imageKind" and enumerate "visibleElements".
 
 ### Extracting Visible Text:
 - Extract readable text into "visibleText".
-- If text is present but unreadable, note it in "uncertainties".
+- Any readable text visible in the image must be placed in "visibleText", even if it is also useful as a keyword.
+- Do not mention visible text such as labels, marks, UI text, receipt totals, or short inscriptions in summary/description/keywords unless it is also represented in "visibleText", unless it is explicitly unreadable and listed in "uncertainties".
 
 ### Visible Elements & State Context:
 - Use "visibleElements" for objects AND scene components (like sky, terrain).
 - Provide a clear label, category, and confidence.
+- Put clear visual properties such as color, material, shape, texture, visible condition, and obvious state into "visibleElements[].attributes".
+- Do not leave attributes empty when the summary/description mentions clear visual attributes of an element.
 - Use "stateContext" within visible elements to describe how objects are situated (e.g., containment, placement, usage, interaction, condition).
 - ONLY include "stateContext" if you can determine at least one useful attribute or description. Do not include an empty stateContext full of "unknown".
 - Use "unknown" for individual fields only when other fields in the context are useful.
@@ -55,9 +58,12 @@ You MUST output ONLY a valid JSON object.
 Root keys must be:
 - "schemaVersion": "visual-analysis.v0.2.0-draft.1"
 - "summary": { "caption": "string", "description": "string" }
-- "visualInfo": { "imageKind": "string", "imageKindConfidence": number, "sceneDescription": "string", "sceneContext": { "environment": "string", "lighting": "string" }, "visibleElements": [{ "label": "string", "category": "string", "confidence": number, "stateContext": { "placement": "string", "usage": "string" } }], "visibleText": [...], "uncertainties": ["string"] }
+- "visualInfo": { "imageKind": "string", "imageKindConfidence": number, "sceneDescription": "string", "sceneContext": { "environment": "indoor|outdoor|unknown", "lighting": "string" }, "visibleElements": [{ "label": "string", "category": "string", "confidence": number, "attributes": ["string"], "stateContext": { "placement": "string", "usage": "string" } }], "visibleText": [...], "uncertainties": ["string"] }
 - "indexing": { "keywords": [{ "value": "string", "confidence": number, "importance": number }] }
 - "quality": { "confidence": number, "issues": ["string"] }
+
+"sceneContext" is optional; omit it for isolated product photos, screenshots, scans, close-up documents, or images with no visible surrounding environment.
+"stateContext" is optional; include it only when containment/placement/usage/condition/interaction is visually supported.
 
 "imageKind" MUST be one of: ${IMAGE_KINDS.join(", ")}.
 "visibleElements[].category" MUST be one of: ${VISIBLE_ELEMENT_CATEGORIES.join(", ")}.

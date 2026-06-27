@@ -28,6 +28,25 @@ function trimStr(val: any): string {
   return val.trim();
 }
 
+function isWeakSceneContextForImageKind(imageKind: string, sc: any): boolean {
+  const isolatedKinds = ["productPhoto", "packageImage", "documentPhoto", "receiptPhoto", "handwrittenNote", "screenshot", "chartOrTable", "diagram"];
+  if (!isolatedKinds.includes(imageKind)) return false;
+
+  const hasPlaceType = !!sc.placeType;
+  const hasDesc = !!sc.description;
+  const hasWeather = sc.weather && sc.weather !== 'unknown';
+  const hasOutdoor = sc.environment === 'outdoor' || sc.environment === 'semiOutdoor' || sc.environment === 'underwater';
+  const hasRoadway = sc.roadwayContext && sc.roadwayContext !== 'unknown';
+  const hasCover = sc.cover && sc.cover !== 'unknown';
+  const hasStrongLighting = sc.lighting && sc.lighting !== 'unknown';
+
+  if (hasPlaceType || hasDesc || hasWeather || hasOutdoor || hasRoadway || hasCover || hasStrongLighting) {
+    return false;
+  }
+  
+  return true;
+}
+
 export function normalizeVisualAnalysis(result: any): any {
   if (!result || typeof result !== 'object') return result;
 
@@ -81,7 +100,9 @@ export function normalizeVisualAnalysis(result: any): any {
         .some(k => (normalizedSc as any)[k] !== undefined && (normalizedSc as any)[k] !== 'unknown');
       const hasText = !!normalizedSc.placeType || !!normalizedSc.description;
       
-      if (!hasUsefulEnum && !hasText) {
+      const isWeak = isWeakSceneContextForImageKind(vi.imageKind, normalizedSc);
+      
+      if ((!hasUsefulEnum && !hasText) || isWeak) {
         delete vi.sceneContext;
       } else {
         vi.sceneContext = normalizedSc;

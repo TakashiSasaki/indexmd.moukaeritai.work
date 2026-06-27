@@ -130,6 +130,58 @@ export function evaluateVisualAnalysisQuality(
     issues.push({ code: "MISSING_KEYWORDS", message: "No indexing keywords generated.", severity: "info" });
   }
 
+  // Cross-field consistency checks
+  // A. Check if visible text seems to be missing
+  if (text.length === 0) {
+    const textLikeRegex = /^[A-Z0-9][A-Z0-9\-\$£€¥\.\,]{1,15}$/;
+    const hasTextLikeKeyword = keywords.some(kw => textLikeRegex.test(kw.value));
+    
+    // Also check caption/description for obvious UI or label tokens (all caps)
+    const hasTextLikeMention = textLikeRegex.test(caption) || textLikeRegex.test(description);
+
+    if (hasTextLikeKeyword || hasTextLikeMention) {
+      score -= 5;
+      issues.push({ 
+        code: "POSSIBLE_VISIBLE_TEXT_MISSING", 
+        message: "Keywords or summary contain text-like tokens (e.g., alphanumeric codes, short uppercase words) but visibleText is empty.", 
+        severity: "info" 
+      });
+    }
+  }
+
+  // B. Check if visible text is completely ignored by keywords (for short text)
+  if (text.length > 0) {
+    const allKeywordStr = keywords.map(k => k.value.toLowerCase()).join(' ');
+    const unindexedText = text.filter(t => t.text.length < 20 && t.text.length > 1 && !allKeywordStr.includes(t.text.toLowerCase()));
+    if (unindexedText.length > 0) {
+      // Don't deduct score, just info
+      issues.push({
+        code: "VISIBLE_TEXT_NOT_INDEXED",
+        message: "Some short visible text does not appear in indexing keywords.",
+        severity: "info"
+      });
+    }
+  }
+
+  // C. Product attributes check
+  if (vi?.imageKind === "productPhoto" || vi?.imageKind === "packageImage") {
+    const hasEmptyAttributes = elements.some(el => (el.category === 'product' || el.category === 'productPackage') && (!el.attributes || el.attributes.length === 0));
+    if (hasEmptyAttributes) {
+      const attributeWords = ["blue", "red", "green", "yellow", "white", "black", "wooden", "metal", "plastic", "sharpened", "round", "rectangular", "damaged", "wet", "clean", "dirty", "glass", "paper"];
+      const textToSearch = (caption + " " + description).toLowerCase();
+      const mentionsAttribute = attributeWords.some(w => textToSearch.includes(w));
+      
+      if (mentionsAttribute) {
+        score -= 2;
+        issues.push({
+          code: "POSSIBLE_ATTRIBUTES_MISSING",
+          message: "Description mentions visual properties (e.g., color, material, shape) but product element attributes are empty.",
+          severity: "info"
+        });
+      }
+    }
+  }
+
   let status: VisualQualityStatus = "valid";
   if (issues.some(iss => iss.severity === "blocking")) {
     status = "invalid";

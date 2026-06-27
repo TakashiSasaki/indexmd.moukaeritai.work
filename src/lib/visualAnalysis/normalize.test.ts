@@ -118,4 +118,45 @@ describe('normalizeVisualAnalysis', () => {
     const norm = normalizeVisualAnalysis(raw);
     assert.strictEqual('primary' in norm.visualInfo.visibleElements[0], false);
   });
+
+  it('should remove weak scene context for isolated images', () => {
+    const raw = {
+      visualInfo: {
+        imageKind: "productPhoto",
+        sceneContext: {
+          environment: "indoor",
+          lighting: "unknown"
+        }
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual(norm.visualInfo.sceneContext, undefined);
+  });
+
+  it('should preserve strong scene context for isolated images', () => {
+    const raw = {
+      visualInfo: {
+        imageKind: "productPhoto",
+        sceneContext: {
+          environment: "indoor",
+          placeType: "store shelf"
+        }
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual(norm.visualInfo.sceneContext.placeType, "store shelf");
+  });
+
+  it('should preserve weak scene context for landscape images', () => {
+    const raw = {
+      visualInfo: {
+        imageKind: "landscapePhoto",
+        sceneContext: {
+          environment: "outdoor"
+        }
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.strictEqual(norm.visualInfo.sceneContext.environment, "outdoor");
+  });
 });
