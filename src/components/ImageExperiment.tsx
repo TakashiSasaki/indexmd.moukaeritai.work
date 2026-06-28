@@ -631,17 +631,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-              <ImageIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-800">画像解析実験 (Visual Analysis RC Verification)</h2>
-              <p className="text-[11px] text-slate-500">Test the visual analysis schema against Drive images or public samples.</p>
-            </div>
-          </div>
-        </div>
         <div className="p-5">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left side: Inputs */}
@@ -649,16 +638,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               <div className="space-y-4">
                   {/* Quick Selection Actions & Thumbnail Grid Panel */}
                   <div className="flex flex-col gap-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                      <div>
-                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                          サンプル画像選択パネル (Public Sample Panel)
-                        </h3>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          チェックボックスで解析対象のサンプルを選択し、解析を実行してください。
-                        </p>
-                      </div>
-
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-2 border-b border-slate-100 pb-3">
                       <div className="flex flex-wrap gap-1.5 shrink-0">
                         <select
                           value={sampleFilter}
