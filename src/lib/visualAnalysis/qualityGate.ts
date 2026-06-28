@@ -62,6 +62,38 @@ export function evaluateVisualAnalysisQuality(
     }
   }
 
+  if (vi?.imageKind === "mapImage") {
+    const hasMap = elements.some(el => ['symbol', 'textRegion', 'unknown'].includes(el.category));
+    if (!hasMap) {
+      score -= 20;
+      issues.push({ code: "NO_MAP_ELEMENTS", message: "Map image lacks expected symbolic or text region elements.", severity: "warning" });
+    }
+  }
+
+  if (vi?.imageKind === "medicalImage") {
+    const hasMedical = elements.some(el => ['medical', 'bodyPart', 'unknown'].includes(el.category));
+    if (!hasMedical) {
+      score -= 20;
+      issues.push({ code: "NO_MEDICAL_ELEMENTS", message: "Medical image lacks expected medical or body part elements.", severity: "warning" });
+    }
+  }
+
+  if (vi?.imageKind === "spacePhoto") {
+    const hasSpace = elements.some(el => ['weatherOrSky', 'terrain', 'waterBody', 'symbol'].includes(el.category));
+    if (!hasSpace) {
+      score -= 20;
+      issues.push({ code: "NO_SPACE_ELEMENTS", message: "Space photo lacks expected space or planetary elements.", severity: "warning" });
+    }
+  }
+
+  if (vi?.imageKind === "foodPhoto") {
+    const hasFood = elements.some(el => ['food', 'container'].includes(el.category));
+    if (!hasFood) {
+      score -= 20;
+      issues.push({ code: "NO_FOOD_ELEMENTS", message: "Food photo lacks expected food or container elements.", severity: "warning" });
+    }
+  }
+
   const productLikeCategories = [
     'product',
     'productPackage',

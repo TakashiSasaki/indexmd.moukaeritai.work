@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="100%" height="100%">
+  <!-- Package Background (e.g. Cardboard box or bag texture) -->
+  <rect width="400" height="500" fill="#fcf6ec" rx="12" stroke="#dcd0c0" stroke-width="3"/>
+  
+  <!-- Outer Border / Box label -->
+  <rect x="25" y="25" width="350" height="450" fill="#ffffff" rx="6" stroke="#bdae9c" stroke-width="2"/>
+  
+  <!-- Brand logo/text -->
+  <text x="200" y="70" font-family="sans-serif" font-size="18" font-weight="900" fill="#855845" text-anchor="middle" letter-spacing="2">ORGANIC HARVEST</text>
+  
+  <!-- Product name -->
+  <text x="200" y="110" font-family="serif" font-size="28" font-weight="bold" fill="#2c5e3b" text-anchor="middle">Roasted Almonds</text>
+  <text x="200" y="135" font-family="sans-serif" font-size="12" font-style="italic" fill="#64748b" text-anchor="middle">Sea Salt &amp; Rosemary flavor</text>
+  
+  <line x1="50" y1="160" x2="350" y2="160" stroke="#ebdcd0" stroke-width="1.5"/>
+  
+  <!-- Ingredients list -->
+  <text x="50" y="190" font-family="sans-serif" font-size="12" font-weight="bold" fill="#2c5e3b">INGREDIENTS:</text>
+  <text x="50" y="215" font-family="sans-serif" font-size="11" fill="#475569">Organic Almonds, Sea Salt, Expeller Pressed</text>
+  <text x="50" y="235" font-family="sans-serif" font-size="11" fill="#475569">Canola Oil, Dried Organic Rosemary.</text>
+  
+  <!-- Net Weight info -->
+  <text x="50" y="280" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0f172a">NET WT 8 OZ (226g)</text>
+  
+  <line x1="50" y1="310" x2="350" y2="310" stroke="#ebdcd0" stroke-width="1.5"/>
+  
+  <!-- Barcode Representation -->
+  <g transform="translate(100, 340)">
+    <!-- Simulated bars -->
+    <rect x="0" width="3" height="50" fill="#000000"/>
+    <rect x="6" width="2" height="50" fill="#000000"/>
+    <rect x="12" width="6" height="50" fill="#000000"/>
+    <rect x="22" width="1" height="50" fill="#000000"/>
+    <rect x="26" width="4" height="50" fill="#000000"/>
+    <rect x="34" width="3" height="50" fill="#000000"/>
+    <rect x="42" width="2" height="50" fill="#000000"/>
+    <rect x="48" width="6" height="50" fill="#000000"/>
+    <rect x="58" width="1" height="50" fill="#000000"/>
+    <rect x="62" width="4" height="50" fill="#000000"/>
+    <rect x="70" width="3" height="50" fill="#000000"/>
+    <rect x="78" width="2" height="50" fill="#000000"/>
+    <rect x="84" width="6" height="50" fill="#000000"/>
+    <rect x="94" width="1" height="50" fill="#000000"/>
+    <rect x="98" width="4" height="50" fill="#000000"/>
+    <rect x="106" width="3" height="50" fill="#000000"/>
+    <rect x="114" width="2" height="50" fill="#000000"/>
+    <rect x="120" width="6" height="50" fill="#000000"/>
+    <rect x="130" width="1" height="50" fill="#000000"/>
+    <rect x="134" width="4" height="50" fill="#000000"/>
+    <rect x="142" width="3" height="50" fill="#000000"/>
+    <rect x="148" width="6" height="50" fill="#000000"/>
+    <rect x="158" width="1" height="50" fill="#000000"/>
+    <rect x="162" width="4" height="50" fill="#000000"/>
+    <rect x="170" width="3" height="50" fill="#000000"/>
+    <rect x="178" width="2" height="50" fill="#000000"/>
+    <rect x="184" width="6" height="50" fill="#000000"/>
+    <rect x="194" width="1" height="50" fill="#000000"/>
+    
+    <!-- Barcode digits -->
+    <text x="100" y="68" font-family="monospace" font-size="12" fill="#000000" text-anchor="middle">748192047582</text>
+  </g>
+</svg>

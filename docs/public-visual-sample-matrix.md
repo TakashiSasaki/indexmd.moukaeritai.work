@@ -118,5 +118,5 @@ Every comparison generates a detailed, multi-dimensional `coverage` structure ba
 ---
 
 ### Known Coverage Gaps
-- **Mixed Content**: The `sample-mixed-1` (originally expected to test mixed content like a modern desk with a screen, tools, and documents) currently uses an image of an antique bureau table (furniture). Its expected metadata was updated to match the image to prevent false failures in batch regression. 
-  - **TODO**: Introduce a new public-domain compatible mixed sample (e.g., a modern desk setup) to restore full coverage for the `mixed` image kind.
+- **Mixed Content**: The `sample-mixed-1` originally expected to test mixed content but represents antique furniture.
+  - **Status**: We have successfully introduced a new local synthetic mixed sample (`sample-mixed-scene-synthetic`) representing a modern desk setup with a journal, coffee cup, phone, and sticky note. This restores full test coverage for the `mixed` image kind and mixed-scene taxonomies.

@@ -12,6 +12,10 @@ export const IMAGE_KINDS = [
   "whiteboardPhoto",
   "artworkPhoto",
   "artifactPhoto",
+  "mapImage",
+  "medicalImage",
+  "spacePhoto",
+  "foodPhoto",
   "mixed",
   "unknown"
 ] as const;
@@ -44,6 +48,8 @@ export const VISIBLE_ELEMENT_CATEGORIES = [
   "chart",
   "table",
   "symbol",
+  "medical",
+  "bodyPart",
   "unknown"
 ] as const;
 

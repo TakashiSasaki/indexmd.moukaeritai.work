@@ -21,7 +21,7 @@
       "properties": {
         "imageKind": { 
           "type": "string",
-          "enum": ["landscapePhoto", "naturalPhoto", "productPhoto", "packageImage", "documentPhoto", "receiptPhoto", "screenshot", "diagram", "chartOrTable", "handwrittenNote", "whiteboardPhoto", "artworkPhoto", "artifactPhoto", "mixed", "unknown"]
+          "enum": ["landscapePhoto", "naturalPhoto", "productPhoto", "packageImage", "documentPhoto", "receiptPhoto", "screenshot", "diagram", "chartOrTable", "handwrittenNote", "whiteboardPhoto", "artworkPhoto", "artifactPhoto", "mapImage", "medicalImage", "spacePhoto", "foodPhoto", "mixed", "unknown"]
         },
         "imageKindConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
         "sceneDescription": { "type": "string", "minLength": 1 },
@@ -48,7 +48,7 @@
               "label": { "type": "string", "minLength": 1 },
               "category": { 
                 "type": "string",
-                "enum": ["person", "animal", "plant", "food", "product", "productPackage", "document", "screen", "uiElement", "building", "vehicle", "furniture", "container", "tool", "clothing", "landscapeElement", "weatherOrSky", "waterBody", "terrain", "roadOrPath", "signage", "textRegion", "chart", "table", "symbol", "unknown"]
+                "enum": ["person", "animal", "plant", "food", "product", "productPackage", "document", "screen", "uiElement", "building", "vehicle", "furniture", "container", "tool", "clothing", "landscapeElement", "weatherOrSky", "waterBody", "terrain", "roadOrPath", "signage", "textRegion", "chart", "table", "symbol", "medical", "bodyPart", "unknown"]
               },
               "primary": { "type": "boolean" },
               "count": { "type": "number", "minimum": 0 },

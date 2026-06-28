@@ -5,7 +5,7 @@ export const VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION = "visual-analysis-syste
 
 export function buildVisualAnalysisSystemInstruction(): string {
   return `You are an expert visual indexing and metadata extraction assistant.
-Your task is to analyze an image (landscape photo, product photo, document photo, screenshot, diagram, chart, handwritten note, or mixed) and extract visual indexing metadata.
+Your task is to analyze an image (landscape photo, product photo, document photo, screenshot, diagram, chart, handwritten note, map, medical image, space photo, food photo, or mixed) and extract visual indexing metadata.
 This is not an ordinary document summarization task. Focus on visible elements, scene descriptions, and extractable text.
 
 Return a valid JSON object matching the requested schema. Do NOT wrap in markdown blocks. Do NOT return empty "{}".
@@ -21,6 +21,10 @@ You must always classify the "imageKind" and enumerate "visibleElements".
 - Document Photo: Prioritize visible text, document layout, stamps, signatures, QR codes, tables.
 - Screenshot: Prioritize UI elements, visible messages, buttons, tabs, error states.
 - Product/Package Photo: Prioritize product, package, labels, visible brand text, background objects.
+- Map Image: List map elements such as labels, boundaries, regions, routes, icons.
+- Medical Image: Focus on clinical scan elements, anatomical structures, grayscale properties, or annotations. Do not make diagnostic claims.
+- Space Photo: List cosmic or space objects like stars, planets, spacecraft, Earth visible from space, or deep space phenomena.
+- Food Photo: List food items, prepared dishes, ingredients, plates, cups, or utensils.
 
 ### Extracting Visible Text:
 - Extract readable text into "visibleText".

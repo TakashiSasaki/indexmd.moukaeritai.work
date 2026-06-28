@@ -19,7 +19,7 @@ We specifically use `visibleElements` rather than `visibleObjects`. This distinc
 
 ### `visualInfo.imageKind`
 A controlled vocabulary defining the type of image.
-- **Valid Kinds**: `landscapePhoto`, `naturalPhoto`, `productPhoto`, `packageImage`, `documentPhoto`, `receiptPhoto`, `screenshot`, `diagram`, `chartOrTable`, `handwrittenNote`, `whiteboardPhoto`, `mixed`, `unknown`.
+- **Valid Kinds**: `landscapePhoto`, `naturalPhoto`, `productPhoto`, `packageImage`, `documentPhoto`, `receiptPhoto`, `screenshot`, `diagram`, `chartOrTable`, `handwrittenNote`, `whiteboardPhoto`, `mapImage`, `medicalImage`, `spacePhoto`, `foodPhoto`, `mixed`, `unknown`.
 - **Confidence**: `imageKindConfidence` (0.0 to 1.0) must be provided.
 
 ### `visualInfo.visibleElements[].category`
@@ -29,6 +29,7 @@ A controlled vocabulary for elements detected in the scene.
 - **Digital**: `screen`, `uiElement`
 - **Natural/Scenic**: `landscapeElement`, `weatherOrSky`, `waterBody`, `terrain`, `roadOrPath`
 - **Text/Structural**: `signage`, `textRegion`, `chart`, `table`
+- **Medical/Health**: `medical`, `bodyPart`
 - **Fallback**: `unknown`
 - **Constraints**: Each element must have a `label`, `category`, and `confidence` (0.0 to 1.0). 
 - **Optional Attributes**: 

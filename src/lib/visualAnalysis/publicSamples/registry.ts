@@ -267,6 +267,252 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       requiresAttribution: false,
       attributionText: "indexmd test fixture, Public domain"
     }
+  },
+  {
+    id: "sample-artwork-1",
+    title: "Starry Night",
+    category: "artwork",
+    expectedImageKind: "artworkPhoto",
+    expectedElementCategories: ["landscapeElement", "weatherOrSky", "building"],
+    expectedVisibleElementLabels: ["painting", "starry sky", "cypress", "village"],
+    optionalElementCategories: ["terrain"],
+    optionalVisibleElementLabels: ["moon", "stars", "brushstrokes", "hills"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/640px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
+      author: "Vincent van Gogh",
+      requiresAttribution: false,
+      attributionText: "Vincent van Gogh, Public domain, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-artifact-rosetta-1",
+    title: "Rosetta Stone",
+    category: "artifact",
+    expectedImageKind: "artifactPhoto",
+    expectedElementCategories: ["document", "textRegion", "symbol"],
+    expectedVisibleElementLabels: ["stone slab", "inscription", "text"],
+    optionalElementCategories: ["unknown"],
+    optionalVisibleElementLabels: ["museum artifact", "broken stone", "carved text"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Rosetta_Stone_BW.jpeg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ca/Rosetta_Stone_BW.jpeg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Rosetta_Stone_BW.jpeg/640px-Rosetta_Stone_BW.jpeg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
+      author: "British Museum",
+      requiresAttribution: false,
+      attributionText: "British Museum, Public domain, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-space-earth-1",
+    title: "Earth from Space (Blue Marble)",
+    category: "space",
+    expectedImageKind: "spacePhoto",
+    expectedElementCategories: ["waterBody", "terrain", "weatherOrSky"],
+    expectedVisibleElementLabels: ["earth", "clouds", "ocean", "land"],
+    optionalElementCategories: ["symbol"],
+    optionalVisibleElementLabels: ["space", "planet"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:The_Earth_seen_from_Apollo_17.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/9/97/The_Earth_seen_from_Apollo_17.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/The_Earth_seen_from_Apollo_17.jpg/640px-The_Earth_seen_from_Apollo_17.jpg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
+      author: "NASA / Apollo 17 crew",
+      requiresAttribution: false,
+      attributionText: "NASA / Apollo 17 crew, Public domain, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-medical-xray-1",
+    title: "Chest X-Ray",
+    category: "medical",
+    expectedImageKind: "medicalImage",
+    expectedElementCategories: ["medical", "bodyPart"],
+    expectedVisibleElementLabels: ["x-ray", "chest", "ribs"],
+    optionalElementCategories: ["unknown"],
+    optionalVisibleElementLabels: ["lungs", "spine", "grayscale"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Chest_Xray_PA_3-9-2010.png",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Chest_Xray_PA_3-9-2010.png",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Chest_Xray_PA_3-9-2010.png/640px-Chest_Xray_PA_3-9-2010.png",
+      licenseKind: "ccBySa",
+      licenseName: "CC BY-SA 3.0",
+      licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0/",
+      author: "Stillwaterising",
+      requiresAttribution: true,
+      attributionText: "Stillwaterising, CC BY-SA 3.0, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-map-1",
+    title: "Labeled World Map",
+    category: "map",
+    expectedImageKind: "mapImage",
+    expectedElementCategories: ["textRegion", "symbol"],
+    expectedVisibleElementLabels: ["map", "labels", "boundaries"],
+    optionalElementCategories: ["waterBody", "terrain"],
+    optionalVisibleText: ["PACIFIC", "ATLANTIC", "OCEAN"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Kavrayskiy_VII_projection_SW.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Kavrayskiy_VII_projection_SW.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Kavrayskiy_VII_projection_SW.jpg/640px-Kavrayskiy_VII_projection_SW.jpg",
+      licenseKind: "ccBySa",
+      licenseName: "CC BY-SA 3.0",
+      licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0/",
+      author: "Daniel R. Strebe",
+      requiresAttribution: true,
+      attributionText: "Daniel R. Strebe, CC BY-SA 3.0, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-food-1",
+    title: "Roasted Turkey on Plate",
+    category: "food",
+    expectedImageKind: "foodPhoto",
+    expectedElementCategories: ["food", "container"],
+    expectedVisibleElementLabels: ["food", "plate"],
+    optionalElementCategories: ["unknown"],
+    optionalVisibleElementLabels: ["roasted turkey", "garnishes"],
+    source: {
+      provider: "Public Domain Pictures",
+      pageUrl: "https://www.publicdomainpictures.net/en/view-image.php?image=240989&picture=roasted-turkey-plate",
+      imageUrl: "https://www.publicdomainpictures.net/pictures/250000/velka/roasted-turkey-plate.jpg",
+      thumbnailUrl: "https://www.publicdomainpictures.net/pictures/250000/nahled/roasted-turkey-plate.jpg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain CC0",
+      licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+      author: "Jean Beaufort",
+      requiresAttribution: false,
+      attributionText: "Jean Beaufort, Public Domain CC0, via Public Domain Pictures"
+    }
+  },
+  {
+    id: "sample-chart-synthetic",
+    title: "Synthetic Annual Revenue Chart",
+    category: "chartOrTable",
+    expectedImageKind: "chartOrTable",
+    expectedElementCategories: ["chart", "textRegion"],
+    expectedVisibleElementLabels: ["bar chart", "axis", "legend"],
+    expectedVisibleText: ["Annual Revenue Growth", "Target Revenue", "2021", "2022", "2023", "2024", "$100K", "$75K", "$50K", "$25K", "$0"],
+    source: {
+      provider: "localFixture",
+      imageUrl: "/visual-samples/synthetic-chart.svg",
+      thumbnailUrl: "/visual-samples/synthetic-chart.svg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      author: "indexmd test fixture",
+      requiresAttribution: false,
+      attributionText: "indexmd test fixture, Public domain"
+    }
+  },
+  {
+    id: "sample-table-synthetic",
+    title: "Synthetic Milestones Table",
+    category: "chartOrTable",
+    expectedImageKind: "chartOrTable",
+    expectedElementCategories: ["table", "textRegion"],
+    expectedVisibleElementLabels: ["table", "rows", "columns", "headers"],
+    expectedVisibleText: ["Project Milestones", "Task ID", "Description", "Status", "Budget", "TSK-01", "Setup Environment", "Completed", "$1,200", "TSK-02", "Develop Core API", "In Progress", "$4,500", "TSK-03", "Write Unit Tests", "Pending", "$800", "TOTAL BUDGET:", "$6,500"],
+    source: {
+      provider: "localFixture",
+      imageUrl: "/visual-samples/synthetic-table.svg",
+      thumbnailUrl: "/visual-samples/synthetic-table.svg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      author: "indexmd test fixture",
+      requiresAttribution: false,
+      attributionText: "indexmd test fixture, Public domain"
+    }
+  },
+  {
+    id: "sample-ui-synthetic",
+    title: "Synthetic Mobile Settings UI",
+    category: "ui",
+    expectedImageKind: "screenshot",
+    expectedElementCategories: ["screen", "uiElement", "textRegion"],
+    expectedVisibleElementLabels: ["settings screen", "toggle", "button"],
+    expectedVisibleText: ["Settings", "Notifications", "Privacy", "Account Details", "Dark Mode", "Save Changes"],
+    source: {
+      provider: "localFixture",
+      imageUrl: "/visual-samples/synthetic-ui-settings.svg",
+      thumbnailUrl: "/visual-samples/synthetic-ui-settings.svg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      author: "indexmd test fixture",
+      requiresAttribution: false,
+      attributionText: "indexmd test fixture, Public domain"
+    }
+  },
+  {
+    id: "sample-form-synthetic",
+    title: "Synthetic Contact Form",
+    category: "form",
+    expectedImageKind: "screenshot",
+    expectedElementCategories: ["document", "textRegion", "uiElement"],
+    expectedVisibleElementLabels: ["form", "input field", "checkbox", "submit button"],
+    expectedVisibleText: ["Contact Registration Form", "Please fill in your details below.", "Full Name", "Jane Doe", "Email Address", "jane.doe@example.com", "I agree to the Terms of Service", "Submit Form"],
+    source: {
+      provider: "localFixture",
+      imageUrl: "/visual-samples/synthetic-form.svg",
+      thumbnailUrl: "/visual-samples/synthetic-form.svg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      author: "indexmd test fixture",
+      requiresAttribution: false,
+      attributionText: "indexmd test fixture, Public domain"
+    }
+  },
+  {
+    id: "sample-package-synthetic",
+    title: "Synthetic Product Package Label",
+    category: "package",
+    expectedImageKind: "packageImage",
+    expectedElementCategories: ["productPackage", "textRegion"],
+    expectedVisibleElementLabels: ["package", "label", "ingredients", "barcode"],
+    expectedVisibleText: ["ORGANIC HARVEST", "Roasted Almonds", "INGREDIENTS:", "Organic Almonds", "NET WT 8 OZ", "748192047582"],
+    source: {
+      provider: "localFixture",
+      imageUrl: "/visual-samples/synthetic-package-label.svg",
+      thumbnailUrl: "/visual-samples/synthetic-package-label.svg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      author: "indexmd test fixture",
+      requiresAttribution: false,
+      attributionText: "indexmd test fixture, Public domain"
+    }
+  },
+  {
+    id: "sample-mixed-scene-synthetic",
+    title: "Synthetic Desk Setup Mixed Scene",
+    category: "mixed",
+    expectedImageKind: "mixed",
+    expectedElementCategories: ["furniture", "document", "tool", "product"],
+    expectedVisibleElementLabels: ["desk", "book", "cup", "phone", "note"],
+    expectedVisibleText: ["JOURNAL", "Don't forget:", "roasted almonds", "Call mom @ 5pm", "10:42"],
+    source: {
+      provider: "localFixture",
+      imageUrl: "/visual-samples/synthetic-mixed-desk.svg",
+      thumbnailUrl: "/visual-samples/synthetic-mixed-desk.svg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      author: "indexmd test fixture",
+      requiresAttribution: false,
+      attributionText: "indexmd test fixture, Public domain"
+    }
   }
 ];
 

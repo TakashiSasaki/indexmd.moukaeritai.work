@@ -22,7 +22,16 @@ export type PublicVisualSampleCategory =
   | "screenshotLike"
   | "chartOrTable"
   | "documentLike"
-  | "mixed";
+  | "mixed"
+  | "artwork"
+  | "artifact"
+  | "food"
+  | "map"
+  | "medical"
+  | "space"
+  | "ui"
+  | "form"
+  | "package";
 
 export interface PublicVisualSampleSource {
   provider: string;

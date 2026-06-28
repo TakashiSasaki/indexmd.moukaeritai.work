@@ -6,7 +6,8 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const ALLOWED_HOSTS = [
   "upload.wikimedia.org",
-  "commons.wikimedia.org"
+  "commons.wikimedia.org",
+  "www.publicdomainpictures.net"
 ];
 
 const PROXY_URL = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
