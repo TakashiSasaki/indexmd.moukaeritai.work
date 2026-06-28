@@ -84,3 +84,12 @@ The schema is validated against a curated **Public Visual Sample Matrix**. This 
 - `expectedVisibleText` focuses on short, important text visible in the image to verify OCR extraction.
 - We support `expectedElementCategoryAlternatives` and `expectedVisibleElementLabelAliases` to handle vocabulary coarseness and model expression variations.
 - Expected comparison results (Exact, Acceptable, Diverged) act as a secondary quality check separated from the core `qualityGate`.
+
+## Robust Execution RC (JSON Parsing & Recovery)
+Prompted JSON models (such as Gemma) may occasionally return output that contains valid data but fails strict `JSON.parse()` due to markdown fencing or conversational prose surrounding the JSON object.
+
+To improve reliability without losing execution provenance:
+- **Local Recovery (Always On):** The system attempts direct parsing, followed by markdown fence stripping, and finally balanced JSON object extraction.
+- **Diagnostics Logging:** All parse attempts, lengths, and truncated previews are logged in `parseDiagnostics`.
+- **Parse Failure is Execution Failure:** A JSON parsing failure is caught *before* the schema `qualityGate` is run, returning an execution error (`failureKind: "jsonParseError"`). The raw full text is never persisted to database logs; only a truncated preview is kept.
+- **Model Retry (Opt-in):** A fallback or repair retry is *not* implemented by default. However, users can opt-in to a single "same request" retry (`retryOnInvalidJson`). If enabled, and parsing fails, the same prompt and image are dispatched exactly once more. Fallback model retry and repair-prompting are explicitly out of scope for this milestone.

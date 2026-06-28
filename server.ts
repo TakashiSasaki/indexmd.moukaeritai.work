@@ -37,6 +37,7 @@ import { buildVisualAnalysisSystemInstruction, buildVisualAnalysisTaskPrompt } f
 import { normalizeVisualAnalysis } from "./src/lib/visualAnalysis/normalize";
 import { validateVisualAnalysis } from "./src/lib/visualAnalysis/validate";
 import { evaluateVisualAnalysisQuality } from "./src/lib/visualAnalysis/qualityGate";
+import { parseModelJsonOutput } from "./src/lib/visualAnalysis/jsonParsing";
 import { VISUAL_ANALYSIS_SCHEMA, VISUAL_ANALYSIS_SCHEMA_VERSION } from "./src/lib/visualAnalysis/schema";
 import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } from "./src/lib/visualAnalysis/runMetadata";
 
@@ -1489,7 +1490,7 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
 
 app.post("/api/visual/public-samples/analyze", async (req, res) => {
   try {
-    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction } = req.body;
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction, retryOnInvalidJson = false } = req.body;
 
     if (!sampleId) return res.status(400).json({ error: "sampleId is required" });
 
@@ -1555,7 +1556,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     });
 
     // Call Model
-    const aiRes = await generateContentWithRetry(targetModel, [
+    let aiRes = await generateContentWithRetry(targetModel, [
       { inlineData: { data: base64Data, mimeType: mimeType } },
       { text: taskPrompt }
     ], 4, configOption);
@@ -1563,23 +1564,70 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     let outputText = aiRes.text?.trim() || "{}";
 
     // Parse and Validate
-    let parsed: any;
-    try {
-      parsed = JSON.parse(outputText);
-    } catch (e) {
-      const cleaned = outputText.replace(/^```(json)?|```$/gm, '').trim();
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch (e2) {
-        return res.status(500).json({
-          success: false,
-          error: "Model returned invalid JSON",
-          failureKind: "jsonParseError",
-          rawOutputLength: outputText.length,
-          parseErrorMessage: e2 instanceof Error ? e2.message : String(e2)
-        });
-      }
+    let parseRes = parseModelJsonOutput(outputText);
+    let retryCount = 0;
+
+    if (!parseRes.ok && retryOnInvalidJson) {
+      aiRes = await generateContentWithRetry(targetModel, [
+        { inlineData: { data: base64Data, mimeType: mimeType } },
+        { text: taskPrompt }
+      ], 4, configOption);
+      const newOutputText = aiRes.text?.trim() || "{}";
+      const newParseRes = parseModelJsonOutput(newOutputText);
+      newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
+      parseRes = newParseRes;
+      retryCount = 1;
     }
+
+    // Add recovery stats to run metadata
+    (runMetadata.execution as any).jsonRecovery = {
+      localRecoveryEnabled: true,
+      retryOnInvalidJson,
+      retryStrategy: "sameRequestOnce",
+      retryCount,
+      finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
+    };
+
+    const requestPreview = includeRequestPreview ? {
+      model: targetModel,
+      outputMode: "structured",
+      taskPrompt,
+      systemInstruction,
+      mimeType: mimeType,
+      binaryInlineDataUsed: true,
+      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
+    } : undefined;
+
+    if (!parseRes.ok) {
+      return res.status(500).json({
+        success: false,
+        error: "Model returned invalid JSON",
+        failureKind: "jsonParseError",
+        sampleMetadata: {
+          id: sample.id,
+          title: sample.title,
+          category: sample.category,
+          licenseKind: sample.source.licenseKind,
+          licenseName: sample.source.licenseName,
+          attributionText: sample.source.attributionText,
+          sourcePageUrl: sample.source.pageUrl
+        },
+        expectedMetadata: {
+          imageKind: sample.expectedImageKind,
+          elementCategories: sample.expectedElementCategories,
+          elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
+          visibleElementLabels: sample.expectedVisibleElementLabels,
+          visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
+          visibleText: sample.expectedVisibleText,
+          notes: sample.expectedNotes
+        },
+        analysisRun: runMetadata,
+        parseDiagnostics: parseRes.diagnostics,
+        ...(requestPreview ? { requestPreview } : {})
+      });
+    }
+
+    const parsed = parseRes.parsed;
 
     if (extractedCustomSchema) {
       const result: any = {
@@ -1704,7 +1752,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
 
 app.post("/api/drive/debug/analyze-image", async (req, res) => {
   try {
-    const { fileId, modelName = "gemini-3.5-flash", customInstruction, includeRequestPreview = false, jsonMode } = req.body;
+    const { fileId, modelName = "gemini-3.5-flash", customInstruction, includeRequestPreview = false, jsonMode, retryOnInvalidJson = false } = req.body;
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: "Missing Authorization header" });
     const token = authHeader.replace("Bearer ", "");
@@ -1788,7 +1836,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     });
 
     // 4. Call Model
-    const aiRes = await generateContentWithRetry(targetModel, [
+    let aiRes = await generateContentWithRetry(targetModel, [
       { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
       { text: taskPrompt }
     ], 4, configOption);
@@ -1796,24 +1844,54 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     let outputText = aiRes.text?.trim() || "{}";
     
     // 5. Parse and Validate
-    let parsed: any;
-    try {
-      parsed = JSON.parse(outputText);
-    } catch (e) {
-      // Strip markdown block if Gemma gave it anyway
-      const cleaned = outputText.replace(/^```(json)?|```$/gm, '').trim();
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch (e2) {
-        return res.status(500).json({ 
-          success: false,
-          error: "Model returned invalid JSON", 
-          failureKind: "jsonParseError",
-          rawOutputLength: outputText.length,
-          parseErrorMessage: e2 instanceof Error ? e2.message : String(e2)
-        });
-      }
+    let parseRes = parseModelJsonOutput(outputText);
+    let retryCount = 0;
+
+    if (!parseRes.ok && retryOnInvalidJson) {
+      aiRes = await generateContentWithRetry(targetModel, [
+        { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
+        { text: taskPrompt }
+      ], 4, configOption);
+      const newOutputText = aiRes.text?.trim() || "{}";
+      const newParseRes = parseModelJsonOutput(newOutputText);
+      newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
+      parseRes = newParseRes;
+      retryCount = 1;
     }
+
+    // Add recovery stats to run metadata
+    (runMetadata.execution as any).jsonRecovery = {
+      localRecoveryEnabled: true,
+      retryOnInvalidJson,
+      retryStrategy: "sameRequestOnce",
+      retryCount,
+      finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
+    };
+
+    const requestPreview = includeRequestPreview ? {
+      model: targetModel,
+      outputMode: "structured",
+      taskPrompt,
+      systemInstruction,
+      mimeType: fileMeta.mimeType,
+      binaryInlineDataUsed: true,
+      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
+    } : undefined;
+
+    if (!parseRes.ok) {
+      return res.status(500).json({ 
+        success: false,
+        outputMode: "structured",
+        error: "Model returned invalid JSON", 
+        failureKind: "jsonParseError",
+        metadata: fileMeta,
+        analysisRun: runMetadata,
+        parseDiagnostics: parseRes.diagnostics,
+        ...(requestPreview ? { requestPreview } : {})
+      });
+    }
+
+    const parsed = parseRes.parsed;
 
     if (extractedCustomSchema) {
       const result: any = {

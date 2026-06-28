@@ -126,6 +126,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   });
   const [copied, setCopied] = useState<string | null>(null);
   const [includePreview, setIncludePreview] = useState(false);
+  const [retryOnInvalidJson, setRetryOnInvalidJson] = useState(false);
   const [customInstruction, setCustomInstruction] = useState<string>("");
   const [showPreviewHelp, setShowPreviewHelp] = useState(false);
 
@@ -275,7 +276,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       modelName,
       includeRequestPreview: includePreview,
       jsonMode: config.json_mode,
-      customInstruction: customInstruction.trim()
+      customInstruction: customInstruction.trim(),
+      retryOnInvalidJson
     };
 
     try {
@@ -294,13 +296,21 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         return;
       }
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to analyze image");
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error("Failed to parse server response");
       }
+
       setResult(data);
-      onAddLog("success", "Image analyzed successfully");
-      saveDebugLog("drive", payload, data, true);
+      if (!res.ok) {
+        onAddLog("error", "Image analysis failed", data.error || "Failed to analyze image");
+        saveDebugLog("drive", payload, data, false, data.error || "Failed to analyze image");
+      } else {
+        onAddLog("success", "Image analyzed successfully");
+        saveDebugLog("drive", payload, data, true);
+      }
     } catch (err: any) {
       onAddLog("error", "Image analysis failed", err.message);
       saveDebugLog("drive", payload, null, false, err.message);
@@ -322,7 +332,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       modelName,
       includeRequestPreview: includePreview,
       jsonMode: config.json_mode,
-      customInstruction: customInstruction.trim()
+      customInstruction: customInstruction.trim(),
+      retryOnInvalidJson
     };
 
     try {
@@ -334,16 +345,27 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      if (res.status === 401) {
+        onSessionExpiry();
+        saveDebugLog("public", payload, { error: "Session expired (401)" }, false, "Session expired (401)");
+        return;
+      }
 
-      if (!res.ok) {
-        if (res.status === 401) onSessionExpiry();
-        throw new Error(data.error || "Failed to analyze public sample");
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error("Failed to parse server response");
       }
 
       setResult(data);
-      onAddLog(data.success ? "success" : "warn", `[Image Analysis] Complete for sample ${selectedSampleId}`);
-      saveDebugLog("public", payload, data, data.success);
+      if (!res.ok) {
+        onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
+        saveDebugLog("public", payload, data, false, data.error || "Failed to analyze public sample");
+      } else {
+        onAddLog(data.success ? "success" : "warn", `[Image Analysis] Complete for sample ${selectedSampleId}`);
+        saveDebugLog("public", payload, data, data.success);
+      }
     } catch (err: any) {
       onAddLog("error", `[Image Analysis] Error: ${err.message}`);
       saveDebugLog("public", payload, null, false, err.message);
@@ -495,52 +517,67 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 h-[38px] px-2 relative">
-                  <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
-                    <input 
-                      type="checkbox" 
-                      checked={includePreview} 
-                      onChange={(e) => setIncludePreview(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-[11px] text-slate-600 group-hover:text-slate-900 transition-colors">
-                      リクエストプレビュー
-                    </span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowPreviewHelp(!showPreviewHelp);
-                    }}
-                    className="text-slate-400 hover:text-slate-600 focus:outline-none p-0.5 rounded-full hover:bg-slate-100 transition-colors flex items-center justify-center"
-                    title="ヘルプを表示"
-                  >
-                    <HelpCircle className="w-3.5 h-3.5" />
-                  </button>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5 h-[38px] px-2 relative">
+                    <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
+                      <input 
+                        type="checkbox" 
+                        checked={includePreview} 
+                        onChange={(e) => setIncludePreview(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-[11px] text-slate-600 group-hover:text-slate-900 transition-colors">
+                        リクエストプレビュー
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowPreviewHelp(!showPreviewHelp);
+                      }}
+                      className="text-slate-400 hover:text-slate-600 focus:outline-none p-0.5 rounded-full hover:bg-slate-100 transition-colors flex items-center justify-center"
+                      title="ヘルプを表示"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5" />
+                    </button>
 
-                  {showPreviewHelp && (
-                    <div className="absolute top-full right-0 mt-1.5 w-64 bg-slate-800 text-white text-[11px] p-3 rounded-lg shadow-xl z-[99] leading-relaxed border border-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
-                      <div className="flex justify-between items-start mb-1 font-bold text-slate-200">
-                        <span>リクエストプレビューとは</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setShowPreviewHelp(false);
-                          }}
-                          className="text-[10px] text-slate-400 hover:text-white font-semibold underline"
-                        >
-                          閉じる
-                        </button>
+                    {showPreviewHelp && (
+                      <div className="absolute top-full right-0 mt-1.5 w-64 bg-slate-800 text-white text-[11px] p-3 rounded-lg shadow-xl z-[99] leading-relaxed border border-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="flex justify-between items-start mb-1 font-bold text-slate-200">
+                          <span>リクエストプレビューとは</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowPreviewHelp(false);
+                            }}
+                            className="text-[10px] text-slate-400 hover:text-white font-semibold underline"
+                          >
+                            閉じる
+                          </button>
+                        </div>
+                        <p className="text-slate-300">
+                          有効にすると、モデルに送信されたシステム指示（System Instruction）やタスクプロンプトなどのAPIリクエスト詳細を、解析結果と一緒に取得し、デバッグプレビュー（Debug: Request Preview）で確認できるようになります。
+                        </p>
                       </div>
-                      <p className="text-slate-300">
-                        有効にすると、モデルに送信されたシステム指示（System Instruction）やタスクプロンプトなどのAPIリクエスト詳細を、解析結果と一緒に取得し、デバッグプレビュー（Debug: Request Preview）で確認できるようになります。
-                      </p>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 h-[38px] px-2 relative">
+                    <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap" title="Useful for prompted JSON models. Off by default so raw model stability can be evaluated.">
+                      <input 
+                        type="checkbox" 
+                        checked={retryOnInvalidJson} 
+                        onChange={(e) => setRetryOnInvalidJson(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-[11px] text-slate-600 group-hover:text-slate-900 transition-colors">
+                        Retry on invalid JSON
+                      </span>
+                    </label>
+                  </div>
                 </div>
                 <button
                   onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
@@ -659,6 +696,67 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
             </div>
 
+            {result.success === false && result.failureKind === "jsonParseError" && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-red-100 text-red-600 rounded-full shrink-0">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1 w-full">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-red-900">Execution Failure: Invalid JSON</h3>
+                      <button
+                        onClick={() => handleCopy(JSON.stringify(result, null, 2), 'parse-error')}
+                        className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center gap-1 bg-red-100/50 px-2 py-1 rounded"
+                      >
+                        {copied === 'parse-error' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copied === 'parse-error' ? "Copied!" : "Copy Details"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-red-700 leading-relaxed">
+                      The model returned output that could not be parsed as valid JSON.
+                      This typically happens with prompted JSON models like Gemma when they fail to follow the schema strictly.
+                    </p>
+                    {result.parseDiagnostics?.parseErrorMessage && (
+                      <p className="text-xs text-red-600 font-mono bg-red-100 p-2 rounded mt-2">
+                        {result.parseDiagnostics.parseErrorMessage}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {result.parseDiagnostics?.attempts && result.parseDiagnostics.attempts.length > 0 && (
+                  <div className="bg-white rounded border border-red-100 overflow-hidden">
+                    <div className="bg-red-100/50 px-3 py-2 text-[10px] font-bold text-red-800 border-b border-red-100">
+                      Parse & Recovery Attempts ({result.analysisRun?.execution?.jsonRecovery?.retryCount ? `Retry Enabled, ${result.analysisRun.execution.jsonRecovery.retryCount} Retries` : 'No Retries'})
+                    </div>
+                    <div className="divide-y divide-red-50">
+                      {result.parseDiagnostics.attempts.map((attempt: any, i: number) => (
+                        <div key={i} className="px-3 py-2 flex items-center justify-between text-[11px]">
+                          <span className="font-mono text-slate-600">{attempt.mode}</span>
+                          <span className={`font-bold ${attempt.success ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {attempt.success ? 'Success' : 'Failed'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {result.parseDiagnostics?.rawOutputPreview && (
+                  <details className="text-xs bg-white rounded border border-red-100 group">
+                    <summary className="px-3 py-2 font-bold text-red-800 cursor-pointer hover:bg-red-50 transition-colors flex items-center justify-between select-none">
+                      <span>Raw Output Preview ({result.parseDiagnostics.rawOutputLength} chars)</span>
+                      <span className="text-red-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div className="p-3 border-t border-red-100 bg-slate-50 font-mono text-[10px] whitespace-pre-wrap text-slate-700 overflow-x-auto">
+                      {result.parseDiagnostics.rawOutputPreview}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
             <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-4 text-[11px]">
@@ -683,13 +781,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     {copied === 'full' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     {copied === 'full' ? "Copied!" : "Copy Full Response"}
                   </button>
-                  <button
-                    onClick={() => handleCopy(JSON.stringify(result.visualAnalysis, null, 2), 'all')}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                  >
-                    {copied === 'all' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copied === 'all' ? "Copied!" : "Copy Result JSON"}
-                  </button>
+                  {result.visualAnalysis && (
+                    <button
+                      onClick={() => handleCopy(JSON.stringify(result.visualAnalysis, null, 2), 'all')}
+                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    >
+                      {copied === 'all' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied === 'all' ? "Copied!" : "Copy Result JSON"}
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -719,7 +819,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               )}
             </div>
 
-            {isPublicResult && result.expectedMetadata && (
+            {isPublicResult && result.expectedMetadata && result.visualAnalysis && (
               <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl space-y-4">
                 <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
                   <Activity className="w-4 h-4 text-indigo-600" /> Expected vs Detected Schema Comparison

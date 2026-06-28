@@ -6,22 +6,23 @@ export interface ComparisonResult {
   details?: string;
 }
 
-export function compareExpectedImageKind(sample: PublicVisualSample, detectedKind?: string): ComparisonResult {
+export function compareExpectedImageKind(sample: any, detectedKind?: string): ComparisonResult {
+  const expectedImageKind = sample.expectedImageKind || sample.imageKind;
   if (!detectedKind) return { status: "diverged", details: "No image kind detected." };
   
-  if (detectedKind === sample.expectedImageKind) {
+  if (detectedKind === expectedImageKind) {
     return { status: "exact" };
   }
   
   // Some acceptable overlaps
-  if (sample.expectedImageKind === 'productPhoto' && detectedKind === 'packageImage') return { status: "acceptable" };
-  if (sample.expectedImageKind === 'documentPhoto' && detectedKind === 'handwrittenNote') return { status: "acceptable" };
-  if (sample.expectedImageKind === 'documentPhoto' && detectedKind === 'receiptPhoto') return { status: "acceptable" };
+  if (expectedImageKind === 'productPhoto' && detectedKind === 'packageImage') return { status: "acceptable" };
+  if (expectedImageKind === 'documentPhoto' && detectedKind === 'handwrittenNote') return { status: "acceptable" };
+  if (expectedImageKind === 'documentPhoto' && detectedKind === 'receiptPhoto') return { status: "acceptable" };
 
-  return { status: "diverged", details: `Expected ${sample.expectedImageKind}, got ${detectedKind}` };
+  return { status: "diverged", details: `Expected ${expectedImageKind}, got ${detectedKind}` };
 }
 
-export function compareExpectedCategories(sample: PublicVisualSample, detectedCategories: string[]): {
+export function compareExpectedCategories(sample: any, detectedCategories: string[]): {
   exact: string[];
   acceptable: string[];
   missing: string[];
@@ -32,7 +33,10 @@ export function compareExpectedCategories(sample: PublicVisualSample, detectedCa
   const missing: string[] = [];
   const extra: string[] = [...detectedCategories];
 
-  for (const expected of sample.expectedElementCategories) {
+  const expectedElementCategories = sample.expectedElementCategories || sample.elementCategories || [];
+  const expectedElementCategoryAlternatives = sample.expectedElementCategoryAlternatives || sample.elementCategoryAlternatives;
+
+  for (const expected of expectedElementCategories) {
     const idx = extra.indexOf(expected);
     if (idx !== -1) {
       exact.push(expected);
@@ -41,8 +45,8 @@ export function compareExpectedCategories(sample: PublicVisualSample, detectedCa
     }
 
     let foundAlternative = false;
-    if (sample.expectedElementCategoryAlternatives && sample.expectedElementCategoryAlternatives[expected]) {
-      for (const alt of sample.expectedElementCategoryAlternatives[expected]) {
+    if (expectedElementCategoryAlternatives && expectedElementCategoryAlternatives[expected]) {
+      for (const alt of expectedElementCategoryAlternatives[expected]) {
         const altIdx = extra.indexOf(alt);
         if (altIdx !== -1) {
           acceptable.push(alt); // found an acceptable alternative
@@ -61,7 +65,7 @@ export function compareExpectedCategories(sample: PublicVisualSample, detectedCa
   return { exact, acceptable, missing, extra };
 }
 
-export function compareExpectedLabels(sample: PublicVisualSample, detectedLabels: string[]): {
+export function compareExpectedLabels(sample: any, detectedLabels: string[]): {
   exact: string[];
   acceptable: string[];
   missing: string[];
@@ -71,7 +75,8 @@ export function compareExpectedLabels(sample: PublicVisualSample, detectedLabels
   const acceptable: string[] = [];
   const missing: string[] = [];
   const extra: string[] = [...detectedLabels.map(l => l.toLowerCase())];
-  const expectedLabels = sample.expectedVisibleElementLabels || [];
+  const expectedLabels = sample.expectedVisibleElementLabels || sample.visibleElementLabels || [];
+  const expectedVisibleElementLabelAliases = sample.expectedVisibleElementLabelAliases || sample.visibleElementLabelAliases;
 
   for (const expected of expectedLabels) {
     const expectedLower = expected.toLowerCase();
@@ -83,8 +88,8 @@ export function compareExpectedLabels(sample: PublicVisualSample, detectedLabels
     }
 
     let foundAlternative = false;
-    if (sample.expectedVisibleElementLabelAliases && sample.expectedVisibleElementLabelAliases[expected]) {
-      for (const alt of sample.expectedVisibleElementLabelAliases[expected]) {
+    if (expectedVisibleElementLabelAliases && expectedVisibleElementLabelAliases[expected]) {
+      for (const alt of expectedVisibleElementLabelAliases[expected]) {
         const altLower = alt.toLowerCase();
         
         // Find if any extra label contains this alias or matches it
@@ -107,13 +112,13 @@ export function compareExpectedLabels(sample: PublicVisualSample, detectedLabels
   return { exact, acceptable, missing, extra };
 }
 
-export function compareExpectedVisibleText(sample: PublicVisualSample, detectedText: string[]): {
+export function compareExpectedVisibleText(sample: any, detectedText: string[]): {
   matched: string[];
   missing: string[];
 } {
   const matched: string[] = [];
   const missing: string[] = [];
-  const expectedText = sample.expectedVisibleText || [];
+  const expectedText = sample.expectedVisibleText || sample.visibleText || [];
   
   const allDetected = detectedText.join(" ").toLowerCase();
 
