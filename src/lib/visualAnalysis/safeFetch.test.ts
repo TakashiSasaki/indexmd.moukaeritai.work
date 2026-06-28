@@ -1,113 +1,105 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, beforeEach } from 'node:test';
+import assert from 'node:assert';
 import { safeFetch, safeFetchWithRetry } from './safeFetch';
 
-// Mock the global fetch
-const globalFetchMock = vi.fn();
-vi.stubGlobal('fetch', globalFetchMock);
-
 describe('safeFetch', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it('classifies Starting Server HTML as transient startup HTML', async () => {
-    globalFetchMock.mockResolvedValueOnce({
+  it('classifies Starting Server HTML as transient startup HTML', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
       ok: true,
       status: 200,
       statusText: 'OK',
       headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
       url: 'http://localhost/api/visual/health',
       text: async () => '<html><head><title>Starting Server...</title></head><body>Please wait while your application starts...</body></html>',
-    });
+    }));
 
     const result = await safeFetch('http://localhost/api/visual/health');
 
-    expect(result.success).toBe(false);
-    expect(result.failureKind).toBe('nonJsonResponse');
-    expect(result.responseDiagnostics?.looksLikeHtml).toBe(true);
-    expect(result.responseDiagnostics?.htmlTitle).toBe('Starting Server...');
-    expect(result.responseDiagnostics?.isTransientStartupHtml).toBe(true);
-    expect(result.responseDiagnostics?.transientReason).toBe('startingServerHtml');
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.failureKind, 'nonJsonResponse');
+    assert.strictEqual(result.responseDiagnostics?.looksLikeHtml, true);
+    assert.strictEqual(result.responseDiagnostics?.htmlTitle, 'Starting Server...');
+    assert.strictEqual(result.responseDiagnostics?.isTransientStartupHtml, true);
+    assert.strictEqual(result.responseDiagnostics?.transientReason, 'startingServerHtml');
   });
 
-  it('does not classify unrelated HTML as transient', async () => {
-    globalFetchMock.mockResolvedValueOnce({
+  it('does not classify unrelated HTML as transient', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
       ok: true,
       status: 200,
       statusText: 'OK',
       headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
       url: 'http://localhost/api/visual/health',
       text: async () => '<html><head><title>Welcome</title></head><body>Hello world</body></html>',
-    });
+    }));
 
     const result = await safeFetch('http://localhost/api/visual/health');
 
-    expect(result.success).toBe(false);
-    expect(result.failureKind).toBe('nonJsonResponse');
-    expect(result.responseDiagnostics?.looksLikeHtml).toBe(true);
-    expect(result.responseDiagnostics?.htmlTitle).toBe('Welcome');
-    expect(result.responseDiagnostics?.isTransientStartupHtml).toBe(false);
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.failureKind, 'nonJsonResponse');
+    assert.strictEqual(result.responseDiagnostics?.looksLikeHtml, true);
+    assert.strictEqual(result.responseDiagnostics?.htmlTitle, 'Welcome');
+    assert.strictEqual(result.responseDiagnostics?.isTransientStartupHtml, false);
   });
 
-  it('parses valid JSON response', async () => {
-    globalFetchMock.mockResolvedValueOnce({
+  it('parses valid JSON response', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
       ok: true,
       status: 200,
       statusText: 'OK',
       headers: new Headers({ 'content-type': 'application/json' }),
       url: 'http://localhost/api/visual/health',
       text: async () => '{"ok":true}',
-    });
+    }));
 
     const result = await safeFetch('http://localhost/api/visual/health');
 
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual({ ok: true });
-    expect(result.responseDiagnostics?.looksLikeHtml).toBe(false);
+    assert.strictEqual(result.success, true);
+    assert.deepStrictEqual(result.data, { ok: true });
+    assert.strictEqual(result.responseDiagnostics?.looksLikeHtml, false);
   });
 
-  it('returns invalidJsonResponse on bad JSON', async () => {
-    globalFetchMock.mockResolvedValueOnce({
+  it('returns invalidJsonResponse on bad JSON', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
       ok: true,
       status: 200,
       statusText: 'OK',
       headers: new Headers({ 'content-type': 'application/json' }),
       url: 'http://localhost/api/visual/health',
       text: async () => '{"ok":true,}',
-    });
+    }));
 
     const result = await safeFetch('http://localhost/api/visual/health');
 
-    expect(result.success).toBe(false);
-    expect(result.failureKind).toBe('invalidJsonResponse');
-    expect(result.responseDiagnostics?.parseErrorMessage).toBeDefined();
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.failureKind, 'invalidJsonResponse');
+    assert.ok(result.responseDiagnostics?.parseErrorMessage);
   });
 });
 
 describe('safeFetchWithRetry', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it('retries on transient startup HTML and succeeds', async () => {
-    // First attempt: Starting Server HTML
-    globalFetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Headers({ 'content-type': 'text/html' }),
-      url: 'http://localhost/api/visual/health',
-      text: async () => '<html><head><title>Starting Server...</title></head><body></body></html>',
-    });
-    
-    // Second attempt: Success JSON
-    globalFetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Headers({ 'content-type': 'application/json' }),
-      url: 'http://localhost/api/visual/health',
-      text: async () => '{"ok":true}',
+  it('retries on transient startup HTML and succeeds', async (t) => {
+    let callCount = 0;
+    t.mock.method(globalThis, 'fetch', async () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/html' }),
+          url: 'http://localhost/api/visual/health',
+          text: async () => '<html><head><title>Starting Server...</title></head><body></body></html>',
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        url: 'http://localhost/api/visual/health',
+        text: async () => '{"ok":true}',
+      };
     });
 
     const result = await safeFetchWithRetry('http://localhost/api/visual/health', undefined, {
@@ -116,25 +108,23 @@ describe('safeFetchWithRetry', () => {
       retryStartupHtml: true
     });
 
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual({ ok: true });
-    expect(result.retryDiagnostics?.attempts).toBe(2);
-    expect(result.retryDiagnostics?.retried).toBe(true);
-    expect(result.retryDiagnostics?.events.length).toBe(1);
-    expect(result.retryDiagnostics?.events[0].htmlTitle).toBe('Starting Server...');
+    assert.strictEqual(result.success, true);
+    assert.deepStrictEqual(result.data, { ok: true });
+    assert.strictEqual(result.retryDiagnostics?.attempts, 2);
+    assert.strictEqual(result.retryDiagnostics?.retried, true);
+    assert.strictEqual(result.retryDiagnostics?.events.length, 1);
+    assert.strictEqual(result.retryDiagnostics?.events[0].htmlTitle, 'Starting Server...');
   });
 
-  it('exhausts retries on persistent transient startup HTML', async () => {
-    for (let i = 0; i < 3; i++) {
-      globalFetchMock.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        headers: new Headers({ 'content-type': 'text/html' }),
-        url: 'http://localhost/api/visual/health',
-        text: async () => '<html><head><title>Starting Server...</title></head><body></body></html>',
-      });
-    }
+  it('exhausts retries on persistent transient startup HTML', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'text/html' }),
+      url: 'http://localhost/api/visual/health',
+      text: async () => '<html><head><title>Starting Server...</title></head><body></body></html>',
+    }));
 
     const result = await safeFetchWithRetry('http://localhost/api/visual/health', undefined, {
       maxAttempts: 3,
@@ -142,22 +132,22 @@ describe('safeFetchWithRetry', () => {
       retryStartupHtml: true
     });
 
-    expect(result.success).toBe(false);
-    expect(result.failureKind).toBe('nonJsonResponse');
-    expect(result.retryDiagnostics?.attempts).toBe(3);
-    expect(result.retryDiagnostics?.retried).toBe(true);
-    expect(result.retryDiagnostics?.events.length).toBe(2);
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.failureKind, 'nonJsonResponse');
+    assert.strictEqual(result.retryDiagnostics?.attempts, 3);
+    assert.strictEqual(result.retryDiagnostics?.retried, true);
+    assert.strictEqual(result.retryDiagnostics?.events.length, 2);
   });
 
-  it('does not retry on unrelated HTML', async () => {
-    globalFetchMock.mockResolvedValueOnce({
+  it('does not retry on unrelated HTML', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
       ok: true,
       status: 200,
       statusText: 'OK',
       headers: new Headers({ 'content-type': 'text/html' }),
       url: 'http://localhost/api/visual/health',
       text: async () => '<html><head><title>Not Found</title></head><body></body></html>',
-    });
+    }));
 
     const result = await safeFetchWithRetry('http://localhost/api/visual/health', undefined, {
       maxAttempts: 3,
@@ -165,9 +155,9 @@ describe('safeFetchWithRetry', () => {
       retryStartupHtml: true
     });
 
-    expect(result.success).toBe(false);
-    expect(result.failureKind).toBe('nonJsonResponse');
-    expect(result.retryDiagnostics?.attempts).toBe(1);
-    expect(result.retryDiagnostics?.retried).toBe(false);
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.failureKind, 'nonJsonResponse');
+    assert.strictEqual(result.retryDiagnostics?.attempts, 1);
+    assert.strictEqual(result.retryDiagnostics?.retried, false);
   });
 });

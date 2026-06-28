@@ -35,3 +35,10 @@ You can execute a batch regression run across **all** registered public samples 
 - **ChatGPT Report JSON:** A specialized "Copy ChatGPT Report JSON" button generates a compact summary of the batch run. To prevent context overflow in ChatGPT, this JSON explicitly omits `requestPreview` and `rawOutputPreview`.
 - **Full JSON & Failures:** You can also copy the "Full Batch JSON" (for deep debugging) or a "Failures Only" JSON.
 - **No Server Persistence:** The batch execution runs client-side and saves summaries only to `localStorage`. Server-side execution and persistence are currently out of scope.
+
+### Transient API Failures & Retry Policies
+When running in cloud environments (like AI Studio or Cloud Run), the backend container might be warming up or restarting.
+- **Starting Server HTML:** If the `/api/visual/...` endpoints respond with a status 200 `text/html` page containing "Starting Server..." or "Please wait while your application starts", this is classified as a transient failure (`isTransientStartupHtml: true`).
+- **Retry Mechanism:** Both single analysis and batch analysis use `safeFetchWithRetry`, which automatically retries transient startup HTML and network errors (default 4 attempts, with delays).
+- **Pre-Batch Readiness Check:** Before starting a batch run, the client polls `GET /api/visual/health` (which returns `{ ok: true }`) to ensure the server is ready, helping to avoid mass failures due to cold starts.
+- **Retry Diagnostics:** Batch execution reports (like the diagnostic report or failures report) include `retryDiagnostics` indicating how many attempts were made and why, preserving observability even when retries eventually succeed or fail.
