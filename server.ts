@@ -1498,7 +1498,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     if (!sample) return res.status(404).json({ error: "Sample not found" });
 
     // Fetch Image Bytes
-    const { buffer, mimeType } = await fetchPublicSampleImage(sampleId, "full");
+    const { buffer, mimeType } = await fetchPublicSampleImage(sampleId, "analysis");
     const base64Data = buffer.toString("base64");
 
     // Prepare Prompt & Options

@@ -34,7 +34,12 @@ To ensure safe CORS handling, image bytes are not fetched directly by the browse
 - Image bytes are streamed from memory to the client. They are **never persisted** on disk.
 
 ## Synthetic Fixtures
-For highly sensitive categories like `receipt` and `ticket`, we use local synthetic SVG assets rather than real internet images. This prevents accidental exposure of personal data, barcodes, order numbers, or tracking serials.
+For highly sensitive categories like `receipt` and `ticket`, we use local synthetic PNG assets (originally authored as SVGs, converted for model compatibility) rather than real internet images. This prevents accidental exposure of personal data, barcodes, order numbers, or tracking serials.
+
+## UI Badges and Failure Diagnostics
+The Image Experiment UI surfaces sample provenance and health directly:
+- **Source Badges**: Each sample is badged as `EXTERNAL` (Wikimedia Commons) or `SYNTHETIC` (local fixture).
+- **Broken Thumbnail Fallbacks**: If an image fails to load due to a network error or missing local file, the UI displays a distinct warning icon placeholder (`AlertCircle`) to indicate the broken state without disrupting layout.
 
 ## People Image Safety
 When analyzing an image of a person, the model is strictly instructed:
@@ -125,10 +130,11 @@ Every comparison generates a detailed, multi-dimensional `coverage` structure ba
 
 To maintain a reliable and robust test set for our AI logic, we observe the following policies regarding public samples:
 
-1. **Balance of Real and Synthetic Images**: The corpus should contain a healthy mix of real, open-license photos and local synthetic SVG fixtures. Synthetic fixtures are retained because they provide predictable layouts and exact ground truth for visible text (e.g., charts, forms, receipts), whereas external real images test model performance on natural lighting, noise, and unexpected angles. We aim to keep the corpus below ~30 images in total.
+1. **Balance of Real and Synthetic Images**: The corpus should contain a healthy mix of real, open-license photos and local synthetic PNG fixtures. Synthetic fixtures are retained because they provide predictable layouts and exact ground truth for visible text (e.g., charts, forms, receipts), whereas external real images test model performance on natural lighting, noise, and unexpected angles. We aim to keep the corpus below ~30 images in total.
 2. **Strict Host Allowlisting**: All external real image samples must be served over HTTPS from a strictly allowlisted set of exact hostnames (primarily Wikimedia Commons). No wildcard host support will be introduced.
 3. **Link Stability**: When adding an external image, always verify that direct image URLs are stable. In cases of 404s, 403s (Hotlink Protection), or HTML fallbacks, images should be diagnosed and either repaired with a stable alternative (e.g., swapping a Public Domain Pictures URL for an equivalent Wikimedia Commons URL) or gracefully rendered with an error placeholder in the UI.
-4. **Validating Corpus Health**: A diagnostic script is provided to verify that all images resolve correctly. 
+4. **Input Size Control for Batch Runs**: To prevent excessive memory use and proxy timeouts during batch processing, the server retrieves `analysis` variant images at constrained sizes (e.g., 640px Wikimedia thumbnails) instead of multi-megabyte full-resolution files.
+5. **Validating Corpus Health**: A diagnostic script is provided to verify that all images resolve correctly. 
 
 ### Diagnostics Script
 

@@ -780,7 +780,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                               </div>
 
                               {/* Thumbnail */}
-                              <div className="w-8 h-8 rounded overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative flex items-center justify-center">
+                              <div className="w-8 h-8 rounded overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative flex items-center justify-center group-hover:border-slate-300">
                                 {thumbUrl ? (
                                   <img
                                     src={thumbUrl}
@@ -789,12 +789,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
                                     onError={(e) => {
                                       e.currentTarget.style.display = 'none';
-                                      e.currentTarget.parentElement?.classList.add('broken-image-fallback');
+                                      const nextSibling = e.currentTarget.nextElementSibling as HTMLElement;
+                                      if (nextSibling) nextSibling.style.display = 'flex';
                                     }}
                                   />
-                                ) : (
-                                  <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
-                                )}
+                                ) : null}
+                                <div className="hidden absolute inset-0 bg-rose-50 items-center justify-center text-rose-300 flex-col" style={{ display: !thumbUrl ? 'flex' : 'none' }}>
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                </div>
                               </div>
 
                               {/* Text info */}

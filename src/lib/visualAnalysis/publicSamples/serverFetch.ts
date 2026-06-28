@@ -71,7 +71,7 @@ function writeToDiskCache(sampleId: string, variant: string, result: FetchSample
   }
 }
 
-export async function fetchPublicSampleImage(sampleId: string, variant: "preview" | "thumbnail" | "full"): Promise<FetchSampleResult> {
+export async function fetchPublicSampleImage(sampleId: string, variant: "preview" | "thumbnail" | "full" | "analysis"): Promise<FetchSampleResult> {
   const cacheKey = getCacheKey(sampleId, variant);
 
   // 1. Try In-Memory Cache
@@ -91,7 +91,9 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     throw new Error(`Sample not found: ${sampleId}`);
   }
 
-  let urlToFetch = variant === "thumbnail" ? (sample.source.thumbnailUrl || sample.source.imageUrl) : sample.source.imageUrl;
+  let urlToFetch = (variant === "thumbnail" || variant === "preview" || variant === "analysis") 
+    ? (sample.source.thumbnailUrl || sample.source.imageUrl) 
+    : sample.source.imageUrl;
   if (!urlToFetch) {
     throw new Error(`No image URL available for variant: ${variant}`);
   }
@@ -102,6 +104,9 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
       urlToFetch = urlToFetch.replace('/640px-', '/120px-');
     } else if (variant === "preview") {
       urlToFetch = urlToFetch.replace('/640px-', '/500px-');
+    } else if (variant === "analysis") {
+      // Keep 640px as it is known to exist and provides good enough resolution for Gemini (approx 640x...)
+      // Do nothing, keep original 640px thumbnail.
     }
   }
 
@@ -197,6 +202,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
 
           // Handle Redirects
           if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            res.resume(); // Consume response data to free up socket
             const location = res.headers.location;
             const nextUrl = new URL(location, url).toString();
             resolve(fetchExternalImage(nextUrl, redirectCount + 1));
@@ -205,6 +211,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
 
           // Handle 429 Rate Limit
           if (res.statusCode === 429) {
+            res.resume();
             const err: any = new Error('Rate limit');
             err.status = 429;
             reject(err);
@@ -228,6 +235,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
 
           const contentType = res.headers['content-type'];
           if (!contentType || !contentType.startsWith('image/')) {
+            res.resume();
             const err: any = new Error(`Invalid content type: ${contentType}`);
             err.noRetry = true;
             reject(err);
@@ -236,6 +244,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
 
           const contentLength = res.headers['content-length'];
           if (contentLength && parseInt(contentLength, 10) > MAX_IMAGE_SIZE_BYTES) {
+            res.resume();
             const err: any = new Error('Image too large');
             err.noRetry = true;
             reject(err);
