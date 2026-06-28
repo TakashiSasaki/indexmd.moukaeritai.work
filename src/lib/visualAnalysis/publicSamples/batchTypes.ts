@@ -31,7 +31,6 @@ export interface PublicSampleBatchRunSummary {
   timestamp: string;
   modelName: string;
   jsonMode: string;
-  retryOnInvalidJson: boolean;
   total: number;
   successCount: number;
   failureCount: number;

@@ -9,7 +9,6 @@ describe('buildBatchReportForChat', () => {
     timestamp: "2024-01-01",
     modelName: "test-model",
     jsonMode: "standard",
-    retryOnInvalidJson: false,
     total: 2,
     successCount: 1,
     failureCount: 1,

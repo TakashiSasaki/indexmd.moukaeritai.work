@@ -10,7 +10,6 @@ export const VISUAL_ANALYSIS_GENERATION_CONFIG = {
 
 export interface VisualJsonRecoveryMetadata {
   localRecoveryEnabled: boolean;
-  retryOnInvalidJson: boolean;
   retryStrategy: "none" | "sameRequestOnce";
   retryCount: number;
   finalParseMode?: "direct" | "fenceStripped" | "extractedObject";

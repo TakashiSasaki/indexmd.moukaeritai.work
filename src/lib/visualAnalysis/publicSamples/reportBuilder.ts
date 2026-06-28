@@ -12,7 +12,6 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
     generatedAt: new Date().toISOString(),
     modelName: batchSummary.modelName,
     jsonMode: batchSummary.jsonMode,
-    retryOnInvalidJson: batchSummary.retryOnInvalidJson,
     total: batchSummary.total,
     successCount: batchSummary.successCount,
     failureCount: batchSummary.failureCount,
@@ -46,7 +45,6 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
     generatedAt: new Date().toISOString(),
     modelName: batchSummary.modelName,
     jsonMode: batchSummary.jsonMode,
-    retryOnInvalidJson: batchSummary.retryOnInvalidJson,
     total: batchSummary.total,
     successCount: batchSummary.successCount,
     failureCount: batchSummary.failureCount,
@@ -224,7 +222,6 @@ export function buildFailuresOnlyReport(batchSummary: PublicSampleBatchRunSummar
     generatedAt: new Date().toISOString(),
     modelName: batchSummary.modelName,
     jsonMode: batchSummary.jsonMode,
-    retryOnInvalidJson: batchSummary.retryOnInvalidJson,
     totalFailures: failures.length,
     items: compactItems
   };

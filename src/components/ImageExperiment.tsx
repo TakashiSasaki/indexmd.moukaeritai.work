@@ -12,25 +12,8 @@ import {
 } from '../lib/visualAnalysis/publicSamples/compare';
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
 import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
-import { sanitizeDebugResponseForLocalStorage } from '../lib/visualAnalysis/debugLogSanitizer';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, ResponseDiagnostics } from '../lib/visualAnalysis/safeFetch';
-
-export interface ImageDebugLog {
-  id: string;
-  timestamp: string;
-  mode: "drive" | "public";
-  requestPayload: {
-    fileId?: string;
-    sampleId?: string;
-    modelName: string;
-    includeRequestPreview?: boolean;
-    jsonMode?: string;
-  };
-  responseRaw: any;
-  success: boolean;
-  errorMessage?: string;
-}
 
 interface ImageExperimentProps {
   token: string;
@@ -148,24 +131,58 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
   // Shared state
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem("image_experiment_last_result");
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [modelName, setModelName] = useState<string>(() => {
     return localStorage.getItem("image_experiment_model_name") || config.gemini_model || "gemini-3.5-flash";
   });
   const [copied, setCopied] = useState<string | null>(null);
   const [includePreview, setIncludePreview] = useState(false);
-  const [retryOnInvalidJson, setRetryOnInvalidJson] = useState(false);
   const [customInstruction, setCustomInstruction] = useState<string>("");
   const [showPreviewHelp, setShowPreviewHelp] = useState(false);
   const [showBatchArtifactHelp, setShowBatchArtifactHelp] = useState(false);
 
-  // Debug logs history state
-  const [debugLogs, setDebugLogs] = useState<ImageDebugLog[]>([]);
-
   // Batch evaluation state
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number } | null>(null);
-  const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(null);
+  const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(() => {
+    try {
+      const saved = localStorage.getItem("image_experiment_last_batch_summary");
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (result) {
+      try {
+        localStorage.setItem("image_experiment_last_result", JSON.stringify(result));
+      } catch (e) {
+        console.warn("Could not save result to localStorage", e);
+      }
+    } else {
+      localStorage.removeItem("image_experiment_last_result");
+    }
+  }, [result]);
+
+  useEffect(() => {
+    if (batchSummary) {
+      try {
+        localStorage.setItem("image_experiment_last_batch_summary", JSON.stringify(batchSummary));
+      } catch (e) {
+        console.warn("Could not save batchSummary to localStorage", e);
+      }
+    } else {
+      localStorage.removeItem("image_experiment_last_batch_summary");
+    }
+  }, [batchSummary]);
 
   // Health check states
   const [healthCheckFailed, setHealthCheckFailed] = useState<boolean>(false);
@@ -201,56 +218,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   
   // Public sample filtering state
   const [sampleFilter, setSampleFilter] = useState<"all" | "external" | "synthetic">("all");
-
-  // Load debug logs on mount
-  useEffect(() => {
-    const existing = localStorage.getItem("image_experiment_debug_logs");
-    if (existing) {
-      try {
-        setDebugLogs(JSON.parse(existing));
-      } catch (e) {
-        console.error("Failed to parse image debug logs", e);
-      }
-    }
-  }, []);
-
-  const saveDebugLog = (
-    logMode: "drive" | "public",
-    payload: any,
-    responseRaw: any,
-    success: boolean,
-    errorMessage?: string
-  ) => {
-    try {
-      const sanitizedResponse = sanitizeDebugResponseForLocalStorage(logMode, responseRaw, { storeRawOutputPreviewInDrive });
-      const newLog: ImageDebugLog = {
-        id: Math.random().toString(36).substring(2, 11),
-        timestamp: new Date().toISOString(),
-        mode: logMode,
-        requestPayload: payload,
-        responseRaw: sanitizedResponse,
-        success,
-        errorMessage
-      };
-
-      setDebugLogs(prevLogs => {
-        const updated = [newLog, ...prevLogs];
-        if (updated.length > 30) {
-          updated.splice(30);
-        }
-        localStorage.setItem("image_experiment_debug_logs", JSON.stringify(updated));
-        return updated;
-      });
-    } catch (e) {
-      console.error("Failed to save log", e);
-    }
-  };
-
-  const handleClearLogs = () => {
-    localStorage.removeItem("image_experiment_debug_logs");
-    setDebugLogs([]);
-    onAddLog("info", "Image experiment debug records cleared");
-  };
 
   const selectedSample = samples.find(s => s.id === selectedSampleId) || null;
   const isPublicResult = !!result?.sampleMetadata;
@@ -400,13 +367,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
     setLoading(true);
     setResult(null);
+    setBatchSummary(null);
     const payload = {
       sampleId: selectedSampleId,
       modelName,
       includeRequestPreview: includePreview,
       jsonMode: config.json_mode,
-      customInstruction: customInstruction.trim(),
-      retryOnInvalidJson
+      customInstruction: customInstruction.trim()
     };
 
     try {
@@ -420,7 +387,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
       if (sfResult.responseDiagnostics?.status === 401) {
         onSessionExpiry();
-        saveDebugLog("public", payload, { error: "Session expired (401)" }, false, "Session expired (401)");
         return;
       }
 
@@ -436,23 +402,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         };
         setResult(errorResult);
         onAddLog("error", `[Image Analysis] Error: ${errMsg}`);
-        saveDebugLog("public", payload, errorResult, false, errMsg);
         setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
       } else {
         setResult(data);
         if (!data.success) {
           onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
-          saveDebugLog("public", payload, data, false, data.error || "Failed to analyze public sample");
           setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
         } else {
           onAddLog("success", `[Image Analysis] Complete for sample ${selectedSampleId}`);
-          saveDebugLog("public", payload, data, true);
           setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "success" }));
         }
       }
     } catch (err: any) {
       onAddLog("error", `[Image Analysis] Error: ${err.message}`);
-      saveDebugLog("public", payload, null, false, err.message);
       setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
     } finally {
       setLoading(false);
@@ -518,7 +480,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 sampleId: sample.id,
                 modelName: modelName,
                 jsonMode: config.json_mode,
-                retryOnInvalidJson: retryOnInvalidJson,
                 includeRequestPreview: false, // Force false for batch
                 customInstruction: customInstruction.trim()
               })
@@ -602,7 +563,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         timestamp: new Date().toISOString(),
         modelName,
         jsonMode: config.json_mode,
-        retryOnInvalidJson,
         total,
         successCount,
         failureCount,
@@ -922,19 +882,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         </p>
                       </div>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1.5 h-auto sm:h-[38px] py-1 sm:py-0 px-2 relative">
-                    <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap" title="Useful for prompted JSON models. Off by default so raw model stability can be evaluated.">
-                      <input 
-                        type="checkbox" 
-                        checked={retryOnInvalidJson} 
-                        onChange={(e) => setRetryOnInvalidJson(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-[11px] text-slate-600 group-hover:text-slate-900 transition-colors">
-                        Retry on invalid JSON
-                      </span>
-                    </label>
                   </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
@@ -2044,178 +1991,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         </div>
       )}
 
-      {/* Debug Logs History Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-slate-100 text-slate-600 rounded-lg">
-              <Terminal className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-800">画像解析デバッグ履歴 (Debug Records History)</h2>
-              <p className="text-[11px] text-slate-500">
-                ローカルストレージに保存された過去の画像解析リクエストと生の応答データの履歴です。
-              </p>
-            </div>
-          </div>
-          {debugLogs.length > 0 && (
-            <button
-              onClick={handleClearLogs}
-              className="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 border border-rose-100"
-              type="button"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> 履歴クリア
-            </button>
-          )}
-        </div>
-
-        <div className="p-4">
-          {debugLogs.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
-              <Clock className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-              <p className="text-xs">保存されたデバッグ履歴はありません。解析を実行するとここに自動保存されます。</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-              {debugLogs.map((log) => (
-                <DebugLogItem key={log.id} log={log} onAddLog={onAddLog} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {showBatchArtifactHelp && (
         <BatchArtifactHelpDialog onClose={() => setShowBatchArtifactHelp(false)} />
-      )}
-    </div>
-  );
-}
-
-interface DebugLogItemProps {
-  log: ImageDebugLog;
-  onAddLog: ImageExperimentProps["onAddLog"];
-}
-
-const DebugLogItem: React.FC<DebugLogItemProps> = ({ log, onAddLog }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [copiedSection, setCopiedSection] = useState<"request" | "response" | "all" | null>(null);
-
-  const handleCopyText = (text: string, section: "request" | "response" | "all") => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(section);
-    setTimeout(() => setCopiedSection(null), 2000);
-    onAddLog("success", `Copied debug ${section} to clipboard`);
-  };
-
-  const formattedTime = new Date(log.timestamp).toLocaleString();
-
-  return (
-    <div className={`border rounded-lg overflow-hidden transition-colors ${log.success ? 'border-slate-200 bg-white' : 'border-rose-200 bg-rose-50/10'}`}>
-      {/* Header */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-slate-50/50 hover:bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left transition-colors"
-        type="button"
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${log.success ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-bold text-slate-700 uppercase px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 shrink-0">
-                {log.mode === "drive" ? "Drive" : "Public"}
-              </span>
-              <span className="text-xs font-mono font-bold text-slate-800 truncate max-w-[200px]" title={log.mode === "drive" ? log.requestPayload.fileId : log.requestPayload.sampleId}>
-                {log.mode === "drive" ? log.requestPayload.fileId : log.requestPayload.sampleId}
-              </span>
-              <span className="text-[10px] text-slate-500 font-mono">({log.requestPayload.modelName})</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              <span>{formattedTime}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
-          {log.errorMessage && (
-            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 truncate max-w-[150px]" title={log.errorMessage}>
-              {log.errorMessage}
-            </span>
-          )}
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${log.success ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-            {log.success ? "Success" : "Failed"}
-          </span>
-          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
-        </div>
-      </button>
-
-      {/* Expanded view */}
-      {isOpen && (
-        <div className="p-4 bg-white border-t border-slate-100 space-y-4 animate-in fade-in duration-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Request Payload */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <ArrowRight className="w-3.5 h-3.5 text-indigo-500" /> Request Payload (Sent)
-                </span>
-                <button
-                  onClick={() => handleCopyText(JSON.stringify(log.requestPayload, null, 2), "request")}
-                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-indigo-50"
-                  type="button"
-                >
-                  {copiedSection === "request" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  {copiedSection === "request" ? "Copied" : "Copy"}
-                </button>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 overflow-x-auto">
-                <pre className="text-[10px] text-slate-300 font-mono leading-relaxed">
-                  {JSON.stringify(log.requestPayload, null, 2)}
-                </pre>
-              </div>
-            </div>
-
-            {/* Response Raw */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <Activity className="w-3.5 h-3.5 text-emerald-500" /> Raw Response (Received)
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleCopyText(JSON.stringify(log.responseRaw, null, 2), "response")}
-                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-indigo-50"
-                    type="button"
-                  >
-                    {copiedSection === "response" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    {copiedSection === "response" ? "Copied" : "Copy"}
-                  </button>
-                </div>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 overflow-x-auto max-h-[300px] overflow-y-auto">
-                {log.responseRaw ? (
-                  <pre className="text-[10px] text-slate-300 font-mono leading-relaxed">
-                    {JSON.stringify(log.responseRaw, null, 2)}
-                  </pre>
-                ) : (
-                  <span className="text-slate-500 text-xs italic p-1 block">No response body (An error occurred before receiving response)</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-1">
-            <button
-              onClick={() => handleCopyText(JSON.stringify(log, null, 2), "all")}
-              className="text-[10px] font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md hover:bg-slate-100 transition-colors"
-              type="button"
-            >
-              {copiedSection === "all" ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedSection === "all" ? "Entire Record Copied!" : "Copy Full Debug Record JSON"}
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );

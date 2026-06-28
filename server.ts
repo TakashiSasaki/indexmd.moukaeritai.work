@@ -1490,7 +1490,7 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
 
 app.post("/api/visual/public-samples/analyze", async (req, res) => {
   try {
-    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction, retryOnInvalidJson = false } = req.body;
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction } = req.body;
 
     if (!sampleId) return res.status(400).json({ error: "sampleId is required" });
 
@@ -1609,33 +1609,10 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     let parseRes = parseModelJsonOutput(outputText, 1);
     let retryCount = 0;
 
-    if (!parseRes.ok && retryOnInvalidJson) {
-      try {
-        aiRes = await generateContentWithRetry(targetModel, [
-          { inlineData: { data: base64Data, mimeType: mimeType } },
-          { text: taskPrompt }
-        ], 4, configOption);
-        const newOutputText = aiRes.text?.trim() || "{}";
-        const newParseRes = parseModelJsonOutput(newOutputText, 2);
-        newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
-        parseRes = newParseRes;
-        retryCount = 1;
-      } catch (retryErr: any) {
-        // If recovery model call fails, we stick with the original parse failure and log a diagnostic.
-        parseRes.diagnostics.attempts.push({
-          requestAttempt: 2,
-          mode: "retryFailed",
-          success: false,
-          errorMessage: "Generation Error: " + retryErr.message
-        });
-      }
-    }
-
     // Add recovery stats to run metadata
     runMetadata.execution.jsonRecovery = {
-      localRecoveryEnabled: true,
-      retryOnInvalidJson,
-      retryStrategy: "sameRequestOnce",
+      localRecoveryEnabled: false,
+      retryStrategy: "none",
       retryCount,
       finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
     };
@@ -1815,7 +1792,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
 
 app.post("/api/drive/debug/analyze-image", async (req, res) => {
   try {
-    const { fileId, modelName = "gemini-3.5-flash", customInstruction, includeRequestPreview = false, jsonMode, retryOnInvalidJson = false } = req.body;
+    const { fileId, modelName = "gemini-3.5-flash", customInstruction, includeRequestPreview = false, jsonMode } = req.body;
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: "Missing Authorization header" });
     const token = authHeader.replace("Bearer ", "");
@@ -1934,32 +1911,10 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     let parseRes = parseModelJsonOutput(outputText, 1);
     let retryCount = 0;
 
-    if (!parseRes.ok && retryOnInvalidJson) {
-      try {
-        aiRes = await generateContentWithRetry(targetModel, [
-          { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
-          { text: taskPrompt }
-        ], 4, configOption);
-        const newOutputText = aiRes.text?.trim() || "{}";
-        const newParseRes = parseModelJsonOutput(newOutputText, 2);
-        newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
-        parseRes = newParseRes;
-        retryCount = 1;
-      } catch (retryErr: any) {
-        parseRes.diagnostics.attempts.push({
-          requestAttempt: 2,
-          mode: "retryFailed",
-          success: false,
-          errorMessage: "Generation Error: " + retryErr.message
-        });
-      }
-    }
-
     // Add recovery stats to run metadata
     runMetadata.execution.jsonRecovery = {
-      localRecoveryEnabled: true,
-      retryOnInvalidJson,
-      retryStrategy: "sameRequestOnce",
+      localRecoveryEnabled: false,
+      retryStrategy: "none",
       retryCount,
       finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
     };
