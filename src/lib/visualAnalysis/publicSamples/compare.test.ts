@@ -157,11 +157,11 @@ describe('evaluateSampleComparison', () => {
 
     const sunMatch = matches.find(m => m.expected === "sunflower");
     assert.ok(sunMatch);
-    assert.strictEqual(catMatch.method, "substring");
+    assert.strictEqual(sunMatch.method, "substring");
 
     const leavesMatch = matches.find(m => m.expected === "leaves");
     assert.ok(leavesMatch);
-    assert.strictEqual(leavesMatch.method, "tokenOverlap");
+    assert.strictEqual(leavesMatch.method, "substring");
 
     const valleyMatch = matches.find(m => m.expected === "valley");
     assert.ok(valleyMatch);
@@ -190,7 +190,7 @@ describe('evaluateSampleComparison', () => {
     const summary = evaluateSampleComparison(sample, result);
     // landscapeElement matches terrain
     assert.deepEqual(summary.categories.matched, []);
-    assert.deepEqual(summary.categories.acceptable, ["terrain"]);
+    assert.deepEqual(summary.categories.acceptable, ["landscapeElement"]);
     assert.deepEqual(summary.categories.missing, ["logo"]);
     // weatherOrSky is extra, but only listed once due to deduplication
     assert.deepEqual(summary.categories.extra, ["weatherOrSky"]);

@@ -125,14 +125,24 @@ export function compareExpectedCategories(sample: any, detectedCategories: strin
     }
   }
 
-  const extra = Array.from(new Set(detectedCandidates.filter(c => !c.consumed).map(c => c.name)));
+  const matchedDetectedNames = new Set(matches.map(m => m.detected));
+  const extra = Array.from(new Set(
+    detectedCandidates
+      .filter(c => !c.consumed && !matchedDetectedNames.has(c.name))
+      .map(c => c.name)
+  ));
 
   return { exact, acceptable, missing, extra, matches };
 }
 
 export function compareExpectedLabels(
   sample: any, 
-  detectedLabels: string[], 
+  detectedLabelsOrObject: string[] | {
+    labels?: string[];
+    attributes?: string[];
+    keywords?: string[];
+    visibleText?: string[];
+  }, 
   detectedKeywords: string[] = []
 ): {
   exact: string[];
@@ -143,8 +153,8 @@ export function compareExpectedLabels(
     expected: string;
     detected: string;
     status: "exact" | "acceptable";
-    method: "exact" | "alias" | "substring" | "tokenOverlap" | "keyword";
-    source?: "visibleElementLabel" | "keyword";
+    method: "exact" | "alias" | "aliasSubstring" | "aliasTokenOverlap" | "substring" | "tokenOverlap" | "keyword" | "visibleText";
+    source?: "visibleElementLabel" | "visibleElementAttribute" | "keyword" | "visibleText";
   }>;
 } {
   const exact: string[] = [];
@@ -154,20 +164,22 @@ export function compareExpectedLabels(
     expected: string;
     detected: string;
     status: "exact" | "acceptable";
-    method: "exact" | "alias" | "substring" | "tokenOverlap" | "keyword";
-    source?: "visibleElementLabel" | "keyword";
+    method: "exact" | "alias" | "aliasSubstring" | "aliasTokenOverlap" | "substring" | "tokenOverlap" | "keyword" | "visibleText";
+    source?: "visibleElementLabel" | "visibleElementAttribute" | "keyword" | "visibleText";
   }> = [];
 
   const expectedLabels = sample.expectedVisibleElementLabels || sample.visibleElementLabels || [];
-  const expectedVisibleElementLabelAliases = sample.expectedVisibleElementLabelAliases || sample.visibleElementLabelAliases;
+  const expectedVisibleElementLabelAliases = sample.expectedVisibleElementLabelAliases || sample.visibleElementLabelAliases || {};
 
   function cleanAndNormalize(text: string): string {
+    if (!text) return "";
     let val = text.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ");
     val = val.replace(/\s+/g, " ").trim();
     return val;
   }
 
   function normalizeWord(word: string): string {
+    if (!word) return "";
     let w = word.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
     if (w.endsWith('s') && w.length > 3) {
       if (w.endsWith('ves')) {
@@ -181,35 +193,70 @@ export function compareExpectedLabels(
     return w;
   }
 
-  interface LabelCandidate {
+  let labels: string[] = [];
+  let attributes: string[] = [];
+  let keywords: string[] = [];
+  let visibleText: string[] = [];
+
+  if (Array.isArray(detectedLabelsOrObject)) {
+    labels = detectedLabelsOrObject;
+    keywords = detectedKeywords;
+  } else if (detectedLabelsOrObject && typeof detectedLabelsOrObject === 'object') {
+    labels = detectedLabelsOrObject.labels || [];
+    attributes = detectedLabelsOrObject.attributes || [];
+    keywords = detectedLabelsOrObject.keywords || [];
+    visibleText = detectedLabelsOrObject.visibleText || [];
+  }
+
+  interface EvidenceCandidate {
     original: string;
     normalized: string;
     tokens: string[];
+    source: "visibleElementLabel" | "visibleElementAttribute" | "keyword" | "visibleText";
     consumed: boolean;
   }
 
-  interface KeywordCandidate {
-    original: string;
-    normalized: string;
-    tokens: string[];
-  }
-
-  const labelCandidates: LabelCandidate[] = detectedLabels.map(l => {
+  const labelCandidates: EvidenceCandidate[] = labels.map(l => {
     const norm = cleanAndNormalize(l);
     return {
       original: l,
       normalized: norm,
       tokens: norm.split(" ").map(normalizeWord).filter(t => t.length > 2),
+      source: "visibleElementLabel",
       consumed: false
     };
   });
 
-  const keywordCandidates: KeywordCandidate[] = detectedKeywords.map(k => {
+  const attributeCandidates: EvidenceCandidate[] = attributes.map(a => {
+    const norm = cleanAndNormalize(a);
+    return {
+      original: a,
+      normalized: norm,
+      tokens: norm.split(" ").map(normalizeWord).filter(t => t.length > 2),
+      source: "visibleElementAttribute",
+      consumed: false
+    };
+  });
+
+  const keywordCandidates: EvidenceCandidate[] = keywords.map(k => {
     const norm = cleanAndNormalize(k);
     return {
       original: k,
       normalized: norm,
-      tokens: norm.split(" ").map(normalizeWord).filter(t => t.length > 2)
+      tokens: norm.split(" ").map(normalizeWord).filter(t => t.length > 2),
+      source: "keyword",
+      consumed: false
+    };
+  });
+
+  const visibleTextCandidates: EvidenceCandidate[] = visibleText.map(t => {
+    const norm = cleanAndNormalize(t);
+    return {
+      original: t,
+      normalized: norm,
+      tokens: norm.split(" ").map(normalizeWord).filter(t => t.length > 2),
+      source: "visibleText",
+      consumed: false
     };
   });
 
@@ -243,7 +290,7 @@ export function compareExpectedLabels(
     return null;
   }
 
-  // Phase 1: Exact matches for expected labels
+  // Phase 1: Exact matches for expected labels against consuming labelCandidates
   const unresolvedExpected: Array<{
     original: string;
     normalized: string;
@@ -277,12 +324,12 @@ export function compareExpectedLabels(
     }
   }
 
-  // Phase 2: Alias matches for remaining expected labels
+  // Phase 2: Exact alias matches against consuming labelCandidates
   const stillUnresolved: typeof unresolvedExpected = [];
 
   for (const item of unresolvedExpected) {
     let foundAlias = false;
-    const aliases = expectedVisibleElementLabelAliases?.[item.original] || [];
+    const aliases = expectedVisibleElementLabelAliases[item.original] || [];
 
     for (const alias of aliases) {
       const aliasNorm = cleanAndNormalize(alias);
@@ -310,7 +357,7 @@ export function compareExpectedLabels(
     }
   }
 
-  // Phase 3: Substring / Token Overlap matching on Label Candidates
+  // Phase 3: Substring / Token Overlap matching on expected label itself against consuming labelCandidates
   const unresolvedAfterLabelMatching: typeof unresolvedExpected = [];
 
   for (const item of stillUnresolved) {
@@ -346,11 +393,90 @@ export function compareExpectedLabels(
     }
   }
 
-  // Phase 4: Keyword matching on Keyword Candidates
+  // Phase 4: Substring / Token Overlap matching on aliases against consuming labelCandidates
+  const unresolvedAfterAliasLabelMatching: typeof unresolvedExpected = [];
+
   for (const item of unresolvedAfterLabelMatching) {
     let foundMatch = false;
+    const aliases = expectedVisibleElementLabelAliases[item.original] || [];
 
-    for (const cand of keywordCandidates) {
+    for (const cand of labelCandidates) {
+      if (cand.consumed) continue;
+
+      for (const alias of aliases) {
+        const aliasNorm = cleanAndNormalize(alias);
+        const aliasTokens = aliasNorm.split(" ").map(normalizeWord).filter(t => t.length > 2);
+
+        if (cand.normalized === aliasNorm) {
+          cand.consumed = true;
+          acceptable.push(item.original);
+          matches.push({
+            expected: item.original,
+            detected: cand.original,
+            status: "acceptable",
+            method: "alias",
+            source: "visibleElementLabel"
+          });
+          foundMatch = true;
+          break;
+        }
+
+        const matchRes = isAcceptableLabelMatch(
+          aliasNorm,
+          aliasTokens,
+          cand.normalized,
+          cand.tokens
+        );
+
+        if (matchRes) {
+          cand.consumed = true;
+          acceptable.push(item.original);
+          matches.push({
+            expected: item.original,
+            detected: cand.original,
+            status: "acceptable",
+            method: matchRes.method === "substring" ? "aliasSubstring" : "aliasTokenOverlap",
+            source: "visibleElementLabel"
+          });
+          foundMatch = true;
+          break;
+        }
+      }
+      if (foundMatch) break;
+    }
+
+    if (!foundMatch) {
+      unresolvedAfterAliasLabelMatching.push(item);
+    }
+  }
+
+  // Phase 5: Matching remaining expected labels against non-consuming sources (attributes, keywords, visibleText)
+  for (const item of unresolvedAfterAliasLabelMatching) {
+    let foundMatch = false;
+    const aliases = expectedVisibleElementLabelAliases[item.original] || [];
+
+    // Order of non-consuming candidate pools to check: attribute, keyword, visibleText
+    const nonConsumingCandidates = [
+      ...attributeCandidates,
+      ...keywordCandidates,
+      ...visibleTextCandidates
+    ];
+
+    for (const cand of nonConsumingCandidates) {
+      // 1. Direct match on expected label
+      if (cand.normalized === item.normalized) {
+        acceptable.push(item.original);
+        matches.push({
+          expected: item.original,
+          detected: cand.original,
+          status: "acceptable",
+          method: cand.source === "visibleText" ? "visibleText" : (cand.source === "keyword" ? "keyword" : "exact"),
+          source: cand.source
+        });
+        foundMatch = true;
+        break;
+      }
+
       const matchRes = isAcceptableLabelMatch(
         item.normalized,
         item.tokens,
@@ -364,9 +490,54 @@ export function compareExpectedLabels(
           expected: item.original,
           detected: cand.original,
           status: "acceptable",
-          method: "keyword",
-          source: "keyword"
+          method: cand.source === "visibleText" ? "visibleText" : (cand.source === "keyword" ? "keyword" : matchRes.method),
+          source: cand.source
         });
+        foundMatch = true;
+        break;
+      }
+
+      // 2. Check aliases of expected label against this candidate
+      let foundAliasMatch = false;
+      for (const alias of aliases) {
+        const aliasNorm = cleanAndNormalize(alias);
+        const aliasTokens = aliasNorm.split(" ").map(normalizeWord).filter(t => t.length > 2);
+
+        if (cand.normalized === aliasNorm) {
+          acceptable.push(item.original);
+          matches.push({
+            expected: item.original,
+            detected: cand.original,
+            status: "acceptable",
+            method: cand.source === "visibleText" ? "visibleText" : (cand.source === "keyword" ? "keyword" : "alias"),
+            source: cand.source
+          });
+          foundAliasMatch = true;
+          break;
+        }
+
+        const aliasMatchRes = isAcceptableLabelMatch(
+          aliasNorm,
+          aliasTokens,
+          cand.normalized,
+          cand.tokens
+        );
+
+        if (aliasMatchRes) {
+          acceptable.push(item.original);
+          matches.push({
+            expected: item.original,
+            detected: cand.original,
+            status: "acceptable",
+            method: cand.source === "visibleText" ? "visibleText" : (cand.source === "keyword" ? "keyword" : (aliasMatchRes.method === "substring" ? "aliasSubstring" : "aliasTokenOverlap")),
+            source: cand.source
+          });
+          foundAliasMatch = true;
+          break;
+        }
+      }
+
+      if (foundAliasMatch) {
         foundMatch = true;
         break;
       }
@@ -392,10 +563,11 @@ export function compareExpectedVisibleText(sample: any, detectedText: string[]):
   const missing: string[] = [];
   const expectedText = sample.expectedVisibleText || sample.visibleText || [];
   
-  const allDetected = detectedText.join(" ").toLowerCase();
+  const allDetected = detectedText.map(t => t.trim().toLowerCase()).join(" ");
 
   for (const expected of expectedText) {
-    if (allDetected.includes(expected.toLowerCase())) {
+    const expectedLower = expected.trim().toLowerCase();
+    if (allDetected.includes(expectedLower)) {
       matched.push(expected);
     } else {
       missing.push(expected);
@@ -433,8 +605,8 @@ export interface PublicSampleComparisonSummary {
       expected: string;
       detected: string;
       status: "exact" | "acceptable";
-      method: "exact" | "alias" | "substring" | "tokenOverlap" | "keyword";
-      source?: "visibleElementLabel" | "keyword";
+      method: "exact" | "alias" | "aliasSubstring" | "aliasTokenOverlap" | "substring" | "tokenOverlap" | "keyword" | "visibleText";
+      source?: "visibleElementLabel" | "visibleElementAttribute" | "keyword" | "visibleText";
     }>;
   };
   visibleText: {
@@ -449,9 +621,20 @@ export interface PublicSampleComparisonSummary {
 }
 
 export function evaluateSampleComparison(sample: PublicVisualSample, result: any): PublicSampleComparisonSummary {
+  const expectedMetadata = result?.expectedMetadata || result?.visualAnalysis?.expectedMetadata;
+  const resolvedSample = {
+    ...sample,
+    expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind ?? (sample as any).imageKind,
+    expectedElementCategories: expectedMetadata?.elementCategories ?? sample.expectedElementCategories ?? (sample as any).elementCategories ?? [],
+    expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels ?? (sample as any).visibleElementLabels ?? [],
+    expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases ?? (sample as any).visibleElementLabelAliases ?? {},
+    expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText ?? (sample as any).visibleText ?? []
+  };
+  sample = resolvedSample;
+
   const vi = result.visualAnalysis?.visualInfo;
   
-  const expectedImageKind = sample.expectedImageKind || (sample as any).imageKind;
+  const expectedImageKind = sample.expectedImageKind;
   const kindDetected = vi?.imageKind;
   const kindResult = compareExpectedImageKind(sample, kindDetected);
   
@@ -460,9 +643,16 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
   
   const detectedLabels = vi?.visibleElements?.map((el: any) => el.label) || [];
   const detectedKeywords = result.visualAnalysis?.indexing?.keywords?.map((kw: any) => typeof kw === 'string' ? kw : kw?.value || "") || [];
-  const labelsResult = compareExpectedLabels(sample, detectedLabels, detectedKeywords);
-  
+  const detectedAttributes = vi?.visibleElements?.flatMap((el: any) => el.attributes || []) || [];
   const detectedText = vi?.visibleText?.map((txt: any) => typeof txt === 'string' ? txt : txt?.text || "") || [];
+
+  const labelsResult = compareExpectedLabels(sample, {
+    labels: detectedLabels,
+    attributes: detectedAttributes,
+    keywords: detectedKeywords,
+    visibleText: detectedText
+  });
+  
   const visibleTextResult = compareExpectedVisibleText(sample, detectedText);
   
   let overallStatus: "pass" | "warning" | "fail" = "pass";

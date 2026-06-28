@@ -406,14 +406,26 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     summary.detectedImageKind = item.comparison.imageKind?.detected;
     summary.imageKindStatus = item.comparison.imageKind?.status;
     
-    const categoriesMatched = item.comparison.categories?.matched?.length || 0;
-    const categoriesExpected = (item.comparison.categories?.matched?.length || 0) + (item.comparison.categories?.missing?.length || 0);
-    const labelsMatched = item.comparison.labels?.matched?.length || 0;
-    const labelsExpected = (item.comparison.labels?.matched?.length || 0) + (item.comparison.labels?.missing?.length || 0);
+    const categoriesCovered = (item.comparison.categories?.matched?.length || 0) + (item.comparison.categories?.acceptable?.length || 0);
+    const categoriesExpected = categoriesCovered + (item.comparison.categories?.missing?.length || 0);
     
-    const totalExpected = categoriesExpected + labelsExpected;
-    const totalMatched = categoriesMatched + labelsMatched;
-    summary.coverage = totalExpected > 0 ? parseFloat((totalMatched / totalExpected).toFixed(2)) : 1.0;
+    const labelsCovered = (item.comparison.labels?.matched?.length || 0) + (item.comparison.labels?.acceptable?.length || 0);
+    const labelsExpected = labelsCovered + (item.comparison.labels?.missing?.length || 0);
+    
+    const textMatched = item.comparison.visibleText?.matched?.length || 0;
+    const textExpected = textMatched + (item.comparison.visibleText?.missing?.length || 0);
+    
+    const totalExpected = categoriesExpected + labelsExpected + textExpected;
+    const totalCovered = categoriesCovered + labelsCovered + textMatched;
+    const overallCoverage = totalExpected > 0 ? parseFloat((totalCovered / totalExpected).toFixed(2)) : 1.0;
+
+    summary.coverage = {
+      overall: overallCoverage,
+      categories: categoriesExpected > 0 ? parseFloat((categoriesCovered / categoriesExpected).toFixed(2)) : 1.0,
+      labels: labelsExpected > 0 ? parseFloat((labelsCovered / labelsExpected).toFixed(2)) : 1.0,
+      visibleText: textExpected > 0 ? parseFloat((textMatched / textExpected).toFixed(2)) : 1.0
+    };
+    summary.coverageOverall = overallCoverage;
 
     summary.missing = {
       categories: item.comparison.categories?.missing || [],

@@ -543,7 +543,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 if (data.qualityStatus === 'validLowQuality') validLowQualityCount++;
                 
                 // compute comparison
-                const comp = evaluateSampleComparison(sample, data);
+                const expectedMetadata = data.expectedMetadata;
+                const comparisonSample = {
+                  ...sample,
+                  expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind,
+                  expectedElementCategories: expectedMetadata?.elementCategories ?? sample.expectedElementCategories,
+                  expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels,
+                  expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases,
+                  expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText
+                };
+                const comp = evaluateSampleComparison(comparisonSample, data);
                 item.comparison = comp;
                 
                 if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
@@ -1649,8 +1658,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <div className="space-y-1.5 mt-1">
                       <div className="flex flex-wrap gap-1">
                         {(() => {
-                          const detected = (result.visualAnalysis.visualInfo?.visibleElements || []).map((el: any) => el.label).filter(Boolean);
-                          const comp = compareExpectedLabels(result.expectedMetadata, detected);
+                          const labels = (result.visualAnalysis.visualInfo?.visibleElements || []).map((el: any) => el.label).filter(Boolean);
+                          const attributes = (result.visualAnalysis.visualInfo?.visibleElements || []).flatMap((el: any) => el.attributes || []).filter(Boolean);
+                          const keywords = (result.visualAnalysis.indexing?.keywords || []).map((kw: any) => typeof kw === 'string' ? kw : kw?.value || "").filter(Boolean);
+                          const visibleText = (result.visualAnalysis.visualInfo?.visibleText || []).map((txt: any) => typeof txt === 'string' ? txt : txt?.text || "").filter(Boolean);
+                          const comp = compareExpectedLabels(result.expectedMetadata, {
+                            labels,
+                            attributes,
+                            keywords,
+                            visibleText
+                          });
                           if (!result.expectedMetadata.visibleElementLabels?.length) return <span className="text-slate-400 italic text-[10px]">No expected labels</span>;
                           return (
                             <>
