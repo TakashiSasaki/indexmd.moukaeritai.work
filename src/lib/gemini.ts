@@ -29,6 +29,180 @@ export class ProviderError extends Error {
   }
 }
 
+export function extractProviderErrorDetails(err: any): {
+  statusCode?: number;
+  providerStatus: string;
+  rawMessage: string;
+} {
+  let statusCode = err?.status || err?.response?.status || err?.error?.code;
+  const rawMessage = err?.message || "";
+
+  if (!statusCode && rawMessage) {
+    try {
+      const parsed = JSON.parse(rawMessage);
+      if (parsed.error?.code) {
+        statusCode = parsed.error.code;
+      }
+    } catch (e) {}
+  }
+
+  const errorBody = err?.response?.error || err?.error || {};
+  let providerStatus = errorBody.status || "UNKNOWN";
+
+  if (providerStatus === "UNKNOWN" && rawMessage) {
+    try {
+      const parsed = JSON.parse(rawMessage);
+      if (parsed.error?.status) {
+        providerStatus = parsed.error.status;
+      } else if (parsed.error?.code && typeof parsed.error.code === "string") {
+        providerStatus = parsed.error.code;
+      }
+    } catch (e) {}
+  }
+
+  if (providerStatus === "UNKNOWN" && rawMessage) {
+    const upperMsg = rawMessage.toUpperCase();
+    if (upperMsg.includes("INVALID_ARGUMENT")) {
+      providerStatus = "INVALID_ARGUMENT";
+    } else if (upperMsg.includes("RESOURCE_EXHAUSTED")) {
+      providerStatus = "RESOURCE_EXHAUSTED";
+    } else if (upperMsg.includes("PERMISSION_DENIED")) {
+      providerStatus = "PERMISSION_DENIED";
+    } else if (upperMsg.includes("UNAUTHENTICATED")) {
+      providerStatus = "UNAUTHENTICATED";
+    } else if (upperMsg.includes("QUOTA_EXCEEDED")) {
+      providerStatus = "RESOURCE_EXHAUSTED";
+    }
+  }
+
+  return { statusCode, providerStatus, rawMessage };
+}
+
+export function classifyProviderFailureKind(
+  statusCode: number | undefined,
+  providerStatus: string,
+  rawMessage: string
+): {
+  providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError";
+  quotaExceeded: boolean;
+  rateLimited: boolean;
+} {
+  let providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError" = "providerGenerationError";
+  let quotaExceeded = false;
+  let rateLimited = false;
+
+  if (statusCode === 429) {
+    rateLimited = true;
+    providerFailureKind = "providerRateLimited";
+  }
+
+  const upperMsgStr = rawMessage.toUpperCase();
+  const isQuotaStatus = providerStatus === "RESOURCE_EXHAUSTED" || 
+                        providerStatus === "QUOTA_EXCEEDED" || 
+                        upperMsgStr.includes("RESOURCE_EXHAUSTED") || 
+                        upperMsgStr.includes("QUOTA") || 
+                        upperMsgStr.includes("RATE LIMIT") || 
+                        upperMsgStr.includes("RATE_LIMIT") ||
+                        upperMsgStr.includes("QUOTA_EXCEEDED");
+
+  if (isQuotaStatus) {
+    quotaExceeded = true;
+    if (statusCode === 429) {
+      providerFailureKind = "providerRateLimited";
+    } else {
+      providerFailureKind = "providerQuotaExceeded";
+    }
+  }
+
+  if (statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || upperMsgStr.includes("UNAVAILABLE")) {
+    providerFailureKind = "providerUnavailable";
+  }
+
+  if (statusCode === 400 || providerStatus === "INVALID_ARGUMENT" || upperMsgStr.includes("INVALID_ARGUMENT")) {
+    providerFailureKind = "providerInvalidArgument";
+  }
+
+  return { providerFailureKind, quotaExceeded, rateLimited };
+}
+
+export function extractRetryDelay(err: any, rawMessage: string): { retryAfterMs?: number; retryAfterReason?: string } {
+  let retryAfterMs: number | undefined = undefined;
+  let retryAfterReason: string | undefined = undefined;
+
+  const tryExtractFromDetails = (details: any[]) => {
+    if (!Array.isArray(details)) return;
+    for (const detail of details) {
+      if (detail && (detail["@type"] === "type.googleapis.com/google.rpc.RetryInfo" || detail.retryDelay)) {
+        const delay = detail.retryDelay;
+        if (typeof delay === "string" && delay.endsWith("s")) {
+          const secs = parseFloat(delay.slice(0, -1));
+          if (!isNaN(secs)) {
+            retryAfterMs = secs * 1000;
+            retryAfterReason = "google.rpc.RetryInfo";
+          }
+        } else if (delay && typeof delay === "object") {
+          const seconds = parseFloat(delay.seconds);
+          const nanos = parseFloat(delay.nanos || 0);
+          if (!isNaN(seconds)) {
+            retryAfterMs = seconds * 1000 + (nanos / 1e6);
+            retryAfterReason = "google.rpc.RetryInfo (object)";
+          }
+        }
+      }
+    }
+  };
+
+  // 1. Try parsing response details or nested error details
+  if (err?.response?.error?.details) {
+    tryExtractFromDetails(err.response.error.details);
+  }
+  if (!retryAfterMs && err?.error?.details) {
+    tryExtractFromDetails(err.error.details);
+  }
+
+  // 2. Try parsing stringified details in rawMessage
+  if (!retryAfterMs && rawMessage) {
+    try {
+      const parsed = JSON.parse(rawMessage);
+      if (parsed.error?.details) {
+        tryExtractFromDetails(parsed.error.details);
+      }
+    } catch (e) {}
+  }
+
+  // 3. Try HTTP headers (err.response?.headers)
+  if (!retryAfterMs && err?.response?.headers) {
+    let retryAfterHeader: string | null = null;
+    if (typeof err.response.headers.get === "function") {
+      retryAfterHeader = err.response.headers.get("retry-after") || err.response.headers.get("Retry-After");
+    } else {
+      retryAfterHeader = err.response.headers["retry-after"] || err.response.headers["Retry-After"];
+    }
+
+    if (retryAfterHeader) {
+      const secs = parseFloat(retryAfterHeader);
+      if (!isNaN(secs)) {
+        retryAfterMs = secs * 1000;
+        retryAfterReason = "HTTP retry-after header";
+      } else {
+        const ms = Date.parse(retryAfterHeader) - Date.now();
+        if (!isNaN(ms) && ms > 0) {
+          retryAfterMs = ms;
+          retryAfterReason = "HTTP retry-after date header";
+        }
+      }
+    }
+  }
+
+  // Cap retryAfterMs at 5 minutes (300,000 ms) as interactive batch fallback safety
+  if (retryAfterMs !== undefined && retryAfterMs > 300000) {
+    retryAfterMs = 300000;
+    retryAfterReason = (retryAfterReason || "") + " (capped)";
+  }
+
+  return { retryAfterMs, retryAfterReason };
+}
+
 export async function generateContentWithRetry(
   modelName: string, 
   contents: any, 
@@ -94,116 +268,9 @@ export async function generateContentWithRetry(
 
       return await client.models.generateContent(callParams);
     } catch (err: any) {
-      let statusCode = err.status || err.response?.status || err.error?.code;
-      if (!statusCode && err.message) {
-        try {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error?.code) {
-             statusCode = parsed.error.code;
-          }
-        } catch(e) {}
-      }
-
-      const rawMessage = err.message || "";
-      const errorBody = err.response?.error || err.error || {};
-      let providerStatus = errorBody.status || "UNKNOWN";
-      
-      if (providerStatus === "UNKNOWN" && err.message) {
-        try {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error?.status) {
-            providerStatus = parsed.error.status;
-          } else if (parsed.error?.code && typeof parsed.error.code === 'string') {
-            providerStatus = parsed.error.code;
-          }
-        } catch(e) {}
-      }
-      
-      if (providerStatus === "UNKNOWN" && err.message) {
-        const upperMsg = err.message.toUpperCase();
-        if (upperMsg.includes("INVALID_ARGUMENT")) {
-          providerStatus = "INVALID_ARGUMENT";
-        } else if (upperMsg.includes("RESOURCE_EXHAUSTED")) {
-          providerStatus = "RESOURCE_EXHAUSTED";
-        } else if (upperMsg.includes("PERMISSION_DENIED")) {
-          providerStatus = "PERMISSION_DENIED";
-        } else if (upperMsg.includes("UNAUTHENTICATED")) {
-          providerStatus = "UNAUTHENTICATED";
-        } else if (upperMsg.includes("QUOTA_EXCEEDED")) {
-          providerStatus = "RESOURCE_EXHAUSTED";
-        }
-      }
-      
-      let providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError" = "providerGenerationError";
-      let quotaExceeded = false;
-      let rateLimited = false;
-
-      if (statusCode === 429) {
-        rateLimited = true;
-        providerFailureKind = "providerRateLimited";
-      }
-
-      const upperMsgStr = rawMessage.toUpperCase();
-      if (providerStatus === "RESOURCE_EXHAUSTED" || providerStatus === "QUOTA_EXCEEDED" || 
-          upperMsgStr.includes("RESOURCE_EXHAUSTED") || 
-          upperMsgStr.includes("QUOTA") || 
-          upperMsgStr.includes("RATE LIMIT") || 
-          upperMsgStr.includes("RATE_LIMIT")) {
-        quotaExceeded = true;
-        if (statusCode === 429) {
-          providerFailureKind = "providerRateLimited";
-        } else {
-          providerFailureKind = "providerQuotaExceeded";
-        }
-      }
-
-      if (statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || upperMsgStr.includes("UNAVAILABLE")) {
-        providerFailureKind = "providerUnavailable";
-      }
-
-      if (statusCode === 400 || providerStatus === "INVALID_ARGUMENT" || upperMsgStr.includes("INVALID_ARGUMENT")) {
-        providerFailureKind = "providerInvalidArgument";
-      }
-
-      let retryAfterMs: number | undefined = undefined;
-      let retryAfterReason: string | undefined = undefined;
-
-      // 1. Try to find RetryInfo in error details (JSON)
-      if (rawMessage) {
-        try {
-          const parsed = JSON.parse(rawMessage);
-          if (parsed.error?.details && Array.isArray(parsed.error.details)) {
-            for (const detail of parsed.error.details) {
-              if (detail["@type"] === "type.googleapis.com/google.rpc.RetryInfo" || detail.retryDelay) {
-                const delayStr = detail.retryDelay; // e.g. "1.5s" or "30s"
-                if (typeof delayStr === "string" && delayStr.endsWith("s")) {
-                  const secs = parseFloat(delayStr.slice(0, -1));
-                  if (!isNaN(secs)) {
-                    retryAfterMs = secs * 1000;
-                    retryAfterReason = "google.rpc.RetryInfo";
-                  }
-                }
-              }
-            }
-          }
-        } catch(e) {}
-      }
-
-      // 2. Try HTTP headers
-      const retryAfterHeader = err.response?.headers?.["retry-after"] || (err.response?.headers && typeof err.response.headers.get === "function" && err.response.headers.get("retry-after"));
-      if (retryAfterHeader) {
-        const secs = parseFloat(retryAfterHeader);
-        if (!isNaN(secs)) {
-          retryAfterMs = secs * 1000;
-          retryAfterReason = "HTTP retry-after header";
-        } else {
-          const ms = Date.parse(retryAfterHeader) - Date.now();
-          if (!isNaN(ms) && ms > 0) {
-            retryAfterMs = ms;
-            retryAfterReason = "HTTP retry-after date header";
-          }
-        }
-      }
+      const { statusCode, providerStatus, rawMessage } = extractProviderErrorDetails(err);
+      const { providerFailureKind, quotaExceeded, rateLimited } = classifyProviderFailureKind(statusCode, providerStatus, rawMessage);
+      const { retryAfterMs, retryAfterReason } = extractRetryDelay(err, rawMessage);
 
       const isQuotaExceeded = statusCode === 429 || quotaExceeded;
       const isNotFound = statusCode === 404;

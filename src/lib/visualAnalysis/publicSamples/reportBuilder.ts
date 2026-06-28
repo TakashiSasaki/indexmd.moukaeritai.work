@@ -658,7 +658,8 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       stored,
       sharedInFlight,
       readErrors,
-      writeErrors
+      writeErrors,
+      note: "sharedInFlight means the request reused an in-progress fetch/optimization for the same cache key."
     },
     mediaResolution: {
       highRequested: mediaResolutionHighRequested,
