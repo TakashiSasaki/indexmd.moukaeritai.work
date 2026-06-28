@@ -61,8 +61,12 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
   
   if (item.comparison) {
      compact.comparisonSummary = {
-        imageKind: item.comparison.imageKind?.status,
-        overallStatus: item.comparison.overallStatus
+        imageKind: item.comparison.imageKind,
+        categories: item.comparison.categories,
+        labels: item.comparison.labels,
+        visibleText: item.comparison.visibleText,
+        overallStatus: item.comparison.overallStatus,
+        reasons: item.comparison.reasons
      };
   }
 
@@ -76,13 +80,28 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     };
   }
 
-  if (item.analysisRun?.result?.normalized) {
+  const normalized = item.analysisRun?.result?.normalized;
+  if (normalized) {
     compact.detected = {
-      imageKind: item.analysisRun.result.normalized.imageKind,
-      imageKindConfidence: item.analysisRun.result.normalized.imageKindConfidence,
-      visibleElements: item.analysisRun.result.normalized.visibleElements,
-      visibleText: item.analysisRun.result.normalized.visibleText,
-      keywords: item.analysisRun.result.normalized.keywords
+      imageKind: normalized.imageKind,
+      imageKindConfidence: normalized.imageKindConfidence,
+      visibleElements: normalized.visibleElements?.map((el: any) => ({
+        label: el.label,
+        category: el.category,
+        confidence: el.confidence,
+        attributes: el.attributes
+      })),
+      visibleText: normalized.visibleText?.map((txt: any) => ({
+        text: typeof txt === 'string' ? txt : txt.text,
+        confidence: typeof txt === 'string' ? undefined : txt.confidence,
+        locationHint: typeof txt === 'string' ? undefined : txt.locationHint,
+        language: typeof txt === 'string' ? undefined : txt.language
+      })),
+      keywords: normalized.indexing?.keywords || normalized.keywords?.map((kw: any) => ({
+        value: typeof kw === 'string' ? kw : kw.value,
+        confidence: typeof kw === 'string' ? undefined : kw.confidence,
+        importance: typeof kw === 'string' ? undefined : kw.importance
+      }))
     };
   }
 
@@ -90,9 +109,14 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     compact.generationDiagnostics = { ...item.generationDiagnostics };
   }
 
+  if (item.inputDiagnostics) {
+    compact.inputDiagnostics = item.inputDiagnostics;
+  }
+
   if (item.parseDiagnostics) {
     compact.parseDiagnostics = { ...item.parseDiagnostics };
     delete compact.parseDiagnostics.rawOutputPreview;
+    delete compact.parseDiagnostics.requestPreview;
   }
 
   return compact;

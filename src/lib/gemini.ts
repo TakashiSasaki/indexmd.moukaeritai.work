@@ -86,7 +86,18 @@ export async function generateContentWithRetry(
 
       const rawMessage = err.message || "";
       const errorBody = err.response?.error || err.error || {};
-      const providerStatus = errorBody.status || "UNKNOWN";
+      let providerStatus = errorBody.status || "UNKNOWN";
+      
+      if (providerStatus === "UNKNOWN" && err.message) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error?.status) {
+            providerStatus = parsed.error.status;
+          } else if (parsed.error?.code && typeof parsed.error.code === 'string') {
+            providerStatus = parsed.error.code;
+          }
+        } catch(e) {}
+      }
       
       const isQuotaExceeded = statusCode === 429;
       const isNotFound = statusCode === 404;

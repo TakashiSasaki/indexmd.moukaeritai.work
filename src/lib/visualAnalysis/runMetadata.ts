@@ -58,6 +58,8 @@ export interface VisualAnalysisRunMetadata {
     sampleId?: string;
     fileId?: string;
     mimeType?: string;
+    byteLength?: number;
+    base64Length?: number;
   };
 }
 
@@ -74,6 +76,8 @@ export function buildVisualAnalysisRunMetadata(params: {
   sampleId?: string;
   fileId?: string;
   mimeType?: string;
+  byteLength?: number;
+  base64Length?: number;
 }): VisualAnalysisRunMetadata {
   return {
     runId: crypto.randomUUID(),
@@ -110,6 +114,8 @@ export function buildVisualAnalysisRunMetadata(params: {
       sampleId: params.sampleId,
       fileId: params.fileId,
       mimeType: params.mimeType,
+      byteLength: params.byteLength,
+      base64Length: params.base64Length,
     }
   };
 }

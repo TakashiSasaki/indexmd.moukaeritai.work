@@ -24,7 +24,7 @@ describe('evaluateSampleComparison', () => {
     const summary = evaluateSampleComparison(sample, result);
     assert.strictEqual(summary.overallStatus, 'pass');
     assert.strictEqual(summary.imageKind.status, 'exact');
-    assert.deepEqual(summary.categories.exact, ['logo']);
+    assert.deepEqual(summary.categories.matched, ['logo']);
     assert.deepEqual(summary.visibleText.matched, ['BrandX']);
   });
 

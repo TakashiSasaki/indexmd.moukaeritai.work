@@ -52,6 +52,17 @@ export function buildGenerationFailureResponse(args: {
     generationDiagnostics: diagnostics
   };
 
+  if (runMetadata.input) {
+    response.inputDiagnostics = {
+      sourceKind: runMetadata.input.sourceKind,
+      sampleId: runMetadata.input.sampleId,
+      fileId: runMetadata.input.fileId,
+      mimeType: runMetadata.input.mimeType,
+      byteLength: runMetadata.input.byteLength,
+      base64Length: runMetadata.input.base64Length
+    };
+  }
+
   if (outputMode) response.outputMode = outputMode;
   if (sampleMetadata) response.sampleMetadata = sampleMetadata;
   if (expectedMetadata) response.expectedMetadata = expectedMetadata;

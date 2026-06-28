@@ -13,6 +13,14 @@ export interface PublicSampleBatchRunItem {
   error?: string;
   failureKind?: string;
   generationDiagnostics?: any;
+  inputDiagnostics?: {
+    sourceKind: "publicSample";
+    sampleId: string;
+    mimeType?: string;
+    byteLength?: number;
+    base64Length?: number;
+    dimensions?: { width: number; height: number };
+  };
   responseRaw?: any;
 }
 

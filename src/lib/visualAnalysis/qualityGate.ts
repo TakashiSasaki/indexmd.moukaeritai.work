@@ -52,7 +52,7 @@ export function evaluateVisualAnalysisQuality(
   });
 
   // Specific kind vs category checks
-  if (vi?.imageKind === "landscapePhoto" || vi?.imageKind === "naturalPhoto") {
+  if (vi?.imageKind === "landscapePhoto") {
     const hasLandscape = elements.some(el => 
       ['landscapeElement', 'weatherOrSky', 'waterBody', 'terrain', 'roadOrPath', 'plant', 'animal'].includes(el.category)
     );

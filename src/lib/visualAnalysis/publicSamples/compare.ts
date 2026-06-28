@@ -147,7 +147,7 @@ export interface PublicSampleComparisonSummary {
     extra: string[];
   };
   labels: {
-    exact: string[];
+    matched: string[];
     acceptable: string[];
     missing: string[];
     extra: string[];
@@ -155,8 +155,10 @@ export interface PublicSampleComparisonSummary {
   visibleText: {
     matched: string[];
     missing: string[];
+    extra?: string[];
   };
   overallStatus: "pass" | "warning" | "fail";
+  reasons: string[];
 }
 
 export function evaluateSampleComparison(sample: PublicVisualSample, result: any): PublicSampleComparisonSummary {
@@ -176,10 +178,28 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
   const visibleTextResult = compareExpectedVisibleText(sample, detectedText);
   
   let overallStatus: "pass" | "warning" | "fail" = "pass";
-  if (kindResult.status === "diverged" || visibleTextResult.missing.length > 0) {
+  const reasons: string[] = [];
+
+  if (kindResult.status === "diverged") {
     overallStatus = "fail";
-  } else if (kindResult.status === "acceptable" || categoriesResult.missing.length > 0 || labelsResult.missing.length > 0) {
-    overallStatus = "warning";
+    reasons.push(`imageKind diverged: expected ${expectedImageKind}, detected ${kindDetected}`);
+  } else if (kindResult.status === "acceptable") {
+    reasons.push(`imageKind acceptable: expected ${expectedImageKind}, detected ${kindDetected}`);
+  }
+
+  if (visibleTextResult.missing.length > 0) {
+    overallStatus = "fail";
+    visibleTextResult.missing.forEach(txt => reasons.push(`missing expected visible text: ${txt}`));
+  }
+
+  if (categoriesResult.missing.length > 0) {
+    if (overallStatus === "pass") overallStatus = "warning";
+    categoriesResult.missing.forEach(cat => reasons.push(`missing expected category: ${cat}`));
+  }
+
+  if (labelsResult.missing.length > 0) {
+    if (overallStatus === "pass") overallStatus = "warning";
+    labelsResult.missing.forEach(label => reasons.push(`missing expected label: ${label}`));
   }
 
   return {
@@ -190,13 +210,13 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
       details: kindResult.details
     },
     categories: {
-      exact: categoriesResult.exact,
+      matched: categoriesResult.exact,
       acceptable: categoriesResult.acceptable,
       missing: categoriesResult.missing,
       extra: categoriesResult.extra
     },
     labels: {
-      exact: labelsResult.exact,
+      matched: labelsResult.exact,
       acceptable: labelsResult.acceptable,
       missing: labelsResult.missing,
       extra: labelsResult.extra
@@ -205,6 +225,7 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
       matched: visibleTextResult.matched,
       missing: visibleTextResult.missing
     },
-    overallStatus
+    overallStatus,
+    reasons
   };
 }

@@ -1552,7 +1552,9 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       requestPreviewIncluded: includeRequestPreview,
       sourceKind: "publicSample",
       sampleId: sample.id,
-      mimeType: mimeType
+      mimeType: mimeType,
+      byteLength: buffer.length,
+      base64Length: base64Data.length
     });
 
     const requestPreview = includeRequestPreview ? {
@@ -1663,6 +1665,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         },
         analysisRun: runMetadata,
         parseDiagnostics: parseRes.diagnostics,
+        inputDiagnostics: {
+          sourceKind: runMetadata.input.sourceKind,
+          sampleId: runMetadata.input.sampleId,
+          mimeType: runMetadata.input.mimeType,
+          byteLength: runMetadata.input.byteLength,
+          base64Length: runMetadata.input.base64Length
+        },
         ...(requestPreview ? { requestPreview } : {})
       });
     }
@@ -1708,7 +1717,14 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         effectiveStructuredExecutionMode: mode,
         validationPassed: true,
         schemaVersion: "custom",
-        rawOutput: outputText
+        rawOutput: outputText,
+        inputDiagnostics: {
+          sourceKind: runMetadata.input.sourceKind,
+          sampleId: runMetadata.input.sampleId,
+          mimeType: runMetadata.input.mimeType,
+          byteLength: runMetadata.input.byteLength,
+          base64Length: runMetadata.input.base64Length
+        }
       };
 
       if (includeRequestPreview) {
@@ -1767,7 +1783,14 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       experimentalModel: isExperimental,
       usedModelName: targetModel,
       providerFamily: isGemma ? "gemma" : "gemini",
-      effectiveStructuredExecutionMode: mode
+      effectiveStructuredExecutionMode: mode,
+      inputDiagnostics: {
+        sourceKind: runMetadata.input.sourceKind,
+        sampleId: runMetadata.input.sampleId,
+        mimeType: runMetadata.input.mimeType,
+        byteLength: runMetadata.input.byteLength,
+        base64Length: runMetadata.input.base64Length
+      }
     };
 
     if (includeRequestPreview) {
