@@ -167,7 +167,36 @@ describe('buildBatchReportForChat', () => {
   });
 
   test('buildBatchSummaryReportForChat should generate a small summary report', () => {
-    const summaryReport = buildBatchSummaryReportForChat(mockSummary);
+    const summaryWithComp: PublicSampleBatchRunSummary = {
+      ...mockSummary,
+      items: [
+        {
+          sampleId: "success-sample",
+          title: "Success",
+          success: true,
+          qualityStatus: "valid",
+          comparison: {
+            imageKind: { expected: "naturalPhoto", detected: "naturalPhoto", status: "exact" },
+            categories: { matched: ["logo"], acceptable: [], missing: [], extra: [], matches: [] },
+            labels: { matched: ["sunflower"], acceptable: [], missing: [], extra: [], matches: [] },
+            visibleText: { matched: [], missing: [] },
+            overallStatus: "pass",
+            reasons: [],
+            reviewStatus: "pass",
+            reviewReasons: [],
+            reviewNotes: ["excellent match"],
+            coverage: {
+              categories: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1.0 },
+              labels: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1.0 },
+              visibleText: { expectedTotal: 0, covered: 0, missing: 0, ratio: 1.0 },
+              overall: { expectedTotal: 2, covered: 2, missing: 0, ratio: 1.0 }
+            }
+          } as any
+        }
+      ]
+    };
+
+    const summaryReport = buildBatchSummaryReportForChat(summaryWithComp);
     assert.strictEqual(summaryReport.reportKind, "visualAnalysisPublicSampleBatchSummary");
     assert.ok(summaryReport.artifactIntegrity);
     assert.strictEqual(summaryReport.artifactIntegrity.artifactKind, "summary");
@@ -176,6 +205,9 @@ describe('buildBatchReportForChat', () => {
     const successItem = summaryReport.items[0];
     assert.strictEqual(successItem.parseDiagnostics, undefined);
     assert.strictEqual(successItem.detected, undefined);
+    assert.ok(successItem.coverage);
+    assert.strictEqual(successItem.coverageOverall, 1.0);
+    assert.deepEqual(successItem.reviewNotes, ["excellent match"]);
   });
 
   test('buildFullItemReport should generate a full item report', () => {

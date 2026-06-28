@@ -197,15 +197,45 @@ describe('evaluateSampleComparison', () => {
   });
 
   test('should compute correct coverage metrics and calibrated reviewStatus', () => {
-    // 1. imageKind exact, category coverage 1.0, label coverage 0.8, visibleText expected 0 => reviewStatus pass
+    // 1. imageKind exact, category coverage 1.0, label coverage 1.0, visibleText expected 0 => reviewStatus pass
     const samplePass = {
+      expectedImageKind: "naturalPhoto",
+      expectedElementCategories: ["logo"],
+      expectedVisibleElementLabels: ["sunflower", "leaves", "valley", "lake"], // 4 labels
+      expectedVisibleText: []
+    } as any;
+
+    const resultPass = {
+      visualAnalysis: {
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          visibleElements: [
+            { category: "logo", label: "sunflower" },
+            { category: "logo", label: "leaves" },
+            { category: "logo", label: "valley" },
+            { category: "logo", label: "lake" } // 4 matched, 0 missing => 100% coverage
+          ],
+          visibleText: []
+        }
+      }
+    };
+
+    const summaryPass = evaluateSampleComparison(samplePass, resultPass);
+    assert.strictEqual(summaryPass.reviewStatus, 'pass');
+    assert.ok(summaryPass.coverage);
+    assert.strictEqual(summaryPass.coverage.categories.ratio, 1.0);
+    assert.strictEqual(summaryPass.coverage.labels.ratio, 1.0);
+    assert.deepEqual(summaryPass.reviewReasons, []);
+
+    // 2. imageKind exact, category coverage 1.0, label coverage 0.8 => should be needsReview under strict rules
+    const sampleNeedsReviewLabel = {
       expectedImageKind: "naturalPhoto",
       expectedElementCategories: ["logo"],
       expectedVisibleElementLabels: ["sunflower", "leaves", "valley", "lake", "cloud"], // 5 labels
       expectedVisibleText: []
     } as any;
 
-    const resultPass = {
+    const resultNeedsReviewLabel = {
       visualAnalysis: {
         visualInfo: {
           imageKind: "naturalPhoto",
@@ -220,15 +250,11 @@ describe('evaluateSampleComparison', () => {
       }
     };
 
-    const summaryPass = evaluateSampleComparison(samplePass, resultPass);
-    assert.strictEqual(summaryPass.reviewStatus, 'pass');
-    assert.ok(summaryPass.coverage);
-    assert.strictEqual(summaryPass.coverage.categories.ratio, 1.0);
-    assert.strictEqual(summaryPass.coverage.labels.ratio, 0.8);
-    assert.deepEqual(summaryPass.reviewReasons, []);
-    assert.ok(summaryPass.reviewNotes.some(n => n.includes("missing expected label: cloud")));
+    const summaryNeedsReviewLabel = evaluateSampleComparison(sampleNeedsReviewLabel, resultNeedsReviewLabel);
+    assert.strictEqual(summaryNeedsReviewLabel.reviewStatus, 'needsReview');
+    assert.ok(summaryNeedsReviewLabel.reviewReasons.some(r => r.includes("missing expected label: cloud")));
 
-    // 2. visibleText missing => reviewStatus fail
+    // 3. visibleText missing => reviewStatus fail
     const sampleFailText = {
       expectedImageKind: "naturalPhoto",
       expectedVisibleText: ["Important Text"]
@@ -247,7 +273,7 @@ describe('evaluateSampleComparison', () => {
     assert.strictEqual(summaryFailText.reviewStatus, 'fail');
     assert.ok(summaryFailText.reviewReasons.some(r => r.includes("missing expected visible text")));
 
-    // 3. imageKind diverged => reviewStatus needsReview
+    // 4. imageKind diverged => reviewStatus needsReview
     const sampleDiverged = {
       expectedImageKind: "naturalPhoto"
     } as any;
@@ -263,27 +289,5 @@ describe('evaluateSampleComparison', () => {
     const summaryDiverged = evaluateSampleComparison(sampleDiverged, resultDiverged);
     assert.strictEqual(summaryDiverged.reviewStatus, 'needsReview');
     assert.ok(summaryDiverged.reviewReasons.some(r => r.includes("imageKind diverged")));
-
-    // 4. label coverage too low => reviewStatus needsReview
-    const sampleLowLabel = {
-      expectedImageKind: "naturalPhoto",
-      expectedVisibleElementLabels: ["sunflower", "leaves", "valley", "lake", "cloud"] // 5 labels
-    } as any;
-
-    const resultLowLabel = {
-      visualAnalysis: {
-        visualInfo: {
-          imageKind: "naturalPhoto",
-          visibleElements: [
-            { label: "sunflower" },
-            { label: "leaves" } // 2 matched, 3 missing => 40% label coverage
-          ]
-        }
-      }
-    };
-
-    const summaryLowLabel = evaluateSampleComparison(sampleLowLabel, resultLowLabel);
-    assert.strictEqual(summaryLowLabel.reviewStatus, 'needsReview');
-    assert.ok(summaryLowLabel.reviewReasons.some(r => r.includes("label coverage low")));
   });
 });

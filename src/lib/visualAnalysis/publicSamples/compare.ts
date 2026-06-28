@@ -739,52 +739,51 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
   const reviewReasons: string[] = [];
   const reviewNotes: string[] = [];
 
-  // Determine reviewStatus
-  if (textMissing > 0) {
+  // Determine reviewStatus based on strict coverage-based rules
+  const isImageKindOk = (kindResult.status === "exact" || kindResult.status === "acceptable");
+  const hasCategoryMissing = catMissing > 0;
+  const hasLabelMissing = labelsMissing > 0;
+  const hasTextMissing = textMissing > 0;
+
+  if (hasTextMissing) {
     reviewStatus = "fail";
     visibleTextResult.missing.forEach(txt => {
       reviewReasons.push(`missing expected visible text: ${txt}`);
     });
-  } else if (kindResult.status === "diverged") {
+  } else if (!isImageKindOk) {
     reviewStatus = "needsReview";
     reviewReasons.push(`imageKind diverged: expected ${expectedImageKind}, detected ${kindDetected}`);
-  } else {
-    // Check if it qualifies for pass under our calibrated rules
-    const isImageKindOk = (kindResult.status === "exact" || kindResult.status === "acceptable");
-    const rule1Pass = isImageKindOk && catRatio === 1.0 && labelsRatio >= 0.75;
-    const rule2Pass = isImageKindOk && catRatio >= 0.8 && labelsRatio >= 0.6;
-
-    if (rule1Pass || rule2Pass) {
-      reviewStatus = "pass";
-    } else {
-      reviewStatus = "needsReview";
-      // Collect reasons for needsReview
-      if (!isImageKindOk) {
-        reviewReasons.push(`imageKind status is ${kindResult.status}`);
-      }
-      if (catRatio < 0.8) {
-        reviewReasons.push(`category coverage low: ${catRatio * 100}% (expected >= 80%)`);
-      } else if (catRatio < 1.0 && labelsRatio < 0.75) {
-        reviewReasons.push(`category coverage is ${catRatio * 100}% and label coverage is low: ${labelsRatio * 100}%`);
-      }
-      if (labelsRatio < 0.6) {
-        reviewReasons.push(`label coverage low: ${labelsRatio * 100}% (expected >= 60%)`);
-      }
+  } else if (hasCategoryMissing || hasLabelMissing) {
+    reviewStatus = "needsReview";
+    if (hasCategoryMissing) {
+      categoriesResult.missing.forEach(cat => {
+        reviewReasons.push(`missing expected category: ${cat}`);
+      });
     }
+    if (hasLabelMissing) {
+      labelsResult.missing.forEach(label => {
+        reviewReasons.push(`missing expected label: ${label}`);
+      });
+    }
+  } else {
+    reviewStatus = "pass";
   }
 
-  // Populate reviewNotes with minor issues or acceptable info
+  // Populate reviewNotes with non-blocking notes
   if (kindResult.status === "acceptable") {
     reviewNotes.push(`imageKind acceptable: expected ${expectedImageKind}, detected ${kindDetected}`);
   }
-  categoriesResult.missing.forEach(cat => {
-    reviewNotes.push(`missing expected category: ${cat}`);
+  categoriesResult.acceptable.forEach(cat => {
+    reviewNotes.push(`category acceptable match: ${cat}`);
   });
-  labelsResult.missing.forEach(label => {
-    reviewNotes.push(`missing expected label: ${label}`);
+  labelsResult.acceptable.forEach(label => {
+    reviewNotes.push(`label acceptable match: ${label}`);
   });
   if (categoriesResult.extra.length > 0) {
     reviewNotes.push(`extra categories detected: ${categoriesResult.extra.join(", ")}`);
+  }
+  if (labelsResult.extra.length > 0) {
+    reviewNotes.push(`extra labels detected: ${labelsResult.extra.join(", ")}`);
   }
 
   return {
