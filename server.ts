@@ -1693,34 +1693,38 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     let localRecoveryEnabled = true;
     let retryStrategy: "none" | "sameRequestOnce" | "localRepairThenJsonOnlyRetry" = "localRepairThenJsonOnlyRetry";
     
+    let localRepairAttempted = parseRes.diagnostics.attempts.some(a => a.mode === "localRepair");
+    let localRepairSucceeded = parseRes.ok && parseRes.parseMode === "localRepair";
+    let modelRetryAttempted = false;
+    let modelRetrySucceeded = false;
+
     if (!parseRes.ok && mode === "promptedJson") {
       console.warn(`[public-sample] Initial parse failed for ${sample.id}. Attempting JSON-only retry.`);
+      modelRetryAttempted = true;
       
-      const retryPrompt = `The previous output was invalid JSON. Output ONLY a valid JSON object based on the original request. Do not include any markdown, explanations, or trailing text. Preserve the original analysis content.\n\nOriginal invalid output:\n${outputText.substring(0, 800)}...`;
+      const excerpt = outputText.length > 500
+        ? `${outputText.substring(0, 250)}\n... [truncated] ...\n${outputText.substring(outputText.length - 250)}`
+        : outputText;
+
+      const retryPrompt = `The previous output was invalid JSON. Error: ${parseRes.diagnostics.parseErrorMessage || "Syntax error"}\n\nOriginal invalid output (excerpt):\n${excerpt}\n\nOutput only one valid JSON object. Do not include any markdown fences (like \`\`\`json), explanations, or trailing text. Preserve all of the parsed analysis content accurately.`;
       
       try {
         const retryConfig = {
           ...configOption,
           temperature: 0.1, // lower temp for retry
         };
+        delete retryConfig.responseMimeType;
+        delete retryConfig.responseSchema;
         
-        const retryAiRes = await generateContentWithRetry(targetModel, {
-            contents: [
-                {
-                    role: "user",
-                    parts: [
-                        { text: retryPrompt },
-                        {
-                            inlineData: {
-                                mimeType: mimeType,
-                                data: base64Data
-                            }
-                        }
-                    ]
-                }
-            ],
-            generationConfig: retryConfig
-        });
+        const retryAiRes = await generateContentWithRetry(
+          targetModel,
+          [
+            { inlineData: { data: base64Data, mimeType: mimeType } },
+            { text: retryPrompt }
+          ],
+          1,
+          retryConfig
+        );
         
         retryCount++;
         const retryOutputText = retryAiRes.text?.trim() || "{}";
@@ -1731,6 +1735,9 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         retryParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...retryParseRes.diagnostics.attempts];
         parseRes = retryParseRes;
         
+        if (parseRes.ok) {
+          modelRetrySucceeded = true;
+        }
       } catch (retryErr) {
         console.error(`[public-sample] JSON-only retry failed for ${sample.id}`, retryErr);
       }
@@ -1741,7 +1748,12 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       localRecoveryEnabled,
       retryStrategy,
       retryCount,
-      finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
+      finalParseMode: parseRes.ok ? parseRes.parseMode : undefined,
+      localRepairAttempted,
+      localRepairSucceeded,
+      modelRetryAttempted,
+      modelRetrySucceeded,
+      rawOutputPreview: parseRes.diagnostics?.rawOutputPreview
     };
 
     if (!parseRes.ok) {
@@ -2074,34 +2086,38 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     let localRecoveryEnabled = true;
     let retryStrategy: "none" | "sameRequestOnce" | "localRepairThenJsonOnlyRetry" = "localRepairThenJsonOnlyRetry";
     
+    let localRepairAttempted = parseRes.diagnostics.attempts.some(a => a.mode === "localRepair");
+    let localRepairSucceeded = parseRes.ok && parseRes.parseMode === "localRepair";
+    let modelRetryAttempted = false;
+    let modelRetrySucceeded = false;
+
     if (!parseRes.ok && mode === "promptedJson") {
       console.warn(`[drive-file] Initial parse failed for ${fileId}. Attempting JSON-only retry.`);
+      modelRetryAttempted = true;
       
-      const retryPrompt = `The previous output was invalid JSON. Output ONLY a valid JSON object based on the original request. Do not include any markdown, explanations, or trailing text. Preserve the original analysis content.\n\nOriginal invalid output:\n${outputText.substring(0, 800)}...`;
+      const excerpt = outputText.length > 500
+        ? `${outputText.substring(0, 250)}\n... [truncated] ...\n${outputText.substring(outputText.length - 250)}`
+        : outputText;
+
+      const retryPrompt = `The previous output was invalid JSON. Error: ${parseRes.diagnostics.parseErrorMessage || "Syntax error"}\n\nOriginal invalid output (excerpt):\n${excerpt}\n\nOutput only one valid JSON object. Do not include any markdown fences (like \`\`\`json), explanations, or trailing text. Preserve all of the parsed analysis content accurately.`;
       
       try {
         const retryConfig = {
           ...configOption,
           temperature: 0.1, // lower temp for retry
         };
+        delete retryConfig.responseMimeType;
+        delete retryConfig.responseSchema;
         
-        const retryAiRes = await generateContentWithRetry(targetModel, {
-            contents: [
-                {
-                    role: "user",
-                    parts: [
-                        { text: retryPrompt },
-                        {
-                            inlineData: {
-                                mimeType: fileMeta.mimeType,
-                                data: base64Data
-                            }
-                        }
-                    ]
-                }
-            ],
-            generationConfig: retryConfig
-        });
+        const retryAiRes = await generateContentWithRetry(
+          targetModel,
+          [
+            { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
+            { text: retryPrompt }
+          ],
+          1,
+          retryConfig
+        );
         
         retryCount++;
         const retryOutputText = retryAiRes.text?.trim() || "{}";
@@ -2112,6 +2128,9 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         retryParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...retryParseRes.diagnostics.attempts];
         parseRes = retryParseRes;
         
+        if (parseRes.ok) {
+          modelRetrySucceeded = true;
+        }
       } catch (retryErr) {
         console.error(`[drive-file] JSON-only retry failed for ${fileId}`, retryErr);
       }
@@ -2121,7 +2140,12 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       localRecoveryEnabled,
       retryStrategy,
       retryCount,
-      finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
+      finalParseMode: parseRes.ok ? parseRes.parseMode : undefined,
+      localRepairAttempted,
+      localRepairSucceeded,
+      modelRetryAttempted,
+      modelRetrySucceeded,
+      rawOutputPreview: parseRes.diagnostics?.rawOutputPreview
     };
 
     if (!parseRes.ok) {

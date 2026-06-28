@@ -164,7 +164,7 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
 }
 
 function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
-  const failedItems = items.filter(item => !item.success);
+  const failedItems = items.filter(item => !item.success && item.failureKind !== 'jsonParseError');
   const byProviderStatus: Record<string, number> = {};
   const byStatusCode: Record<string, number> = {};
   const byMimeType: Record<string, number> = {};
@@ -176,8 +176,7 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
     providerStatus?: string;
   }> = [];
 
-  for (const item of items) {
-    if (item.success) continue; // Only failure items
+  for (const item of failedItems) {
 
     const diag = item.generationDiagnostics;
     const inputDiag = item.inputDiagnostics;

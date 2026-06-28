@@ -14,6 +14,11 @@ export interface VisualJsonRecoveryMetadata {
   retryStrategy: "none" | "sameRequestOnce" | "localRepairThenJsonOnlyRetry";
   retryCount: number;
   finalParseMode?: "direct" | "fenceStripped" | "extractedObject" | "localRepair";
+  localRepairAttempted?: boolean;
+  localRepairSucceeded?: boolean;
+  modelRetryAttempted?: boolean;
+  modelRetrySucceeded?: boolean;
+  rawOutputPreview?: string;
 }
 
 export interface VisualAnalysisRunMetadata {

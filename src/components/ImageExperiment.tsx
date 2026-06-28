@@ -214,7 +214,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         modelName,
         jsonMode: jsonModeOption,
         customInstructionHash: fnv1a32(customInstruction.trim()),
-        availableSampleIds: samples.map(s => s.id)
+        availableSampleIds: samples.map(s => s.id),
+        selectedSampleIds: targetSamples.map(s => s.id)
       };
       
       if (isCheckpointCompatible(checkpoint, currentSettings)) {
@@ -477,7 +478,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       const idsToRun = includeFailed
         ? [...activeCheckpoint.pendingSampleIds, ...activeCheckpoint.failedSampleIds]
         : [...activeCheckpoint.pendingSampleIds];
-      targetSamples = samples.filter(s => idsToRun.includes(s.id));
+      targetSamples = samples.filter(s => idsToRun.includes(s.id) && selectedSampleIds[s.id]);
     } else {
       if (targetSamples.length === 0) {
         onAddLog("warn", "実行対象のサンプルが選択されていません。");

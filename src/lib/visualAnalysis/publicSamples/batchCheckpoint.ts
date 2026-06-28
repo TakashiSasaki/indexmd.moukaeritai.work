@@ -110,14 +110,27 @@ export function isCheckpointCompatible(
     jsonMode: string;
     customInstructionHash: string;
     availableSampleIds: string[];
+    selectedSampleIds?: string[];
   }
 ): boolean {
-  return (
+  const baseMatch = (
     checkpoint.modelName === currentSettings.modelName &&
     checkpoint.jsonMode === currentSettings.jsonMode &&
-    checkpoint.customInstructionHash === currentSettings.customInstructionHash &&
-    checkpoint.targetSampleIds.every(id => currentSettings.availableSampleIds.includes(id))
+    checkpoint.customInstructionHash === currentSettings.customInstructionHash
   );
+  if (!baseMatch) return false;
+
+  if (currentSettings.selectedSampleIds && currentSettings.selectedSampleIds.length > 0) {
+    const selected = currentSettings.selectedSampleIds;
+    const target = checkpoint.targetSampleIds;
+    const selectedSet = new Set(selected);
+    const targetSet = new Set(target);
+    const selectedIsSubset = selected.every(id => targetSet.has(id));
+    const targetIsSubset = target.every(id => selectedSet.has(id));
+    return selectedIsSubset || targetIsSubset;
+  }
+
+  return checkpoint.targetSampleIds.every(id => currentSettings.availableSampleIds.includes(id));
 }
 
 export function rebuildBatchSummaryFromCheckpoint(checkpoint: PublicSampleBatchCheckpoint): PublicSampleBatchRunSummary {
