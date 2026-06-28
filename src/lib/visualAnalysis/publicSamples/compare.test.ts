@@ -119,4 +119,80 @@ describe('evaluateSampleComparison', () => {
     const summaryTextMissing = evaluateSampleComparison(sampleTextMissing, resultTextMissing);
     assert.strictEqual(summaryTextMissing.reviewStatus, 'fail');
   });
+
+  test('should support flexible matching rules and populate matches', () => {
+    const sample = {
+      expectedImageKind: "naturalPhoto",
+      expectedVisibleElementLabels: ["cat", "sunflower", "leaves", "valley"]
+    } as any;
+
+    const result = {
+      visualAnalysis: {
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          visibleElements: [
+            { label: "tabby cat" },
+            { label: "sunflower head" },
+            { label: "sunflower leaves" }
+          ]
+        },
+        indexing: {
+          keywords: ["valley"]
+        }
+      }
+    };
+
+    const summary = evaluateSampleComparison(sample, result);
+    assert.strictEqual(summary.labels.missing.length, 0); // All matched!
+    assert.strictEqual(summary.labels.acceptable.length, 4);
+
+    const matches = summary.labels.matches;
+    assert.ok(matches);
+    assert.strictEqual(matches.length, 4);
+
+    const catMatch = matches.find(m => m.expected === "cat");
+    assert.ok(catMatch);
+    assert.strictEqual(catMatch.method, "substring");
+    assert.strictEqual(catMatch.detected, "tabby cat");
+
+    const sunMatch = matches.find(m => m.expected === "sunflower");
+    assert.ok(sunMatch);
+    assert.strictEqual(catMatch.method, "substring");
+
+    const leavesMatch = matches.find(m => m.expected === "leaves");
+    assert.ok(leavesMatch);
+    assert.strictEqual(leavesMatch.method, "tokenOverlap");
+
+    const valleyMatch = matches.find(m => m.expected === "valley");
+    assert.ok(valleyMatch);
+    assert.strictEqual(valleyMatch.method, "keyword");
+  });
+
+  test('should support landscapeElement category soft equivalence and category deduplication', () => {
+    const sample = {
+      expectedImageKind: "naturalPhoto",
+      expectedElementCategories: ["landscapeElement", "logo"]
+    } as any;
+
+    const result = {
+      visualAnalysis: {
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          visibleElements: [
+            { category: "terrain" },
+            { category: "weatherOrSky" },
+            { category: "weatherOrSky" } // Duplicate
+          ]
+        }
+      }
+    };
+
+    const summary = evaluateSampleComparison(sample, result);
+    // landscapeElement matches terrain
+    assert.deepEqual(summary.categories.matched, []);
+    assert.deepEqual(summary.categories.acceptable, ["terrain"]);
+    assert.deepEqual(summary.categories.missing, ["logo"]);
+    // weatherOrSky is extra, but only listed once due to deduplication
+    assert.deepEqual(summary.categories.extra, ["weatherOrSky"]);
+  });
 });

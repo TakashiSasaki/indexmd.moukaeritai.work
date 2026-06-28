@@ -21,7 +21,70 @@ export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummar
     reviewPassCount: batchSummary.reviewPassCount,
     reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
     reviewFailCount: batchSummary.reviewFailCount,
+    generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     items: compactItems
+  };
+}
+
+function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
+  const failedItems = items.filter(item => !item.success);
+  const byProviderStatus: Record<string, number> = {};
+  const byStatusCode: Record<string, number> = {};
+  const byMimeType: Record<string, number> = {};
+  
+  const inputsInfo: Array<{
+    sampleId: string;
+    byteLength?: number;
+    base64Length?: number;
+    providerStatus?: string;
+  }> = [];
+
+  for (const item of items) {
+    const isFailed = !item.success;
+    const diag = item.generationDiagnostics;
+    const inputDiag = item.inputDiagnostics;
+
+    if (isFailed) {
+      if (diag) {
+        const provStatus = diag.providerStatus || "UNKNOWN";
+        byProviderStatus[provStatus] = (byProviderStatus[provStatus] || 0) + 1;
+        
+        const statusCodeStr = diag.statusCode ? String(diag.statusCode) : "UNKNOWN";
+        byStatusCode[statusCodeStr] = (byStatusCode[statusCodeStr] || 0) + 1;
+      } else {
+        byProviderStatus["UNKNOWN"] = (byProviderStatus["UNKNOWN"] || 0) + 1;
+        byStatusCode["UNKNOWN"] = (byStatusCode["UNKNOWN"] || 0) + 1;
+      }
+
+      if (inputDiag) {
+        const mime = inputDiag.mimeType || "UNKNOWN";
+        byMimeType[mime] = (byMimeType[mime] || 0) + 1;
+      } else {
+        byMimeType["UNKNOWN"] = (byMimeType["UNKNOWN"] || 0) + 1;
+      }
+    }
+
+    if (inputDiag) {
+      inputsInfo.push({
+        sampleId: item.sampleId,
+        byteLength: inputDiag.byteLength,
+        base64Length: inputDiag.base64Length,
+        providerStatus: diag?.providerStatus
+      });
+    }
+  }
+
+  const largestInputs = inputsInfo
+    .filter(i => i.byteLength !== undefined)
+    .sort((a, b) => (b.byteLength || 0) - (a.byteLength || 0))
+    .slice(0, 5);
+
+  return {
+    total: failedItems.length,
+    byProviderStatus,
+    byStatusCode,
+    byMimeType,
+    largestInputs
   };
 }
 

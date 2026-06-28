@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle } from 'lucide-react';
+import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
 import { 
@@ -13,6 +13,7 @@ import {
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
 import { buildBatchReportForChat, buildFailuresOnlyReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { sanitizeDebugResponseForLocalStorage } from '../lib/visualAnalysis/debugLogSanitizer';
+import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 
 export interface ImageDebugLog {
   id: string;
@@ -139,6 +140,24 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number } | null>(null);
   const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(null);
+
+  const chatReport = useMemo(() => batchSummary ? buildBatchReportForChat(batchSummary) : null, [batchSummary]);
+  const failuresReport = useMemo(() => batchSummary ? buildFailuresOnlyReport(batchSummary) : null, [batchSummary]);
+  
+  const chatReportStats = useMemo(() => {
+    if (!chatReport) return null;
+    return stringifyJsonArtifact(chatReport);
+  }, [chatReport]);
+
+  const failuresReportStats = useMemo(() => {
+    if (!failuresReport) return null;
+    return stringifyJsonArtifact(failuresReport);
+  }, [failuresReport]);
+
+  const fullReportStats = useMemo(() => {
+    if (!batchSummary) return null;
+    return stringifyJsonArtifact(batchSummary);
+  }, [batchSummary]);
   
   // Privacy options
   const [storeRawOutputPreviewInDrive, setStoreRawOutputPreviewInDrive] = useState<boolean>(false);
@@ -199,10 +218,74 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
   const visualCap = getVisualModelCapability(modelName);
 
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
+  const handleCopy = async (text: string, id: string) => {
+    try {
+      let isJson = false;
+      let parsed = null;
+      try {
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          parsed = JSON.parse(text);
+          isJson = true;
+        }
+      } catch (e) {
+        // Not valid JSON, or just plain text
+      }
+
+      const charLength = text.length;
+      let byteLength = 0;
+      try {
+        byteLength = new TextEncoder().encode(text).length;
+      } catch (e) {
+        byteLength = charLength;
+      }
+
+      const hash = fnv1a32(text);
+
+      if (isJson && !parsed) {
+        throw new Error("Invalid stringified JSON or null object");
+      }
+
+      // Check if it exceeds 1MB (warning threshold)
+      if (byteLength > 1 * 1024 * 1024) {
+        const proceed = window.confirm(
+          `Warning: This payload is very large (${(byteLength / 1024 / 1024).toFixed(2)} MB, FNV-1a Hash: ${hash}).\n` +
+          `Copying to clipboard might freeze the browser. We strongly recommend downloading instead.\n\n` +
+          `Do you want to proceed with copying?`
+        );
+        if (!proceed) return;
+      }
+
+      await navigator.clipboard.writeText(text);
+
+      // Verify integrity
+      try {
+        const readBack = await navigator.clipboard.readText();
+        if (readBack !== text) {
+          console.warn("Integrity verification mismatch. Clipboard may have truncated the content.");
+        }
+      } catch (e) {
+        // clipboard read-back might require special user permission, skip
+      }
+
+      setCopied(id);
+      onAddLog("info", `Copied successfully. Size: ${byteLength} bytes (${charLength} chars). Hash: ${hash}`);
+      setTimeout(() => setCopied(null), 2000);
+    } catch (err: any) {
+      console.error("Failed to copy to clipboard", err);
+      alert(`Clipboard copy failed: ${err?.message || String(err)}`);
+    }
+  };
+
+  const handleDownload = (value: unknown, defaultFilename: string, id: string) => {
+    try {
+      const artifact = downloadJsonArtifact(value, defaultFilename);
+      setCopied(id);
+      onAddLog("success", `Downloaded ${defaultFilename}. Size: ${artifact.byteLength} bytes. Hash: ${artifact.hash}`);
+      setTimeout(() => setCopied(null), 2000);
+    } catch (err: any) {
+      console.error("Failed to download JSON", err);
+      alert(`Download failed: ${err?.message || String(err)}`);
+    }
   };
 
   // Synchronize state changes to localStorage
@@ -501,10 +584,41 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     
     setBatchSummary(summary);
     
-    // Save to localStorage
+    // Save a compact version to localStorage to prevent quota limits
+    const shrinkBatchRunSummaryForLocalStorage = (sum: PublicSampleBatchRunSummary) => {
+      return {
+        ...sum,
+        items: sum.items.map(it => ({
+          sampleId: it.sampleId,
+          title: it.title,
+          success: it.success,
+          error: it.error,
+          failureKind: it.failureKind,
+          qualityStatus: it.qualityStatus,
+          qualityScore: it.qualityScore,
+          qualityIssues: it.qualityIssues,
+          comparison: it.comparison ? {
+            imageKind: it.comparison.imageKind,
+            categories: it.comparison.categories,
+            labels: it.comparison.labels,
+            visibleText: it.comparison.visibleText,
+            overallStatus: it.comparison.overallStatus,
+            reviewStatus: it.comparison.reviewStatus,
+            reviewReasons: it.comparison.reviewReasons
+          } : undefined,
+          execution: (it.analysisRun?.metadata ?? it.analysisRun) ? {
+            modelName: (it.analysisRun?.metadata ?? it.analysisRun)?.model?.name || (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.modelName,
+            providerFamily: (it.analysisRun?.metadata ?? it.analysisRun)?.model?.providerFamily || (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.providerFamily,
+            jsonMode: (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.jsonMode,
+            jsonRecovery: (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.jsonRecovery
+          } : undefined
+        }))
+      };
+    };
+
     const saved = localStorage.getItem("image_experiment_batch_runs");
     let runs = saved ? JSON.parse(saved) : [];
-    runs.unshift(summary);
+    runs.unshift(shrinkBatchRunSummaryForLocalStorage(summary));
     if (runs.length > 5) runs = runs.slice(0, 5);
     localStorage.setItem("image_experiment_batch_runs", JSON.stringify(runs));
 
@@ -768,35 +882,102 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
       {batchSummary && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-indigo-600" /> Batch Regression Summary
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleCopy(JSON.stringify(buildBatchReportForChat(batchSummary), null, 2), 'batch-report-chat')}
-                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded border border-indigo-100"
-                title="Compact JSON for pasting into ChatGPT (excludes raw previews)"
-              >
-                {copied === 'batch-report-chat' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'batch-report-chat' ? "Copied Chat Report" : "Copy ChatGPT Report JSON"}
-              </button>
-              <button
-                onClick={() => handleCopy(JSON.stringify(buildFailuresOnlyReport(batchSummary), null, 2), 'batch-report-failures')}
-                className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center gap-1 bg-red-50 px-2 py-1 rounded border border-red-100"
-                title="Only copy items that failed or were marked invalid"
-              >
-                {copied === 'batch-report-failures' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'batch-report-failures' ? "Copied Failures" : "Copy Failures Only"}
-              </button>
-              <button
-                onClick={() => handleCopy(JSON.stringify(batchSummary, null, 2), 'batch-summary-full')}
-                className="text-[10px] font-bold text-slate-500 hover:text-slate-700 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded border border-slate-200"
-                title="Full raw JSON with all execution data (large)"
-              >
-                {copied === 'batch-summary-full' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'batch-summary-full' ? "Copied Full JSON" : "Copy Full Batch JSON"}
-              </button>
+          <div className="flex flex-col gap-2 border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-indigo-600" /> Batch Regression Summary
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+              {/* 1. ChatGPT Report Section */}
+              <div className="p-3 rounded-lg border border-indigo-100 bg-indigo-50/50 flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="text-[11px] font-bold text-indigo-900">ChatGPT Compact Report</div>
+                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Optimized format for paste diagnostics (excludes large previews).</p>
+                  {chatReportStats && (
+                    <div className="text-[9px] font-mono text-indigo-700/80 mt-1">
+                      Size: {chatReportStats.byteLength} bytes ({chatReportStats.charLength} chars) | Hash: {chatReportStats.hash}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCopy(chatReportStats?.text || "", 'batch-report-chat')}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm flex-1"
+                  >
+                    {copied === 'batch-report-chat' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copied === 'batch-report-chat' ? "Copied" : "Copy"}
+                  </button>
+                  <button
+                    onClick={() => handleDownload(chatReport, `visual-analysis-chat-report-${Date.now()}.json`, 'batch-report-chat-dl')}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm"
+                    title="Download as JSON file"
+                  >
+                    {copied === 'batch-report-chat-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Failures Only Section */}
+              <div className="p-3 rounded-lg border border-red-100 bg-red-50/50 flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="text-[11px] font-bold text-red-900">Failures Only JSON</div>
+                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Only contains samples that failed generation or validation.</p>
+                  {failuresReportStats && (
+                    <div className="text-[9px] font-mono text-red-700/80 mt-1">
+                      Size: {failuresReportStats.byteLength} bytes ({failuresReportStats.charLength} chars) | Hash: {failuresReportStats.hash}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCopy(failuresReportStats?.text || "", 'batch-report-failures')}
+                    className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center justify-center gap-1 bg-white hover:bg-red-50 px-2 py-1.5 rounded border border-red-200 shadow-sm flex-1"
+                  >
+                    {copied === 'batch-report-failures' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copied === 'batch-report-failures' ? "Copied" : "Copy"}
+                  </button>
+                  <button
+                    onClick={() => handleDownload(failuresReport, `visual-analysis-failures-${Date.now()}.json`, 'batch-report-failures-dl')}
+                    className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center justify-center gap-1 bg-white hover:bg-red-50 px-2 py-1.5 rounded border border-red-200 shadow-sm"
+                    title="Download as JSON file"
+                  >
+                    {copied === 'batch-report-failures-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Full Batch Section (Download recommended) */}
+              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="text-[11px] font-bold text-slate-900 flex items-center gap-1">
+                    Full Batch JSON <span className="text-[9px] text-slate-400 font-normal">(Download Recommended)</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Full execution logs, input/output previews and diagnostic frames.</p>
+                  {fullReportStats && (
+                    <div className="text-[9px] font-mono text-slate-600 mt-1">
+                      Size: {fullReportStats.byteLength} bytes ({fullReportStats.charLength} chars) | Hash: {fullReportStats.hash}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleDownload(batchSummary, `visual-analysis-full-batch-${Date.now()}.json`, 'batch-summary-full-dl')}
+                    className="text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center gap-1 px-2 py-1.5 rounded shadow-sm flex-1"
+                    title="Download complete payload directly"
+                  >
+                    {copied === 'batch-summary-full-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                    {copied === 'batch-summary-full-dl' ? "Downloaded" : "Download Full JSON"}
+                  </button>
+                  <button
+                    onClick={() => handleCopy(fullReportStats?.text || "", 'batch-summary-full')}
+                    className="text-[10px] font-bold text-slate-600 hover:text-slate-700 flex items-center justify-center gap-1 bg-white hover:bg-slate-100 px-2.5 py-1.5 rounded border border-slate-200 shadow-sm"
+                    title="Copy raw string (May freeze if too large)"
+                  >
+                    {copied === 'batch-summary-full' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -832,7 +1013,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                      <th className="px-3 py-2 font-semibold">Image Kind</th>
                      <th className="px-3 py-2 font-semibold">Expected Comparison</th>
                      <th className="px-3 py-2 font-semibold">Review Status</th>
-                     <th className="px-3 py-2 font-semibold">Copy</th>
+                     <th className="px-3 py-2 font-semibold text-right">Export</th>
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100">
@@ -871,14 +1052,23 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                             </span>
                          )}
                       </td>
-                      <td className="px-3 py-2">
-                        <button
-                          onClick={() => handleCopy(JSON.stringify(item, null, 2), `item-${idx}`)}
-                          className="text-slate-400 hover:text-indigo-600"
-                          title="Copy full item JSON"
-                        >
-                           {copied === `item-${idx}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                        </button>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleCopy(JSON.stringify(item, null, 2), `item-${idx}`)}
+                            className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
+                            title="Copy full item JSON"
+                          >
+                             {copied === `item-${idx}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                          <button
+                            onClick={() => handleDownload(item, `visual-analysis-sample-${item.sampleId}-${Date.now()}.json`, `item-dl-${idx}`)}
+                            className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
+                            title="Download item JSON file"
+                          >
+                             {copied === `item-dl-${idx}` ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -23,11 +23,17 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
   },
   {
     id: "sample-person-1",
-    title: "Person reading",
+    title: "Greek pottery with depicted woman",
     category: "person",
-    expectedImageKind: "naturalPhoto",
-    expectedElementCategories: ["person", "furniture", "document", "clothing"],
-    expectedVisibleElementLabels: ["person", "book", "chair", "clothes"],
+    expectedImageKind: "productPhoto",
+    expectedElementCategories: ["person", "document", "clothing", "symbol", "container"],
+    expectedVisibleElementLabels: ["woman", "scroll", "garment", "meander border", "vase surface"],
+    expectedVisibleElementLabelAliases: {
+      "woman": ["person", "figure", "depicted person", "woman"],
+      "scroll": ["document", "book", "scroll"],
+      "meander border": ["meander pattern", "geometric border", "border", "meander border"],
+      "vase surface": ["vase", "surface", "pottery", "ceramic"]
+    },
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Muse_reading_Louvre_CA2220_(cropped).jpg",
@@ -43,11 +49,17 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
   },
   {
     id: "sample-animal-1",
-    title: "Cat sleeping",
+    title: "Cat on ground",
     category: "animal",
     expectedImageKind: "naturalPhoto",
-    expectedElementCategories: ["animal", "furniture"],
-    expectedVisibleElementLabels: ["cat", "bed", "blanket"],
+    expectedElementCategories: ["animal", "plant", "terrain"],
+    expectedVisibleElementLabels: ["cat", "pavement", "berries", "leaves"],
+    expectedVisibleElementLabelAliases: {
+      "cat": ["animal", "kitten", "feline", "tabby cat"],
+      "pavement": ["concrete", "sidewalk", "ground", "concrete pavement", "stone"],
+      "berries": ["berry", "red berries", "fruit", "berries"],
+      "leaves": ["leaf", "green leaves", "plant", "foliage", "leaves"]
+    },
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Sleeping_cat_on_her_back.jpg",
