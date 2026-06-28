@@ -516,20 +516,20 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       }
 
       // Aggregate Cache Diagnostics
-      if (inputDiag.cacheLayer === "memory") {
-        memoryHits++;
-      } else if (inputDiag.cacheLayer === "disk") {
-        diskHits++;
-      } else if (inputDiag.cacheLayer === "miss") {
-        misses++;
-      }
-
-      if (inputDiag.cacheStored) {
-        stored++;
-      }
-
       if (inputDiag.cacheSharedInFlight) {
         sharedInFlight++;
+      } else {
+        if (inputDiag.cacheLayer === "memory") {
+          memoryHits++;
+        } else if (inputDiag.cacheLayer === "disk") {
+          diskHits++;
+        } else if (inputDiag.cacheLayer === "miss") {
+          misses++;
+        }
+
+        if (inputDiag.cacheStored) {
+          stored++;
+        }
       }
 
       if (inputDiag.cacheReadError) {

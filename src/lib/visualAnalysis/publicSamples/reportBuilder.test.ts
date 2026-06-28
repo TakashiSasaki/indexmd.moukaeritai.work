@@ -325,4 +325,120 @@ describe('buildBatchReportForChat', () => {
     assert.strictEqual(report.inputSizeSummary.mediaResolution.applied, 1);
     assert.strictEqual(report.inputSizeSummary.mediaResolution.fallbackUsed, 0);
   });
+
+  test('should aggregate cache diagnostics and verify sharedInFlight does not inflate other counts', () => {
+    const summaryWithCache: PublicSampleBatchRunSummary = {
+      runId: "run-cache",
+      timestamp: "2026-06-28",
+      modelName: "test-model",
+      jsonMode: "standard",
+      total: 6,
+      successCount: 6,
+      failureCount: 0,
+      validCount: 6,
+      validLowQualityCount: 0,
+      invalidJsonCount: 0,
+      expectedComparisonPassCount: 0,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 0,
+      items: [
+        {
+          sampleId: "s1",
+          title: "S1",
+          success: true,
+          inputDiagnostics: {
+            sourceKind: "publicSample",
+            sampleId: "s1",
+            mimeType: "image/png",
+            byteLength: 100,
+            cacheLayer: "memory"
+          }
+        },
+        {
+          sampleId: "s2",
+          title: "S2",
+          success: true,
+          inputDiagnostics: {
+            sourceKind: "publicSample",
+            sampleId: "s2",
+            mimeType: "image/png",
+            byteLength: 100,
+            cacheLayer: "disk"
+          }
+        },
+        {
+          sampleId: "s3",
+          title: "S3",
+          success: true,
+          inputDiagnostics: {
+            sourceKind: "publicSample",
+            sampleId: "s3",
+            mimeType: "image/png",
+            byteLength: 100,
+            cacheLayer: "miss",
+            cacheStored: true
+          }
+        },
+        {
+          sampleId: "s4",
+          title: "S4",
+          success: true,
+          inputDiagnostics: {
+            sourceKind: "publicSample",
+            sampleId: "s4",
+            mimeType: "image/png",
+            byteLength: 100,
+            cacheLayer: "miss",
+            cacheStored: true,
+            cacheSharedInFlight: true
+          }
+        },
+        {
+          sampleId: "s5",
+          title: "S5",
+          success: true,
+          inputDiagnostics: {
+            sourceKind: "publicSample",
+            sampleId: "s5",
+            mimeType: "image/png",
+            byteLength: 100,
+            cacheLayer: "miss",
+            cacheReadError: "read failed"
+          }
+        },
+        {
+          sampleId: "s6",
+          title: "S6",
+          success: true,
+          inputDiagnostics: {
+            sourceKind: "publicSample",
+            sampleId: "s6",
+            mimeType: "image/png",
+            byteLength: 100,
+            cacheLayer: "miss",
+            cacheWriteError: "write failed"
+          }
+        }
+      ]
+    };
+
+    const report = buildBatchReportForChat(summaryWithCache);
+    const cacheReport = report.inputSizeSummary.cache;
+    
+    assert.strictEqual(cacheReport.memoryHits, 1);
+    assert.strictEqual(cacheReport.diskHits, 1);
+    
+    // s3, s5, s6 should count as misses (s4 is sharedInFlight and exclusive)
+    assert.strictEqual(cacheReport.misses, 3);
+    
+    // s3 should count as stored (s4 is sharedInFlight and exclusive)
+    assert.strictEqual(cacheReport.stored, 1);
+    
+    // s4 is sharedInFlight
+    assert.strictEqual(cacheReport.sharedInFlight, 1);
+    
+    // read and write errors
+    assert.strictEqual(cacheReport.readErrors, 1);
+    assert.strictEqual(cacheReport.writeErrors, 1);
+  });
 });
