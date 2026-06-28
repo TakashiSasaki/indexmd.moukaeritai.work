@@ -290,4 +290,68 @@ describe('evaluateSampleComparison', () => {
     assert.strictEqual(summaryDiverged.reviewStatus, 'needsReview');
     assert.ok(summaryDiverged.reviewReasons.some(r => r.includes("imageKind diverged")));
   });
+
+  test('should handle required vs optional expected metadata properly', () => {
+    const sample = {
+      id: "sample-optional-test",
+      expectedImageKind: "naturalPhoto",
+      expectedElementCategories: ["plant"],
+      expectedVisibleElementLabels: ["sunflower"],
+      expectedVisibleText: [],
+      optionalElementCategories: ["weatherOrSky"],
+      optionalVisibleElementLabels: ["sky"],
+      optionalVisibleText: ["gorgeous sky"]
+    } as any;
+
+    // Case 1: required met, optional missing => reviewStatus: pass
+    const result1 = {
+      visualAnalysis: {
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          visibleElements: [{ category: "plant", label: "sunflower" }]
+        }
+      }
+    };
+    const summary1 = evaluateSampleComparison(sample, result1);
+    assert.strictEqual(summary1.reviewStatus, 'pass');
+    assert.strictEqual(summary1.coverage?.labels.ratio, 1.0); // required is 100%
+    assert.ok(summary1.optional);
+    assert.strictEqual(summary1.optional.labels?.missing.includes("sky"), true);
+    assert.strictEqual(summary1.optional.visibleText?.missing.includes("gorgeous sky"), true);
+
+    // Case 2: required met, optional also met => reviewStatus: pass, matches populated in reviewNotes/optional matches
+    const result2 = {
+      visualAnalysis: {
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          visibleElements: [
+            { category: "plant", label: "sunflower" },
+            { category: "weatherOrSky", label: "sky" }
+          ],
+          visibleText: ["gorgeous sky"]
+        }
+      }
+    };
+    const summary2 = evaluateSampleComparison(sample, result2);
+    assert.strictEqual(summary2.reviewStatus, 'pass');
+    assert.strictEqual(summary2.optional?.labels?.matched.includes("sky"), true);
+    assert.strictEqual(summary2.optional?.visibleText?.matched.includes("gorgeous sky"), true);
+    assert.ok(summary2.reviewNotes.some(n => n.includes("optional visible text matched: gorgeous sky")));
+
+    // Case 3: required missing, optional met => reviewStatus: needsReview
+    const result3 = {
+      visualAnalysis: {
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          visibleElements: [
+            { category: "weatherOrSky", label: "sky" }
+          ],
+          visibleText: ["gorgeous sky"]
+        }
+      }
+    };
+    const summary3 = evaluateSampleComparison(sample, result3);
+    assert.strictEqual(summary3.reviewStatus, 'needsReview'); // sunflower missing!
+    assert.ok(summary3.reviewReasons.some(r => r.includes("missing expected label: sunflower")));
+  });
 });

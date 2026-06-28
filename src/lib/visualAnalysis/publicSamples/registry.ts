@@ -25,15 +25,17 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     id: "sample-person-1",
     title: "Greek pottery with depicted woman",
     category: "person",
-    expectedImageKind: "productPhoto",
-    expectedElementCategories: ["person", "document", "clothing", "symbol", "container"],
-    expectedVisibleElementLabels: ["woman", "scroll", "garment", "meander border", "vase surface"],
+    expectedImageKind: "artifactPhoto",
+    expectedElementCategories: ["person", "clothing", "symbol"],
+    expectedVisibleElementLabels: ["woman", "garment", "meander border"],
     expectedVisibleElementLabelAliases: {
       "woman": ["person", "figure", "depicted person", "woman"],
       "scroll": ["document", "book", "scroll"],
       "meander border": ["meander pattern", "geometric border", "border", "meander border"],
       "vase surface": ["vase", "surface", "pottery", "ceramic"]
     },
+    optionalElementCategories: ["container"],
+    optionalVisibleElementLabels: ["vase surface", "scroll"],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Muse_reading_Louvre_CA2220_(cropped).jpg",
@@ -78,8 +80,10 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Sunflower",
     category: "plant",
     expectedImageKind: "naturalPhoto",
-    expectedElementCategories: ["plant", "weatherOrSky"],
-    expectedVisibleElementLabels: ["sunflower", "sky", "petals", "leaves"],
+    expectedElementCategories: ["plant"],
+    expectedVisibleElementLabels: ["sunflower", "petals", "leaves"],
+    optionalElementCategories: ["weatherOrSky"],
+    optionalVisibleElementLabels: ["sky"],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:A_sunflower.jpg",

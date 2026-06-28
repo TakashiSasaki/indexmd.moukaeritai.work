@@ -269,7 +269,8 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
         reviewStatus: item.comparison.reviewStatus,
         reviewReasons: item.comparison.reviewReasons,
         reviewNotes: item.comparison.reviewNotes || [],
-        coverage: item.comparison.coverage
+        coverage: item.comparison.coverage,
+        optional: item.comparison.optional
      };
   }
 

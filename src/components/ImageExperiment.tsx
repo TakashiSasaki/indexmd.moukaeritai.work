@@ -11,7 +11,7 @@ import {
   PublicSampleComparisonSummary
 } from '../lib/visualAnalysis/publicSamples/compare';
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
-import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat } from '../lib/visualAnalysis/publicSamples/reportBuilder';
+import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { sanitizeDebugResponseForLocalStorage } from '../lib/visualAnalysis/debugLogSanitizer';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, ResponseDiagnostics } from '../lib/visualAnalysis/safeFetch';
@@ -1238,14 +1238,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       <td className="px-3 py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => handleCopy(JSON.stringify(item, null, 2), `item-${idx}`)}
+                            onClick={() => handleCopy(JSON.stringify(buildFullItemReport(item), null, 2), `item-${idx}`)}
                             className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
                             title="Copy full item JSON"
                           >
                              {copied === `item-${idx}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                           </button>
                           <button
-                            onClick={() => handleDownload(item, `visual-analysis-sample-${item.sampleId}-${Date.now()}.json`, `item-dl-${idx}`)}
+                            onClick={() => handleDownload(buildFullItemReport(item), `visual-analysis-sample-${item.sampleId}-${Date.now()}.json`, `item-dl-${idx}`)}
                             className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
                             title="Download item JSON file"
                           >

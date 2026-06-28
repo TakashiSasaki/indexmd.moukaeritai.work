@@ -23,6 +23,8 @@ The matrix covers the following image kinds representing typical indexing tasks:
 - `chartOrTable`
 - `documentLike`
 - `mixed`
+- `artworkPhoto` (for paintings, pottery illustrations, or decorative art)
+- `artifactPhoto` (for museum exhibits, archaeological pottery, or historical objects)
 
 ## Architecture & Server-Side Proxy
 To ensure safe CORS handling, image bytes are not fetched directly by the browser from external URLs. Instead:
@@ -78,10 +80,21 @@ All generated JSON artifacts are appended with an `artifactIntegrity.endSentinel
 
 ## Calibrated Review & Coverage Schema
 
-To reduce false-positive review alerts (where minor missing tags would mark the entire run as a failure), the evaluation engine uses a **coverage-based reviewStatus calibrator**.
+To reduce false-positive review alerts (where minor surrounding or background elements would mark the entire run as failing or needing review), the evaluation engine separates expected metadata into **Required** and **Optional** sections and uses a **strict coverage-based reviewStatus calibrator**.
+
+### Required vs Optional Expected Metadata
+1. **Required Expected Metadata**:
+   - Includes essential, core elements of the image (e.g., the primary subject, main category, and must-match text).
+   - Only required expectations affect `coverage` ratios, metric evaluations, and the core `reviewStatus`.
+   - If any required elements are missing, the `reviewStatus` will be marked as `"needsReview"` or `"fail"`.
+2. **Optional Expected Metadata**:
+   - Includes secondary elements, minor surrounding details, or background objects (e.g., sky elements in a plant photo, or decorative vase surfaces).
+   - These are evaluated for diagnostics but **do not block** `reviewStatus`.
+   - Matched optional elements are highlighted in `reviewNotes` as positive signals.
+   - Missing optional elements do not affect the main `coverage` ratios.
 
 ### Coverage Metric Schema
-Every comparison generates a detailed, multi-dimensional `coverage` structure:
+Every comparison generates a detailed, multi-dimensional `coverage` structure based on required expectations:
 ```json
 "coverage": {
   "categories": { "expectedTotal": 1, "covered": 1, "missing": 0, "ratio": 1.0 },
@@ -90,17 +103,17 @@ Every comparison generates a detailed, multi-dimensional `coverage` structure:
   "overall": { "expectedTotal": 6, "covered": 5, "missing": 1, "ratio": 0.83 }
 }
 ```
-*Note*: `covered` includes both exact matches and acceptable/alias matches.
+*Note*: `covered` includes both exact matches and acceptable/alias matches of required expectations.
 
 ### Human-in-the-Loop Review Statuses
 - **reviewStatus**: The high-level actionability indicator for developers.
-  - `"fail"`: Generated immediately if expected **visibleText** is missing (`visibleText.ratio < 1.0`).
-  - `"needsReview"`: Generated if image classification diverges (`imageKind` status is `"diverged"`), category coverage is low (`categories.ratio < 0.8`), or label coverage is critically low (`labels.ratio < 0.6`).
+  - `"fail"`: Generated immediately if required **visibleText** is missing (`visibleText.ratio < 1.0`).
+  - `"needsReview"`: Generated if image classification diverges (`imageKind` status is `"diverged"`), required category coverage is low (`categories.ratio < 0.8`), or required label coverage is critically low (`labels.ratio < 0.6`).
   - `"pass"`: Generated if image classification matches (exact/acceptable) AND:
-    - **Rule A**: Category coverage is perfect (`1.0`) and label coverage is high (`>= 0.75`).
-    - **Rule B**: Category coverage is acceptable (`>= 0.8`) and label coverage is acceptable (`>= 0.6`).
-- **reviewReasons**: Non-empty ONLY when `reviewStatus` is `"needsReview"` or `"fail"`. It states the exact failures or metric violations.
-- **reviewNotes**: Supplementary warnings and helpful notes (e.g., listing acceptable aliases or minor missing elements) compiled for passed cases as well, ensuring developers can inspect minor drift without being spammed with failure flags.
+    - **Rule A**: Required category coverage is perfect (`1.0`) and required label coverage is high (`>= 0.75`).
+    - **Rule B**: Required category coverage is acceptable (`>= 0.8`) and required label coverage is acceptable (`>= 0.6`).
+- **reviewReasons**: Non-empty ONLY when `reviewStatus` is `"needsReview"` or `"fail"`. It states the exact required expectation violations.
+- **reviewNotes**: Supplementary warnings, optional matched signals, and helpful notes compiled for developers to inspect minor drift without being spammed with failure flags.
 
 ---
 

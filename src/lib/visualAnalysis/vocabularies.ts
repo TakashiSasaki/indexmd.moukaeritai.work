@@ -10,6 +10,8 @@ export const IMAGE_KINDS = [
   "chartOrTable",
   "handwrittenNote",
   "whiteboardPhoto",
+  "artworkPhoto",
+  "artifactPhoto",
   "mixed",
   "unknown"
 ] as const;

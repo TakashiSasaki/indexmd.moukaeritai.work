@@ -91,4 +91,22 @@ describe('Public Visual Sample Registry', () => {
       }
     }
   });
+
+  it('calibrates sample-plant-1 and sample-person-1 accurately', () => {
+    const samples = getAllPublicSamples();
+    const plantSample = samples.find(s => s.id === "sample-plant-1");
+    assert.ok(plantSample);
+    assert.deepEqual(plantSample.expectedElementCategories, ["plant"]);
+    assert.deepEqual(plantSample.expectedVisibleElementLabels, ["sunflower", "petals", "leaves"]);
+    assert.deepEqual(plantSample.optionalElementCategories, ["weatherOrSky"]);
+    assert.deepEqual(plantSample.optionalVisibleElementLabels, ["sky"]);
+
+    const personSample = samples.find(s => s.id === "sample-person-1");
+    assert.ok(personSample);
+    assert.strictEqual(personSample.expectedImageKind, "artifactPhoto");
+    assert.deepEqual(personSample.expectedElementCategories, ["person", "clothing", "symbol"]);
+    assert.deepEqual(personSample.expectedVisibleElementLabels, ["woman", "garment", "meander border"]);
+    assert.deepEqual(personSample.optionalElementCategories, ["container"]);
+    assert.deepEqual(personSample.optionalVisibleElementLabels, ["vase surface", "scroll"]);
+  });
 });

@@ -645,6 +645,61 @@ export interface PublicSampleComparisonSummary {
       ratio: number;
     };
   };
+  optional?: {
+    categories?: {
+      matched: string[];
+      acceptable: string[];
+      missing: string[];
+      matches?: Array<{
+        expected: string;
+        detected: string;
+        status: "exact" | "acceptable";
+        method: "exact" | "softEquivalence" | "alias";
+      }>;
+    };
+    labels?: {
+      matched: string[];
+      acceptable: string[];
+      missing: string[];
+      matches?: Array<{
+        expected: string;
+        detected: string;
+        status: "exact" | "acceptable";
+        method: "exact" | "alias" | "aliasSubstring" | "aliasTokenOverlap" | "substring" | "tokenOverlap" | "keyword" | "visibleText";
+        source?: "visibleElementLabel" | "visibleElementAttribute" | "keyword" | "visibleText";
+      }>;
+    };
+    visibleText?: {
+      matched: string[];
+      missing: string[];
+    };
+    coverage?: {
+      categories: {
+        expectedTotal: number;
+        covered: number;
+        missing: number;
+        ratio: number;
+      };
+      labels: {
+        expectedTotal: number;
+        covered: number;
+        missing: number;
+        ratio: number;
+      };
+      visibleText: {
+        expectedTotal: number;
+        covered: number;
+        missing: number;
+        ratio: number;
+      };
+      overall: {
+        expectedTotal: number;
+        covered: number;
+        missing: number;
+        ratio: number;
+      };
+    };
+  };
 }
 
 export function evaluateSampleComparison(sample: PublicVisualSample, result: any): PublicSampleComparisonSummary {
@@ -655,7 +710,11 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
     expectedElementCategories: expectedMetadata?.elementCategories ?? sample.expectedElementCategories ?? (sample as any).elementCategories ?? [],
     expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels ?? (sample as any).visibleElementLabels ?? [],
     expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases ?? (sample as any).visibleElementLabelAliases ?? {},
-    expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText ?? (sample as any).visibleText ?? []
+    expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText ?? (sample as any).visibleText ?? [],
+    optionalElementCategories: sample.optionalElementCategories ?? [],
+    optionalVisibleElementLabels: sample.optionalVisibleElementLabels ?? [],
+    optionalVisibleElementLabelAliases: sample.optionalVisibleElementLabelAliases ?? {},
+    optionalVisibleText: sample.optionalVisibleText ?? []
   };
   sample = resolvedSample;
 
@@ -786,6 +845,92 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
     reviewNotes.push(`extra labels detected: ${labelsResult.extra.join(", ")}`);
   }
 
+  // Evaluate optional expectations if any are defined on the sample
+  let optionalResult: PublicSampleComparisonSummary["optional"] = undefined;
+  if (
+    sample.optionalElementCategories?.length ||
+    sample.optionalVisibleElementLabels?.length ||
+    sample.optionalVisibleText?.length
+  ) {
+    const optionalSampleDummy = {
+      expectedElementCategories: sample.optionalElementCategories || [],
+      expectedVisibleElementLabels: sample.optionalVisibleElementLabels || [],
+      expectedVisibleElementLabelAliases: sample.optionalVisibleElementLabelAliases || {},
+      expectedVisibleText: sample.optionalVisibleText || []
+    };
+
+    const optCategoriesResult = compareExpectedCategories(optionalSampleDummy, detectedCategories);
+    const optLabelsResult = compareExpectedLabels(optionalSampleDummy, {
+      labels: detectedLabels,
+      attributes: detectedAttributes,
+      keywords: detectedKeywords,
+      visibleText: detectedText
+    });
+    const optVisibleTextResult = compareExpectedVisibleText(optionalSampleDummy, detectedText);
+
+    const optCatCovered = optCategoriesResult.exact.length + optCategoriesResult.acceptable.length;
+    const optCatMissing = optCategoriesResult.missing.length;
+    const optCatExpected = optCatCovered + optCatMissing;
+    const optCatRatio = optCatExpected > 0 ? parseFloat((optCatCovered / optCatExpected).toFixed(2)) : 1.0;
+
+    const optLabelsCovered = optLabelsResult.exact.length + optLabelsResult.acceptable.length;
+    const optLabelsMissing = optLabelsResult.missing.length;
+    const optLabelsExpected = optLabelsCovered + optLabelsMissing;
+    const optLabelsRatio = optLabelsExpected > 0 ? parseFloat((optLabelsCovered / optLabelsExpected).toFixed(2)) : 1.0;
+
+    const optTextCovered = optVisibleTextResult.matched.length;
+    const optTextMissing = optVisibleTextResult.missing.length;
+    const optTextExpected = optTextCovered + optTextMissing;
+    const optTextRatio = optTextExpected > 0 ? parseFloat((optTextCovered / optTextExpected).toFixed(2)) : 1.0;
+
+    const optOverallCovered = optCatCovered + optLabelsCovered + optTextCovered;
+    const optOverallMissing = optCatMissing + optLabelsMissing + optTextMissing;
+    const optOverallExpected = optOverallCovered + optOverallMissing;
+    const optOverallRatio = optOverallExpected > 0 ? parseFloat((optOverallCovered / optOverallExpected).toFixed(2)) : 1.0;
+
+    optionalResult = {
+      categories: {
+        matched: optCategoriesResult.exact,
+        acceptable: optCategoriesResult.acceptable,
+        missing: optCategoriesResult.missing,
+        matches: optCategoriesResult.matches
+      },
+      labels: {
+        matched: optLabelsResult.exact,
+        acceptable: optLabelsResult.acceptable,
+        missing: optLabelsResult.missing,
+        matches: optLabelsResult.matches
+      },
+      visibleText: {
+        matched: optVisibleTextResult.matched,
+        missing: optVisibleTextResult.missing
+      },
+      coverage: {
+        categories: { expectedTotal: optCatExpected, covered: optCatCovered, missing: optCatMissing, ratio: optCatRatio },
+        labels: { expectedTotal: optLabelsExpected, covered: optLabelsCovered, missing: optLabelsMissing, ratio: optLabelsRatio },
+        visibleText: { expectedTotal: optTextExpected, covered: optTextCovered, missing: optTextMissing, ratio: optTextRatio },
+        overall: { expectedTotal: optOverallExpected, covered: optOverallCovered, missing: optOverallMissing, ratio: optOverallRatio }
+      }
+    };
+
+    // Add notes for matched optional signals
+    optCategoriesResult.exact.forEach(cat => {
+      reviewNotes.push(`optional category matched: ${cat}`);
+    });
+    optCategoriesResult.acceptable.forEach(cat => {
+      reviewNotes.push(`optional category acceptable match: ${cat}`);
+    });
+    optLabelsResult.exact.forEach(label => {
+      reviewNotes.push(`optional label matched: ${label}`);
+    });
+    optLabelsResult.acceptable.forEach(label => {
+      reviewNotes.push(`optional label acceptable match: ${label}`);
+    });
+    optVisibleTextResult.matched.forEach(text => {
+      reviewNotes.push(`optional visible text matched: ${text}`);
+    });
+  }
+
   return {
     imageKind: {
       expected: expectedImageKind,
@@ -816,6 +961,7 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
     reviewStatus,
     reviewReasons,
     reviewNotes,
-    coverage
+    coverage,
+    optional: optionalResult
   };
 }

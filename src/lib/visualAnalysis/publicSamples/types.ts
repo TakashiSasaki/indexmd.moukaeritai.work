@@ -49,6 +49,10 @@ export interface PublicVisualSample {
   expectedVisibleElementLabelAliases?: Record<string, string[]>;
   expectedVisibleText?: string[];
   expectedNotes?: string;
+  optionalElementCategories?: VisibleElementCategory[];
+  optionalVisibleElementLabels?: string[];
+  optionalVisibleElementLabelAliases?: Record<string, string[]>;
+  optionalVisibleText?: string[];
   source: PublicVisualSampleSource;
   notes?: string;
 }
