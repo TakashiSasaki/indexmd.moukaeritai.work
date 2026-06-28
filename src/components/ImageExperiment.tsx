@@ -157,6 +157,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [retryOnInvalidJson, setRetryOnInvalidJson] = useState(false);
   const [customInstruction, setCustomInstruction] = useState<string>("");
   const [showPreviewHelp, setShowPreviewHelp] = useState(false);
+  const [showBatchArtifactHelp, setShowBatchArtifactHelp] = useState(false);
 
   // Debug logs history state
   const [debugLogs, setDebugLogs] = useState<ImageDebugLog[]>([]);
@@ -998,6 +999,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                 <Activity className="w-4 h-4 text-indigo-600" /> Batch Regression Summary
               </h3>
+              <button
+                type="button"
+                onClick={() => setShowBatchArtifactHelp(true)}
+                className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1 text-xs font-medium"
+                aria-label="JSON出力の説明を表示"
+                title="JSON出力の説明"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">JSON出力について</span>
+              </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
               {/* 1. ChatGPT Summary Report */}
@@ -2038,6 +2049,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           )}
         </div>
       </div>
+
+      {showBatchArtifactHelp && (
+        <BatchArtifactHelpDialog onClose={() => setShowBatchArtifactHelp(false)} />
+      )}
     </div>
   );
 }
@@ -2170,3 +2185,141 @@ const DebugLogItem: React.FC<DebugLogItemProps> = ({ log, onAddLog }) => {
     </div>
   );
 }
+
+function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="batch-artifact-help-title"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-indigo-600" />
+            <h3 id="batch-artifact-help-title" className="text-base font-bold text-slate-800">
+              JSON出力の種類
+            </h3>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+            aria-label="閉じる"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6 overflow-y-auto">
+          {/* Intro description */}
+          <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 text-xs text-indigo-950 leading-relaxed space-y-2">
+            <h4 className="font-bold text-indigo-900">どれをコピーすればよいか</h4>
+            <p>
+              通常は <strong>ChatGPT Summary</strong> をコピーしてください。
+              判定理由や検出内容の詳細を確認したい場合だけ <strong>ChatGPT Diagnostic</strong> を使います。
+              失敗が出た場合は <strong>Failures Only JSON</strong> が最も適しています。
+              <strong>Full Batch JSON</strong> は保存用で、原則としてダウンロードしてください。
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {/* 1. ChatGPT Summary */}
+            <div className="p-4 rounded-lg border border-emerald-100 bg-emerald-50/30 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <h4 className="text-xs font-bold text-emerald-900">1. ChatGPT Summary (推奨要約版)</h4>
+              </div>
+              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
+                <li>一番軽い要約版で、ChatGPT に貼る標準形式です。</li>
+                <li><strong>含まれる情報:</strong> sampleId、title、success、qualityStatus、reviewStatus、expectedImageKind、detectedImageKind、overallCoverage、および categories / labels / visibleText の不足情報。</li>
+                <li><strong>含まれない情報:</strong> APIからの生のレスポンス(responseRaw), 詳細な visibleElements の属性、response body preview、構文解析の詳細(parse diagnostics)などは除外され、軽量に保たれます。</li>
+                <li><strong>用途:</strong> 通常はまずこれをコピーして ChatGPT に貼って評価結果を送信します。</li>
+              </ul>
+            </div>
+
+            {/* 2. ChatGPT Diagnostic */}
+            <div className="p-4 rounded-lg border border-indigo-100 bg-indigo-50/20 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                <h4 className="text-xs font-bold text-indigo-900">2. ChatGPT Diagnostic (診断用詳細版)</h4>
+              </div>
+              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
+                <li>Summary だけでは理由が分からないときに使う診断用の詳細版です。</li>
+                <li><strong>含まれる情報:</strong> 期待されるメタデータ(expected metadata)、詳細な比較サマリー(comparisonSummary)、検出された要素(detected visibleElements)、検出テキスト(visibleText)、キーワード、各種診断情報(input/parse/response diagnostics)。</li>
+                <li><strong>除外される情報:</strong> 成功時の巨大な response body preview などは除外されます。</li>
+                <li><strong>用途:</strong> なぜ needsReview / failure になったか確認する、期待値と検出値のズレを確認する、comparison matcher の挙動を検証するときに使います。</li>
+              </ul>
+            </div>
+
+            {/* 3. Failures Only JSON */}
+            <div className="p-4 rounded-lg border border-red-100 bg-red-50/20 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                <h4 className="text-xs font-bold text-red-900">3. Failures Only JSON (失敗データ抽出版)</h4>
+              </div>
+              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
+                <li>評価実行中に失敗(生成エラー、APIエラー、JSONパースエラー、検証エラーなど)が発生したサンプルだけを抜き出す JSON です。</li>
+                <li>全件成功している場合はほぼ空になります。</li>
+                <li><strong>用途:</strong> エラーが発生した際に、これをコピーして ChatGPT に貼ることで、失敗原因の分析や修正がスムーズになります。</li>
+              </ul>
+            </div>
+
+            {/* 4. Full Batch JSON (全件完全版) */}
+            <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
+                <h4 className="text-xs font-bold text-slate-900">4. Full Batch JSON (全件完全版)</h4>
+              </div>
+              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
+                <li>評価した全件の完全なデータです。生のレスポンス(raw response)、analysisRun、詳細な診断情報(input/output diagnostics)、比較結果など、最も多くの情報が含まれます。</li>
+                <li><strong>ダウンロード推奨:</strong> コピーするとサイズが非常に大きくなりやすく、途中で途切れる可能性があるため、基本的には「ダウンロード」して保存してください。</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Additional note about endSentinel */}
+          <div className="border-t border-slate-100 pt-4 space-y-2 text-xs text-slate-500 leading-relaxed">
+            <h5 className="font-bold text-slate-700 font-sans">📌 コピーの途中切れ確認 (endSentinel)</h5>
+            <p>
+              各 JSON 出力の末尾には、データの完全性を担保するための <strong>"artifactIntegrity.endSentinel"</strong> というフィールドが含まれています。
+              ChatGPT などに貼り付けた後、末尾にこの sentinel が見えていれば、データが途切れることなく正常にコピー＆ペーストされたことを確認できます。
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end bg-slate-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-medium text-slate-700 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm transition-colors"
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
