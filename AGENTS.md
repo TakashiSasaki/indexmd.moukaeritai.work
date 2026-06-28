@@ -1,6 +1,8 @@
-# indexmd Agent Instructions & Context
+# indexmd Agent-Neutral Repository Contract
 
-This file provides critical context and constraints for AI coding agents working on the `indexmd` project. **Read this before making any logic changes.**
+This repository may be edited by multiple coding agents, including but not limited to Google Jules, OpenAI Codex, GitHub Copilot, and Google AI Studio assisted editing. Treat this file as an agent-neutral repository contract. Do not assume agent-specific memory, prior chat context, local setup, or hidden project knowledge. Work only from repository files and explicitly supplied task context.
+
+**Read this file thoroughly before making any logic changes.**
 
 ## 🎯 Core Mission
 Build a high-performance, cost-effective Google Drive indexer that generates/updates `index.md` files in every directory with AI-generated summaries.
@@ -62,11 +64,20 @@ The workflow may merge `main` into `jules/integration`, but must never reset or
 force-push `jules/integration`. If a merge conflict occurs, it opens or updates a
 PR from `automation/sync-main-to-jules-integration` into `jules/integration`.
 
-## 🔒 Hard Safety Constraints
+## 📚 Documentation Architecture (Agent Reference)
+To keep this contract concise, detailed workflows and environment specs are modularized in `docs/`:
+- **`docs/RUNTIME_ENVIRONMENTS.md`**: Environment differences (AI Studio, Cloud Run, Local, CI, Jules, Codex, Copilot).
+- **`docs/AGENT_WORKFLOWS.md`**: Procedures for PRs, reviews, conflict resolution, verification, and unverified report handling across multiple agents.
+- **`docs/SECURITY.md`**: Centralized security rules (OAuth, Drive, Firestore, cache, logging, token safety).
+- **`docs/OPERATIONS.md`**: CI/CD, deployment rules, and branch synchronizations.
+- **`docs/SEO_PWA.md`**: Rules for SEO configurations, PWA manifests, and Service Worker updates.
+
+## 🔒 Hard Safety Constraints (Summary)
+*For full details, read `docs/SECURITY.md`.*
 - **Drive Safety**: Do NOT delete Google Drive files, folders, or generated `index.md` files. Do NOT run full Drive-wide indexing.
-- **Data Safety**: Firestore database ID is `indexmd-db`. Do not loosen security rules or re-add `(default)`.
+- **Data Safety**: Firestore database ID is `indexmd-db`. Do not loosen security rules.
 - **Auth Safety**: Do NOT store refresh tokens anywhere. Do NOT store Drive access tokens in localStorage. Do NOT log OAuth tokens or API URLs.
-- **File Safety**: Do NOT commit `cache/` contents. Do NOT use real private user documents as fixtures.
+- **File Safety**: Do NOT commit `cache/` or transient files. Do NOT use real private user documents as fixtures.
 - **Quality Safety**: Always run `npm run lint`, `npm run test:unit`, and `npm run build` before committing. Use latest schema/prompt versions and keep schema changelogs updated.
 
 ## 🛠 Local Agent Skills (Workspace Local)
