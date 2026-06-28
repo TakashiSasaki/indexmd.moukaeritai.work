@@ -11,6 +11,9 @@ export interface PublicSampleBatchRunItem {
   parseDiagnostics?: any;
   comparison?: PublicSampleComparisonSummary;
   error?: string;
+  failureKind?: string;
+  generationDiagnostics?: any;
+  responseRaw?: any;
 }
 
 export interface PublicSampleBatchRunSummary {

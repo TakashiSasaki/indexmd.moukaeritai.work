@@ -190,11 +190,17 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
   },
   {
     id: "sample-mixed-1",
-    title: "Desk with items and screen",
-    category: "mixed",
-    expectedImageKind: "mixed",
-    expectedElementCategories: ["screen", "tool", "furniture", "document"],
-    expectedVisibleElementLabels: ["monitor", "keyboard", "mouse", "desk", "paper", "pen"],
+    title: "Antique Bureau Table",
+    category: "furniture",
+    expectedImageKind: "productPhoto",
+    expectedElementCategories: ["furniture"],
+    expectedVisibleElementLabels: ["desk", "bureau table", "drawer pulls", "shell carvings"],
+    expectedVisibleElementLabelAliases: {
+      "desk": ["bureau table", "kneehole desk", "block-front desk"],
+      "drawer pulls": ["brass pulls", "brass hardware"],
+      "shell carvings": ["carved shells", "shell motif"]
+    },
+    expectedNotes: "The ID is sample-mixed-1 but the image is actually an antique furniture product-style photo, not a modern desk setup. TODO: Add a real mixed sample later.",
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Bureau_table_MET_DP108643.jpg",

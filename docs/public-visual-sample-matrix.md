@@ -41,4 +41,8 @@ When analyzing an image of a person, the model is strictly instructed:
 - Focus purely on visible elements for indexing (e.g., person count, clothing items, pose, and background context).
 
 ## Verification & Comparison
-The UI provides an Expected vs Detected comparison. Expected metadata is qualitative and manually curated to serve as a baseline, not a strict ground truth. The primary goal is ensuring the common visual schema structure remains robust across radically different image types.
+The UI provides an Expected vs Detected comparison. Expected metadata is qualitative and manually curated to serve as a baseline, not a strict ground truth, but **it must reflect the actual source image**. The expected labels and categories represent a realistic regression expectation, not an ideal or fictional scenario. The primary goal is ensuring the common visual schema structure remains robust across radically different image types.
+
+### Known Coverage Gaps
+- **Mixed Content**: The `sample-mixed-1` (originally expected to test mixed content like a modern desk with a screen, tools, and documents) currently uses an image of an antique bureau table (furniture). Its expected metadata was updated to match the image to prevent false failures in batch regression. 
+  - **TODO**: Introduce a new public-domain compatible mixed sample (e.g., a modern desk setup) to restore full coverage for the `mixed` image kind.

@@ -58,11 +58,37 @@ describe('Public Visual Sample Registry', () => {
     }
   });
 
+  it('every sample has a non-empty title', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      assert.ok(sample.title && sample.title.trim().length > 0, `Missing or empty title for ${sample.id}`);
+    }
+  });
+
   it('every sample has expectedImageKind and expectedElementCategories', () => {
     const samples = getAllPublicSamples();
     for (const sample of samples) {
       assert.ok(sample.expectedImageKind, `Missing expectedImageKind for ${sample.id}`);
       assert.ok(sample.expectedElementCategories && sample.expectedElementCategories.length > 0, `Missing expectedElementCategories for ${sample.id}`);
+    }
+  });
+
+  it('expected labels are non-empty where applicable', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (sample.expectedVisibleElementLabels !== undefined) {
+        assert.ok(Array.isArray(sample.expectedVisibleElementLabels), `expectedVisibleElementLabels must be an array for ${sample.id}`);
+        assert.ok(sample.expectedVisibleElementLabels.length > 0, `expectedVisibleElementLabels cannot be empty if provided for ${sample.id}`);
+      }
+    }
+  });
+
+  it('expected visible text is an array when present', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (sample.expectedVisibleText !== undefined) {
+        assert.ok(Array.isArray(sample.expectedVisibleText), `expectedVisibleText must be an array for ${sample.id}`);
+      }
     }
   });
 });

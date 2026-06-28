@@ -23,8 +23,15 @@ The "画像解析実験" (Image Experiment) tab provides a sandboxed environment
 3. Select the target model.
 4. Click `解析実行` to view the parsed visual indexing metadata and quality report.
 
-## Public Sample Matrix
-The Image Experiment tab now supports a **Public Sample** mode.
-This allows testing the visual schema against a curated matrix of public-domain and CC-licensed images across 14 diverse categories (including synthetic receipts and tickets).
+## Public Sample Matrix & Batch Execution
+The Image Experiment tab supports a **Public Sample** mode.
+This allows testing the visual schema against a curated matrix of public-domain and CC-licensed images across diverse categories.
 - Previews and analyses run through a CORS-safe server proxy.
 - Expected metadata from a local registry is compared against the live model output.
+
+### Public Sample Batch Report RC
+You can execute a batch regression run across **all** registered public samples sequentially.
+- **License Filter Removed:** Batch runs unconditionally across all public samples regardless of license or category.
+- **ChatGPT Report JSON:** A specialized "Copy ChatGPT Report JSON" button generates a compact summary of the batch run. To prevent context overflow in ChatGPT, this JSON explicitly omits `requestPreview` and `rawOutputPreview`.
+- **Full JSON & Failures:** You can also copy the "Full Batch JSON" (for deep debugging) or a "Failures Only" JSON.
+- **No Server Persistence:** The batch execution runs client-side and saves summaries only to `localStorage`. Server-side execution and persistence are currently out of scope.

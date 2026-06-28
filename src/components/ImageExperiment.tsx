@@ -11,6 +11,7 @@ import {
   PublicSampleComparisonSummary
 } from '../lib/visualAnalysis/publicSamples/compare';
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
+import { buildBatchReportForChat, buildFailuresOnlyReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { sanitizeDebugResponseForLocalStorage } from '../lib/visualAnalysis/debugLogSanitizer';
 
 export interface ImageDebugLog {
@@ -117,9 +118,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [categoryFilter, setCategoryFilter] = useState<string>(() => {
     return localStorage.getItem("image_experiment_category_filter") || "all";
   });
-  const [licenseFilter, setLicenseFilter] = useState<string>(() => {
-    return localStorage.getItem("image_experiment_license_filter") || "all";
-  });
   const [isLoadingSamples, setIsLoadingSamples] = useState(false);
 
   // Shared state
@@ -138,7 +136,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [debugLogs, setDebugLogs] = useState<ImageDebugLog[]>([]);
 
   // Batch evaluation state
-  const [batchLimit, setBatchLimit] = useState<number>(5);
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number } | null>(null);
   const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(null);
@@ -230,10 +227,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   }, [categoryFilter]);
 
   useEffect(() => {
-    localStorage.setItem("image_experiment_license_filter", licenseFilter);
-  }, [licenseFilter]);
-
-  useEffect(() => {
     localStorage.setItem("image_experiment_model_name", modelName);
   }, [modelName]);
 
@@ -258,7 +251,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
   const filteredSamples = samples.filter(s => {
     if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
-    if (licenseFilter !== "all" && s.licenseKind !== licenseFilter) return false;
     return true;
   });
 
@@ -389,11 +381,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   };
 
   const handleRunBatch = async () => {
-    if (filteredSamples.length === 0) return;
+    if (samples.length === 0) return;
     setIsBatchRunning(true);
     setBatchSummary(null);
     setResult(null); // Clear single result
-    const targetSamples = filteredSamples.slice(0, batchLimit);
+    const targetSamples = samples;
     const total = targetSamples.length;
     setBatchProgress({ current: 0, total });
 
@@ -440,7 +432,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               qualityIssues: data.qualityIssues,
               analysisRun: data.analysisRun,
               parseDiagnostics: data.parseDiagnostics,
-              error: data.error
+              generationDiagnostics: data.generationDiagnostics,
+              failureKind: data.failureKind,
+              error: data.error,
+              responseRaw: data
             };
 
             if (data.success) {
@@ -571,7 +566,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="space-y-4">
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Category</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Category (for single run)</label>
                       <select
                         value={categoryFilter}
                         onChange={e => setCategoryFilter(e.target.value)}
@@ -583,44 +578,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         ))}
                       </select>
                     </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">License</label>
-                      <select
-                        value={licenseFilter}
-                        onChange={e => setLicenseFilter(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                      >
-                        <option value="all">All Licenses</option>
-                        <option value="publicDomain">Public Domain</option>
-                        <option value="cc0">CC0</option>
-                        <option value="ccBy">CC BY</option>
-                        <option value="ccBySa">CC BY-SA</option>
-                      </select>
-                    </div>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-slate-700">Sample (Single Run)</label>
-                      <div className="flex items-center gap-2">
-                         <span className="text-[10px] text-slate-500 font-semibold">Batch Regression:</span>
-                         <select 
-                           value={batchLimit} 
-                           onChange={e => setBatchLimit(Number(e.target.value))}
-                           className="text-[10px] py-0.5 px-1 border border-slate-200 rounded bg-white"
-                         >
-                            <option value={5}>Top 5</option>
-                            <option value={10}>Top 10</option>
-                            <option value={filteredSamples.length}>All Filtered ({filteredSamples.length})</option>
-                         </select>
-                         <button
-                           onClick={handleRunBatch}
-                           disabled={isBatchRunning || filteredSamples.length === 0}
-                           className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-200 disabled:opacity-50"
-                         >
-                           {isBatchRunning ? `Running (${batchProgress?.current}/${batchProgress?.total})...` : "Run Batch"}
-                         </button>
-                      </div>
+                      <label className="block text-xs font-bold text-slate-700">Sample</label>
                     </div>
                     {filteredSamples.length > 0 ? (
                       <select
@@ -642,18 +604,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               )}
 
               <div className="mt-4">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  カスタム指示・カスタムJSONスキーマ (任意)
-                </label>
-                <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
-                  追加の指示や質問を送信できます。対応モデル(Gemini 3.5 Flash等)では、指示内にJSONスキーマオブジェクト(例: <code>{"{ \"type\": \"object\", \"properties\": ... }"}</code>)を含めることで、ネイティブの構造化レスポンススキーマとして自動認識され、その形状のJSONが出力されます。
-                </p>
-                <textarea
-                  value={customInstruction}
-                  onChange={(e) => setCustomInstruction(e.target.value)}
-                  className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-md text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors resize-y placeholder-slate-400"
-                  placeholder='プロンプトやJSONスキーマを入力してください (例: { "type": "object", "properties": { "caption": { "type": "string" } } })'
-                />
+                {/* Custom Instruction section removed as requested */}
               </div>
 
               <div className="flex flex-col md:flex-row gap-4 items-end pt-2">
@@ -745,14 +696,25 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     </label>
                   </div>
                 </div>
-                <button
-                  onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
-                  disabled={mode === "drive" ? loading || !fileId.trim() : loading || !selectedSampleId || isLoadingSamples}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] w-full md:w-auto justify-center"
-                >
-                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                  {loading ? "解析中..." : "解析実行"}
-                </button>
+                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
+                  {mode === "public" && (
+                    <button
+                      onClick={handleRunBatch}
+                      disabled={isBatchRunning || samples.length === 0 || loading}
+                      className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold hover:bg-indigo-200 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap"
+                    >
+                      {isBatchRunning ? <><Activity className="w-4 h-4 animate-pulse" /> 全件解析中 ({batchProgress?.current}/{batchProgress?.total})</> : <><Activity className="w-4 h-4" /> 全件解析 (Batch)</>}
+                    </button>
+                  )}
+                  <button
+                    onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
+                    disabled={mode === "drive" ? loading || !fileId.trim() : loading || !selectedSampleId || isLoadingSamples || isBatchRunning}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap"
+                  >
+                    {loading && !isBatchRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                    {loading && !isBatchRunning ? "解析中..." : "解析実行"}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -797,13 +759,30 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <Activity className="w-4 h-4 text-indigo-600" /> Batch Regression Summary
             </h3>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => handleCopy(JSON.stringify(batchSummary, null, 2), 'batch-summary')}
-                className="text-[10px] font-bold text-slate-500 hover:text-slate-700 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded"
+                onClick={() => handleCopy(JSON.stringify(buildBatchReportForChat(batchSummary), null, 2), 'batch-report-chat')}
+                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded border border-indigo-100"
+                title="Compact JSON for pasting into ChatGPT (excludes raw previews)"
               >
-                {copied === 'batch-summary' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'batch-summary' ? "Copied JSON" : "Copy JSON"}
+                {copied === 'batch-report-chat' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied === 'batch-report-chat' ? "Copied Chat Report" : "Copy ChatGPT Report JSON"}
+              </button>
+              <button
+                onClick={() => handleCopy(JSON.stringify(buildFailuresOnlyReport(batchSummary), null, 2), 'batch-report-failures')}
+                className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center gap-1 bg-red-50 px-2 py-1 rounded border border-red-100"
+                title="Only copy items that failed or were marked invalid"
+              >
+                {copied === 'batch-report-failures' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied === 'batch-report-failures' ? "Copied Failures" : "Copy Failures Only"}
+              </button>
+              <button
+                onClick={() => handleCopy(JSON.stringify(batchSummary, null, 2), 'batch-summary-full')}
+                className="text-[10px] font-bold text-slate-500 hover:text-slate-700 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded border border-slate-200"
+                title="Full raw JSON with all execution data (large)"
+              >
+                {copied === 'batch-summary-full' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied === 'batch-summary-full' ? "Copied Full JSON" : "Copy Full Batch JSON"}
               </button>
             </div>
           </div>
@@ -1099,15 +1078,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="flex flex-wrap items-center gap-4 text-[11px]">
                   <div className="flex items-center gap-1 text-slate-500">
                     <Activity className="w-3.5 h-3.5" />
-                    <span>Model: <span className="font-bold text-slate-700">{result.analysisRun?.model.name || result.usedModelName}</span></span>
+                    <span>Model: <span className="font-bold text-slate-700">{result.analysisRun?.model?.name || result.usedModelName}</span></span>
                   </div>
                   <div className="flex items-center gap-1 text-slate-500">
                     <Check className="w-3.5 h-3.5" />
-                    <span>Provider: <span className="font-bold text-slate-700">{result.analysisRun?.model.providerFamily || result.providerFamily}</span></span>
+                    <span>Provider: <span className="font-bold text-slate-700">{result.analysisRun?.model?.providerFamily || result.providerFamily}</span></span>
                   </div>
                   <div className="flex items-center gap-1 text-slate-500">
                     <Info className="w-3.5 h-3.5" />
-                    <span>Execution: <span className="font-bold text-slate-700">{result.analysisRun?.execution.structuredExecutionMode || result.effectiveStructuredExecutionMode}</span></span>
+                    <span>Execution: <span className="font-bold text-slate-700">{result.analysisRun?.execution?.structuredExecutionMode || result.effectiveStructuredExecutionMode}</span></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1134,23 +1113,23 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="border-t border-slate-200 pt-3 flex flex-wrap gap-x-6 gap-y-2 text-[10px] text-slate-500">
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Run ID:</span>
-                     <span className="font-mono">{result.analysisRun.runId.split('-')[0]}</span>
+                     <span className="font-mono">{result.analysisRun.runId?.split('-')[0]}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Time:</span>
-                     <span>{new Date(result.analysisRun.timestamp).toLocaleTimeString()}</span>
+                     <span>{result.analysisRun.timestamp ? new Date(result.analysisRun.timestamp).toLocaleTimeString() : ''}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Schema:</span>
-                     <span className="font-mono">{result.analysisRun.schema.resultSchemaVersion}</span>
+                     <span className="font-mono">{result.analysisRun.schema?.resultSchemaVersion}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Prompt:</span>
-                     <span className="font-mono">{result.analysisRun.prompt.visualPromptVersion}</span>
+                     <span className="font-mono">{result.analysisRun.prompt?.visualPromptVersion}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Generation:</span>
-                     <span>T={result.analysisRun.generationConfig.temperature} / P={result.analysisRun.generationConfig.topP} / K={result.analysisRun.generationConfig.topK}</span>
+                     <span>T={result.analysisRun.generationConfig?.temperature} / P={result.analysisRun.generationConfig?.topP} / K={result.analysisRun.generationConfig?.topK}</span>
                    </div>
                 </div>
               )}
