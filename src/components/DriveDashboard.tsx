@@ -685,6 +685,19 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
     const sortedDirs = [...filteredDirs].sort((a,b) => b.depth - a.depth);
     setIndexingProgress({ current: 0, total: sortedDirs.length });
 
+    // Pre-calculate hash map grouping directories by parent_id
+    const dirsByParentId = new Map<string, Directory[]>();
+    for (const dir of filteredDirs) {
+      if (dir.parent_id) {
+        let siblings = dirsByParentId.get(dir.parent_id);
+        if (!siblings) {
+          siblings = [];
+          dirsByParentId.set(dir.parent_id, siblings);
+        }
+        siblings.push(dir);
+      }
+    }
+
     let successCount = 0;
     let skipCount = 0;
 
@@ -709,7 +722,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
 
         // Retrieve pre-generated summaries of immediately lower subfolders to support cascading summary propagation
         // Children of this folder have: parent_id = current drive_id
-        const childDirs = filteredDirs.filter(d => d.parent_id === item.drive_id);
+        const childDirs = dirsByParentId.get(item.drive_id) || [];
         const subdirsWithSummaries = childDirs.map(child => ({
           id: child.drive_id,
           name: (child.path || "").split("/").pop() || "",
@@ -1095,6 +1108,15 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     });
   }, [filteredDirs, rootLastTraversedAt, rootNextPageToken]);
 
+  // Pre-calculate a hash map of directories for O(1) lookups
+  const dirsMap = useMemo(() => {
+    const map = new Map<string, Directory>();
+    for (const dir of dirs) {
+      map.set(dir.drive_id, dir);
+    }
+    return map;
+  }, [dirs]);
+
   const buildBreadcrumbPath = (dirId: string): { id: string, name: string }[] => {
     let currentId: string | null = dirId;
     const breadcrumb: { id: string, name: string }[] = [];
@@ -1103,7 +1125,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     
     while (currentId && !visited.has(currentId)) {
       visited.add(currentId);
-      const dir = dirs.find(d => d.drive_id === currentId);
+      const dir = dirsMap.get(currentId);
       if (dir) {
         const pathStr = dir.path || "";
         const parts = pathStr.replace(/\/$/, '').split('/');
