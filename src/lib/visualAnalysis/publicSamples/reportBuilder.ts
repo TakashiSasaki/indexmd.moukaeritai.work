@@ -412,8 +412,9 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     delete compact.parseDiagnostics.requestPreview;
   }
   
-  if (item.analysisRun?.normalizationDiagnostics) {
-    compact.normalizationDiagnostics = item.analysisRun.normalizationDiagnostics;
+  const normDiag = item.normalizationDiagnostics ?? item.responseRaw?.normalizationDiagnostics ?? item.analysisRun?.normalizationDiagnostics;
+  if (normDiag) {
+    compact.normalizationDiagnostics = normDiag;
   }
 
   if (item.responseDiagnostics) {
@@ -515,8 +516,12 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     summary.retried = item.retryDiagnostics.retried;
   }
 
-  if (item.analysisRun?.normalizationDiagnostics?.schemaVersionCorrected) {
+  const normDiag = item.normalizationDiagnostics ?? item.responseRaw?.normalizationDiagnostics ?? item.analysisRun?.normalizationDiagnostics;
+  if (normDiag?.schemaVersionCorrected) {
     summary.schemaVersionCorrected = true;
+    summary.canonicalSchemaVersionApplied = true;
+    if (normDiag.originalSchemaVersion) summary.originalSchemaVersion = normDiag.originalSchemaVersion;
+    if (normDiag.correctedSchemaVersion) summary.correctedSchemaVersion = normDiag.correctedSchemaVersion;
   }
   
   return summary;

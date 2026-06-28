@@ -1,5 +1,17 @@
 import { PublicSampleComparisonSummary } from './compare';
 import { ResponseDiagnostics, SafeFetchRetryDiagnostics } from '../safeFetch';
+import { ImageProcessingDiagnostics } from '../imagePayloadSizing';
+
+export interface PublicSampleInputDiagnostics extends Partial<ImageProcessingDiagnostics> {
+  sourceKind?: "publicSample" | "driveFile" | string;
+  sampleId?: string;
+  mimeType?: string;
+  byteLength?: number;
+  base64Length?: number;
+  imageVariant?: string;
+  analysisSourceUrlKind?: string;
+  inputSizeWarning?: string;
+}
 
 export interface PublicSampleBatchRunItem {
   sampleId: string;
@@ -14,7 +26,8 @@ export interface PublicSampleBatchRunItem {
   error?: string;
   failureKind?: string;
   generationDiagnostics?: any;
-  inputDiagnostics?: any;
+  inputDiagnostics?: PublicSampleInputDiagnostics;
+  normalizationDiagnostics?: any;
   responseRaw?: any;
   responseDiagnostics?: ResponseDiagnostics;
   retryDiagnostics?: SafeFetchRetryDiagnostics;

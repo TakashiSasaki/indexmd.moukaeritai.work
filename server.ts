@@ -1861,16 +1861,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       }
     };
 
-    if (includeRequestPreview) {
-      result.requestPreview = {
-        model: targetModel,
-        outputMode: "structured",
-        taskPrompt,
-        systemInstruction,
-        mimeType: mimeType,
-        binaryInlineDataUsed: true,
-        generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
-      };
+    if (includeRequestPreview && requestPreview) {
+      result.requestPreview = requestPreview;
     }
 
     res.json(result);
@@ -2075,16 +2067,8 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         rawOutput: outputText
       };
 
-      if (includeRequestPreview) {
-        result.requestPreview = {
-          model: targetModel,
-          outputMode: "structured",
-          taskPrompt,
-          systemInstruction,
-          mimeType: fileMeta.mimeType,
-          binaryInlineDataUsed: true,
-          generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
-        };
+      if (includeRequestPreview && requestPreview) {
+        result.requestPreview = requestPreview;
       }
 
       return res.json(result);
@@ -2133,16 +2117,8 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       effectiveStructuredExecutionMode: mode
     };
 
-    if (includeRequestPreview) {
-      result.requestPreview = {
-        model: targetModel,
-        outputMode: "structured",
-        taskPrompt,
-        systemInstruction,
-        mimeType: fileMeta.mimeType,
-        binaryInlineDataUsed: true,
-        generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
-      };
+    if (includeRequestPreview && requestPreview) {
+      result.requestPreview = requestPreview;
     }
 
     // Immediate debug response only. Do not cache or persist.

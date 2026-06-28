@@ -522,6 +522,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               parseDiagnostics: data.parseDiagnostics,
               generationDiagnostics: data.generationDiagnostics,
               inputDiagnostics: data.inputDiagnostics,
+              normalizationDiagnostics: data.normalizationDiagnostics,
               failureKind: sfResult.failureKind || data.failureKind,
               error: sfResult.error || data.error,
               responseRaw: data,
