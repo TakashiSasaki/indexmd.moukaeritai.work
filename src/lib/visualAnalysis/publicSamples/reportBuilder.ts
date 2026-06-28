@@ -267,7 +267,9 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
         overallStatus: item.comparison.overallStatus,
         reasons: item.comparison.reasons,
         reviewStatus: item.comparison.reviewStatus,
-        reviewReasons: item.comparison.reviewReasons
+        reviewReasons: item.comparison.reviewReasons,
+        reviewNotes: item.comparison.reviewNotes || [],
+        coverage: item.comparison.coverage
      };
   }
 
@@ -406,32 +408,19 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     summary.detectedImageKind = item.comparison.imageKind?.detected;
     summary.imageKindStatus = item.comparison.imageKind?.status;
     
-    const categoriesCovered = (item.comparison.categories?.matched?.length || 0) + (item.comparison.categories?.acceptable?.length || 0);
-    const categoriesExpected = categoriesCovered + (item.comparison.categories?.missing?.length || 0);
-    
-    const labelsCovered = (item.comparison.labels?.matched?.length || 0) + (item.comparison.labels?.acceptable?.length || 0);
-    const labelsExpected = labelsCovered + (item.comparison.labels?.missing?.length || 0);
-    
-    const textMatched = item.comparison.visibleText?.matched?.length || 0;
-    const textExpected = textMatched + (item.comparison.visibleText?.missing?.length || 0);
-    
-    const totalExpected = categoriesExpected + labelsExpected + textExpected;
-    const totalCovered = categoriesCovered + labelsCovered + textMatched;
-    const overallCoverage = totalExpected > 0 ? parseFloat((totalCovered / totalExpected).toFixed(2)) : 1.0;
-
-    summary.coverage = {
-      overall: overallCoverage,
-      categories: categoriesExpected > 0 ? parseFloat((categoriesCovered / categoriesExpected).toFixed(2)) : 1.0,
-      labels: labelsExpected > 0 ? parseFloat((labelsCovered / labelsExpected).toFixed(2)) : 1.0,
-      visibleText: textExpected > 0 ? parseFloat((textMatched / textExpected).toFixed(2)) : 1.0
-    };
-    summary.coverageOverall = overallCoverage;
+    // Use the complete, structured comparison coverage
+    summary.coverage = item.comparison.coverage;
+    summary.coverageOverall = item.comparison.coverage?.overall?.ratio ?? 1.0;
 
     summary.missing = {
       categories: item.comparison.categories?.missing || [],
       labels: item.comparison.labels?.missing || [],
       visibleText: item.comparison.visibleText?.missing || []
     };
+
+    if (item.comparison.reviewNotes && item.comparison.reviewNotes.length > 0) {
+      summary.reviewNotes = item.comparison.reviewNotes;
+    }
   }
 
   return summary;

@@ -618,6 +618,33 @@ export interface PublicSampleComparisonSummary {
   reasons: string[];
   reviewStatus: "pass" | "needsReview" | "fail";
   reviewReasons: string[];
+  reviewNotes: string[];
+  coverage?: {
+    categories: {
+      expectedTotal: number;
+      covered: number;
+      missing: number;
+      ratio: number;
+    };
+    labels: {
+      expectedTotal: number;
+      covered: number;
+      missing: number;
+      ratio: number;
+    };
+    visibleText: {
+      expectedTotal: number;
+      covered: number;
+      missing: number;
+      ratio: number;
+    };
+    overall: {
+      expectedTotal: number;
+      covered: number;
+      missing: number;
+      ratio: number;
+    };
+  };
 }
 
 export function evaluateSampleComparison(sample: PublicVisualSample, result: any): PublicSampleComparisonSummary {
@@ -680,33 +707,84 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
     labelsResult.missing.forEach(label => reasons.push(`missing expected label: ${label}`));
   }
 
+  // 1. Calculate coverages
+  const catCovered = categoriesResult.exact.length + categoriesResult.acceptable.length;
+  const catMissing = categoriesResult.missing.length;
+  const catExpected = catCovered + catMissing;
+  const catRatio = catExpected > 0 ? parseFloat((catCovered / catExpected).toFixed(2)) : 1.0;
+
+  const labelsCovered = labelsResult.exact.length + labelsResult.acceptable.length;
+  const labelsMissing = labelsResult.missing.length;
+  const labelsExpected = labelsCovered + labelsMissing;
+  const labelsRatio = labelsExpected > 0 ? parseFloat((labelsCovered / labelsExpected).toFixed(2)) : 1.0;
+
+  const textCovered = visibleTextResult.matched.length;
+  const textMissing = visibleTextResult.missing.length;
+  const textExpected = textCovered + textMissing;
+  const textRatio = textExpected > 0 ? parseFloat((textCovered / textExpected).toFixed(2)) : 1.0;
+
+  const overallCovered = catCovered + labelsCovered + textCovered;
+  const overallMissing = catMissing + labelsMissing + textMissing;
+  const overallExpected = overallCovered + overallMissing;
+  const overallRatio = overallExpected > 0 ? parseFloat((overallCovered / overallExpected).toFixed(2)) : 1.0;
+
+  const coverage: NonNullable<PublicSampleComparisonSummary["coverage"]> = {
+    categories: { expectedTotal: catExpected, covered: catCovered, missing: catMissing, ratio: catRatio },
+    labels: { expectedTotal: labelsExpected, covered: labelsCovered, missing: labelsMissing, ratio: labelsRatio },
+    visibleText: { expectedTotal: textExpected, covered: textCovered, missing: textMissing, ratio: textRatio },
+    overall: { expectedTotal: overallExpected, covered: overallCovered, missing: overallMissing, ratio: overallRatio }
+  };
+
   let reviewStatus: "pass" | "needsReview" | "fail" = "pass";
   const reviewReasons: string[] = [];
+  const reviewNotes: string[] = [];
 
-  if (kindResult.status === "diverged") {
+  // Determine reviewStatus
+  if (textMissing > 0) {
+    reviewStatus = "fail";
+    visibleTextResult.missing.forEach(txt => {
+      reviewReasons.push(`missing expected visible text: ${txt}`);
+    });
+  } else if (kindResult.status === "diverged") {
     reviewStatus = "needsReview";
     reviewReasons.push(`imageKind diverged: expected ${expectedImageKind}, detected ${kindDetected}`);
-  } else if (kindResult.status === "acceptable") {
-    reviewReasons.push(`imageKind acceptable: expected ${expectedImageKind}, detected ${kindDetected}`);
-  }
+  } else {
+    // Check if it qualifies for pass under our calibrated rules
+    const isImageKindOk = (kindResult.status === "exact" || kindResult.status === "acceptable");
+    const rule1Pass = isImageKindOk && catRatio === 1.0 && labelsRatio >= 0.75;
+    const rule2Pass = isImageKindOk && catRatio >= 0.8 && labelsRatio >= 0.6;
 
-  if (categoriesResult.missing.length > 0) {
-    if (reviewStatus === "pass") {
+    if (rule1Pass || rule2Pass) {
+      reviewStatus = "pass";
+    } else {
       reviewStatus = "needsReview";
+      // Collect reasons for needsReview
+      if (!isImageKindOk) {
+        reviewReasons.push(`imageKind status is ${kindResult.status}`);
+      }
+      if (catRatio < 0.8) {
+        reviewReasons.push(`category coverage low: ${catRatio * 100}% (expected >= 80%)`);
+      } else if (catRatio < 1.0 && labelsRatio < 0.75) {
+        reviewReasons.push(`category coverage is ${catRatio * 100}% and label coverage is low: ${labelsRatio * 100}%`);
+      }
+      if (labelsRatio < 0.6) {
+        reviewReasons.push(`label coverage low: ${labelsRatio * 100}% (expected >= 60%)`);
+      }
     }
-    categoriesResult.missing.forEach(cat => reviewReasons.push(`missing expected category: ${cat}`));
   }
 
-  if (labelsResult.missing.length > 0) {
-    if (reviewStatus === "pass") {
-      reviewStatus = "needsReview";
-    }
-    labelsResult.missing.forEach(label => reviewReasons.push(`missing expected label: ${label}`));
+  // Populate reviewNotes with minor issues or acceptable info
+  if (kindResult.status === "acceptable") {
+    reviewNotes.push(`imageKind acceptable: expected ${expectedImageKind}, detected ${kindDetected}`);
   }
-
-  if (visibleTextResult.missing.length > 0) {
-    reviewStatus = "fail";
-    visibleTextResult.missing.forEach(txt => reviewReasons.push(`missing expected visible text: ${txt}`));
+  categoriesResult.missing.forEach(cat => {
+    reviewNotes.push(`missing expected category: ${cat}`);
+  });
+  labelsResult.missing.forEach(label => {
+    reviewNotes.push(`missing expected label: ${label}`);
+  });
+  if (categoriesResult.extra.length > 0) {
+    reviewNotes.push(`extra categories detected: ${categoriesResult.extra.join(", ")}`);
   }
 
   return {
@@ -737,6 +815,8 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
     overallStatus,
     reasons,
     reviewStatus,
-    reviewReasons
+    reviewReasons,
+    reviewNotes,
+    coverage
   };
 }

@@ -43,6 +43,67 @@ When analyzing an image of a person, the model is strictly instructed:
 ## Verification & Comparison
 The UI provides an Expected vs Detected comparison. Expected metadata is qualitative and manually curated to serve as a baseline, not a strict ground truth, but **it must reflect the actual source image**. The expected labels and categories represent a realistic regression expectation, not an ideal or fictional scenario. The primary goal is ensuring the common visual schema structure remains robust across radically different image types.
 
+### Regression Review vs Formal Benchmark
+The public sample matrix acts as a regression review utility to safeguard against core logic regressions, rather than a formal, strict competitive machine-learning benchmark. The evaluations and parameters are calibrated to facilitate human-in-the-loop review.
+
+---
+
+## Batch Regression Artifacts (JSON Output Types)
+
+During batch evaluation, four different JSON artifacts are generated to help optimize model review, diagnostic depth, and sharing limits:
+
+1. **ChatGPT Summary**:
+   - **Purpose**: Extremely lightweight summary optimized for quick sharing with ChatGPT or other models.
+   - **Included Content**: `sampleId`, `title`, `success`, `qualityStatus`, `reviewStatus`, expected and detected `imageKind`, calculated coverage metrics, and lists of missing categories, labels, and visible text.
+   - **Excluded Content**: Raw API response bodies (`responseRaw`), detailed visual element attributes, raw model parser diagnostics, and response body previews.
+   - **Recommended Flow**: This is the default artifact copied to paste into model chats.
+
+2. **ChatGPT Diagnostic**:
+   - **Purpose**: High-fidelity diagnostics used when a test is failing or needs manual review, but reasons aren't obvious from the summary alone.
+   - **Included Content**: Curated expected metadata, detailed `comparisonSummary`, detected elements, extracted text keywords, input and parser diagnostics.
+   - **Excluded Content**: Successful items have their massive raw body previews omitted to keep the token size reasonable.
+
+3. **Failures Only JSON**:
+   - **Purpose**: Instantly isolate only the samples that encountered critical failures (e.g., API failures, JSON parse errors, structural invalidations).
+   - **Value**: If all tests pass, this artifact is virtually empty. When failure emerges, this snippet can be pasted into ChatGPT to immediately pinpoint structural or provider-side issues.
+
+4. **Full Batch JSON**:
+   - **Purpose**: Comprehensive historical archive containing all execution runs, raw API outputs, and complete comparisons.
+   - **Action**: Due to its immense size, this should be downloaded (via the recommended "Download" action) rather than copied, preventing truncation or clipboard crashes.
+
+### Copy Integrity Verification (endSentinel)
+All generated JSON artifacts are appended with an `artifactIntegrity.endSentinel` field (e.g., `"END_OF_VISUAL_ANALYSIS_BATCH_SUMMARY"`). When copy-pasting into chat interfaces, users can quickly check the very bottom of their prompt: if the sentinel is visible, the snippet was pasted completely. If missing, the text was truncated due to interface limits.
+
+---
+
+## Calibrated Review & Coverage Schema
+
+To reduce false-positive review alerts (where minor missing tags would mark the entire run as a failure), the evaluation engine uses a **coverage-based reviewStatus calibrator**.
+
+### Coverage Metric Schema
+Every comparison generates a detailed, multi-dimensional `coverage` structure:
+```json
+"coverage": {
+  "categories": { "expectedTotal": 1, "covered": 1, "missing": 0, "ratio": 1.0 },
+  "labels": { "expectedTotal": 5, "covered": 4, "missing": 1, "ratio": 0.8 },
+  "visibleText": { "expectedTotal": 0, "covered": 0, "missing": 0, "ratio": 1.0 },
+  "overall": { "expectedTotal": 6, "covered": 5, "missing": 1, "ratio": 0.83 }
+}
+```
+*Note*: `covered` includes both exact matches and acceptable/alias matches.
+
+### Human-in-the-Loop Review Statuses
+- **reviewStatus**: The high-level actionability indicator for developers.
+  - `"fail"`: Generated immediately if expected **visibleText** is missing (`visibleText.ratio < 1.0`).
+  - `"needsReview"`: Generated if image classification diverges (`imageKind` status is `"diverged"`), category coverage is low (`categories.ratio < 0.8`), or label coverage is critically low (`labels.ratio < 0.6`).
+  - `"pass"`: Generated if image classification matches (exact/acceptable) AND:
+    - **Rule A**: Category coverage is perfect (`1.0`) and label coverage is high (`>= 0.75`).
+    - **Rule B**: Category coverage is acceptable (`>= 0.8`) and label coverage is acceptable (`>= 0.6`).
+- **reviewReasons**: Non-empty ONLY when `reviewStatus` is `"needsReview"` or `"fail"`. It states the exact failures or metric violations.
+- **reviewNotes**: Supplementary warnings and helpful notes (e.g., listing acceptable aliases or minor missing elements) compiled for passed cases as well, ensuring developers can inspect minor drift without being spammed with failure flags.
+
+---
+
 ### Known Coverage Gaps
 - **Mixed Content**: The `sample-mixed-1` (originally expected to test mixed content like a modern desk with a screen, tools, and documents) currently uses an image of an antique bureau table (furniture). Its expected metadata was updated to match the image to prevent false failures in batch regression. 
   - **TODO**: Introduce a new public-domain compatible mixed sample (e.g., a modern desk setup) to restore full coverage for the `mixed` image kind.
