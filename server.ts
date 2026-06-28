@@ -1465,11 +1465,11 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
   try {
     const { sampleId } = req.params;
     const variant = (req.query.variant as any) || "full";
-    if (!["preview", "thumbnail", "full"].includes(variant)) {
+    if (!["preview", "thumbnail", "full", "analysis"].includes(variant)) {
       return res.status(400).json({ error: "Invalid variant" });
     }
 
-    const result = await fetchPublicSampleImage(sampleId, variant as "preview" | "thumbnail" | "full");
+    const result = await fetchPublicSampleImage(sampleId, variant as "preview" | "thumbnail" | "full" | "analysis");
 
     // Set safe headers
     res.setHeader("Content-Type", result.mimeType);

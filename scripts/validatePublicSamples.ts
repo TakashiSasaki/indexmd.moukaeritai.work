@@ -2,7 +2,7 @@ import { PUBLIC_VISUAL_SAMPLES } from '../src/lib/visualAnalysis/publicSamples/r
 import { fetchPublicSampleImage } from '../src/lib/visualAnalysis/publicSamples/serverFetch';
 
 async function diagnose() {
-  const variants = ['thumbnail', 'preview', 'full'] as const;
+  const variants = ['thumbnail', 'preview', 'analysis', 'full'] as const;
   const results = [];
   let total = 0;
   let ok = 0;

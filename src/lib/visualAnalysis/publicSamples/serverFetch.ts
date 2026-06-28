@@ -98,15 +98,14 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     throw new Error(`No image URL available for variant: ${variant}`);
   }
 
-  // Rewrite Wikimedia 640px restricted thumbnails to standard sizes (120px for thumbnail, 500px for preview)
+  // Rewrite Wikimedia 640px restricted thumbnails to standard sizes (120px for thumbnail, 500px for preview, 1024px for analysis)
   if (urlToFetch.includes('upload.wikimedia.org') && urlToFetch.includes('/640px-')) {
     if (variant === "thumbnail") {
       urlToFetch = urlToFetch.replace('/640px-', '/120px-');
     } else if (variant === "preview") {
       urlToFetch = urlToFetch.replace('/640px-', '/500px-');
     } else if (variant === "analysis") {
-      // Keep 640px as it is known to exist and provides good enough resolution for Gemini (approx 640x...)
-      // Do nothing, keep original 640px thumbnail.
+      urlToFetch = urlToFetch.replace('/640px-', '/1024px-');
     }
   }
 
@@ -140,7 +139,15 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
   try {
     result = await fetchExternalImage(urlToFetch, 0);
   } catch (err: any) {
-    if (variant !== "full" && urlToFetch !== sample.source.imageUrl && sample.source.imageUrl) {
+    if (variant === "analysis" && urlToFetch.includes('/1024px-') && sample.source.thumbnailUrl) {
+      console.warn(`[serverFetch] Failed to fetch 1024px variant from ${urlToFetch}. Falling back to 640px thumbnailUrl: ${sample.source.thumbnailUrl}`);
+      try {
+        result = await fetchExternalImage(sample.source.thumbnailUrl, 0);
+      } catch (fallbackErr: any) {
+        console.warn(`[serverFetch] Failed to fetch 640px fallback. Falling back to original imageUrl: ${sample.source.imageUrl}`);
+        result = await fetchExternalImage(sample.source.imageUrl, 0);
+      }
+    } else if (variant !== "full" && urlToFetch !== sample.source.imageUrl && sample.source.imageUrl) {
       console.warn(`[serverFetch] Failed to fetch variant ${variant} from ${urlToFetch}. Falling back to original imageUrl: ${sample.source.imageUrl}`, err);
       result = await fetchExternalImage(sample.source.imageUrl, 0);
     } else {
