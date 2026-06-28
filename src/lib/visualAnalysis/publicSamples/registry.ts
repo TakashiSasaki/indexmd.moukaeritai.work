@@ -546,6 +546,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "chartOrTable",
     expectedElementCategories: ["table", "textRegion"],
     expectedVisibleElementLabels: ["table", "rows", "columns", "headers"],
+    expectedVisibleElementLabelAliases: {
+      "table": ["table", "grid", "data grid", "milestones table"],
+      "rows": ["row", "rows", "table row", "table rows", "row entry", "row entries"],
+      "columns": ["column", "columns", "table column", "table columns", "column headers"],
+      "headers": ["header", "headers", "table header", "table headers", "column header", "column headers"]
+    },
     expectedVisibleText: ["Project Milestones", "Task ID", "Description", "Status", "Budget", "TSK-01", "Setup Environment", "Completed", "$1,200", "TSK-02", "Develop Core API", "In Progress", "$4,500", "TSK-03", "Write Unit Tests", "Pending", "$800", "TOTAL BUDGET:", "$6,500"],
     source: {
       provider: "localFixture",
@@ -565,6 +571,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "screenshot",
     expectedElementCategories: ["screen", "uiElement", "textRegion"],
     expectedVisibleElementLabels: ["settings screen", "toggle", "button"],
+    expectedVisibleElementLabelAliases: {
+      "settings screen": ["settings screen", "settings", "ui", "screen", "mobile screen"],
+      "toggle": ["toggle", "switch", "toggle switch", "dark mode toggle"],
+      "button": ["button", "save button", "save changes button", "action button"]
+    },
     expectedVisibleText: ["Settings", "Notifications", "Privacy", "Account Details", "Dark Mode", "Save Changes"],
     source: {
       provider: "localFixture",
@@ -584,6 +595,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "screenshot",
     expectedElementCategories: ["document", "textRegion", "uiElement"],
     expectedVisibleElementLabels: ["form", "input field", "checkbox", "submit button"],
+    expectedVisibleElementLabelAliases: {
+      "form": ["form", "contact form", "registration form"],
+      "input field": ["input field", "input", "text field", "text input", "field"],
+      "checkbox": ["checkbox", "agree checkbox", "terms checkbox"],
+      "submit button": ["submit button", "button", "submit"]
+    },
     expectedVisibleText: ["Contact Registration Form", "Please fill in your details below.", "Full Name", "Jane Doe", "Email Address", "jane.doe@example.com", "I agree to the Terms of Service", "Submit Form"],
     source: {
       provider: "localFixture",
@@ -603,6 +620,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "packageImage",
     expectedElementCategories: ["productPackage", "textRegion"],
     expectedVisibleElementLabels: ["package", "label", "ingredients", "barcode"],
+    expectedVisibleElementLabelAliases: {
+      "package": ["package", "bottle", "container", "pouch", "bag"],
+      "label": ["label", "product label", "front label", "package label"],
+      "ingredients": ["ingredients", "ingredient list", "organic harvest label"],
+      "barcode": ["barcode", "upc", "bar code", "code"]
+    },
     expectedVisibleText: ["ORGANIC HARVEST", "Roasted Almonds", "INGREDIENTS:", "Organic Almonds", "NET WT 8 OZ", "748192047582"],
     source: {
       provider: "localFixture",
@@ -622,6 +645,13 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "mixed",
     expectedElementCategories: ["furniture", "document", "tool", "product"],
     expectedVisibleElementLabels: ["desk", "book", "cup", "phone", "note"],
+    expectedVisibleElementLabelAliases: {
+      "desk": ["desk", "table", "workspace", "desktop"],
+      "book": ["book", "journal", "diary", "notebook"],
+      "cup": ["cup", "mug", "coffee cup", "drinkware"],
+      "phone": ["phone", "smartphone", "mobile phone", "device"],
+      "note": ["note", "sticky note", "reminder", "paper"]
+    },
     expectedVisibleText: ["JOURNAL", "Don't forget:", "roasted almonds", "Call mom @ 5pm", "10:42"],
     source: {
       provider: "localFixture",

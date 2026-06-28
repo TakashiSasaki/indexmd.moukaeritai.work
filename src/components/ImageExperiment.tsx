@@ -21,6 +21,7 @@ import {
   buildTargetSampleIdsHash
 } from '../lib/visualAnalysis/publicSamples/batchCheckpoint';
 import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
+import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
 
@@ -180,6 +181,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   });
 
+  const [pastBatchRuns, setPastBatchRuns] = useState<PublicSampleBatchRunSummary[]>(() => {
+    try {
+      const saved = localStorage.getItem("image_experiment_batch_runs");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   useEffect(() => {
     if (result) {
       try {
@@ -203,6 +213,41 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       localStorage.removeItem("image_experiment_last_batch_summary");
     }
   }, [batchSummary]);
+
+  const [compareRunAId, setCompareRunAId] = useState<string>("");
+  const [compareRunBId, setCompareRunBId] = useState<string>("");
+
+  useEffect(() => {
+    if (pastBatchRuns.length >= 2) {
+      if (!compareRunAId || !pastBatchRuns.some(r => r.runId === compareRunAId)) {
+        setCompareRunAId(pastBatchRuns[0].runId);
+      }
+      if (!compareRunBId || !pastBatchRuns.some(r => r.runId === compareRunBId)) {
+        setCompareRunBId(pastBatchRuns[1].runId);
+      }
+    } else if (pastBatchRuns.length === 1) {
+      if (!compareRunAId) {
+        setCompareRunAId(pastBatchRuns[0].runId);
+      }
+    }
+  }, [pastBatchRuns, compareRunAId, compareRunBId]);
+
+  const handleDownloadComparison = () => {
+    const runA = pastBatchRuns.find(r => r.runId === compareRunAId);
+    const runB = pastBatchRuns.find(r => r.runId === compareRunBId);
+    if (!runA) {
+      onAddLog("error", "Cannot perform comparison: Run A not selected or found.");
+      return;
+    }
+    const runsToCompare = runB ? [runA, runB] : [runA];
+    try {
+      const comparisonReport = buildBatchComparisonReportForChat(runsToCompare);
+      downloadJsonArtifact(comparisonReport, `batch-comparison-${Date.now()}.json`);
+      onAddLog("success", `Comparison report successfully downloaded for runs: ${runA.modelName}(${runA.jsonMode})` + (runB ? ` vs ${runB.modelName}(${runB.jsonMode})` : ""));
+    } catch (err: any) {
+      onAddLog("error", `Failed to build comparison report: ${err?.message || String(err)}`);
+    }
+  };
 
   // Load and validate active batch checkpoint on mount or settings change
   useEffect(() => {
@@ -847,6 +892,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     runs.unshift(shrinkBatchRunSummaryForLocalStorage(summary));
     if (runs.length > 5) runs = runs.slice(0, 5);
     localStorage.setItem("image_experiment_batch_runs", JSON.stringify(runs));
+    setPastBatchRuns(runs);
 
     setIsBatchRunning(false);
     setBatchProgress(null);
@@ -1459,6 +1505,66 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <span className="font-bold text-lg text-violet-700">{batchSummary.reviewPassCount ?? 0} / {batchSummary.reviewNeedsReviewCount ?? 0} / {batchSummary.reviewFailCount ?? 0}</span>
              </div>
           </div>
+
+          {/* Comparative Baseline Engine UI */}
+          {pastBatchRuns.length > 0 && (
+            <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/20 space-y-3 mt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-indigo-600" />
+                    Comparative Baseline Engine
+                  </h4>
+                  <p className="text-[10px] text-slate-500">
+                    Compare runs side-by-side to analyze Native Schema vs Prompted JSON performance.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadComparison}
+                  disabled={!compareRunAId}
+                  className="text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-1 px-3 py-1.5 rounded shadow-sm self-start sm:self-center transition-colors"
+                >
+                  <Download className="w-3 h-3" />
+                  Download Comparison JSON
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Baseline Run A</label>
+                  <select
+                    value={compareRunAId}
+                    onChange={(e) => setCompareRunAId(e.target.value)}
+                    className="w-full text-[11px] font-medium bg-white border border-slate-200 rounded px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">Select Baseline Run A</option>
+                    {pastBatchRuns.map((r, i) => (
+                      <option key={r.runId || i} value={r.runId}>
+                        #{i + 1} - {r.modelName} ({r.jsonMode}) - {r.successCount}/{r.total} - {new Date(r.timestamp).toLocaleTimeString()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Comparison Run B (Optional)</label>
+                  <select
+                    value={compareRunBId}
+                    onChange={(e) => setCompareRunBId(e.target.value)}
+                    className="w-full text-[11px] font-medium bg-white border border-slate-200 rounded px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">None (Single Run Inspection)</option>
+                    {pastBatchRuns.map((r, i) => (
+                      <option key={r.runId || i} value={r.runId}>
+                        #{i + 1} - {r.modelName} ({r.jsonMode}) - {r.successCount}/{r.total} - {new Date(r.timestamp).toLocaleTimeString()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-x-auto border border-slate-200 rounded-lg">
             <table className="w-full text-[10px] text-left">
