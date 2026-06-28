@@ -65,6 +65,36 @@ describe('evaluateVisualAnalysisQuality', () => {
     assert.ok(rep.issues.some(i => i.code === "NO_PRODUCT_ELEMENTS"));
   });
 
+  it('should not warn on NO_PRODUCT_ELEMENTS if tool element is in product photo', () => {
+    const result: any = {
+      summary: { caption: "Pencil", description: "Desc" },
+      visualInfo: { imageKind: "productPhoto", visibleElements: [{category: "tool"}], visibleText: [] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(!rep.issues.some(i => i.code === "NO_PRODUCT_ELEMENTS"));
+  });
+
+  it('should not warn on NO_PRODUCT_ELEMENTS if furniture element is in product photo', () => {
+    const result: any = {
+      summary: { caption: "Chair", description: "Desc" },
+      visualInfo: { imageKind: "productPhoto", visibleElements: [{category: "furniture"}], visibleText: [] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(!rep.issues.some(i => i.code === "NO_PRODUCT_ELEMENTS"));
+  });
+
+  it('should not warn on NO_PRODUCT_ELEMENTS if productPackage element is in packageImage', () => {
+    const result: any = {
+      summary: { caption: "Box", description: "Desc" },
+      visualInfo: { imageKind: "packageImage", visibleElements: [{category: "productPackage"}], visibleText: [] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(!rep.issues.some(i => i.code === "NO_PRODUCT_ELEMENTS"));
+  });
+
   it('should warn on missing keywords', () => {
     const result: any = {
       summary: { caption: "Test", description: "Desc" },

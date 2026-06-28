@@ -24,6 +24,8 @@ You must always classify the "imageKind" and enumerate "visibleElements".
 
 ### Extracting Visible Text:
 - Extract readable text into "visibleText".
+- If you create a "visibleElements" item with category "textRegion", and the text is readable, the readable text MUST also appear in "visibleText".
+- If you mention a short visible marking such as "HB", "A4", "XL", "USB-C", prices, totals, labels, or UI text in the summary or keywords, you MUST add it to "visibleText".
 - Any readable text visible in the image must be placed in "visibleText", even if it is also useful as a keyword.
 - Do not mention visible text such as labels, marks, UI text, receipt totals, or short inscriptions in summary/description/keywords unless it is also represented in "visibleText", unless it is explicitly unreadable and listed in "uncertainties".
 

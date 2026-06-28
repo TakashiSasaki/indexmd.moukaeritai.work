@@ -62,11 +62,21 @@ export function evaluateVisualAnalysisQuality(
     }
   }
 
+  const productLikeCategories = [
+    'product',
+    'productPackage',
+    'tool',
+    'furniture',
+    'clothing',
+    'food',
+    'container'
+  ];
+
   if (vi?.imageKind === "productPhoto" || vi?.imageKind === "packageImage") {
-    const hasProduct = elements.some(el => ['product', 'productPackage'].includes(el.category));
+    const hasProduct = elements.some(el => productLikeCategories.includes(el.category));
     if (!hasProduct) {
       score -= 20;
-      issues.push({ code: "NO_PRODUCT_ELEMENTS", message: "Product photo lacks product or package elements.", severity: "warning" });
+      issues.push({ code: "NO_PRODUCT_ELEMENTS", message: "Product-like image lacks product-like subject elements.", severity: "warning" });
     }
   }
 
@@ -165,7 +175,7 @@ export function evaluateVisualAnalysisQuality(
 
   // C. Product attributes check
   if (vi?.imageKind === "productPhoto" || vi?.imageKind === "packageImage") {
-    const hasEmptyAttributes = elements.some(el => (el.category === 'product' || el.category === 'productPackage') && (!el.attributes || el.attributes.length === 0));
+    const hasEmptyAttributes = elements.some(el => productLikeCategories.includes(el.category) && (!el.attributes || el.attributes.length === 0));
     if (hasEmptyAttributes) {
       const attributeWords = ["blue", "red", "green", "yellow", "white", "black", "wooden", "metal", "plastic", "sharpened", "round", "rectangular", "damaged", "wet", "clean", "dirty", "glass", "paper"];
       const textToSearch = (caption + " " + description).toLowerCase();

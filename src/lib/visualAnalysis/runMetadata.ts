@@ -8,6 +8,14 @@ export const VISUAL_ANALYSIS_GENERATION_CONFIG = {
   topK: 40
 } as const;
 
+export interface VisualJsonRecoveryMetadata {
+  localRecoveryEnabled: boolean;
+  retryOnInvalidJson: boolean;
+  retryStrategy: "none" | "sameRequestOnce";
+  retryCount: number;
+  finalParseMode?: "direct" | "fenceStripped" | "extractedObject";
+}
+
 export interface VisualAnalysisRunMetadata {
   runId: string;
   timestamp: string;
@@ -24,6 +32,7 @@ export interface VisualAnalysisRunMetadata {
     jsonMode?: "prompt_only" | "native_schema" | string;
     customSchemaUsed: boolean;
     requestPreviewIncluded: boolean;
+    jsonRecovery?: VisualJsonRecoveryMetadata;
   };
 
   schema: {

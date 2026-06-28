@@ -1564,7 +1564,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     let outputText = aiRes.text?.trim() || "{}";
 
     // Parse and Validate
-    let parseRes = parseModelJsonOutput(outputText);
+    let parseRes = parseModelJsonOutput(outputText, 1);
     let retryCount = 0;
 
     if (!parseRes.ok && retryOnInvalidJson) {
@@ -1573,14 +1573,14 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         { text: taskPrompt }
       ], 4, configOption);
       const newOutputText = aiRes.text?.trim() || "{}";
-      const newParseRes = parseModelJsonOutput(newOutputText);
+      const newParseRes = parseModelJsonOutput(newOutputText, 2);
       newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
       parseRes = newParseRes;
       retryCount = 1;
     }
 
     // Add recovery stats to run metadata
-    (runMetadata.execution as any).jsonRecovery = {
+    runMetadata.execution.jsonRecovery = {
       localRecoveryEnabled: true,
       retryOnInvalidJson,
       retryStrategy: "sameRequestOnce",
@@ -1628,6 +1628,12 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     }
 
     const parsed = parseRes.parsed;
+    const parseDiagnosticsLight = {
+      rawOutputLength: parseRes.diagnostics.rawOutputLength,
+      attempts: parseRes.diagnostics.attempts,
+      parseMode: parseRes.parseMode,
+      ...(includeRequestPreview ? { rawOutputPreview: parseRes.diagnostics.rawOutputPreview } : {})
+    };
 
     if (extractedCustomSchema) {
       const result: any = {
@@ -1652,6 +1658,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         },
         visualAnalysis: parsed,
         analysisRun: runMetadata,
+        parseDiagnostics: parseDiagnosticsLight,
         qualityStatus: "excellent",
         qualityScore: 100,
         qualityIssues: [],
@@ -1665,15 +1672,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       };
 
       if (includeRequestPreview) {
-        result.requestPreview = {
-          model: targetModel,
-          outputMode: "structured",
-          taskPrompt,
-          systemInstruction,
-          mimeType: mimeType,
-          binaryInlineDataUsed: true,
-          generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
-        };
+        result.requestPreview = requestPreview;
       }
 
       return res.json(result);
@@ -1721,6 +1720,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       },
       visualAnalysis: normalized,
       analysisRun: runMetadata,
+      parseDiagnostics: parseDiagnosticsLight,
       qualityStatus,
       qualityScore,
       qualityIssues,
@@ -1844,7 +1844,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     let outputText = aiRes.text?.trim() || "{}";
     
     // 5. Parse and Validate
-    let parseRes = parseModelJsonOutput(outputText);
+    let parseRes = parseModelJsonOutput(outputText, 1);
     let retryCount = 0;
 
     if (!parseRes.ok && retryOnInvalidJson) {
@@ -1853,14 +1853,14 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         { text: taskPrompt }
       ], 4, configOption);
       const newOutputText = aiRes.text?.trim() || "{}";
-      const newParseRes = parseModelJsonOutput(newOutputText);
+      const newParseRes = parseModelJsonOutput(newOutputText, 2);
       newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
       parseRes = newParseRes;
       retryCount = 1;
     }
 
     // Add recovery stats to run metadata
-    (runMetadata.execution as any).jsonRecovery = {
+    runMetadata.execution.jsonRecovery = {
       localRecoveryEnabled: true,
       retryOnInvalidJson,
       retryStrategy: "sameRequestOnce",
@@ -1892,6 +1892,12 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     }
 
     const parsed = parseRes.parsed;
+    const parseDiagnosticsLight = {
+      rawOutputLength: parseRes.diagnostics.rawOutputLength,
+      attempts: parseRes.diagnostics.attempts,
+      parseMode: parseRes.parseMode,
+      ...(includeRequestPreview ? { rawOutputPreview: parseRes.diagnostics.rawOutputPreview } : {})
+    };
 
     if (extractedCustomSchema) {
       const result: any = {
@@ -1900,6 +1906,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         metadata: fileMeta,
         visualAnalysis: parsed,
         analysisRun: runMetadata,
+        parseDiagnostics: parseDiagnosticsLight,
         qualityStatus: "excellent",
         qualityScore: 100,
         qualityIssues: [],
@@ -1953,6 +1960,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       metadata: fileMeta,
       visualAnalysis: normalized,
       analysisRun: runMetadata,
+      parseDiagnostics: parseDiagnosticsLight,
       qualityStatus,
       qualityScore,
       qualityIssues,

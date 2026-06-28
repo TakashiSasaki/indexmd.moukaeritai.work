@@ -1,4 +1,5 @@
 export interface VisualJsonParseAttempt {
+  requestAttempt?: number;
   mode: "direct" | "fenceStripped" | "extractedObject";
   success: boolean;
   errorMessage?: string;
@@ -74,7 +75,7 @@ function extractBalancedObject(text: string): string | null {
   return null;
 }
 
-export function parseModelJsonOutput(outputText: string): VisualJsonParseResult {
+export function parseModelJsonOutput(outputText: string, requestAttempt: number = 1): VisualJsonParseResult {
   const attempts: VisualJsonParseAttempt[] = [];
   const rawOutputPreview = truncateForPreview(outputText);
   const rawOutputLength = outputText.length;
@@ -84,7 +85,7 @@ export function parseModelJsonOutput(outputText: string): VisualJsonParseResult 
   // 1. Direct parse
   try {
     const parsed = JSON.parse(outputText);
-    attempts.push({ mode: "direct", success: true });
+    attempts.push({ requestAttempt, mode: "direct", success: true });
     return {
       ok: true,
       parsed,
@@ -97,7 +98,7 @@ export function parseModelJsonOutput(outputText: string): VisualJsonParseResult 
     };
   } catch (e: any) {
     parseErrorMessage = e.message;
-    attempts.push({ mode: "direct", success: false, errorMessage: e.message });
+    attempts.push({ requestAttempt, mode: "direct", success: false, errorMessage: e.message });
   }
 
   // 2. Fence stripped
@@ -105,7 +106,7 @@ export function parseModelJsonOutput(outputText: string): VisualJsonParseResult 
   if (cleaned !== outputText.trim()) {
     try {
       const parsed = JSON.parse(cleaned);
-      attempts.push({ mode: "fenceStripped", success: true });
+      attempts.push({ requestAttempt, mode: "fenceStripped", success: true });
       return {
         ok: true,
         parsed,
@@ -118,7 +119,7 @@ export function parseModelJsonOutput(outputText: string): VisualJsonParseResult 
       };
     } catch (e: any) {
       parseErrorMessage = e.message;
-      attempts.push({ mode: "fenceStripped", success: false, errorMessage: e.message });
+      attempts.push({ requestAttempt, mode: "fenceStripped", success: false, errorMessage: e.message });
     }
   }
 
@@ -127,7 +128,7 @@ export function parseModelJsonOutput(outputText: string): VisualJsonParseResult 
   if (extracted && extracted !== cleaned && extracted !== outputText.trim()) {
     try {
       const parsed = JSON.parse(extracted);
-      attempts.push({ mode: "extractedObject", success: true });
+      attempts.push({ requestAttempt, mode: "extractedObject", success: true });
       return {
         ok: true,
         parsed,
@@ -140,7 +141,7 @@ export function parseModelJsonOutput(outputText: string): VisualJsonParseResult 
       };
     } catch (e: any) {
       parseErrorMessage = e.message;
-      attempts.push({ mode: "extractedObject", success: false, errorMessage: e.message });
+      attempts.push({ requestAttempt, mode: "extractedObject", success: false, errorMessage: e.message });
     }
   }
 
