@@ -414,7 +414,15 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
   
   const normDiag = item.normalizationDiagnostics ?? item.responseRaw?.normalizationDiagnostics ?? item.analysisRun?.normalizationDiagnostics;
   if (normDiag) {
-    compact.normalizationDiagnostics = normDiag;
+    compact.normalizationDiagnostics = {
+      schemaVersionCorrected: normDiag.schemaVersionCorrected,
+      originalSchemaVersion: normDiag.originalSchemaVersion,
+      correctedSchemaVersion: normDiag.correctedSchemaVersion,
+      providerSchemaName: normDiag.providerSchemaName,
+      providerSchemaVersion: normDiag.providerSchemaVersion,
+      // Include all diagnostics if it's a failure
+      ...(item.success ? {} : normDiag)
+    };
   }
 
   if (item.responseDiagnostics) {

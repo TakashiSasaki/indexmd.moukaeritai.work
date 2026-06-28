@@ -282,6 +282,17 @@ QUALITY ENHANCEMENT RULES FOR PROMPTED JSON:
   }
 }
 
+function buildVisualAnalysisRequestPreviewConfig(config: any, mode: string, extractedCustomSchema: boolean) {
+  const { systemInstruction, responseSchema, ...rest } = config;
+  return {
+    ...rest,
+    responseSchemaIncluded: mode === "nativeSchema",
+    customSchemaUsed: extractedCustomSchema,
+    providerResponseSchemaName: mode === "nativeSchema" ? (extractedCustomSchema ? "custom" : "GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA") : undefined,
+    providerResponseSchemaVersion: mode === "nativeSchema" && !extractedCustomSchema ? VISUAL_ANALYSIS_SCHEMA_VERSION : undefined,
+  };
+}
+
 function buildRequestPreview(params: any): any {
   return {
     model: params.model,
@@ -1620,9 +1631,6 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       mediaResolutionProviderField
     });
 
-    const safeConfigOption = { ...configOption };
-    delete safeConfigOption.systemInstruction; // Already in requestPreview root
-
     const requestPreview = includeRequestPreview ? {
       model: targetModel,
       outputMode: "structured",
@@ -1630,7 +1638,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       systemInstruction,
       mimeType: mimeType,
       binaryInlineDataUsed: true,
-      generationConfig: safeConfigOption
+      generationConfig: buildVisualAnalysisRequestPreviewConfig(configOption, mode, extractedCustomSchema)
     } : undefined;
 
     // Call Model
@@ -1976,9 +1984,6 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       mediaResolutionProviderField
     });
 
-    const safeConfigOption = { ...configOption };
-    delete safeConfigOption.systemInstruction; // Already in requestPreview root
-
     const requestPreview = includeRequestPreview ? {
       model: targetModel,
       outputMode: "structured",
@@ -1986,7 +1991,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       systemInstruction,
       mimeType: fileMeta.mimeType,
       binaryInlineDataUsed: true,
-      generationConfig: safeConfigOption
+      generationConfig: buildVisualAnalysisRequestPreviewConfig(configOption, mode, extractedCustomSchema)
     } : undefined;
 
     // 4. Call Model

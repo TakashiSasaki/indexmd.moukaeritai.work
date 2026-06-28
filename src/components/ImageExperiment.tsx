@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle } from 'lucide-react';
+import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
 import { 
@@ -11,6 +11,15 @@ import {
   PublicSampleComparisonSummary
 } from '../lib/visualAnalysis/publicSamples/compare';
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
+import {
+  PublicSampleBatchCheckpoint,
+  loadActiveBatchCheckpoint,
+  saveActiveBatchCheckpoint,
+  clearActiveBatchCheckpoint,
+  isCheckpointCompatible,
+  rebuildBatchSummaryFromCheckpoint,
+  buildTargetSampleIdsHash
+} from '../lib/visualAnalysis/publicSamples/batchCheckpoint';
 import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
@@ -160,6 +169,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   // Batch evaluation state
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number } | null>(null);
+  const [activeCheckpoint, setActiveCheckpoint] = useState<PublicSampleBatchCheckpoint | null>(null);
   const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(() => {
     try {
       const saved = localStorage.getItem("image_experiment_last_batch_summary");
@@ -192,6 +202,31 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       localStorage.removeItem("image_experiment_last_batch_summary");
     }
   }, [batchSummary]);
+
+  // Load and validate active batch checkpoint on mount or settings change
+  useEffect(() => {
+    if (samples.length === 0) return;
+    
+    const checkpoint = loadActiveBatchCheckpoint();
+    if (checkpoint && (checkpoint.status === 'running' || checkpoint.status === 'failed')) {
+      const targetSamples = samples.filter(s => selectedSampleIds[s.id]);
+      const currentSettings = {
+        modelName,
+        jsonMode: jsonModeOption,
+        customInstructionHash: fnv1a32(customInstruction.trim()),
+        targetSampleIdsHash: buildTargetSampleIdsHash(targetSamples.map(s => s.id))
+      };
+      
+      if (isCheckpointCompatible(checkpoint, currentSettings)) {
+        setActiveCheckpoint(checkpoint);
+      } else {
+        setActiveCheckpoint(null);
+        // Do not clear it automatically, let user discard it or switch back settings
+      }
+    } else {
+      setActiveCheckpoint(null);
+    }
+  }, [samples, selectedSampleIds, modelName, jsonModeOption, customInstruction]);
 
   // Health check states
   const [healthCheckFailed, setHealthCheckFailed] = useState<boolean>(false);
@@ -430,9 +465,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
-  const handleRunBatch = async () => {
-    const targetSamples = samples.filter(s => selectedSampleIds[s.id]);
-    if (targetSamples.length === 0) {
+  const handleRunBatch = async (resumeMode: boolean = false) => {
+    let targetSamples = samples.filter(s => selectedSampleIds[s.id]);
+    
+    let isResuming = false;
+    let initialCheckpoint: PublicSampleBatchCheckpoint | null = null;
+    
+    if (resumeMode && activeCheckpoint) {
+      isResuming = true;
+      initialCheckpoint = activeCheckpoint;
+      // Filter target samples to only those pending
+      targetSamples = targetSamples.filter(s => activeCheckpoint.pendingSampleIds.includes(s.id));
+    } else if (targetSamples.length === 0) {
       onAddLog("warn", "実行対象のサンプルが選択されていません。");
       alert("実行対象のサンプルが選択されていません。チェックボックスで選択してください。");
       return;
@@ -443,8 +487,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     setHealthCheckError(null);
 
     setIsBatchRunning(true);
-    setBatchSummary(null);
-    setResult(null); // Clear single result
+    if (!isResuming) {
+      setBatchSummary(null);
+      setResult(null); // Clear single result
+    }
 
     // Pre-batch health check
     onAddLog("info", "バッチ開始前にヘルスチェックを実行しています...");
@@ -466,27 +512,79 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
     onAddLog("success", "ヘルスチェックに成功しました。バッチ解析を開始します。");
 
-    const total = targetSamples.length;
-    setBatchProgress({ current: 0, total });
+    // Initialize or restore state
+    let total = isResuming && initialCheckpoint ? initialCheckpoint.targetSampleIds.length : samples.filter(s => selectedSampleIds[s.id]).length;
+    let currentProgress = isResuming && initialCheckpoint ? initialCheckpoint.completedSampleIds.length : 0;
+    setBatchProgress({ current: currentProgress, total });
 
-    const items: PublicSampleBatchRunItem[] = [];
-    let successCount = 0;
-    let failureCount = 0;
-    let validCount = 0;
-    let validLowQualityCount = 0;
-    let invalidJsonCount = 0;
-    let expectedComparisonPassCount = 0;
-    let expectedComparisonWarningCount = 0;
-    let expectedComparisonFailCount = 0;
-    let reviewPassCount = 0;
-    let reviewNeedsReviewCount = 0;
-    let reviewFailCount = 0;
+    const items: PublicSampleBatchRunItem[] = isResuming && initialCheckpoint ? [...initialCheckpoint.items] : [];
+    
+    let successCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.successCount : 0;
+    let failureCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.failureCount : 0;
+    let validCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.validCount : 0;
+    let validLowQualityCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.validLowQualityCount : 0;
+    let invalidJsonCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.invalidJsonCount : 0;
+    let expectedComparisonPassCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.expectedComparisonPassCount : 0;
+    let expectedComparisonWarningCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.expectedComparisonWarningCount : 0;
+    let expectedComparisonFailCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.expectedComparisonFailCount : 0;
+    let reviewPassCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.reviewPassCount : 0;
+    let reviewNeedsReviewCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.reviewNeedsReviewCount : 0;
+    let reviewFailCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.reviewFailCount : 0;
 
     const newStatuses = { ...sampleStatuses };
+    
+    let currentCheckpoint: PublicSampleBatchCheckpoint;
+    
+    if (isResuming && initialCheckpoint) {
+       currentCheckpoint = { ...initialCheckpoint, status: 'running' };
+       saveActiveBatchCheckpoint(currentCheckpoint);
+       setActiveCheckpoint(currentCheckpoint);
+    } else {
+       const initialTargetIds = samples.filter(s => selectedSampleIds[s.id]).map(s => s.id);
+       currentCheckpoint = {
+         checkpointVersion: "public-sample-batch-checkpoint.v0.1.0",
+         runId: crypto.randomUUID(),
+         createdAt: new Date().toISOString(),
+         updatedAt: new Date().toISOString(),
+         status: 'running',
+         modelName,
+         jsonMode: jsonModeOption,
+         customInstructionHash: fnv1a32(customInstruction.trim()),
+         targetSampleIds: initialTargetIds,
+         completedSampleIds: [],
+         pendingSampleIds: [...initialTargetIds],
+         failedSampleIds: [],
+         items: [],
+         counters: {
+           successCount: 0,
+           failureCount: 0,
+           validCount: 0,
+           validLowQualityCount: 0,
+           invalidJsonCount: 0,
+           expectedComparisonPassCount: 0,
+           expectedComparisonWarningCount: 0,
+           expectedComparisonFailCount: 0,
+           reviewPassCount: 0,
+           reviewNeedsReviewCount: 0,
+           reviewFailCount: 0
+         },
+         runFingerprint: {
+           modelName,
+           jsonMode: jsonModeOption,
+           customInstructionHash: fnv1a32(customInstruction.trim()),
+           targetSampleIdsHash: buildTargetSampleIdsHash(initialTargetIds)
+         }
+       };
+       saveActiveBatchCheckpoint(currentCheckpoint);
+       setActiveCheckpoint(currentCheckpoint);
+    }
 
-    for (let i = 0; i < total; i++) {
+    for (let i = 0; i < targetSamples.length; i++) {
         const sample = targetSamples[i];
-        setBatchProgress({ current: i + 1, total });
+        currentProgress++;
+        setBatchProgress({ current: currentProgress, total });
+        
+        let item: PublicSampleBatchRunItem | null = null;
         try {
             const sfResult = await safeFetchWithRetry<any>('/api/visual/public-samples/analyze', {
               method: 'POST',
@@ -511,7 +609,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
             const data = sfResult.data || {};
             
-            const item: PublicSampleBatchRunItem = {
+            item = {
               sampleId: sample.id,
               title: sample.title,
               success: sfResult.success && data.success,
@@ -569,18 +667,44 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             failureCount++;
             reviewFailCount++;
             newStatuses[sample.id] = "failure";
-            items.push({
+            item = {
                sampleId: sample.id,
                title: sample.title,
                success: false,
                error: e.message
-            });
+            };
+            items.push(item);
         }
         setSampleStatuses({ ...newStatuses });
+        
+        // Update and save checkpoint after each sample
+        currentCheckpoint = {
+          ...currentCheckpoint,
+          updatedAt: new Date().toISOString(),
+          completedSampleIds: [...currentCheckpoint.completedSampleIds, sample.id],
+          pendingSampleIds: currentCheckpoint.pendingSampleIds.filter(id => id !== sample.id),
+          failedSampleIds: item.success ? currentCheckpoint.failedSampleIds : [...currentCheckpoint.failedSampleIds, sample.id],
+          items: [...items], // copy to trigger updates if used directly
+          counters: {
+            successCount,
+            failureCount,
+            validCount,
+            validLowQualityCount,
+            invalidJsonCount,
+            expectedComparisonPassCount,
+            expectedComparisonWarningCount,
+            expectedComparisonFailCount,
+            reviewPassCount,
+            reviewNeedsReviewCount,
+            reviewFailCount
+          }
+        };
+        saveActiveBatchCheckpoint(currentCheckpoint);
+        setActiveCheckpoint(currentCheckpoint);
     }
 
     const summary: PublicSampleBatchRunSummary = {
-        runId: crypto.randomUUID(),
+        runId: currentCheckpoint.runId,
         timestamp: new Date().toISOString(),
         modelName,
         jsonMode: jsonModeOption,
@@ -600,6 +724,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     };
     
     setBatchSummary(summary);
+    
+    // Clear the active checkpoint as the batch has completed normally
+    clearActiveBatchCheckpoint();
+    setActiveCheckpoint(null);
     
     // Save a compact version to localStorage to prevent quota limits
     const shrinkBatchRunSummaryForLocalStorage = (sum: PublicSampleBatchRunSummary) => {
@@ -653,6 +781,44 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-5">
+          {activeCheckpoint && (
+            <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-amber-600" />
+                    未完了のバッチ解析があります
+                  </h3>
+                  <p className="text-xs text-amber-700">
+                    前回の実行が途中で中断されました。続きから再開できます。<br/>
+                    モデル: <span className="font-semibold">{activeCheckpoint.modelName}</span> ({activeCheckpoint.jsonMode})<br/>
+                    進捗: {activeCheckpoint.completedSampleIds.length} / {activeCheckpoint.targetSampleIds.length} 完了
+                    {activeCheckpoint.failedSampleIds.length > 0 && <span className="ml-2 text-red-600">({activeCheckpoint.failedSampleIds.length} エラー)</span>}
+                  </p>
+                </div>
+                <div className="flex gap-2 w-full md:w-auto shrink-0">
+                  <button
+                    onClick={() => {
+                      clearActiveBatchCheckpoint();
+                      setActiveCheckpoint(null);
+                    }}
+                    disabled={isBatchRunning}
+                    className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 bg-amber-100/50 hover:bg-amber-200/50 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    破棄する
+                  </button>
+                  <button
+                    onClick={() => handleRunBatch(true)}
+                    disabled={isBatchRunning}
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                  >
+                    <Play className="w-3.5 h-3.5" /> 続きから再開
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left side: Inputs */}
             <div className="lg:col-span-12 space-y-4">
