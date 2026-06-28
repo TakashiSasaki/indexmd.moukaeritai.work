@@ -434,6 +434,13 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let mediaResolutionUnsupported = 0;
   let mediaResolutionFallbackUsed = 0;
 
+  let memoryHits = 0;
+  let diskHits = 0;
+  let misses = 0;
+  let stored = 0;
+  let readErrors = 0;
+  let writeErrors = 0;
+
   for (const item of items) {
     const run = item.analysisRun?.metadata ?? item.analysisRun;
     if (run && run.generationConfig) {
@@ -506,6 +513,27 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       } else if (inputDiag.analysisTargetBytes && checkBytes > inputDiag.analysisTargetBytes) {
         overTargetInputs++;
       }
+
+      // Aggregate Cache Diagnostics
+      if (inputDiag.cacheLayer === "memory") {
+        memoryHits++;
+      } else if (inputDiag.cacheLayer === "disk") {
+        diskHits++;
+      } else if (inputDiag.cacheLayer === "miss") {
+        misses++;
+      }
+
+      if (inputDiag.cacheStored) {
+        stored++;
+      }
+
+      if (inputDiag.cacheReadError) {
+        readErrors++;
+      }
+
+      if (inputDiag.cacheWriteError) {
+        writeErrors++;
+      }
     }
   }
 
@@ -541,6 +569,14 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     totalBytesSaved,
     averageReductionRatio,
     inputsWithOriginalBytes,
+    cache: {
+      memoryHits,
+      diskHits,
+      misses,
+      stored,
+      readErrors,
+      writeErrors
+    },
     mediaResolution: {
       highRequested: mediaResolutionHighRequested,
       mediumRequested: mediaResolutionMediumRequested,

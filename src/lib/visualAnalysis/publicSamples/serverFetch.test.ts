@@ -10,6 +10,26 @@ describe('Public Visual Sample Fetcher', () => {
     assert.equal(result.mimeType, 'image/png');
   });
 
+  it('should verify cache layer and tracking', async () => {
+    const result1 = await fetchPublicSampleImage('sample-receipt-synthetic', 'analysis');
+    assert.equal(result1.cacheLayer, 'miss');
+    assert.ok(result1.cacheKey);
+
+    const result2 = await fetchPublicSampleImage('sample-receipt-synthetic', 'analysis');
+    assert.equal(result2.cacheLayer, 'memory');
+    assert.equal(result2.cacheKey, result1.cacheKey);
+  });
+
+  it('should deduplicate concurrent fetches', async () => {
+    const [p1, p2] = await Promise.all([
+      fetchPublicSampleImage('sample-document-synthetic', 'analysis'),
+      fetchPublicSampleImage('sample-document-synthetic', 'analysis')
+    ]);
+    assert.ok(p1.buffer);
+    assert.ok(p2.buffer);
+    assert.equal(p1.cacheKey, p2.cacheKey);
+  });
+
   it('should throw for unknown sample', async () => {
     try {
       await fetchPublicSampleImage('unknown-id', 'full');

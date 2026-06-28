@@ -11,6 +11,12 @@ export interface PublicSampleInputDiagnostics extends Partial<ImageProcessingDia
   imageVariant?: string;
   analysisSourceUrlKind?: string;
   inputSizeWarning?: string;
+  cacheLayer?: "memory" | "disk" | "miss";
+  cacheKey?: string;
+  cachePolicyVersion?: string;
+  cacheStored?: boolean;
+  cacheReadError?: string;
+  cacheWriteError?: string;
 }
 
 export interface PublicSampleBatchRunItem {

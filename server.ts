@@ -1716,7 +1716,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
             imageVariant: "analysis",
             analysisSourceUrlKind: sourceUrlKind,
             inputSizeWarning,
-            ...inputDiagnostics
+            ...inputDiagnostics,
+            cacheLayer: fetchResult.cacheLayer,
+            cacheKey: fetchResult.cacheKey,
+            cachePolicyVersion: fetchResult.cachePolicyVersion,
+            cacheStored: fetchResult.cacheStored,
+            cacheReadError: fetchResult.cacheReadError,
+            cacheWriteError: fetchResult.cacheWriteError
           }
         });
         return res.status(200).json(failRes);
@@ -1870,7 +1876,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           imageVariant: "analysis",
           analysisSourceUrlKind: sourceUrlKind,
           inputSizeWarning,
-          ...inputDiagnostics
+          ...inputDiagnostics,
+          cacheLayer: fetchResult.cacheLayer,
+          cacheKey: fetchResult.cacheKey,
+          cachePolicyVersion: fetchResult.cachePolicyVersion,
+          cacheStored: fetchResult.cacheStored,
+          cacheReadError: fetchResult.cacheReadError,
+          cacheWriteError: fetchResult.cacheWriteError
         },
         ...(requestPreview ? { requestPreview } : {})
       });
@@ -1927,7 +1939,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           imageVariant: "analysis",
           analysisSourceUrlKind: sourceUrlKind,
           inputSizeWarning,
-          ...inputDiagnostics
+          ...inputDiagnostics,
+          cacheLayer: fetchResult.cacheLayer,
+          cacheKey: fetchResult.cacheKey,
+          cachePolicyVersion: fetchResult.cachePolicyVersion,
+          cacheStored: fetchResult.cacheStored,
+          cacheReadError: fetchResult.cacheReadError,
+          cacheWriteError: fetchResult.cacheWriteError
         }
       };
 
@@ -2090,7 +2108,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         imageVariant: "analysis",
         analysisSourceUrlKind: sourceUrlKind,
         inputSizeWarning,
-        ...inputDiagnostics
+        ...inputDiagnostics,
+        cacheLayer: fetchResult.cacheLayer,
+        cacheKey: fetchResult.cacheKey,
+        cachePolicyVersion: fetchResult.cachePolicyVersion,
+        cacheStored: fetchResult.cacheStored,
+        cacheReadError: fetchResult.cacheReadError,
+        cacheWriteError: fetchResult.cacheWriteError
       }
     };
 
