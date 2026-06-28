@@ -817,27 +817,24 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     onChange={(e) => setModelSelection(e.target.value)}
                     className={`w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 min-w-[220px] h-[38px] ${visualCap.recommendation === 'experimental' ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
                   >
-                    <option value="gemini-3.5-flash|native_schema">Gemini 3.5 Flash (Native Schema - 推奨)</option>
-                    <option value="gemini-3.5-flash|prompt_only">Gemini 3.5 Flash (Prompted JSON - 推奨)</option>
-                    <option value="gemini-flash-latest|native_schema">Gemini Flash Latest (Native Schema)</option>
-                    <option value="gemini-flash-latest|prompt_only">Gemini Flash Latest (Prompted JSON)</option>
-                    <option value="gemini-3.1-flash-lite|native_schema">Gemini 3.1 Flash Lite (Native Schema - 推奨)</option>
-                    <option value="gemini-3.1-flash-lite|prompt_only">Gemini 3.1 Flash Lite (Prompted JSON - 推奨)</option>
-                    <option value="gemini-1.5-pro|native_schema">Gemini 1.5 Pro (Native Schema - 実験的)</option>
-                    <option value="gemini-1.5-pro|prompt_only">Gemini 1.5 Pro (Prompted JSON - 実験的)</option>
-                    <option value="gemma-4-31b-it|prompt_only">Gemma 4 31B IT (Prompted JSON - 非推奨)</option>
-                    <option value="gemma-4-26b-a4b-it|prompt_only">Gemma 4 26B (Prompted JSON - 非推奨)</option>
+                    <option value="gemini-3.5-flash|native_schema">⭐️ ⚡️ Gemini 3.5 Flash</option>
+                    <option value="gemini-3.5-flash|prompt_only">⭐️ 📝 Gemini 3.5 Flash</option>
+                    <option value="gemini-flash-latest|native_schema">⚡️ Gemini Flash Latest</option>
+                    <option value="gemini-flash-latest|prompt_only">📝 Gemini Flash Latest</option>
+                    <option value="gemini-3.1-flash-lite|native_schema">⭐️ ⚡️ Gemini 3.1 Flash Lite</option>
+                    <option value="gemini-3.1-flash-lite|prompt_only">⭐️ 📝 Gemini 3.1 Flash Lite</option>
+                    <option value="gemini-1.5-pro|native_schema">🧪 ⚡️ Gemini 1.5 Pro</option>
+                    <option value="gemini-1.5-pro|prompt_only">🧪 📝 Gemini 1.5 Pro</option>
+                    <option value="gemma-4-31b-it|prompt_only">⚠️ 📝 Gemma 4 31B IT</option>
+                    <option value="gemma-4-26b-a4b-it|prompt_only">⚠️ 📝 Gemma 4 26B</option>
                   </select>
-                  <div className="flex items-center justify-between px-1">
-                    {visualCap.recommendation === 'recommended' ? (
-                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> Recommended
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> Experimental for Vision
-                      </span>
-                    )}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 mt-1 text-[10px] text-slate-500 font-medium">
+                    <span className="flex items-center gap-0.5">⭐️推奨</span>
+                    <span className="flex items-center gap-0.5">🧪実験的</span>
+                    <span className="flex items-center gap-0.5">⚠️非推奨</span>
+                    <span className="w-px h-3 bg-slate-300 mx-0.5"></span>
+                    <span className="flex items-center gap-0.5">⚡️Native</span>
+                    <span className="flex items-center gap-0.5">📝Prompt</span>
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">

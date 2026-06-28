@@ -68,3 +68,8 @@ PR from `automation/sync-main-to-jules-integration` into `jules/integration`.
 - **Auth Safety**: Do NOT store refresh tokens anywhere. Do NOT store Drive access tokens in localStorage. Do NOT log OAuth tokens or API URLs.
 - **File Safety**: Do NOT commit `cache/` contents. Do NOT use real private user documents as fixtures.
 - **Quality Safety**: Always run `npm run lint`, `npm run test:unit`, and `npm run build` before committing. Use latest schema/prompt versions and keep schema changelogs updated.
+
+## 🛠 Local Agent Skills (Workspace Local)
+In addition to the standard system skills, this project defines **workspace-local skills** in the `skills/` directory at the project root.
+- When performing repetitive or complex tasks (e.g., testing local API endpoints or SDK features), check the `skills/` directory for established local conventions and boilerplate scripts.
+- For example, `skills/local-testing/SKILL.md` contains the standard workflow for spinning up standalone TypeScript testing scripts (like `test-analyze.ts`) to verify `server.ts` endpoints or Gemini models.
