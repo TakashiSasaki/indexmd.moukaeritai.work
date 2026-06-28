@@ -1,11 +1,20 @@
 import { getPublicSampleById } from './registry';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as https from 'https';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const ALLOWED_HOSTS = [
   "upload.wikimedia.org",
   "commons.wikimedia.org"
 ];
+
+const PROXY_URL = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+const proxyAgent = PROXY_URL ? new HttpsProxyAgent(PROXY_URL) : undefined;
+
+if (proxyAgent) {
+  console.log(`[serverFetch] Proxy detected and configured: ${PROXY_URL}`);
+}
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_REDIRECTS = 3;
@@ -17,7 +26,7 @@ export interface FetchSampleResult {
 }
 
 const inMemoryCache = new Map<string, FetchSampleResult>();
-const CACHE_DIR = path.join('/tmp', 'indexmd_sample_cache');
+const CACHE_DIR = path.join(process.cwd(), 'cache', 'public_samples');
 
 // Ensure cache directory exists
 try {
@@ -82,9 +91,18 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     throw new Error(`Sample not found: ${sampleId}`);
   }
 
-  const urlToFetch = variant === "thumbnail" ? (sample.source.thumbnailUrl || sample.source.imageUrl) : sample.source.imageUrl;
+  let urlToFetch = variant === "thumbnail" ? (sample.source.thumbnailUrl || sample.source.imageUrl) : sample.source.imageUrl;
   if (!urlToFetch) {
     throw new Error(`No image URL available for variant: ${variant}`);
+  }
+
+  // Rewrite Wikimedia 640px restricted thumbnails to standard sizes (120px for thumbnail, 500px for preview)
+  if (urlToFetch.includes('upload.wikimedia.org') && urlToFetch.includes('/640px-')) {
+    if (variant === "thumbnail") {
+      urlToFetch = urlToFetch.replace('/640px-', '/120px-');
+    } else if (variant === "preview") {
+      urlToFetch = urlToFetch.replace('/640px-', '/500px-');
+    }
   }
 
   // Handle local synthetic fixtures
@@ -113,7 +131,17 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     return result;
   }
 
-  const result = await fetchExternalImage(urlToFetch, 0);
+  let result: FetchSampleResult;
+  try {
+    result = await fetchExternalImage(urlToFetch, 0);
+  } catch (err: any) {
+    if (variant !== "full" && urlToFetch !== sample.source.imageUrl && sample.source.imageUrl) {
+      console.warn(`[serverFetch] Failed to fetch variant ${variant} from ${urlToFetch}. Falling back to original imageUrl: ${sample.source.imageUrl}`, err);
+      result = await fetchExternalImage(sample.source.imageUrl, 0);
+    } else {
+      throw err;
+    }
+  }
 
   // 3. Populate Caches
   inMemoryCache.set(cacheKey, result);
@@ -147,73 +175,111 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
   let lastStatus = 0;
 
   for (let i = 0; i < retries; i++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
     try {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'indexmd-image-experiment/1.2 (takashi316@gmail.com; https://github.com/takashi316/indexmd)',
-          'Accept': 'image/*'
-        },
-        redirect: 'manual', // handle redirect manually to check host
-        signal: controller.signal as any
+      const result = await new Promise<FetchSampleResult>((resolve, reject) => {
+        const options: https.RequestOptions = {
+          protocol: parsedUrl.protocol,
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port || undefined,
+          path: parsedUrl.pathname + parsedUrl.search,
+          method: 'GET',
+          headers: {
+            'User-Agent': 'IndexMDImageExperiment/1.2 (takashi316@gmail.com)',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Host': parsedUrl.hostname
+          },
+          timeout: FETCH_TIMEOUT_MS,
+          ...(proxyAgent ? { agent: proxyAgent } : {})
+        };
+
+        const req = https.get(options, (res) => {
+          lastStatus = res.statusCode || 0;
+
+          // Handle Redirects
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            const location = res.headers.location;
+            const nextUrl = new URL(location, url).toString();
+            resolve(fetchExternalImage(nextUrl, redirectCount + 1));
+            return;
+          }
+
+          // Handle 429 Rate Limit
+          if (res.statusCode === 429) {
+            const err: any = new Error('Rate limit');
+            err.status = 429;
+            reject(err);
+            return;
+          }
+
+          // Handle other errors
+          if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+            let body = '';
+            res.on('data', (chunk) => { body += chunk; });
+            res.on('end', () => {
+              console.warn(`[serverFetch] Request to ${url} failed with status: ${res.statusCode}. Headers:`, JSON.stringify(res.headers), `Body:`, body);
+              const err: any = new Error(`Fetch failed with status: ${res.statusCode}`);
+              if (res.statusCode && res.statusCode >= 400 && res.statusCode < 500 && res.statusCode !== 429) {
+                err.noRetry = true;
+              }
+              reject(err);
+            });
+            return;
+          }
+
+          const contentType = res.headers['content-type'];
+          if (!contentType || !contentType.startsWith('image/')) {
+            const err: any = new Error(`Invalid content type: ${contentType}`);
+            err.noRetry = true;
+            reject(err);
+            return;
+          }
+
+          const contentLength = res.headers['content-length'];
+          if (contentLength && parseInt(contentLength, 10) > MAX_IMAGE_SIZE_BYTES) {
+            const err: any = new Error('Image too large');
+            err.noRetry = true;
+            reject(err);
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          let downloadedBytes = 0;
+
+          res.on('data', (chunk: Buffer) => {
+            downloadedBytes += chunk.length;
+            if (downloadedBytes > MAX_IMAGE_SIZE_BYTES) {
+              req.destroy(new Error('Image too large'));
+              return;
+            }
+            chunks.push(chunk);
+          });
+
+          res.on('end', () => {
+            const buffer = Buffer.concat(chunks);
+            resolve({
+              buffer,
+              mimeType: contentType
+            });
+          });
+        });
+
+        req.on('error', (err) => {
+          reject(err);
+        });
+
+        req.on('timeout', () => {
+          req.destroy(new Error('Request timeout'));
+        });
       });
 
-      lastStatus = res.status;
+      return result;
 
-      if (res.status === 429) {
+    } catch (err: any) {
+      if (err.status === 429) {
         console.warn(`[serverFetch] Wikimedia rate-limit (429) for ${url}. Retrying in ${delayMs}ms... (Attempt ${i + 1}/${retries})`);
-        clearTimeout(timeout);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         delayMs *= 2;
         continue;
-      }
-
-      if (res.status >= 300 && res.status < 400 && res.headers.has('location')) {
-        clearTimeout(timeout);
-        const location = res.headers.get('location');
-        if (!location) throw new Error('Redirect with no location');
-
-        const nextUrl = new URL(location, url).toString();
-        return fetchExternalImage(nextUrl, redirectCount + 1);
-      }
-
-      if (!res.ok) {
-        if (res.status === 404 || res.status === 403 || res.status === 401) {
-          const err: any = new Error(`Fetch failed with status: ${res.status}`);
-          err.noRetry = true;
-          throw err;
-        }
-        throw new Error(`Fetch failed with status: ${res.status}`);
-      }
-
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.startsWith('image/')) {
-        throw new Error(`Invalid content type: ${contentType}`);
-      }
-
-      const contentLength = res.headers.get('content-length');
-      if (contentLength && parseInt(contentLength, 10) > MAX_IMAGE_SIZE_BYTES) {
-        throw new Error('Image too large');
-      }
-
-      const arrayBuffer = await res.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
-        throw new Error('Image too large after download');
-      }
-
-      return {
-        buffer,
-        mimeType: contentType
-      };
-
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.warn(`[serverFetch] Request timed out for ${url}.`);
       }
       if (i === retries - 1 || err.noRetry) {
         throw err;
@@ -221,8 +287,6 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
       console.warn(`[serverFetch] Network/Fetch error for ${url}. Retrying in ${delayMs}ms...`, err.message);
       await new Promise(resolve => setTimeout(resolve, delayMs));
       delayMs *= 2;
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

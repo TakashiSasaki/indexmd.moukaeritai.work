@@ -116,10 +116,54 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [selectedSampleId, setSelectedSampleId] = useState<string>(() => {
     return localStorage.getItem("image_experiment_selected_sample_id") || "";
   });
-  const [categoryFilter, setCategoryFilter] = useState<string>(() => {
-    return localStorage.getItem("image_experiment_category_filter") || "all";
-  });
   const [isLoadingSamples, setIsLoadingSamples] = useState(false);
+
+  // Checked public sample IDs for customized batch runs
+  const [selectedSampleIds, setSelectedSampleIds] = useState<Record<string, boolean>>({});
+
+  // Dynamic success/failure status of public samples
+  const [sampleStatuses, setSampleStatuses] = useState<Record<string, "success" | "failure" | null>>(() => {
+    try {
+      const saved = localStorage.getItem("image_experiment_sample_statuses");
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Persist sample statuses in localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem("image_experiment_sample_statuses", JSON.stringify(sampleStatuses));
+  }, [sampleStatuses]);
+
+  // Bulk action handlers for public samples selection
+  const handleSelectAllSamples = () => {
+    const updated: Record<string, boolean> = {};
+    samples.forEach(s => {
+      updated[s.id] = true;
+    });
+    setSelectedSampleIds(updated);
+  };
+
+  const handleDeselectAllSamples = () => {
+    const updated: Record<string, boolean> = {};
+    samples.forEach(s => {
+      updated[s.id] = false;
+    });
+    setSelectedSampleIds(updated);
+  };
+
+  const handleSelectNonSuccessfulSamples = () => {
+    const updated: Record<string, boolean> = {};
+    samples.forEach(s => {
+      updated[s.id] = sampleStatuses[s.id] !== "success";
+    });
+    setSelectedSampleIds(updated);
+  };
+
+  const handleClearSampleStatuses = () => {
+    setSampleStatuses({});
+  };
 
   // Shared state
   const [loading, setLoading] = useState(false);
@@ -306,10 +350,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   }, [selectedSampleId]);
 
   useEffect(() => {
-    localStorage.setItem("image_experiment_category_filter", categoryFilter);
-  }, [categoryFilter]);
-
-  useEffect(() => {
     localStorage.setItem("image_experiment_model_name", modelName);
   }, [modelName]);
 
@@ -326,16 +366,20 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           } else if (data.length > 0 && !selectedSampleId) {
             setSelectedSampleId(data[0].id);
           }
+
+          // Initialize checkboxes to all true by default
+          const initialSelected: Record<string, boolean> = {};
+          data.forEach((s: any) => {
+            initialSelected[s.id] = true;
+          });
+          setSelectedSampleIds(initialSelected);
         })
         .catch(err => onAddLog("error", "Failed to fetch public samples", err.message))
         .finally(() => setIsLoadingSamples(false));
     }
   }, [mode, samples.length, onAddLog, selectedSampleId]);
 
-  const filteredSamples = samples.filter(s => {
-    if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
-    return true;
-  });
+  const filteredSamples = samples;
 
   useEffect(() => {
     if (mode === "public" && samples.length > 0) {
@@ -451,24 +495,32 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       if (!res.ok) {
         onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
         saveDebugLog("public", payload, data, false, data.error || "Failed to analyze public sample");
+        setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
       } else {
         onAddLog(data.success ? "success" : "warn", `[Image Analysis] Complete for sample ${selectedSampleId}`);
         saveDebugLog("public", payload, data, data.success);
+        setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: data.success ? "success" : "failure" }));
       }
     } catch (err: any) {
       onAddLog("error", `[Image Analysis] Error: ${err.message}`);
       saveDebugLog("public", payload, null, false, err.message);
+      setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
     } finally {
       setLoading(false);
     }
   };
 
   const handleRunBatch = async () => {
-    if (samples.length === 0) return;
+    const targetSamples = samples.filter(s => selectedSampleIds[s.id]);
+    if (targetSamples.length === 0) {
+      onAddLog("warn", "実行対象のサンプルが選択されていません。");
+      alert("実行対象のサンプルが選択されていません。チェックボックスで選択してください。");
+      return;
+    }
+
     setIsBatchRunning(true);
     setBatchSummary(null);
     setResult(null); // Clear single result
-    const targetSamples = samples;
     const total = targetSamples.length;
     setBatchProgress({ current: 0, total });
 
@@ -484,6 +536,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     let reviewPassCount = 0;
     let reviewNeedsReviewCount = 0;
     let reviewFailCount = 0;
+
+    const newStatuses = { ...sampleStatuses };
 
     for (let i = 0; i < total; i++) {
         const sample = targetSamples[i];
@@ -527,6 +581,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
             if (data.success) {
                 successCount++;
+                newStatuses[sample.id] = "success";
                 if (data.qualityStatus === 'valid') validCount++;
                 if (data.qualityStatus === 'validLowQuality') validLowQualityCount++;
                 
@@ -544,6 +599,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             } else {
                 failureCount++;
                 reviewFailCount++;
+                newStatuses[sample.id] = "failure";
                 if (data.failureKind === 'jsonParseError' || (data.parseDiagnostics && !data.parseDiagnostics.success && data.parseDiagnostics.attempts)) {
                     invalidJsonCount++;
                 }
@@ -552,6 +608,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         } catch (e: any) {
             failureCount++;
             reviewFailCount++;
+            newStatuses[sample.id] = "failure";
             items.push({
                sampleId: sample.id,
                title: sample.title,
@@ -559,6 +616,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                error: e.message
             });
         }
+        setSampleStatuses({ ...newStatuses });
     }
 
     const summary: PublicSampleBatchRunSummary = {
@@ -625,6 +683,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     setIsBatchRunning(false);
     setBatchProgress(null);
     onAddLog("success", `Batch regression complete for ${total} samples.`);
+
+    // If exactly 1 sample was processed in this subset run, also set single result so the user can see detail tabs immediately
+    if (total === 1 && items[0].responseRaw) {
+      setResult(items[0].responseRaw);
+    }
   };
 
   return (
@@ -658,7 +721,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         <div className="p-5">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left side: Inputs */}
-            <div className="lg:col-span-8 space-y-4">
+            <div className="lg:col-span-12 space-y-4">
               {mode === "drive" ? (
                 <div className="flex flex-col gap-4">
                   <div className="space-y-1 w-full">
@@ -691,39 +754,134 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Category (for single run)</label>
-                      <select
-                        value={categoryFilter}
-                        onChange={e => setCategoryFilter(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                      >
-                        <option value="all">All Categories</option>
-                        {Array.from(new Set(samples.map(s => s.category))).map(cat => (
-                          <option key={cat as string} value={cat as string}>{cat as string}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  {/* Quick Selection Actions & Thumbnail Grid Panel */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div>
+                        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                          サンプル画像選択パネル (Public Sample Panel)
+                        </h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          チェックボックスで解析対象のサンプルを選択し、解析を実行してください。
+                        </p>
+                      </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-slate-700">Sample</label>
+                      <div className="flex flex-wrap gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllSamples}
+                          className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-bold shadow-sm transition-colors"
+                        >
+                          全選択
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeselectAllSamples}
+                          className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-bold shadow-sm transition-colors"
+                        >
+                          全解除
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSelectNonSuccessfulSamples}
+                          className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-bold shadow-sm transition-colors"
+                          title="まだ成功していない、または失敗したサンプルのみを選択します"
+                        >
+                          未成功のみ選択
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearSampleStatuses}
+                          disabled={Object.keys(sampleStatuses).length === 0}
+                          className="px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent rounded text-[10px] font-bold transition-colors flex items-center gap-1 border border-transparent"
+                          title="サンプルの実行成功・失敗インジケーターをクリアします"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> インジケータークリア
+                        </button>
+                      </div>
                     </div>
+
                     {filteredSamples.length > 0 ? (
-                      <select
-                        value={selectedSampleId}
-                        onChange={e => setSelectedSampleId(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                      >
-                        {filteredSamples.map(s => (
-                          <option key={s.id} value={s.id}>{s.title} ({s.category})</option>
-                        ))}
-                      </select>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-1.5 max-h-none overflow-visible pr-0">
+                        {filteredSamples.map((s) => {
+                          const isChecked = !!selectedSampleIds[s.id];
+                          const isHighlighted = selectedSampleId === s.id;
+                          const runStatus = sampleStatuses[s.id];
+                          const thumbUrl = s.thumbnailRoute || s.source?.thumbnailUrl || s.source?.imageUrl;
+
+                          return (
+                            <div
+                              key={s.id}
+                              onClick={() => {
+                                setSelectedSampleId(s.id);
+                                localStorage.setItem("image_experiment_selected_sample_id", s.id);
+                              }}
+                              className={`group relative flex items-center gap-2 p-1.5 rounded-lg border text-left cursor-pointer transition-all select-none ${
+                                isHighlighted
+                                  ? "bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-300/30"
+                                  : "bg-white border-slate-200 hover:border-indigo-200 hover:bg-slate-50/50"
+                              }`}
+                            >
+                              {/* Checkbox */}
+                              <div className="shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    setSelectedSampleIds((prev) => ({
+                                      ...prev,
+                                      [s.id]: e.target.checked,
+                                    }));
+                                  }}
+                                  className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                />
+                              </div>
+
+                              {/* Thumbnail */}
+                              <div className="w-8 h-8 rounded overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative flex items-center justify-center">
+                                {thumbUrl ? (
+                                  <img
+                                    src={thumbUrl}
+                                    alt={s.title}
+                                    referrerPolicy="no-referrer"
+                                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                  />
+                                ) : (
+                                  <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                                )}
+                              </div>
+
+                              {/* Text info */}
+                              <div className="min-w-0 flex-1 flex flex-col justify-center">
+                                <span className={`font-bold leading-tight truncate text-[10.5px] block ${
+                                  isHighlighted ? "text-indigo-900" : "text-slate-700"
+                                }`} title={s.title}>
+                                  {s.title}
+                                </span>
+                                <span className="text-[8.5px] text-slate-400 font-medium truncate block capitalize leading-none mt-0.5">
+                                  {s.category}
+                                </span>
+                              </div>
+
+                              {/* Overlaid status badge or indicators */}
+                              <div className="absolute top-1 right-1 flex gap-0.5 items-center">
+                                {runStatus === "success" && (
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white shadow-sm" title="成功" />
+                                )}
+                                {runStatus === "failure" && (
+                                  <span className="w-2 h-2 rounded-full bg-red-500 ring-1 ring-white shadow-sm" title="失敗" />
+                                )}
+                                {isHighlighted && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 ring-1 ring-white" title="表示中" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     ) : (
-                      <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 italic">
-                        No samples match the selected filters.
+                      <div className="w-full px-3 py-6 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-400 italic text-center">
+                        サンプルがありません。
                       </div>
                     )}
                   </div>
@@ -761,8 +919,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5 h-[38px] px-2 relative">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                  <div className="flex items-center gap-1.5 h-auto sm:h-[38px] py-1 sm:py-0 px-2 relative">
                     <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
                       <input 
                         type="checkbox" 
@@ -788,7 +946,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     </button>
 
                     {showPreviewHelp && (
-                      <div className="absolute top-full right-0 mt-1.5 w-64 bg-slate-800 text-white text-[11px] p-3 rounded-lg shadow-xl z-[99] leading-relaxed border border-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <div className="absolute top-full left-0 sm:right-0 sm:left-auto mt-1.5 w-64 bg-slate-800 text-white text-[11px] p-3 rounded-lg shadow-xl z-[99] leading-relaxed border border-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
                         <div className="flex justify-between items-start mb-1 font-bold text-slate-200">
                           <span>リクエストプレビューとは</span>
                           <button
@@ -809,7 +967,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 h-[38px] px-2 relative">
+                  <div className="flex items-center gap-1.5 h-auto sm:h-[38px] py-1 sm:py-0 px-2 relative">
                     <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap" title="Useful for prompted JSON models. Off by default so raw model stability can be evaluated.">
                       <input 
                         type="checkbox" 
@@ -824,56 +982,33 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
-                  {mode === "public" && (
+                  {mode === "public" ? (
                     <button
                       onClick={handleRunBatch}
                       disabled={isBatchRunning || samples.length === 0 || loading}
-                      className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold hover:bg-indigo-200 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap"
+                      className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
                     >
-                      {isBatchRunning ? <><Activity className="w-4 h-4 animate-pulse" /> 全件解析中 ({batchProgress?.current}/{batchProgress?.total})</> : <><Activity className="w-4 h-4" /> 全件解析 (Batch)</>}
+                      {isBatchRunning ? (
+                        <>
+                          <Activity className="w-4 h-4 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
+                        </>
+                      ) : (
+                        <>
+                          <Activity className="w-4 h-4" /> 選択サンプルの解析実行 (Run Selected)
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleAnalyzeDrive}
+                      disabled={loading || !fileId.trim()}
+                      className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
+                    >
+                      {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                      {loading ? "解析中..." : "解析実行"}
                     </button>
                   )}
-                  <button
-                    onClick={mode === "drive" ? handleAnalyzeDrive : handleAnalyzePublic}
-                    disabled={mode === "drive" ? loading || !fileId.trim() : loading || !selectedSampleId || isLoadingSamples || isBatchRunning}
-                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap"
-                  >
-                    {loading && !isBatchRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                    {loading && !isBatchRunning ? "解析中..." : "解析実行"}
-                  </button>
                 </div>
-              </div>
-            </div>
-
-            {/* Right side: Real-time pre-analysis preview */}
-            <div className="lg:col-span-4 flex flex-col justify-start">
-              <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block ml-1">
-                選択中の画像プレビュー (Selected Preview)
-              </label>
-              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 flex flex-col items-center justify-center min-h-[180px] h-full overflow-hidden">
-                {mode === "drive" ? (
-                  debouncedFileId ? (
-                    <div className="w-full flex justify-center max-h-48 overflow-hidden rounded-lg">
-                      <ImagePreview fileId={debouncedFileId} token={token} />
-                    </div>
-                  ) : (
-                    <div className="text-center text-slate-400 p-4 space-y-2">
-                      <ImageIcon className="w-8 h-8 mx-auto text-slate-300" />
-                      <p className="text-xs">DriveのファイルIDを入力するとプレビューが表示されます</p>
-                    </div>
-                  )
-                ) : (
-                  selectedSampleId ? (
-                    <div className="w-full">
-                      <PublicSamplePreview sampleId={selectedSampleId} />
-                    </div>
-                  ) : (
-                    <div className="text-center text-slate-400 p-4 space-y-2">
-                      <ImageIcon className="w-8 h-8 mx-auto text-slate-300" />
-                      <p className="text-xs">サンプル画像を選択してください</p>
-                    </div>
-                  )
-                )}
               </div>
             </div>
           </div>

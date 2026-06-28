@@ -1140,7 +1140,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
       {/* View Mode Tabs */}
       {/* Mobile Tab Selector */}
-      <div className="sm:hidden sticky top-14 bg-white/95 backdrop-blur-md z-40 py-2.5 px-4 -mx-4 border-b border-slate-200/80 shadow-xs" id="tabs-navigation-mobile">
+      <div className="sm:hidden sticky top-14 bg-white/95 backdrop-blur-md z-40 py-2.5 px-4 border-b border-slate-200/80 shadow-xs" id="tabs-navigation-mobile">
         <select
           id="mobile-tab-select"
           value={activeTab}
