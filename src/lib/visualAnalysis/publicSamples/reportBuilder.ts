@@ -438,6 +438,7 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let diskHits = 0;
   let misses = 0;
   let stored = 0;
+  let sharedInFlight = 0;
   let readErrors = 0;
   let writeErrors = 0;
 
@@ -527,6 +528,10 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
         stored++;
       }
 
+      if (inputDiag.cacheSharedInFlight) {
+        sharedInFlight++;
+      }
+
       if (inputDiag.cacheReadError) {
         readErrors++;
       }
@@ -574,6 +579,7 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       diskHits,
       misses,
       stored,
+      sharedInFlight,
       readErrors,
       writeErrors
     },

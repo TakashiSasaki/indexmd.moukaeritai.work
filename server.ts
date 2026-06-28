@@ -1722,7 +1722,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
             cachePolicyVersion: fetchResult.cachePolicyVersion,
             cacheStored: fetchResult.cacheStored,
             cacheReadError: fetchResult.cacheReadError,
-            cacheWriteError: fetchResult.cacheWriteError
+            cacheWriteError: fetchResult.cacheWriteError,
+            cacheSharedInFlight: fetchResult.cacheSharedInFlight
           }
         });
         return res.status(200).json(failRes);
@@ -1882,7 +1883,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           cachePolicyVersion: fetchResult.cachePolicyVersion,
           cacheStored: fetchResult.cacheStored,
           cacheReadError: fetchResult.cacheReadError,
-          cacheWriteError: fetchResult.cacheWriteError
+          cacheWriteError: fetchResult.cacheWriteError,
+          cacheSharedInFlight: fetchResult.cacheSharedInFlight
         },
         ...(requestPreview ? { requestPreview } : {})
       });
@@ -1945,7 +1947,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           cachePolicyVersion: fetchResult.cachePolicyVersion,
           cacheStored: fetchResult.cacheStored,
           cacheReadError: fetchResult.cacheReadError,
-          cacheWriteError: fetchResult.cacheWriteError
+          cacheWriteError: fetchResult.cacheWriteError,
+          cacheSharedInFlight: fetchResult.cacheSharedInFlight
         }
       };
 
@@ -2114,7 +2117,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         cachePolicyVersion: fetchResult.cachePolicyVersion,
         cacheStored: fetchResult.cacheStored,
         cacheReadError: fetchResult.cacheReadError,
-        cacheWriteError: fetchResult.cacheWriteError
+        cacheWriteError: fetchResult.cacheWriteError,
+        cacheSharedInFlight: fetchResult.cacheSharedInFlight
       }
     };
 

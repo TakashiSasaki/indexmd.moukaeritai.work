@@ -28,6 +28,9 @@ describe('Public Visual Sample Fetcher', () => {
     assert.ok(p1.buffer);
     assert.ok(p2.buffer);
     assert.equal(p1.cacheKey, p2.cacheKey);
+    // At least one of them should be marked as shared in flight
+    const sharedCount = [p1, p2].filter(p => p.cacheSharedInFlight).length;
+    assert.equal(sharedCount, 1);
   });
 
   it('should throw for unknown sample', async () => {

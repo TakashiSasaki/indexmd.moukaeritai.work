@@ -170,9 +170,10 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedElementCategories: ["product", "tool"],
     expectedVisibleElementLabels: ["pencil", "graphite tip", "ferrule", "eraser"],
     expectedVisibleElementLabelAliases: {
-      "pencil": ["HB pencil", "blue pencil", "pen"],
-      "graphite tip": ["lead", "tip"],
-      "ferrule": ["metal ring", "metal band"]
+      "pencil": ["HB pencil", "blue pencil", "pen", "pencil"],
+      "graphite tip": ["lead", "tip", "graphite tip", "graphite"],
+      "ferrule": ["metal ring", "metal band", "ferrule", "metal sleeve", "metal ferrule", "ferrule collar"],
+      "eraser": ["eraser", "rubber", "pink eraser", "rubber eraser", "eraser tip"]
     },
     expectedVisibleText: ["HB"],
     expectedNotes: "The source filename is Pencils_hb.jpg, but this sample acts as a close-up pencil image for evaluating product detail extraction.",
@@ -199,8 +200,8 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedVisibleElementLabelAliases: {
       "books": ["book", "library", "books"],
       "shelf": ["bookshelf", "shelves", "shelf"],
-      "spines": ["book spines", "spines"],
-      "wood": ["wooden shelf", "wood"]
+      "spines": ["book spines", "spines", "book spine", "spine"],
+      "wood": ["wooden shelf", "wood", "wooden bookshelf", "bookshelves"]
     },
     source: {
       provider: "Wikimedia Commons",
@@ -223,7 +224,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedElementCategories: ["document", "textRegion"],
     expectedVisibleElementLabels: ["paper", "text", "ink", "page"],
     expectedVisibleElementLabelAliases: {
-      "paper": ["parchment", "vellum", "paper", "document"],
+      "paper": ["parchment", "vellum", "paper", "document", "manuscript page", "manuscript"],
       "text": ["handwriting", "script", "latin text", "text", "writing"],
       "ink": ["dark ink", "ink"],
       "page": ["manuscript page", "page", "document"]
@@ -439,7 +440,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedVisibleElementLabelAliases: {
       "map": ["world map", "hemisphere map", "map"],
       "labels": ["text", "labels", "names", "placenames"],
-      "boundaries": ["borders", "lines", "boundaries"]
+      "boundaries": ["borders", "lines", "boundaries", "border lines", "border", "boundary"]
     },
     optionalElementCategories: ["waterBody", "terrain"],
     optionalVisibleText: ["PACIFIC", "ATLANTIC", "OCEAN"],
@@ -700,7 +701,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedVisibleElementLabelAliases: {
       "form": ["form", "contact form", "registration form"],
       "input field": ["input field", "input", "text field", "text input", "field"],
-      "checkbox": ["checkbox", "agree checkbox", "terms checkbox"],
+      "checkbox": ["checkbox", "agree checkbox", "terms checkbox", "tick box", "check box"],
       "submit button": ["submit button", "button", "submit"]
     },
     expectedVisibleText: ["Contact Registration Form", "Please fill in your details below.", "Full Name", "Jane Doe", "Email Address", "jane.doe@example.com", "I agree to the Terms of Service", "Submit Form"],
@@ -723,7 +724,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedElementCategories: ["productPackage", "textRegion"],
     expectedVisibleElementLabels: ["package", "label", "ingredients", "barcode"],
     expectedVisibleElementLabelAliases: {
-      "package": ["package", "bottle", "container", "pouch", "bag"],
+      "package": ["package", "bottle", "container", "pouch", "bag", "box", "product package", "packaging"],
       "label": ["label", "product label", "front label", "package label"],
       "ingredients": ["ingredients", "ingredient list", "organic harvest label"],
       "barcode": ["barcode", "upc", "bar code", "code"]

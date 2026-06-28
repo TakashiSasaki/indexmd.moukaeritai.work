@@ -17,6 +17,7 @@ export interface PublicSampleInputDiagnostics extends Partial<ImageProcessingDia
   cacheStored?: boolean;
   cacheReadError?: string;
   cacheWriteError?: string;
+  cacheSharedInFlight?: boolean;
 }
 
 export interface PublicSampleBatchRunItem {

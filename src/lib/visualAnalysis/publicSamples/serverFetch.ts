@@ -32,6 +32,7 @@ export interface FetchSampleResult {
   cacheStored?: boolean;
   cacheReadError?: string;
   cacheWriteError?: string;
+  cacheSharedInFlight?: boolean;
 }
 
 const inMemoryCache = new Map<string, FetchSampleResult>();
@@ -146,7 +147,7 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
       const res = await inFlightFetches.get(cacheKey)!;
       return {
         ...res,
-        cacheLayer: "disk", // or memory, but since it was in-flight and completed, mark it nicely
+        cacheSharedInFlight: true,
       };
     } catch (err) {
       // If the in-flight failed, let this fetch try again or throw
