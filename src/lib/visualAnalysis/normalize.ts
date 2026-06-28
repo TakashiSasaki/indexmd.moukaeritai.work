@@ -120,15 +120,38 @@ export function normalizeVisualAnalysis(result: any): any {
         let stateContext = undefined;
         if (el.stateContext && typeof el.stateContext === 'object') {
           const st = el.stateContext;
+          let description = st.description ? trimStr(st.description) : "";
+          
+          const processEnum = (val: any, validValues: readonly string[], fieldName: string) => {
+            if (!val || typeof val !== 'string') return undefined;
+            if (validValues.includes(val as any)) return val;
+            const trimmed = trimStr(val);
+            if (trimmed && trimmed !== 'unknown') {
+              if (description) {
+                description += `; ${fieldName}: ${trimmed}`;
+              } else {
+                description = `${fieldName}: ${trimmed}`;
+              }
+            }
+            return undefined; // Or "unknown", but undefined is cleaner if it's invalid
+          };
+
+          const containment = processEnum(st.containment, STATE_CONTEXT_CONTAINMENTS, 'containment');
+          const exposure = processEnum(st.exposure, STATE_CONTEXT_EXPOSURES, 'exposure');
+          const placement = processEnum(st.placement, STATE_CONTEXT_PLACEMENTS, 'placement');
+          const usage = processEnum(st.usage, STATE_CONTEXT_USAGES, 'usage');
+          const interaction = processEnum(st.interaction, STATE_CONTEXT_INTERACTIONS, 'interaction');
+          const condition = processEnum(st.condition, STATE_CONTEXT_CONDITIONS, 'condition');
+
           stateContext = {
-            containment: st.containment ? (STATE_CONTEXT_CONTAINMENTS.includes(st.containment) ? st.containment : "unknown") : undefined,
-            exposure: st.exposure ? (STATE_CONTEXT_EXPOSURES.includes(st.exposure) ? st.exposure : "unknown") : undefined,
-            placement: st.placement ? (STATE_CONTEXT_PLACEMENTS.includes(st.placement) ? st.placement : "unknown") : undefined,
-            usage: st.usage ? (STATE_CONTEXT_USAGES.includes(st.usage) ? st.usage : "unknown") : undefined,
-            interaction: st.interaction ? (STATE_CONTEXT_INTERACTIONS.includes(st.interaction) ? st.interaction : "unknown") : undefined,
-            condition: st.condition ? (STATE_CONTEXT_CONDITIONS.includes(st.condition) ? st.condition : "unknown") : undefined,
+            containment,
+            exposure,
+            placement,
+            usage,
+            interaction,
+            condition,
             role: st.role ? trimStr(st.role) || undefined : undefined,
-            description: st.description ? trimStr(st.description) || undefined : undefined,
+            description: description || undefined,
             confidence: typeof st.confidence === 'number' ? clamp(st.confidence) : undefined
           };
           
@@ -165,14 +188,19 @@ export function normalizeVisualAnalysis(result: any): any {
 
     if (Array.isArray(vi.visibleText)) {
       vi.visibleText = vi.visibleText.map((txt: any) => {
-        if (!txt || typeof txt !== 'object') return null;
+        if (!txt) return null;
+        if (typeof txt === 'string') {
+          const text = trimStr(txt);
+          return text ? { text, confidence: 1 } : null;
+        }
+        if (typeof txt !== 'object') return null;
         return {
           text: trimStr(txt.text),
-          confidence: clamp(txt.confidence),
+          confidence: typeof txt.confidence === 'number' ? clamp(txt.confidence) : 1,
           locationHint: trimStr(txt.locationHint) || undefined,
           language: trimStr(txt.language) || undefined
         };
-      }).filter((txt: any) => txt !== null && (txt.text.length > 0 || txt.confidence > 0));
+      }).filter((txt: any) => txt !== null && txt.text.length > 0);
     } else {
       vi.visibleText = [];
     }

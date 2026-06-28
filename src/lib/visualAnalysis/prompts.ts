@@ -1,7 +1,7 @@
 import { IMAGE_KINDS, VISIBLE_ELEMENT_CATEGORIES } from './vocabularies';
 
-export const VISUAL_ANALYSIS_PROMPT_VERSION = "visual-analysis-prompt.v0.2.1-rc.1";
-export const VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION = "visual-analysis-system.v0.2.1-rc.1";
+export const VISUAL_ANALYSIS_PROMPT_VERSION = "visual-analysis-prompt.v0.2.2-rc.1";
+export const VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION = "visual-analysis-system.v0.2.2-rc.1";
 
 export function buildVisualAnalysisSystemInstruction(): string {
   return `You are an expert visual indexing and metadata extraction assistant.
@@ -60,12 +60,18 @@ You MUST output ONLY a valid JSON object.
 Root keys must be:
 - "schemaVersion": "visual-analysis.v0.2.0-draft.1"
 - "summary": { "caption": "string", "description": "string" }
-- "visualInfo": { "imageKind": "string", "imageKindConfidence": number, "sceneDescription": "string", "sceneContext": { "environment": "indoor|outdoor|unknown", "lighting": "string" }, "visibleElements": [{ "label": "string", "category": "string", "confidence": number, "attributes": ["string"], "stateContext": { "placement": "string", "usage": "string" } }], "visibleText": [...], "uncertainties": ["string"] }
+- "visualInfo": { "imageKind": "string", "imageKindConfidence": number, "sceneDescription": "string", "sceneContext": { "environment": "indoor|outdoor|unknown", "lighting": "string" }, "visibleElements": [{ "label": "string", "category": "string", "confidence": number, "attributes": ["string"], "stateContext": { "placement": "onSurface", "usage": "storedNotInUse", "description": "string", "confidence": 0.9 } }], "visibleText": [{ "text": "HB", "confidence": 0.95, "locationHint": "pencil end cap", "language": "en" }], "uncertainties": ["string"] }
 - "indexing": { "keywords": [{ "value": "string", "confidence": number, "importance": number }] }
 - "quality": { "confidence": number, "issues": ["string"] }
 
 "sceneContext" is optional; omit it for isolated product photos, screenshots, scans, close-up documents, or images with no visible surrounding environment.
 "stateContext" is optional; include it only when containment/placement/usage/condition/interaction is visually supported.
+For "stateContext", the following enum values are allowed:
+- placement: "onSurface", "hanging", "stacked", "mounted", "shelved", "stored", "scattered", "discarded", "unknown"
+- usage: "inUse", "readyToUse", "displayOnly", "storedNotInUse", "abandoned", "partOfActivity", "unknown"
+- interaction: "heldByPerson", "usedByPerson", "wornByPerson", "unattended", "insideContainer", "onSurface", "nearOtherObjects", "unknown"
+- condition: "dry", "wet", "clean", "dirty", "damaged", "intact", "open", "closed", "unknown"
+Free text details about state MUST be placed in "description".
 
 "imageKind" MUST be one of: ${IMAGE_KINDS.join(", ")}.
 "visibleElements[].category" MUST be one of: ${VISIBLE_ELEMENT_CATEGORIES.join(", ")}.

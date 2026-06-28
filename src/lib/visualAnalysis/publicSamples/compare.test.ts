@@ -1,4 +1,5 @@
-import { describe, it, assert } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
 import { PublicVisualSample } from './types';
 import { 
   compareExpectedImageKind, 

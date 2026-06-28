@@ -159,4 +159,72 @@ describe('normalizeVisualAnalysis', () => {
     const norm = normalizeVisualAnalysis(raw);
     assert.strictEqual(norm.visualInfo.sceneContext.environment, "outdoor");
   });
+
+  it('should rescue string entry in visibleText', () => {
+    const raw = {
+      visualInfo: {
+        visibleText: ["HB", " A4 ", "", null]
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.deepEqual(norm.visualInfo.visibleText, [
+      { text: "HB", confidence: 1 },
+      { text: "A4", confidence: 1 }
+    ]);
+  });
+
+  it('should fill default confidence for object entry in visibleText', () => {
+    const raw = {
+      visualInfo: {
+        visibleText: [{ text: "XL" }]
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    assert.deepEqual(norm.visualInfo.visibleText, [
+      { text: "XL", confidence: 1, locationHint: undefined, language: undefined }
+    ]);
+  });
+
+  it('should rescue non-enum free text into stateContext description', () => {
+    const raw = {
+      visualInfo: {
+        visibleElements: [
+          {
+            label: "Pencil",
+            category: "tool",
+            stateContext: {
+              placement: "lying horizontally on a flat surface", // non-enum
+              containment: "boxed", // valid enum
+              usage: "unknown" // ignored
+            }
+          }
+        ]
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    const st = norm.visualInfo.visibleElements[0].stateContext;
+    assert.strictEqual(st?.containment, "boxed");
+    assert.strictEqual(st?.placement, undefined);
+    assert.strictEqual(st?.description, "placement: lying horizontally on a flat surface");
+  });
+
+  it('should append non-enum free text to existing stateContext description', () => {
+    const raw = {
+      visualInfo: {
+        visibleElements: [
+          {
+            label: "Pencil",
+            category: "tool",
+            stateContext: {
+              placement: "lying horizontally", 
+              description: "It is red"
+            }
+          }
+        ]
+      }
+    };
+    const norm = normalizeVisualAnalysis(raw);
+    const st = norm.visualInfo.visibleElements[0].stateContext;
+    assert.strictEqual(st?.description, "It is red; placement: lying horizontally");
+  });
 });
