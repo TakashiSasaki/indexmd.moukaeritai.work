@@ -348,6 +348,10 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     }
   }
 
+  if (item.retryDiagnostics) {
+    compact.retryDiagnostics = item.retryDiagnostics;
+  }
+
   return compact;
 }
 
@@ -419,6 +423,11 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     if (item.comparison.reviewNotes && item.comparison.reviewNotes.length > 0) {
       summary.reviewNotes = item.comparison.reviewNotes;
     }
+  }
+
+  if (item.retryDiagnostics) {
+    summary.retries = item.retryDiagnostics.attempts - 1;
+    summary.retried = item.retryDiagnostics.retried;
   }
 
   return summary;

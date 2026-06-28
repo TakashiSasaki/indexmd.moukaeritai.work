@@ -13,7 +13,7 @@ import {
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
 import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
-import { safeFetch, ResponseDiagnostics } from '../lib/visualAnalysis/safeFetch';
+import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
 
 interface ImageExperimentProps {
   token: string;
@@ -382,12 +382,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     };
 
     try {
-      const sfResult = await safeFetch<any>("/api/visual/public-samples/analyze", {
+      const sfResult = await safeFetchWithRetry<any>("/api/visual/public-samples/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
+      }, {
+        onRetry: (event: SafeFetchRetryEvent) => {
+          onAddLog("warn", `[Image Analysis] サーバーウォームアップを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
+        }
       });
 
       if (sfResult.responseDiagnostics?.status === 401) {
@@ -444,12 +448,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
     // Pre-batch health check
     onAddLog("info", "バッチ開始前にヘルスチェックを実行しています...");
-    const hcResult = await safeFetch<any[]>("/api/visual/public-samples");
-    if (!hcResult.success || !Array.isArray(hcResult.data)) {
+    const hcResult = await safeFetchWithRetry<any>("/api/visual/health", undefined, {
+      maxAttempts: 3,
+      onRetry: (event: SafeFetchRetryEvent) => {
+        onAddLog("warn", `[Health Check] サーバーウォームアップを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
+      }
+    });
+    
+    if (!hcResult.success || !hcResult.data?.ok) {
       setIsBatchRunning(false);
       setHealthCheckFailed(true);
       setHealthCheckDiagnostics(hcResult.responseDiagnostics || null);
-      setHealthCheckError(hcResult.error || "ヘルスチェック応答がJSON配列ではありません。");
+      setHealthCheckError(hcResult.error || "ヘルスチェック応答が不正です。");
       onAddLog("error", `ヘルスチェックに失敗しました。バッチ処理は開始されません。: ${hcResult.error}`);
       return;
     }
@@ -478,7 +488,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         const sample = targetSamples[i];
         setBatchProgress({ current: i + 1, total });
         try {
-            const sfResult = await safeFetch<any>('/api/visual/public-samples/analyze', {
+            const sfResult = await safeFetchWithRetry<any>('/api/visual/public-samples/analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -488,6 +498,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 includeRequestPreview: false, // Force false for batch
                 customInstruction: customInstruction.trim()
               })
+            }, {
+              onRetry: (event: SafeFetchRetryEvent) => {
+                onAddLog("warn", `[Batch ${sample.id}] サーバーウォームアップを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
+              }
             });
             
             if (sfResult.responseDiagnostics?.status === 401) {
@@ -511,7 +525,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               failureKind: sfResult.failureKind || data.failureKind,
               error: sfResult.error || data.error,
               responseRaw: data,
-              responseDiagnostics: sfResult.responseDiagnostics
+              responseDiagnostics: sfResult.responseDiagnostics,
+              retryDiagnostics: sfResult.retryDiagnostics
             };
 
             if (sfResult.success && data.success) {
@@ -914,12 +929,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </button>
               </div>
               <p className="text-sm text-red-700 leading-relaxed mt-1">
-                Before initiating a batch analysis, a quick health check is performed on <code className="bg-red-100 px-1 py-0.5 rounded font-mono">GET /api/visual/public-samples</code>.
-                The response was not a valid JSON array, indicating a backend connectivity or static hosting route issue.
+                Before initiating a batch analysis, a quick health check is performed on <code className="bg-red-100 px-1 py-0.5 rounded font-mono">GET /api/visual/health</code>.
+                The response was not a valid JSON indicating ok, indicating a backend connectivity or static hosting route issue.
               </p>
-              <p className="text-xs text-red-600 italic font-medium mt-1">
-                This usually means "/api/..." is being served by the frontend/static fallback instead of the API server.
-              </p>
+              {healthCheckDiagnostics.isTransientStartupHtml ? (
+                <p className="text-xs text-red-600 italic font-medium mt-1">
+                  The backend server is warming up or restarting ("Starting Server..." HTML). The retry attempts were exhausted.
+                </p>
+              ) : (
+                <p className="text-xs text-red-600 italic font-medium mt-1">
+                  This usually means "/api/..." is being served by the frontend/static fallback instead of the API server.
+                </p>
+              )}
               
               <div className="mt-4 space-y-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">

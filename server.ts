@@ -1444,6 +1444,16 @@ app.post("/api/drive/debug/generate-manual-summary", async (req, res) => {
 });
 
 
+app.get("/api/visual/health", (req, res) => {
+  const samples = getAllPublicSamples();
+  res.json({
+    ok: true,
+    service: "visual-analysis",
+    timestamp: new Date().toISOString(),
+    publicSampleCount: samples.length
+  });
+});
+
 app.get("/api/visual/public-samples", (req, res) => {
   const samples = getAllPublicSamples().map(s => ({
     id: s.id,
