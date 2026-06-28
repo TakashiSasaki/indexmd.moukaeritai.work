@@ -31,6 +31,9 @@ export interface PublicSampleBatchRunItem {
   responseRaw?: any;
   responseDiagnostics?: ResponseDiagnostics;
   retryDiagnostics?: SafeFetchRetryDiagnostics;
+  category?: string;
+  execution?: any;
+  taxonomyCategory?: string;
 }
 
 export interface PublicSampleBatchRunSummary {

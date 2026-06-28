@@ -10,6 +10,7 @@ import {
   evaluateSampleComparison,
   PublicSampleComparisonSummary
 } from '../lib/visualAnalysis/publicSamples/compare';
+import { PUBLIC_VISUAL_SAMPLES } from '../lib/visualAnalysis/publicSamples/registry';
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
 import {
   PublicSampleBatchCheckpoint,
@@ -880,31 +881,57 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     const shrinkBatchRunSummaryForLocalStorage = (sum: PublicSampleBatchRunSummary) => {
       return {
         ...sum,
-        items: sum.items.map(it => ({
-          sampleId: it.sampleId,
-          title: it.title,
-          success: it.success,
-          error: it.error,
-          failureKind: it.failureKind,
-          qualityStatus: it.qualityStatus,
-          qualityScore: it.qualityScore,
-          qualityIssues: it.qualityIssues,
-          comparison: it.comparison ? {
-            imageKind: it.comparison.imageKind,
-            categories: it.comparison.categories,
-            labels: it.comparison.labels,
-            visibleText: it.comparison.visibleText,
-            overallStatus: it.comparison.overallStatus,
-            reviewStatus: it.comparison.reviewStatus,
-            reviewReasons: it.comparison.reviewReasons
-          } : undefined,
-          execution: (it.analysisRun?.metadata ?? it.analysisRun) ? {
-            modelName: (it.analysisRun?.metadata ?? it.analysisRun)?.model?.name || (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.modelName,
-            providerFamily: (it.analysisRun?.metadata ?? it.analysisRun)?.model?.providerFamily || (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.providerFamily,
-            jsonMode: (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.jsonMode,
-            jsonRecovery: (it.analysisRun?.metadata ?? it.analysisRun)?.execution?.jsonRecovery
-          } : undefined
-        }))
+        items: sum.items.map(it => {
+          const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === it.sampleId);
+          const category = it.category || 
+                           matchedSample?.category || 
+                           (it.responseRaw?.sampleMetadata as any)?.category || 
+                           (it.comparison as any)?.category || 
+                           "unknown";
+          
+          let exec: any = undefined;
+          if (it.analysisRun?.metadata ?? it.analysisRun) {
+            const run = it.analysisRun?.metadata ?? it.analysisRun;
+            exec = {
+              modelName: run.model?.name || run.execution?.modelName,
+              providerFamily: run.model?.providerFamily || run.execution?.providerFamily,
+              structuredExecutionMode: run.execution?.structuredExecutionMode,
+              jsonMode: run.execution?.jsonMode,
+              jsonRecovery: run.execution?.jsonRecovery
+            };
+          } else if (it.execution) {
+            exec = {
+              modelName: it.execution.modelName,
+              providerFamily: it.execution.providerFamily,
+              structuredExecutionMode: it.execution.structuredExecutionMode,
+              jsonMode: it.execution.jsonMode,
+              jsonRecovery: it.execution.jsonRecovery
+            };
+          }
+
+          return {
+            sampleId: it.sampleId,
+            title: it.title,
+            success: it.success,
+            error: it.error,
+            failureKind: it.failureKind,
+            qualityStatus: it.qualityStatus,
+            qualityScore: it.qualityScore,
+            qualityIssues: it.qualityIssues,
+            category,
+            taxonomyCategory: it.taxonomyCategory,
+            comparison: it.comparison ? {
+              imageKind: it.comparison.imageKind,
+              categories: it.comparison.categories,
+              labels: it.comparison.labels,
+              visibleText: it.comparison.visibleText,
+              overallStatus: it.comparison.overallStatus,
+              reviewStatus: it.comparison.reviewStatus,
+              reviewReasons: it.comparison.reviewReasons
+            } : undefined,
+            execution: exec
+          };
+        })
       };
     };
 

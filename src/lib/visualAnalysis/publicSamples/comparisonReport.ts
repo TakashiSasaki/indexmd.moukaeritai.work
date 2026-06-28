@@ -1,5 +1,6 @@
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from './batchTypes';
 import { stringifyJsonArtifact } from './artifactUtils';
+import { PUBLIC_VISUAL_SAMPLES } from './registry';
 import {
   isNetworkFailure,
   isRateLimitFailure,
@@ -114,7 +115,12 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
     for (const item of run.items) {
       allSampleIdsSet.add(item.sampleId);
       if (!sampleMetadataMap.has(item.sampleId)) {
-        const category = (item.responseRaw?.sampleMetadata as any)?.category || (item.comparison as any)?.category || "unknown";
+        const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === item.sampleId);
+        const category = item.category ||
+                         matchedSample?.category ||
+                         (item.responseRaw?.sampleMetadata as any)?.category || 
+                         (item.comparison as any)?.category || 
+                         "unknown";
         sampleMetadataMap.set(item.sampleId, {
           title: item.title,
           category

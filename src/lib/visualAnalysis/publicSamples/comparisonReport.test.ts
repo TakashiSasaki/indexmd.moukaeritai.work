@@ -141,4 +141,94 @@ describe('Public Sample Batch Comparison Report', () => {
     assert.strictEqual(report.diagnosticNotes.promptRecoveryUsedCount, 1);
     assert.strictEqual(report.diagnosticNotes.apiFailureCount, 0); // parse failure doesn't increment API failure
   });
+
+  it('should support compact past run format and map category / jsonMode correctly', () => {
+    const compactNative: PublicSampleBatchRunSummary = {
+      runId: 'run-compact-native',
+      timestamp: '2026-06-28T02:00:00Z',
+      modelName: 'gemini-3.5-flash',
+      jsonMode: 'native_schema',
+      total: 1,
+      successCount: 1,
+      failureCount: 0,
+      validCount: 1,
+      validLowQualityCount: 0,
+      invalidJsonCount: 0,
+      expectedComparisonPassCount: 1,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 0,
+      items: [
+        {
+          sampleId: 'sample-landscape-1', // maps to 'landscape' category in registry
+          title: 'Yosemite Valley',
+          success: true,
+          category: 'landscape',
+          execution: {
+            modelName: 'gemini-3.5-flash',
+            providerFamily: 'gemini',
+            structuredExecutionMode: 'nativeSchema',
+            jsonMode: 'native_schema'
+          }
+        }
+      ]
+    };
+
+    const compactPrompted: PublicSampleBatchRunSummary = {
+      runId: 'run-compact-prompted',
+      timestamp: '2026-06-28T02:05:00Z',
+      modelName: 'gemini-3.5-flash',
+      jsonMode: 'prompt_only', // prompt_only mode
+      total: 1,
+      successCount: 0,
+      failureCount: 1,
+      validCount: 0,
+      validLowQualityCount: 0,
+      invalidJsonCount: 1,
+      expectedComparisonPassCount: 0,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 1,
+      items: [
+        {
+          sampleId: 'sample-landscape-1',
+          title: 'Yosemite Valley',
+          success: false,
+          failureKind: 'schemaValidationError', // schema validation taxonomy
+          execution: {
+            modelName: 'gemini-3.5-flash',
+            providerFamily: 'gemini',
+            structuredExecutionMode: 'promptedJson',
+            jsonMode: 'prompt_only',
+            jsonRecovery: {
+              schemaValidationRecoveryAttempted: true,
+              schemaValidationRetryCount: 1,
+              schemaValidationRetryParseSucceeded: true,
+              schemaValidationRetryValidationErrors: ["some-error"]
+            }
+          }
+        }
+      ]
+    };
+
+    const report = buildBatchComparisonReportForChat([compactNative, compactPrompted]);
+
+    assert.strictEqual(report.reportKind, 'visualAnalysisPublicSampleBatchComparison');
+    assert.strictEqual(report.comparedRuns.length, 2);
+
+    // Verify delta works with native_schema and prompt_only
+    assert.ok(report.aggregateDelta);
+    const delta = report.aggregateDelta.nativeSchemaVsPromptedJson;
+    assert.ok(delta);
+    assert.strictEqual(delta.successDelta, 1);
+
+    // Verify category was correctly resolved to 'landscape' from item or fallback
+    const sLandscapeComp = report.perSampleComparison.find(c => c.sampleId === 'sample-landscape-1');
+    assert.ok(sLandscapeComp);
+    assert.strictEqual(sLandscapeComp.category, 'landscape');
+
+    // Verify recovery and schema-validation details
+    const runPromptedData = sLandscapeComp.byRun['run-compact-prompted'];
+    assert.strictEqual(runPromptedData.success, false);
+    assert.strictEqual(runPromptedData.schemaValidationRecoveryUsed, true);
+    assert.strictEqual(runPromptedData.taxonomyCategory, 'validation');
+  });
 });
