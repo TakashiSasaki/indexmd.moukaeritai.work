@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as https from 'https';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { ImageProcessingDiagnostics, optimizeImageForAnalysis, AnalysisSizingPolicy } from '../imagePayloadSizing';
+import { recordCacheHit, recordCacheMiss, recordCacheWrite, recordCacheError, recordCacheSharedInFlight } from '../../cacheMetrics';
 
 const ALLOWED_HOSTS = [
   "commons.wikimedia.org",
@@ -36,19 +37,19 @@ export interface FetchSampleResult {
 }
 
 const inMemoryCache = new Map<string, FetchSampleResult>();
-const CACHE_DIR = path.join(process.cwd(), 'cache', 'public_samples');
+export const PUBLIC_SAMPLE_CACHE_DIR = path.join(process.cwd(), 'cache', 'public_samples');
 const inFlightFetches = new Map<string, Promise<FetchSampleResult>>();
 
 // Ensure cache directory exists
 try {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  if (!fs.existsSync(PUBLIC_SAMPLE_CACHE_DIR)) {
+    fs.mkdirSync(PUBLIC_SAMPLE_CACHE_DIR, { recursive: true });
   }
 } catch (e) {
   console.warn('[serverFetch] Failed to create cache directory:', e);
 }
 
-const PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION = "analysis-image-policy.v0.2.0";
+export const PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION = "analysis-image-policy.v0.2.0";
 
 function getCacheKey(sampleId: string, variant: string): string {
   if (variant === "analysis") {
@@ -59,9 +60,9 @@ function getCacheKey(sampleId: string, variant: string): string {
 
 function readFromDiskCache(sampleId: string, variant: string): FetchSampleResult | null {
   const cacheKey = getCacheKey(sampleId, variant);
-  const binPath = path.join(CACHE_DIR, `${cacheKey}.bin`);
-  const mimePath = path.join(CACHE_DIR, `${cacheKey}.mime`);
-  const metaPath = path.join(CACHE_DIR, `${cacheKey}.meta.json`);
+  const binPath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.bin`);
+  const mimePath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.mime`);
+  const metaPath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.meta.json`);
 
   if (fs.existsSync(binPath) && fs.existsSync(mimePath)) {
     try {
@@ -87,9 +88,9 @@ function readFromDiskCache(sampleId: string, variant: string): FetchSampleResult
 
 function writeToDiskCache(sampleId: string, variant: string, result: FetchSampleResult): void {
   const cacheKey = getCacheKey(sampleId, variant);
-  const binPath = path.join(CACHE_DIR, `${cacheKey}.bin`);
-  const mimePath = path.join(CACHE_DIR, `${cacheKey}.mime`);
-  const metaPath = path.join(CACHE_DIR, `${cacheKey}.meta.json`);
+  const binPath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.bin`);
+  const mimePath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.mime`);
+  const metaPath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.meta.json`);
 
   try {
     fs.writeFileSync(binPath, result.buffer);
@@ -132,6 +133,7 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
 
   // 1. Try In-Memory Cache
   if (inMemoryCache.has(cacheKey)) {
+    recordCacheHit("publicSampleImages");
     const cached = inMemoryCache.get(cacheKey)!;
     return {
       ...cached,
@@ -145,6 +147,9 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
   if (inFlightFetches.has(cacheKey)) {
     try {
       const res = await inFlightFetches.get(cacheKey)!;
+      // Note: We don't record a hit here because the underlying fetch records its own hit/miss.
+      // But from the caller's perspective, it's shared.
+      recordCacheSharedInFlight("publicSampleImages");
       return {
         ...res,
         cacheSharedInFlight: true,
@@ -161,9 +166,11 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
       diskCached = readFromDiskCache(sampleId, variant);
     } catch (e: any) {
       cacheReadError = e.message || String(e);
+      recordCacheError("publicSampleImages");
     }
 
     if (diskCached) {
+      recordCacheHit("publicSampleImages");
       const res: FetchSampleResult = {
         ...diskCached,
         cacheLayer: "disk",
@@ -174,6 +181,8 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
       inMemoryCache.set(cacheKey, res);
       return res;
     }
+
+    recordCacheMiss("publicSampleImages");
 
     const sample = getPublicSampleById(sampleId);
     if (!sample) {
@@ -243,8 +252,10 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
         try {
           writeToDiskCache(sampleId, variant, result);
           cacheStored = true;
+          recordCacheWrite("publicSampleImages");
         } catch (e: any) {
           cacheWriteError = e.message || String(e);
+          recordCacheError("publicSampleImages");
         }
       }
 
@@ -309,8 +320,10 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     try {
       writeToDiskCache(sampleId, variant, result);
       cacheStored = true;
+      recordCacheWrite("publicSampleImages");
     } catch (e: any) {
       cacheWriteError = e.message || String(e);
+      recordCacheError("publicSampleImages");
     }
 
     const res: FetchSampleResult = {

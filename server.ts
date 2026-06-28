@@ -8,9 +8,9 @@ import { parseOffice } from "officeparser";
 import crypto from "crypto";
 import { buildScanCacheKeyParts } from "./src/lib/scanCache";
 import { mergeIndexMd } from "./src/lib/indexMdMerge";
-import { initCacheMetrics, resetCacheMetrics, recordCacheHit, recordCacheMiss, recordCacheWrite, recordCacheBypass, recordCacheError, getCacheMetricsResponse } from "./src/lib/cacheMetrics";
+import { initCacheMetrics, resetCacheMetrics, recordCacheHit, recordCacheMiss, recordCacheWrite, recordCacheBypass, recordCacheError, getCacheMetricsResponse, setCacheEnabled, setCachePolicyVersion } from "./src/lib/cacheMetrics";
 import { getAllPublicSamples, getPublicSampleById } from "./src/lib/visualAnalysis/publicSamples/registry";
-import { fetchPublicSampleImage } from "./src/lib/visualAnalysis/publicSamples/serverFetch";
+import { fetchPublicSampleImage, PUBLIC_SAMPLE_CACHE_DIR, PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION } from "./src/lib/visualAnalysis/publicSamples/serverFetch";
 import { 
   buildFileSummaryPrompt, 
   buildFolderSummaryPrompt, 
@@ -45,7 +45,9 @@ import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } fro
 import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
 import { generateContentWithRetry } from "./src/lib/gemini";
 
-initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory']);
+initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory', 'publicSampleImages']);
+setCacheEnabled('snippets', process.env.ENABLE_DRIVE_CONTENT_CACHE === 'true');
+setCachePolicyVersion('publicSampleImages', PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION);
 
 dotenv.config();
 
@@ -2522,7 +2524,8 @@ app.get("/api/cache/stats", async (req, res) => {
     scan: SCAN_CACHE_DIR,
     snippets: CACHE_DIR,
     summaries: SUMMARIES_CACHE_DIR,
-    experimentHistory: EXPERIMENT_HISTORY_DIR
+    experimentHistory: EXPERIMENT_HISTORY_DIR,
+    publicSampleImages: PUBLIC_SAMPLE_CACHE_DIR
   });
   res.json(stats);
 });

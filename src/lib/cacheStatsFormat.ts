@@ -6,6 +6,7 @@ export interface CacheSummary {
   totalEntries: number;
   totalBytes: number;
   totalErrors: number;
+  totalBypasses: number;
   overallHitRate: number;
 }
 
@@ -15,6 +16,7 @@ export function summarizeCacheStats(stats: CacheMetricsResponse): CacheSummary {
   let totalEntries = 0;
   let totalBytes = 0;
   let totalErrors = 0;
+  let totalBypasses = 0;
 
   for (const key of Object.keys(stats.caches)) {
     const c = stats.caches[key];
@@ -23,6 +25,7 @@ export function summarizeCacheStats(stats: CacheMetricsResponse): CacheSummary {
     totalEntries += c.entryCount;
     totalBytes += c.totalBytes;
     totalErrors += c.errors;
+    totalBypasses += c.bypasses;
   }
 
   const overallHitRate = totalHits + totalMisses > 0 ? totalHits / (totalHits + totalMisses) : 0;
@@ -33,6 +36,7 @@ export function summarizeCacheStats(stats: CacheMetricsResponse): CacheSummary {
     totalEntries,
     totalBytes,
     totalErrors,
+    totalBypasses,
     overallHitRate,
   };
 }

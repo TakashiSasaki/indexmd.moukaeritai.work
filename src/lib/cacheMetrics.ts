@@ -7,9 +7,12 @@ export interface CacheTypeMetrics {
   writes: number;
   bypasses: number;
   errors: number;
+  sharedInFlight: number;
   lastHitAt: string | null;
   lastMissAt: string | null;
   lastWriteAt: string | null;
+  enabled?: boolean;
+  policyVersion?: string;
 }
 
 export interface CacheInventory {
@@ -24,6 +27,7 @@ export interface CacheMetricsResponse {
   now: string;
   uptimeMs: number;
   uptimeHuman: string;
+  totalBypasses: number;
   process: {
     pid: number;
     nodeVersion: string;
@@ -43,6 +47,7 @@ const defaultMetrics = (): CacheTypeMetrics => ({
   writes: 0,
   bypasses: 0,
   errors: 0,
+  sharedInFlight: 0,
   lastHitAt: null,
   lastMissAt: null,
   lastWriteAt: null,
@@ -86,6 +91,21 @@ export function recordCacheBypass(type: string) {
 export function recordCacheError(type: string) {
   if (!metrics[type]) metrics[type] = defaultMetrics();
   metrics[type].errors++;
+}
+
+export function recordCacheSharedInFlight(type: string) {
+  if (!metrics[type]) metrics[type] = defaultMetrics();
+  metrics[type].sharedInFlight++;
+}
+
+export function setCacheEnabled(type: string, enabled: boolean) {
+  if (!metrics[type]) metrics[type] = defaultMetrics();
+  metrics[type].enabled = enabled;
+}
+
+export function setCachePolicyVersion(type: string, version: string) {
+  if (!metrics[type]) metrics[type] = defaultMetrics();
+  metrics[type].policyVersion = version;
 }
 
 function calculateHitRate(hits: number, misses: number): number {
@@ -152,11 +172,17 @@ export async function getCacheMetricsResponse(cacheDirs: Record<string, string>)
   const now = new Date();
   const uptimeMs = now.getTime() - serverStartedAt.getTime();
   
+  let totalBypasses = 0;
+  for (const m of Object.values(metrics)) {
+    totalBypasses += m.bypasses;
+  }
+
   const response: CacheMetricsResponse = {
     serverStartedAt: serverStartedAt.toISOString(),
     now: now.toISOString(),
     uptimeMs,
     uptimeHuman: formatUptime(uptimeMs),
+    totalBypasses,
     process: {
       pid: process.pid,
       nodeVersion: process.version,

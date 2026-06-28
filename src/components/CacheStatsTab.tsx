@@ -127,13 +127,22 @@ export const CacheStatsTab: React.FC = () => {
       {/* Desktop: Notes */}
       <div className="hidden md:flex bg-amber-50 border border-amber-200 rounded-lg p-4 gap-3 text-sm text-amber-800">
         <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
-        <div>
-          <p className="font-semibold mb-1">Observability Only</p>
-          <ul className="list-disc pl-5 space-y-1 text-[13px] opacity-90">
-            <li>ヒット率（Hit Rate）などの統計値は、サーバープロセス起動時からの累計です。</li>
-            <li>統計リセットを実行しても、ディスク上のキャッシュファイル自体は削除されません。</li>
-            <li>プライバシー保護のため、キャッシュされたファイルの内容は表示されません。</li>
-          </ul>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+          <div>
+            <p className="font-semibold mb-1">Observability & Lifecycle</p>
+            <ul className="list-disc pl-5 space-y-1 text-[13px] opacity-90">
+              <li>ヒット率（Hit Rate）などの統計値は、サーバープロセス起動時からの累計です。</li>
+              <li>統計リセットを実行しても、ディスク上のキャッシュファイル自体は削除されません。</li>
+              <li>プライバシー保護のため、キャッシュされたファイルの内容は表示されません。</li>
+            </ul>
+          </div>
+          <div className="border-l border-amber-200/50 pl-6">
+            <p className="font-semibold mb-1 text-amber-900">Cache Clearing Coverage</p>
+            <ul className="list-disc pl-5 space-y-1 text-[13px] opacity-90 text-amber-700">
+              <li>設定画面の「キャッシュクリア」は <code className="bg-amber-100 px-1 rounded text-amber-900">scan</code>, <code className="bg-amber-100 px-1 rounded text-amber-900">snippets</code>, <code className="bg-amber-100 px-1 rounded text-amber-900">summaries</code> が対象です。</li>
+              <li><code className="bg-amber-100 px-1 rounded text-amber-900 text-[11px]">experimentHistory</code> と <code className="bg-amber-100 px-1 rounded text-amber-900 text-[11px]">publicSampleImages</code> は永続性を優先し、通常のクリア対象から除外されています。</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -171,7 +180,7 @@ export const CacheStatsTab: React.FC = () => {
       </div>
 
       {/* Desktop: Runtime & Overall Stats Grid */}
-      <div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Uptime */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500 mb-2">
@@ -229,6 +238,20 @@ export const CacheStatsTab: React.FC = () => {
             {summary.totalEntries} entries
           </div>
         </div>
+
+        {/* Bypasses */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <Activity className="w-4 h-4 opacity-50" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Bypasses</span>
+          </div>
+          <div className="text-2xl font-black text-slate-600">
+            {summary.totalBypasses}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            Force refresh / skip count
+          </div>
+        </div>
       </div>
 
       {/* Mobile: Node Process & Memory Details (Collapsed) */}
@@ -283,12 +306,29 @@ export const CacheStatsTab: React.FC = () => {
         {Object.entries(stats.caches).map(([type, c]: [string, any]) => (
           <div key={type} className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex flex-col gap-1 text-[11px]">
             <div className="flex justify-between items-center">
-              <span className="font-mono font-bold text-slate-800">{type}</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="font-mono font-bold text-slate-800">{type}</span>
+                <div className="flex gap-1">
+                  {c.enabled !== undefined && (
+                    <span className={`text-[8px] px-1 rounded font-bold uppercase ${c.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                      {c.enabled ? 'On' : 'Off'}
+                    </span>
+                  )}
+                  {c.policyVersion && (
+                    <span className="text-[8px] px-1 rounded bg-indigo-50 text-indigo-600 font-mono">
+                      {c.policyVersion}
+                    </span>
+                  )}
+                </div>
+              </div>
               <span className="font-black text-indigo-600">{formatPercent(c.hitRate)}</span>
             </div>
             <div className="flex justify-between items-center text-slate-500">
-              <span>{c.hits} H / {c.misses} M • {c.entryCount} entries ({formatBytes(c.totalBytes)})</span>
-              {c.errors > 0 && <span className="text-rose-600 font-bold">⚠️ {c.errors} err</span>}
+              <span>{c.hits}H {c.misses}M {c.bypasses > 0 && `(${c.bypasses}B)`} • {c.entryCount} ent ({formatBytes(c.totalBytes)})</span>
+              <div className="flex gap-1">
+                {c.sharedInFlight > 0 && <span className="text-emerald-500 font-bold">S:{c.sharedInFlight}</span>}
+                {c.errors > 0 && <span className="text-rose-600 font-bold">⚠️{c.errors}</span>}
+              </div>
             </div>
           </div>
         ))}
@@ -303,42 +343,82 @@ export const CacheStatsTab: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-white border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <th className="p-3 pl-4 font-semibold">Type</th>
+              <tr className="bg-white border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <th className="p-3 pl-4 font-semibold">Type / Status</th>
                 <th className="p-3 font-semibold text-right">Hit Rate</th>
                 <th className="p-3 font-semibold text-right">Hits</th>
                 <th className="p-3 font-semibold text-right">Misses</th>
-                <th className="p-3 font-semibold text-right">Writes</th>
-                <th className="p-3 font-semibold text-right">Errors</th>
+                <th className="p-3 font-semibold text-right text-indigo-400">Writes</th>
+                <th className="p-3 font-semibold text-right text-amber-400">Bypass</th>
+                <th className="p-3 font-semibold text-right text-rose-400">Errors</th>
+                <th className="p-3 font-semibold text-right text-emerald-400">Shared</th>
                 <th className="p-3 font-semibold text-right border-l border-slate-100">Entries</th>
                 <th className="p-3 font-semibold text-right">Size</th>
-                <th className="p-3 pr-4 font-semibold">Age Range</th>
+                <th className="p-3 pr-4 font-semibold">Last Activity / Age Range</th>
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-slate-100">
               {Object.entries(stats.caches).map(([type, c]: [string, any]) => (
                 <tr key={type} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3 pl-4 font-mono font-medium text-slate-800">{type}</td>
-                  <td className="p-3 text-right font-medium text-indigo-600">
+                  <td className="p-3 pl-4">
+                    <div className="font-mono font-bold text-slate-800">{type}</div>
+                    <div className="flex gap-2 mt-0.5">
+                      {c.enabled !== undefined && (
+                        <span className={`text-[9px] px-1 rounded font-bold uppercase ${c.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                          {c.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      )}
+                      {c.policyVersion && (
+                        <span className="text-[9px] px-1 rounded bg-indigo-50 text-indigo-600 font-medium font-mono">
+                          {c.policyVersion}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="p-3 text-right font-black text-indigo-600">
                     {formatPercent(c.hitRate)}
                   </td>
-                  <td className="p-3 text-right text-slate-600">{c.hits}</td>
-                  <td className="p-3 text-right text-slate-600">{c.misses}</td>
-                  <td className="p-3 text-right text-slate-600">{c.writes}</td>
-                  <td className="p-3 text-right text-slate-600">{c.errors > 0 ? <span className="text-rose-500 font-bold">{c.errors}</span> : '0'}</td>
+                  <td className="p-3 text-right text-slate-600 font-medium">{c.hits.toLocaleString()}</td>
+                  <td className="p-3 text-right text-slate-600 font-medium">{c.misses.toLocaleString()}</td>
+                  <td className="p-3 text-right text-slate-400">{c.writes.toLocaleString()}</td>
+                  <td className="p-3 text-right text-slate-400">{c.bypasses.toLocaleString()}</td>
+                  <td className="p-3 text-right">
+                    {c.errors > 0 ? <span className="text-rose-500 font-black">{c.errors.toLocaleString()}</span> : <span className="text-slate-300">0</span>}
+                  </td>
+                  <td className="p-3 text-right text-emerald-500 font-medium">
+                    {c.sharedInFlight > 0 ? c.sharedInFlight.toLocaleString() : <span className="text-slate-300">0</span>}
+                  </td>
                   
-                  <td className="p-3 text-right border-l border-slate-100 text-slate-700">{c.entryCount}</td>
+                  <td className="p-3 text-right border-l border-slate-100 text-slate-700 font-bold">{c.entryCount.toLocaleString()}</td>
                   <td className="p-3 text-right text-slate-700">{formatBytes(c.totalBytes)}</td>
                   
-                  <td className="p-3 pr-4 text-xs text-slate-500">
-                    {c.entryCount > 0 ? (
-                      <div>
-                        <div><span className="opacity-50">Old:</span> {formatDate(c.oldestMtime)}</div>
-                        <div><span className="opacity-50">New:</span> {formatDate(c.newestMtime)}</div>
-                      </div>
-                    ) : (
-                      <span className="opacity-50">Empty</span>
-                    )}
+                  <td className="p-3 pr-4 text-[10px] text-slate-500 min-w-[140px]">
+                    <div className="space-y-1">
+                      {c.lastHitAt && (
+                        <div className="flex justify-between border-b border-slate-50 pb-0.5">
+                          <span className="opacity-40">Last Hit:</span>
+                          <span className="font-mono text-indigo-400">{formatDate(c.lastHitAt).split(' ')[1]}</span>
+                        </div>
+                      )}
+                      {c.lastMissAt && (
+                        <div className="flex justify-between border-b border-slate-50 pb-0.5">
+                          <span className="opacity-40">Last Miss:</span>
+                          <span className="font-mono text-slate-400">{formatDate(c.lastMissAt).split(' ')[1]}</span>
+                        </div>
+                      )}
+                      {c.lastWriteAt && (
+                        <div className="flex justify-between border-b border-slate-50 pb-0.5">
+                          <span className="opacity-40">Last Write:</span>
+                          <span className="font-mono text-emerald-400">{formatDate(c.lastWriteAt).split(' ')[1]}</span>
+                        </div>
+                      )}
+                      {c.entryCount > 0 && (
+                        <div className="pt-1 flex gap-2">
+                           <span className="opacity-40">Age:</span>
+                           <span>{formatDate(c.oldestMtime).split(' ')[0]} ... {formatDate(c.newestMtime).split(' ')[0]}</span>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
