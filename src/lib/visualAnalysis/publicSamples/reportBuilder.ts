@@ -195,13 +195,25 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let maxOriginalBytes = 0;
   let maxProcessedBytes = 0;
   let inputsWithOriginalBytes = 0;
+  
+  let mediaResolutionHighRequested = 0;
+  let mediaResolutionMediumRequested = 0;
+  let mediaResolutionApplied = 0;
 
   for (const item of items) {
-    const inputDiag = item.inputDiagnostics;
+    const run = item.analysisRun?.metadata ?? item.analysisRun;
+    if (run && run.generationConfig) {
+      if (run.generationConfig.mediaResolutionRequested === 'HIGH') mediaResolutionHighRequested++;
+      if (run.generationConfig.mediaResolutionRequested === 'MEDIUM') mediaResolutionMediumRequested++;
+      if (run.generationConfig.mediaResolutionApplied) mediaResolutionApplied++;
+    }
+
+    const inputDiag = item.inputDiagnostics as any;
     if (inputDiag) {
       inputsInfo.push({
         sampleId: item.sampleId,
-        byteLength: inputDiag.byteLength,
+        originalByteLength: inputDiag.originalByteLength || inputDiag.byteLength,
+        processedByteLength: inputDiag.processedByteLength || inputDiag.byteLength,
         base64Length: inputDiag.base64Length,
         success: item.success,
         failureKind: item.failureKind
@@ -222,10 +234,11 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
         inputsWithOriginalBytes++;
       }
 
-      if (inputDiag.processedByteLength) {
-        totalProcessedBytes += inputDiag.processedByteLength;
-        if (inputDiag.processedByteLength > maxProcessedBytes) {
-          maxProcessedBytes = inputDiag.processedByteLength;
+      const effectiveProcessedBytes = inputDiag.processedByteLength || inputDiag.byteLength;
+      if (effectiveProcessedBytes) {
+        totalProcessedBytes += effectiveProcessedBytes;
+        if (effectiveProcessedBytes > maxProcessedBytes) {
+          maxProcessedBytes = effectiveProcessedBytes;
         }
       }
 
@@ -233,26 +246,33 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
         totalBase64Bytes += inputDiag.base64Length;
       }
 
-      if (inputDiag.analysisHardCapBytes && inputDiag.byteLength > inputDiag.analysisHardCapBytes) {
+      const checkBytes = inputDiag.processedByteLength || inputDiag.byteLength;
+      if (inputDiag.analysisHardCapBytes && checkBytes > inputDiag.analysisHardCapBytes) {
         overHardCapInputs++;
-      } else if (inputDiag.analysisTargetBytes && inputDiag.byteLength > inputDiag.analysisTargetBytes) {
+      } else if (inputDiag.analysisTargetBytes && checkBytes > inputDiag.analysisTargetBytes) {
         overTargetInputs++;
       }
     }
   }
 
-  const largestInputs = inputsInfo
-    .filter(i => i.byteLength !== undefined)
-    .sort((a, b) => (b.byteLength || 0) - (a.byteLength || 0))
+  const largestProcessedInputs = [...inputsInfo]
+    .filter(i => i.processedByteLength !== undefined)
+    .sort((a, b) => (b.processedByteLength || 0) - (a.processedByteLength || 0))
+    .slice(0, 5);
+    
+  const largestOriginalInputs = [...inputsInfo]
+    .filter(i => i.originalByteLength !== undefined)
+    .sort((a, b) => (b.originalByteLength || 0) - (a.originalByteLength || 0))
     .slice(0, 5);
 
-  const totalBytesSaved = totalOriginalBytes - totalProcessedBytes;
+  const totalBytesSaved = totalOriginalBytes > 0 ? (totalOriginalBytes - totalProcessedBytes) : 0;
   const averageReductionRatio = inputsWithOriginalBytes > 0 && totalOriginalBytes > 0 
     ? totalProcessedBytes / totalOriginalBytes 
     : 1;
 
   return {
-    largestInputs,
+    largestProcessedInputs,
+    largestOriginalInputs,
     overTargetInputs,
     overHardCapInputs,
     resizedInputs,
@@ -264,7 +284,13 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     maxOriginalBytes,
     maxProcessedBytes,
     totalBytesSaved,
-    averageReductionRatio
+    averageReductionRatio,
+    inputsWithOriginalBytes,
+    mediaResolution: {
+      highRequested: mediaResolutionHighRequested,
+      mediumRequested: mediaResolutionMediumRequested,
+      applied: mediaResolutionApplied
+    }
   };
 }
 
@@ -385,6 +411,10 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     delete compact.parseDiagnostics.rawOutputPreview;
     delete compact.parseDiagnostics.requestPreview;
   }
+  
+  if (item.analysisRun?.normalizationDiagnostics) {
+    compact.normalizationDiagnostics = item.analysisRun.normalizationDiagnostics;
+  }
 
   if (item.responseDiagnostics) {
     const includeBodyPreview = !item.success && (
@@ -485,5 +515,9 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     summary.retried = item.retryDiagnostics.retried;
   }
 
+  if (item.analysisRun?.normalizationDiagnostics?.schemaVersionCorrected) {
+    summary.schemaVersionCorrected = true;
+  }
+  
   return summary;
 }

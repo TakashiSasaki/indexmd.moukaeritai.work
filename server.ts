@@ -1468,7 +1468,10 @@ app.get("/api/visual/public-samples", (req, res) => {
     licenseKind: s.source.licenseKind,
     licenseName: s.source.licenseName,
     attributionText: s.source.attributionText,
-    sourcePageUrl: s.source.pageUrl
+    sourcePageUrl: s.source.pageUrl,
+    sourceProvider: s.source.provider,
+    sourceKind: s.source.provider === "localFixture" ? "synthetic" : "external",
+    isSynthetic: s.source.provider === "localFixture"
   }));
   res.json(samples);
 });
@@ -1557,6 +1560,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     // media resolution policy based on input sample
     let mediaResolutionRequested: string | undefined;
     let mediaResolutionReason: string | undefined;
+    let mediaResolutionApplied: boolean = false;
+    let mediaResolutionProviderField: string | undefined;
 
     if (!isGemma) {
       if (
@@ -1580,6 +1585,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         mediaResolutionRequested = "MEDIUM";
         mediaResolutionReason = "Simple image kind";
       }
+      mediaResolutionApplied = true;
+      mediaResolutionProviderField = mediaResolutionRequested === "HIGH" ? "MEDIA_RESOLUTION_HIGH" : "MEDIA_RESOLUTION_MEDIUM";
     }
 
     let configOption: any = {
@@ -1608,8 +1615,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       byteLength: buffer.length,
       base64Length: base64Data.length,
       mediaResolutionRequested,
-      mediaResolutionReason
+      mediaResolutionApplied,
+      mediaResolutionReason,
+      mediaResolutionProviderField
     });
+
+    const safeConfigOption = { ...configOption };
+    delete safeConfigOption.systemInstruction; // Already in requestPreview root
 
     const requestPreview = includeRequestPreview ? {
       model: targetModel,
@@ -1618,7 +1630,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       systemInstruction,
       mimeType: mimeType,
       binaryInlineDataUsed: true,
-      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
+      generationConfig: safeConfigOption
     } : undefined;
 
     // Call Model
@@ -1652,7 +1664,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           visibleText: sample.expectedVisibleText,
           notes: sample.expectedNotes
         },
-        requestPreview
+        requestPreview,
+        inputDiagnostics: {
+          imageVariant: "analysis",
+          analysisSourceUrlKind: sourceUrlKind,
+          inputSizeWarning,
+          ...inputDiagnostics
+        }
       });
       return res.status(200).json(failRes); // 200 so UI can handle structured failure
     }
@@ -1704,7 +1722,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           base64Length: runMetadata.input.base64Length,
           imageVariant: "analysis",
           analysisSourceUrlKind: sourceUrlKind,
-          inputSizeWarning
+          inputSizeWarning,
+          ...inputDiagnostics
         },
         ...(requestPreview ? { requestPreview } : {})
       });
@@ -1923,9 +1942,23 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     const systemInstruction = buildVisualAnalysisSystemInstruction();
     const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
+    let mediaResolutionRequested: string | undefined;
+    let mediaResolutionReason: string | undefined;
+    let mediaResolutionApplied: boolean = false;
+    let mediaResolutionProviderField: string | undefined;
+
+    if (!isGemma) {
+      // By default drive images are high detail (documents, etc.)
+      mediaResolutionRequested = "HIGH";
+      mediaResolutionReason = "Drive images default to HIGH resolution";
+      mediaResolutionApplied = true;
+      mediaResolutionProviderField = "MEDIA_RESOLUTION_HIGH";
+    }
+
     let configOption: any = { 
       ...VISUAL_ANALYSIS_GENERATION_CONFIG,
-      systemInstruction
+      systemInstruction,
+      ...(mediaResolutionRequested ? { mediaResolution: mediaResolutionRequested } : {})
     };
 
     if (mode === "nativeSchema") {
@@ -1944,8 +1977,15 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       requestPreviewIncluded: includeRequestPreview,
       sourceKind: "driveFile",
       fileId: fileId,
-      mimeType: fileMeta.mimeType
+      mimeType: fileMeta.mimeType,
+      mediaResolutionRequested,
+      mediaResolutionApplied,
+      mediaResolutionReason,
+      mediaResolutionProviderField
     });
+
+    const safeConfigOption = { ...configOption };
+    delete safeConfigOption.systemInstruction; // Already in requestPreview root
 
     const requestPreview = includeRequestPreview ? {
       model: targetModel,
@@ -1954,7 +1994,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       systemInstruction,
       mimeType: fileMeta.mimeType,
       binaryInlineDataUsed: true,
-      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
+      generationConfig: safeConfigOption
     } : undefined;
 
     // 4. Call Model
@@ -1972,7 +2012,10 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         runMetadata,
         outputMode: "structured",
         metadata: fileMeta,
-        requestPreview
+        requestPreview,
+        inputDiagnostics: {
+          imageVariant: "full"
+        }
       } as any);
       return res.status(200).json(failRes);
     }

@@ -35,6 +35,12 @@ export interface ImageProcessingDiagnostics {
   analysisTargetBytes: number;
   analysisHardCapBytes: number;
   analysisSizeReductionRatio: number;
+  targetExceededButAccepted?: boolean;
+  hardCapExceeded?: boolean;
+  minQualityReached?: boolean;
+  processingFailureReason?: string;
+  inputFormat?: string;
+  providerSafeMimeType?: boolean;
 }
 
 export interface ProcessedImageResult {
@@ -54,11 +60,25 @@ export async function optimizeImageForAnalysis(
   const policy = SIZING_POLICIES[policyName];
   const originalByteLength = inputBuffer.byteLength;
   
+  let minQuality = policyName === 'detailHeavy' ? 65 : 40;
+  let minQualityReached = false;
+  let targetExceededButAccepted = false;
+  let hardCapExceeded = false;
+  let processingFailureReason = undefined;
+
   let image = sharp(inputBuffer);
   const metadata = await image.metadata();
   
   const originalDimensions = metadata.width && metadata.height ? { width: metadata.width, height: metadata.height } : undefined;
   let currentDimensions = originalDimensions;
+  
+  // Convert SVG to PNG
+  if (metadata.format === 'svg') {
+    image = sharp(await image.png().toBuffer());
+    // Get new dimensions
+    const newMetadata = await image.metadata();
+    currentDimensions = newMetadata.width && newMetadata.height ? { width: newMetadata.width, height: newMetadata.height } : undefined;
+  }
   
   let resized = false;
   
@@ -81,7 +101,7 @@ export async function optimizeImageForAnalysis(
   // For most things, JPEG provides better byte size for photos.
   // PNG is better for charts/text, but often struggles to hit <1MB if large.
   // WebP is a good compromise, but some models prefer JPEG. We'll use JPEG as default unless it has transparency.
-  let targetFormat = metadata.format === 'png' || metadata.hasAlpha ? 'png' : 'jpeg';
+  let targetFormat = (metadata.format === 'png' || metadata.hasAlpha || metadata.format === 'svg') ? 'png' : 'jpeg';
   
   // Try generating output
   let quality = targetFormat === 'jpeg' ? 85 : 90;
@@ -114,7 +134,7 @@ export async function optimizeImageForAnalysis(
     }
     
     // If still over target, start aggressively compressing (only if JPEG/WebP)
-    while (outputBuffer.byteLength > policy.targetBytes && quality > 40) {
+    while (outputBuffer.byteLength > policy.targetBytes && quality > minQuality) {
       quality -= 10;
       if (targetFormat === 'jpeg') {
         outputBuffer = await image.jpeg({ quality, mozjpeg: true }).toBuffer();
@@ -124,10 +144,19 @@ export async function optimizeImageForAnalysis(
         break; // Can't easily dial down PNG quality without palette changes
       }
     }
+    
+    if (quality <= minQuality) {
+      minQualityReached = true;
+    }
+    
+    if (outputBuffer.byteLength > policy.targetBytes && outputBuffer.byteLength <= policy.hardCapBytes) {
+      targetExceededButAccepted = true;
+    }
   }
   
   // Check if we hit the hard cap
   if (outputBuffer.byteLength > policy.hardCapBytes) {
+    hardCapExceeded = true;
     throw new Error(`Image size (${Math.round(outputBuffer.byteLength / 1024)}KB) exceeds hard cap of ${Math.round(policy.hardCapBytes / 1024)}KB even after resize/recompression.`);
   }
 
@@ -152,14 +181,20 @@ export async function optimizeImageForAnalysis(
       originalByteLength,
       processedByteLength,
       resized,
-      recompressed: recompressed || targetFormat !== metadata.format,
+      recompressed: recompressed || targetFormat !== metadata.format || metadata.format === 'svg',
       outputFormat: targetFormat as any,
       quality,
       analysisSizingPolicy: policyName,
       analysisTargetLongEdge: policy.targetLongEdge,
       analysisTargetBytes: policy.targetBytes,
       analysisHardCapBytes: policy.hardCapBytes,
-      analysisSizeReductionRatio
+      analysisSizeReductionRatio,
+      targetExceededButAccepted,
+      hardCapExceeded,
+      minQualityReached,
+      processingFailureReason,
+      inputFormat: metadata.format,
+      providerSafeMimeType: true
     }
   };
 }

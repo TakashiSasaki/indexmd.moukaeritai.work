@@ -342,7 +342,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const filteredSamples = useMemo(() => {
     if (sampleFilter === "all") return samples;
     return samples.filter(s => {
-      const isSynthetic = s.source?.provider === "localFixture";
+      const isSynthetic = s.isSynthetic ?? (s.source?.provider === "localFixture");
       if (sampleFilter === "synthetic") return isSynthetic;
       if (sampleFilter === "external") return !isSynthetic;
       return true;
@@ -771,11 +771,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                     {s.category}
                                   </span>
                                   <span className={`text-[7px] font-bold px-1 py-0.5 rounded-sm shrink-0 uppercase tracking-wider ${
-                                    s.source?.provider === "localFixture" 
+                                    (s.isSynthetic ?? s.source?.provider === "localFixture")
                                       ? "bg-amber-100 text-amber-700" 
                                       : "bg-blue-100 text-blue-700"
                                   }`}>
-                                    {s.source?.provider === "localFixture" ? "SYNTHETIC" : "EXTERNAL"}
+                                    {(s.isSynthetic ?? s.source?.provider === "localFixture") ? "SYNTHETIC" : "EXTERNAL"}
                                   </span>
                                 </div>
                               </div>

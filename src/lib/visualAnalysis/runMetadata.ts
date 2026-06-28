@@ -54,7 +54,9 @@ export interface VisualAnalysisRunMetadata {
     topP: number;
     topK: number;
     mediaResolutionRequested?: string;
+    mediaResolutionApplied?: boolean;
     mediaResolutionReason?: string;
+    mediaResolutionProviderField?: string;
   };
 
   input: {
@@ -83,7 +85,9 @@ export function buildVisualAnalysisRunMetadata(params: {
   byteLength?: number;
   base64Length?: number;
   mediaResolutionRequested?: string;
+  mediaResolutionApplied?: boolean;
   mediaResolutionReason?: string;
+  mediaResolutionProviderField?: string;
 }): VisualAnalysisRunMetadata {
   return {
     runId: crypto.randomUUID(),
@@ -119,7 +123,9 @@ export function buildVisualAnalysisRunMetadata(params: {
       topP: VISUAL_ANALYSIS_GENERATION_CONFIG.topP,
       topK: VISUAL_ANALYSIS_GENERATION_CONFIG.topK,
       mediaResolutionRequested: params.mediaResolutionRequested,
-      mediaResolutionReason: params.mediaResolutionReason
+      mediaResolutionApplied: params.mediaResolutionApplied,
+      mediaResolutionReason: params.mediaResolutionReason,
+      mediaResolutionProviderField: params.mediaResolutionProviderField
     },
     input: {
       sourceKind: params.sourceKind,

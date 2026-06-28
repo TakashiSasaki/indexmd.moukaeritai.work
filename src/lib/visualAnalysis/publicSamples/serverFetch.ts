@@ -6,7 +6,8 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 import { ImageProcessingDiagnostics, optimizeImageForAnalysis, AnalysisSizingPolicy } from '../imagePayloadSizing';
 
 const ALLOWED_HOSTS = [
-  "commons.wikimedia.org"
+  "commons.wikimedia.org",
+  "upload.wikimedia.org"
 ];
 
 const PROXY_URL = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
@@ -181,7 +182,7 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
 
     let result: FetchSampleResult = { buffer, mimeType, sourceUrlKind: "localFixture" };
     
-    if (variant === "analysis" && mimeType !== 'image/svg+xml') {
+    if (variant === "analysis") {
       const policy = determineSizingPolicy(sample);
       const processed = await optimizeImageForAnalysis(result.buffer, policy);
       result = {
@@ -227,7 +228,7 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     }
   }
 
-  if (variant === "analysis" && result.mimeType !== 'image/svg+xml' && result.mimeType !== 'image/gif') {
+  if (variant === "analysis" && result.mimeType !== 'image/gif') {
     const policy = determineSizingPolicy(sample);
     const processed = await optimizeImageForAnalysis(result.buffer, policy);
     result = {

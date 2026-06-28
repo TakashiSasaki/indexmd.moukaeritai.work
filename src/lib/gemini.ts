@@ -72,7 +72,18 @@ export async function generateContentWithRetry(
           callParams.config.responseSchema = configOption.responseSchema;
         }
         if (configOption.mediaResolution) {
-          callParams.config.mediaResolution = configOption.mediaResolution;
+          const mapping: Record<string, any> = {
+            "high": "MEDIA_RESOLUTION_HIGH",
+            "medium": "MEDIA_RESOLUTION_MEDIUM",
+            "low": "MEDIA_RESOLUTION_LOW"
+          };
+          const mapped = mapping[configOption.mediaResolution.toLowerCase()];
+          if (mapped) {
+            callParams.config.mediaResolution = mapped;
+          } else {
+            // pass as is, maybe it's already MEDIA_RESOLUTION_HIGH
+            callParams.config.mediaResolution = configOption.mediaResolution as any;
+          }
         }
       }
 
