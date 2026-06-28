@@ -9,11 +9,24 @@ export function isRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
 }
 
 export function isProviderRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
-  return !item.success && item.failureKind === 'providerRateLimited';
+  if (item.success) return false;
+  return (
+    item.failureKind === 'providerRateLimited' ||
+    item.generationDiagnostics?.providerFailureKind === 'providerRateLimited' ||
+    item.generationDiagnostics?.statusCode === 429 ||
+    (item.generationDiagnostics as any)?.rateLimited === true
+  );
 }
 
 export function isProviderQuotaFailure(item: PublicSampleBatchRunItem): boolean {
-  return !item.success && item.failureKind === 'providerQuotaExceeded';
+  if (item.success) return false;
+  return (
+    item.failureKind === 'providerQuotaExceeded' ||
+    item.generationDiagnostics?.providerFailureKind === 'providerQuotaExceeded' ||
+    item.generationDiagnostics?.providerStatus === 'RESOURCE_EXHAUSTED' ||
+    item.generationDiagnostics?.providerStatus === 'QUOTA_EXCEEDED' ||
+    (item.generationDiagnostics as any)?.quotaExceeded === true
+  );
 }
 
 export function isProviderQuotaOrRateLimitFailure(item: PublicSampleBatchRunItem): boolean {

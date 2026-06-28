@@ -45,11 +45,11 @@ import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } fro
 import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
 import { generateContentWithRetry } from "./src/lib/gemini";
 
+dotenv.config();
+
 initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory', 'publicSampleImages']);
 setCacheEnabled('snippets', process.env.ENABLE_DRIVE_CONTENT_CACHE === 'true');
 setCachePolicyVersion('publicSampleImages', PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION);
-
-dotenv.config();
 
 const CACHE_DIR = path.join(process.cwd(), "cache", "snippets");
 if (!fs.existsSync(CACHE_DIR)) {

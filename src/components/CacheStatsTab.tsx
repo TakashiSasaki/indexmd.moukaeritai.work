@@ -1,13 +1,74 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RefreshCw, Server, HardDrive, Cpu, Activity, Clock, Trash2, ShieldAlert } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { CacheMetricsResponse } from '../lib/cacheMetrics';
 import { formatBytes, formatDate } from '../lib/cacheMetricsFormat';
 import { summarizeCacheStats, formatPercent } from '../lib/cacheStatsFormat';
 
 const CACHE_STATS_REFRESH_INTERVAL_MS = 60_000;
 
+/**
+ * Renders a human-readable relative time string (e.g. "just now", "15s ago")
+ * and updates every few seconds.
+ */
+const RelativeTime: React.FC<{ date: Date | string | null }> = ({ date }) => {
+  const [label, setLabel] = useState<string>('');
+
+  const updateLabel = useCallback(() => {
+    if (!date) {
+      setLabel('-');
+      return;
+    }
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const diffMs = new Date().getTime() - d.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+
+    if (diffSec < 5) setLabel('just now');
+    else if (diffSec < 60) setLabel(`${diffSec}s ago`);
+    else if (diffSec < 3600) setLabel(`${Math.floor(diffSec / 60)}m ago`);
+    else setLabel(d.toLocaleTimeString());
+  }, [date]);
+
+  useEffect(() => {
+    updateLabel();
+    const interval = setInterval(updateLabel, 5000);
+    return () => clearInterval(interval);
+  }, [updateLabel]);
+
+  return <span>{label}</span>;
+};
+
+/**
+ * A wrapper component that flashes a highlight when its key value changes.
+ */
+const ChangeHighlight: React.FC<{ value: any; children: React.ReactNode; className?: string }> = ({ value, children, className }) => {
+  const prevValue = useRef(value);
+  const [highlight, setHighlight] = useState(false);
+
+  useEffect(() => {
+    if (prevValue.current !== value && value !== undefined && value !== 0 && value !== null) {
+      setHighlight(true);
+      const timer = setTimeout(() => setHighlight(false), 2000);
+      prevValue.current = value;
+      return () => clearTimeout(timer);
+    }
+    prevValue.current = value;
+  }, [value]);
+
+  return (
+    <motion.div
+      animate={highlight ? { backgroundColor: 'rgba(238, 242, 255, 1)', scale: [1, 1.02, 1] } : { backgroundColor: 'rgba(255, 255, 255, 0)', scale: 1 }}
+      transition={{ duration: 0.5 }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
 export const CacheStatsTab: React.FC = () => {
   const [stats, setStats] = useState<CacheMetricsResponse | null>(null);
+  const [prevStats, setPrevStats] = useState<CacheMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -20,7 +81,10 @@ export const CacheStatsTab: React.FC = () => {
         throw new Error(`Failed to fetch stats: ${res.status}`);
       }
       const data = await res.json();
-      setStats(data);
+      setStats(prev => {
+        if (prev) setPrevStats(prev);
+        return data;
+      });
       setLastFetchedAt(new Date());
       setError(null);
     } catch (err: any) {
@@ -78,15 +142,23 @@ export const CacheStatsTab: React.FC = () => {
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
       
       {/* Header & Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
             <Activity className="w-6 h-6 text-indigo-600" />
             Cache / Runtime
           </h2>
-          <p className="text-sm text-slate-500 mt-1 hidden md:block">
-            サーバープロセスの稼働状況とキャッシュ効率の観測
-          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-sm text-slate-500 hidden md:block">
+              サーバープロセスの稼働状況とキャッシュ効率の観測
+            </p>
+            <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-medium border border-slate-200">
+              <Clock className="w-3 h-3" />
+              <span>Updated:</span>
+              <span className="text-slate-700"><RelativeTime date={lastFetchedAt} /></span>
+              <span className="opacity-40">({lastFetchedAt ? lastFetchedAt.toLocaleTimeString() : '-'})</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
@@ -173,8 +245,11 @@ export const CacheStatsTab: React.FC = () => {
         </div>
         <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Updated</div>
-          <div className="text-sm font-bold text-slate-800">
-            {lastFetchedAt ? lastFetchedAt.toLocaleTimeString() : '-'}
+          <div className="text-xs font-bold text-slate-800">
+            <RelativeTime date={lastFetchedAt} />
+            <div className="text-[9px] opacity-40 font-normal">
+              {lastFetchedAt ? lastFetchedAt.toLocaleTimeString() : '-'}
+            </div>
           </div>
         </div>
       </div>
@@ -229,7 +304,7 @@ export const CacheStatsTab: React.FC = () => {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500 mb-2">
             <HardDrive className="w-4 h-4" />
-            <span className="text-xs font-bold uppercase tracking-wider">Disk Usage</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Disk Usage</span>
           </div>
           <div className="text-2xl font-black text-slate-800">
             {formatBytes(summary.totalBytes)}
@@ -304,7 +379,11 @@ export const CacheStatsTab: React.FC = () => {
           Cache Breakdown
         </h3>
         {Object.entries(stats.caches).map(([type, c]: [string, any]) => (
-          <div key={type} className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex flex-col gap-1 text-[11px]">
+          <ChangeHighlight 
+            key={type} 
+            value={c.hits}
+            className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex flex-col gap-1 text-[11px]"
+          >
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-0.5">
                 <span className="font-mono font-bold text-slate-800">{type}</span>
@@ -325,12 +404,17 @@ export const CacheStatsTab: React.FC = () => {
             </div>
             <div className="flex justify-between items-center text-slate-500">
               <span>{c.hits}H {c.misses}M {c.bypasses > 0 && `(${c.bypasses}B)`} • {c.entryCount} ent ({formatBytes(c.totalBytes)})</span>
-              <div className="flex gap-1">
+              <div className="flex gap-1 items-center">
+                {c.lastHitAt && (
+                  <span className="text-[9px] opacity-60">
+                    <RelativeTime date={c.lastHitAt} />
+                  </span>
+                )}
                 {c.sharedInFlight > 0 && <span className="text-emerald-500 font-bold">S:{c.sharedInFlight}</span>}
                 {c.errors > 0 && <span className="text-rose-600 font-bold">⚠️{c.errors}</span>}
               </div>
             </div>
-          </div>
+          </ChangeHighlight>
         ))}
       </div>
 
@@ -359,7 +443,13 @@ export const CacheStatsTab: React.FC = () => {
             </thead>
             <tbody className="text-sm divide-y divide-slate-100">
               {Object.entries(stats.caches).map(([type, c]: [string, any]) => (
-                <tr key={type} className="hover:bg-slate-50 transition-colors">
+                <motion.tr 
+                  key={type} 
+                  initial={false}
+                  animate={prevStats?.caches[type]?.hits !== c.hits ? { backgroundColor: ['rgba(248, 250, 252, 1)', 'rgba(238, 242, 255, 1)', 'rgba(255, 255, 255, 0)'] } : {}}
+                  transition={{ duration: 2 }}
+                  className="hover:bg-slate-50 transition-colors"
+                >
                   <td className="p-3 pl-4">
                     <div className="font-mono font-bold text-slate-800">{type}</div>
                     <div className="flex gap-2 mt-0.5">
@@ -376,40 +466,62 @@ export const CacheStatsTab: React.FC = () => {
                     </div>
                   </td>
                   <td className="p-3 text-right font-black text-indigo-600">
-                    {formatPercent(c.hitRate)}
+                    <ChangeHighlight value={c.hitRate}>{formatPercent(c.hitRate)}</ChangeHighlight>
                   </td>
-                  <td className="p-3 text-right text-slate-600 font-medium">{c.hits.toLocaleString()}</td>
-                  <td className="p-3 text-right text-slate-600 font-medium">{c.misses.toLocaleString()}</td>
-                  <td className="p-3 text-right text-slate-400">{c.writes.toLocaleString()}</td>
-                  <td className="p-3 text-right text-slate-400">{c.bypasses.toLocaleString()}</td>
+                  <td className="p-3 text-right text-slate-600 font-medium">
+                    <ChangeHighlight value={c.hits}>{c.hits.toLocaleString()}</ChangeHighlight>
+                  </td>
+                  <td className="p-3 text-right text-slate-600 font-medium">
+                    <ChangeHighlight value={c.misses}>{c.misses.toLocaleString()}</ChangeHighlight>
+                  </td>
+                  <td className="p-3 text-right text-slate-400">
+                    <ChangeHighlight value={c.writes}>{c.writes.toLocaleString()}</ChangeHighlight>
+                  </td>
+                  <td className="p-3 text-right text-slate-400">
+                    <ChangeHighlight value={c.bypasses}>{c.bypasses.toLocaleString()}</ChangeHighlight>
+                  </td>
                   <td className="p-3 text-right">
-                    {c.errors > 0 ? <span className="text-rose-500 font-black">{c.errors.toLocaleString()}</span> : <span className="text-slate-300">0</span>}
+                    <ChangeHighlight value={c.errors}>
+                      {c.errors > 0 ? <span className="text-rose-500 font-black">{c.errors.toLocaleString()}</span> : <span className="text-slate-300">0</span>}
+                    </ChangeHighlight>
                   </td>
                   <td className="p-3 text-right text-emerald-500 font-medium">
-                    {c.sharedInFlight > 0 ? c.sharedInFlight.toLocaleString() : <span className="text-slate-300">0</span>}
+                    <ChangeHighlight value={c.sharedInFlight}>
+                      {c.sharedInFlight > 0 ? c.sharedInFlight.toLocaleString() : <span className="text-slate-300">0</span>}
+                    </ChangeHighlight>
                   </td>
                   
-                  <td className="p-3 text-right border-l border-slate-100 text-slate-700 font-bold">{c.entryCount.toLocaleString()}</td>
-                  <td className="p-3 text-right text-slate-700">{formatBytes(c.totalBytes)}</td>
+                  <td className="p-3 text-right border-l border-slate-100 text-slate-700 font-bold">
+                    <ChangeHighlight value={c.entryCount}>{c.entryCount.toLocaleString()}</ChangeHighlight>
+                  </td>
+                  <td className="p-3 text-right text-slate-700">
+                    <ChangeHighlight value={c.totalBytes}>{formatBytes(c.totalBytes)}</ChangeHighlight>
+                  </td>
                   
                   <td className="p-3 pr-4 text-[10px] text-slate-500 min-w-[140px]">
                     <div className="space-y-1">
                       {c.lastHitAt && (
                         <div className="flex justify-between border-b border-slate-50 pb-0.5">
                           <span className="opacity-40">Last Hit:</span>
-                          <span className="font-mono text-indigo-400">{formatDate(c.lastHitAt).split(' ')[1]}</span>
+                          <span className="font-mono text-indigo-400">
+                            <RelativeTime date={c.lastHitAt} />
+                          </span>
                         </div>
                       )}
                       {c.lastMissAt && (
                         <div className="flex justify-between border-b border-slate-50 pb-0.5">
                           <span className="opacity-40">Last Miss:</span>
-                          <span className="font-mono text-slate-400">{formatDate(c.lastMissAt).split(' ')[1]}</span>
+                          <span className="font-mono text-slate-400">
+                            <RelativeTime date={c.lastMissAt} />
+                          </span>
                         </div>
                       )}
                       {c.lastWriteAt && (
                         <div className="flex justify-between border-b border-slate-50 pb-0.5">
                           <span className="opacity-40">Last Write:</span>
-                          <span className="font-mono text-emerald-400">{formatDate(c.lastWriteAt).split(' ')[1]}</span>
+                          <span className="font-mono text-emerald-400">
+                            <RelativeTime date={c.lastWriteAt} />
+                          </span>
                         </div>
                       )}
                       {c.entryCount > 0 && (
@@ -420,7 +532,7 @@ export const CacheStatsTab: React.FC = () => {
                       )}
                     </div>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
