@@ -10,6 +10,10 @@ export class ProviderError extends Error {
   statusCode?: number;
   providerStatus?: string;
   rawMessageSummary?: string;
+  attemptedModels?: string[];
+  attempts?: any[];
+  retryable?: boolean;
+  apiRetryCount?: number;
 
   constructor(message: string, statusCode?: number, providerStatus?: string, rawMessageSummary?: string) {
     super(message);
@@ -37,6 +41,7 @@ export async function generateContentWithRetry(
   let client = getGeminiClient(currentModel);
   let lastError: any = null;
   const attemptedModels = new Set<string>([currentModel]);
+  const attempts: any[] = [];
   
   for (let i = 0; i <= maxRetries; i++) {
     try {
@@ -69,8 +74,6 @@ export async function generateContentWithRetry(
 
       return await client.models.generateContent(callParams);
     } catch (err: any) {
-      lastError = err;
-      
       let statusCode = err.status || err.response?.status || err.error?.code;
       if (!statusCode && err.message) {
         try {
@@ -85,16 +88,29 @@ export async function generateContentWithRetry(
       const errorBody = err.response?.error || err.error || {};
       const providerStatus = errorBody.status || "UNKNOWN";
       
+      const isQuotaExceeded = statusCode === 429;
+      const isNotFound = statusCode === 404;
+      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500;
+
+      attempts.push({
+        attempt: attempts.length + 1,
+        modelName: currentModel,
+        statusCode,
+        providerStatus,
+        retryable: isRetryable,
+        errorMessageSummary: rawMessage.substring(0, 500)
+      });
+      
       lastError = new ProviderError(
         `Generate content failed for model ${currentModel}`,
         statusCode,
         providerStatus,
-        rawMessage.substring(0, 150)
+        rawMessage.substring(0, 1000)
       );
-      
-      const isQuotaExceeded = statusCode === 429;
-      const isNotFound = statusCode === 404;
-      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500;
+      lastError.attemptedModels = Array.from(attemptedModels);
+      lastError.attempts = attempts;
+      lastError.retryable = isRetryable;
+      lastError.apiRetryCount = i;
       
       // Fallback logic for 500 errors with native schema
       if (statusCode === 500 && configOption?.responseSchema) {

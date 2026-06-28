@@ -40,7 +40,7 @@ import { evaluateVisualAnalysisQuality } from "./src/lib/visualAnalysis/qualityG
 import { parseModelJsonOutput } from "./src/lib/visualAnalysis/jsonParsing";
 import { VISUAL_ANALYSIS_SCHEMA, VISUAL_ANALYSIS_SCHEMA_VERSION } from "./src/lib/visualAnalysis/schema";
 import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } from "./src/lib/visualAnalysis/runMetadata";
-
+import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
 import { generateContentWithRetry } from "./src/lib/gemini";
 
 initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory']);
@@ -1555,11 +1555,51 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       mimeType: mimeType
     });
 
+    const requestPreview = includeRequestPreview ? {
+      model: targetModel,
+      outputMode: "structured",
+      taskPrompt,
+      systemInstruction,
+      mimeType: mimeType,
+      binaryInlineDataUsed: true,
+      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
+    } : undefined;
+
     // Call Model
-    let aiRes = await generateContentWithRetry(targetModel, [
-      { inlineData: { data: base64Data, mimeType: mimeType } },
-      { text: taskPrompt }
-    ], 4, configOption);
+    let aiRes;
+    try {
+      aiRes = await generateContentWithRetry(targetModel, [
+        { inlineData: { data: base64Data, mimeType: mimeType } },
+        { text: taskPrompt }
+      ], 4, configOption);
+    } catch (err: any) {
+      const failRes = buildGenerationFailureResponse({
+        err,
+        targetModel,
+        providerFamily: isGemma ? "gemma" : "gemini",
+        runMetadata,
+        sampleMetadata: {
+          id: sample.id,
+          title: sample.title,
+          category: sample.category,
+          licenseKind: sample.source.licenseKind,
+          licenseName: sample.source.licenseName,
+          attributionText: sample.source.attributionText,
+          sourcePageUrl: sample.source.pageUrl
+        },
+        expectedMetadata: {
+          imageKind: sample.expectedImageKind,
+          elementCategories: sample.expectedElementCategories,
+          elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
+          visibleElementLabels: sample.expectedVisibleElementLabels,
+          visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
+          visibleText: sample.expectedVisibleText,
+          notes: sample.expectedNotes
+        },
+        requestPreview
+      });
+      return res.status(200).json(failRes); // 200 so UI can handle structured failure
+    }
 
     let outputText = aiRes.text?.trim() || "{}";
 
@@ -1568,15 +1608,25 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     let retryCount = 0;
 
     if (!parseRes.ok && retryOnInvalidJson) {
-      aiRes = await generateContentWithRetry(targetModel, [
-        { inlineData: { data: base64Data, mimeType: mimeType } },
-        { text: taskPrompt }
-      ], 4, configOption);
-      const newOutputText = aiRes.text?.trim() || "{}";
-      const newParseRes = parseModelJsonOutput(newOutputText, 2);
-      newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
-      parseRes = newParseRes;
-      retryCount = 1;
+      try {
+        aiRes = await generateContentWithRetry(targetModel, [
+          { inlineData: { data: base64Data, mimeType: mimeType } },
+          { text: taskPrompt }
+        ], 4, configOption);
+        const newOutputText = aiRes.text?.trim() || "{}";
+        const newParseRes = parseModelJsonOutput(newOutputText, 2);
+        newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
+        parseRes = newParseRes;
+        retryCount = 1;
+      } catch (retryErr: any) {
+        // If recovery model call fails, we stick with the original parse failure and log a diagnostic.
+        parseRes.diagnostics.attempts.push({
+          requestAttempt: 2,
+          mode: "retryFailed",
+          success: false,
+          errorMessage: "Generation Error: " + retryErr.message
+        });
+      }
     }
 
     // Add recovery stats to run metadata
@@ -1587,16 +1637,6 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       retryCount,
       finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
     };
-
-    const requestPreview = includeRequestPreview ? {
-      model: targetModel,
-      outputMode: "structured",
-      taskPrompt,
-      systemInstruction,
-      mimeType: mimeType,
-      binaryInlineDataUsed: true,
-      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
-    } : undefined;
 
     if (!parseRes.ok) {
       return res.status(500).json({
@@ -1835,11 +1875,35 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       mimeType: fileMeta.mimeType
     });
 
+    const requestPreview = includeRequestPreview ? {
+      model: targetModel,
+      outputMode: "structured",
+      taskPrompt,
+      systemInstruction,
+      mimeType: fileMeta.mimeType,
+      binaryInlineDataUsed: true,
+      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
+    } : undefined;
+
     // 4. Call Model
-    let aiRes = await generateContentWithRetry(targetModel, [
-      { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
-      { text: taskPrompt }
-    ], 4, configOption);
+    let aiRes;
+    try {
+      aiRes = await generateContentWithRetry(targetModel, [
+        { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
+        { text: taskPrompt }
+      ], 4, configOption);
+    } catch (err: any) {
+      const failRes = buildGenerationFailureResponse({
+        err,
+        targetModel,
+        providerFamily: isGemma ? "gemma" : "gemini",
+        runMetadata,
+        outputMode: "structured",
+        metadata: fileMeta,
+        requestPreview
+      } as any);
+      return res.status(200).json(failRes);
+    }
 
     let outputText = aiRes.text?.trim() || "{}";
     
@@ -1848,15 +1912,24 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     let retryCount = 0;
 
     if (!parseRes.ok && retryOnInvalidJson) {
-      aiRes = await generateContentWithRetry(targetModel, [
-        { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
-        { text: taskPrompt }
-      ], 4, configOption);
-      const newOutputText = aiRes.text?.trim() || "{}";
-      const newParseRes = parseModelJsonOutput(newOutputText, 2);
-      newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
-      parseRes = newParseRes;
-      retryCount = 1;
+      try {
+        aiRes = await generateContentWithRetry(targetModel, [
+          { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
+          { text: taskPrompt }
+        ], 4, configOption);
+        const newOutputText = aiRes.text?.trim() || "{}";
+        const newParseRes = parseModelJsonOutput(newOutputText, 2);
+        newParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...newParseRes.diagnostics.attempts];
+        parseRes = newParseRes;
+        retryCount = 1;
+      } catch (retryErr: any) {
+        parseRes.diagnostics.attempts.push({
+          requestAttempt: 2,
+          mode: "retryFailed",
+          success: false,
+          errorMessage: "Generation Error: " + retryErr.message
+        });
+      }
     }
 
     // Add recovery stats to run metadata
@@ -1867,16 +1940,6 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       retryCount,
       finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
     };
-
-    const requestPreview = includeRequestPreview ? {
-      model: targetModel,
-      outputMode: "structured",
-      taskPrompt,
-      systemInstruction,
-      mimeType: fileMeta.mimeType,
-      binaryInlineDataUsed: true,
-      generationConfig: VISUAL_ANALYSIS_GENERATION_CONFIG
-    } : undefined;
 
     if (!parseRes.ok) {
       return res.status(500).json({ 

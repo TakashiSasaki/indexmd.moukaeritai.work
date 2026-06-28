@@ -955,6 +955,84 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
             </div>
 
+            {result.success === false && result.failureKind === "generationError" && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-orange-100 text-orange-600 rounded-full shrink-0">
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1 w-full">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-orange-900">Execution Failure: Model Generation Failed</h3>
+                      <button
+                        onClick={() => handleCopy(JSON.stringify(result, null, 2), 'generation-error')}
+                        className="text-[10px] font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-100/50 px-2 py-1 rounded"
+                      >
+                        {copied === 'generation-error' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copied === 'generation-error' ? "Copied!" : "Copy Details"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-orange-700 leading-relaxed">
+                      The model API call failed before returning any content. This can be caused by quota limits, authentication errors, or provider outages.
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                       <div className="p-2 bg-white rounded border border-orange-100">
+                          <span className="block text-[10px] text-orange-400 mb-0.5">Status Code</span>
+                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.statusCode || "N/A"}</span>
+                       </div>
+                       <div className="p-2 bg-white rounded border border-orange-100">
+                          <span className="block text-[10px] text-orange-400 mb-0.5">Provider Status</span>
+                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.providerStatus || "UNKNOWN"}</span>
+                       </div>
+                       <div className="p-2 bg-white rounded border border-orange-100">
+                          <span className="block text-[10px] text-orange-400 mb-0.5">Retryable</span>
+                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.retryable ? "Yes" : "No"}</span>
+                       </div>
+                       <div className="p-2 bg-white rounded border border-orange-100">
+                          <span className="block text-[10px] text-orange-400 mb-0.5">API Retry Count</span>
+                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.apiRetryCount ?? 0}</span>
+                       </div>
+                    </div>
+                    {result.generationDiagnostics?.rawMessageSummary && (
+                      <div className="mt-3">
+                         <span className="block text-[10px] font-bold text-orange-800 mb-1">Raw Message Summary:</span>
+                         <p className="text-xs text-orange-600 font-mono bg-white p-2 rounded border border-orange-100 break-words whitespace-pre-wrap">
+                           {result.generationDiagnostics.rawMessageSummary}
+                         </p>
+                      </div>
+                    )}
+                    {result.generationDiagnostics?.attempts && result.generationDiagnostics.attempts.length > 0 && (
+                      <div className="mt-4 border border-orange-200 rounded overflow-hidden">
+                        <div className="bg-orange-100/50 px-3 py-2 text-[10px] font-bold text-orange-800 border-b border-orange-200">
+                           Provider Call Attempts
+                        </div>
+                        <table className="w-full text-left text-[10px]">
+                           <thead className="bg-orange-50 text-orange-500 uppercase">
+                              <tr>
+                                 <th className="px-3 py-2">Attempt</th>
+                                 <th className="px-3 py-2">Model</th>
+                                 <th className="px-3 py-2">Status</th>
+                                 <th className="px-3 py-2">Message</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-orange-100 bg-white">
+                              {result.generationDiagnostics.attempts.map((att: any, idx: number) => (
+                                 <tr key={idx}>
+                                    <td className="px-3 py-2 font-bold text-orange-700">{att.attempt}</td>
+                                    <td className="px-3 py-2 text-orange-600">{att.modelName}</td>
+                                    <td className="px-3 py-2 text-orange-600">{att.statusCode || "N/A"} {att.providerStatus ? `(${att.providerStatus})` : ''}</td>
+                                    <td className="px-3 py-2 text-orange-500 truncate max-w-[150px]" title={att.errorMessageSummary}>{att.errorMessageSummary}</td>
+                                 </tr>
+                              ))}
+                           </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {result.success === false && result.failureKind === "jsonParseError" && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-4">
                 <div className="flex items-start gap-3">

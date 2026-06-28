@@ -93,3 +93,12 @@ To improve reliability without losing execution provenance:
 - **Diagnostics Logging:** All parse attempts, lengths, and truncated previews are logged in `parseDiagnostics`.
 - **Parse Failure is Execution Failure:** A JSON parsing failure is caught *before* the schema `qualityGate` is run, returning an execution error (`failureKind: "jsonParseError"`). The raw full text is never persisted to database logs; only a truncated preview is kept.
 - **Model Retry (Opt-in):** A fallback or repair retry is *not* implemented by default. However, users can opt-in to a single "same request" retry (`retryOnInvalidJson`). If enabled, and parsing fails, the same prompt and image are dispatched exactly once more. Fallback model retry and repair-prompting are explicitly out of scope for this milestone.
+
+## Failure Taxonomy
+
+Visual Analysis differentiates between structural failures and quality warnings:
+
+- **`generationError`**: The model API call failed before returning any content. This can be caused by quota limits, authentication errors, provider outages, or unsupported image formats. Look at `generationDiagnostics` for status codes and retry history.
+- **`jsonParseError`**: The model executed successfully and returned text, but the text could not be parsed as valid JSON (even after markdown extraction). Look at `parseDiagnostics` for the raw output preview.
+- **Schema Validation Failure**: The JSON was parsed successfully, but the resulting object failed to validate against the Zod schema. (Typically handled as a system error in the current milestone).
+- **Quality Warnings (`qualityIssues`)**: The schema was valid, but the content triggered domain-specific quality rules (e.g. missing `visibleText` in a document photo). This does not fail the execution (`success: true`), but provides warnings to the user.

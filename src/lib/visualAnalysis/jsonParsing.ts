@@ -1,6 +1,6 @@
 export interface VisualJsonParseAttempt {
   requestAttempt?: number;
-  mode: "direct" | "fenceStripped" | "extractedObject";
+  mode: "direct" | "fenceStripped" | "extractedObject" | "retryFailed";
   success: boolean;
   errorMessage?: string;
 }
