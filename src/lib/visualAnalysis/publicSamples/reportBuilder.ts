@@ -1,5 +1,34 @@
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from "./batchTypes";
 
+export function isTransportOrResponseFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && 
+         (item.failureKind === 'nonJsonResponse' || 
+          item.failureKind === 'invalidJsonResponse' || 
+          item.failureKind === 'apiError' || 
+          item.failureKind === 'rateLimited' ||
+          item.failureKind === 'startupHtml');
+}
+
+export function isModelParseFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && item.failureKind === 'jsonParseError';
+}
+
+export function isSchemaValidationFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && item.failureKind === 'schemaValidationError';
+}
+
+export function isNetworkFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && item.failureKind === 'networkError';
+}
+
+export function isProviderGenerationFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && 
+         !isNetworkFailure(item) &&
+         !isSchemaValidationFailure(item) &&
+         !isModelParseFailure(item) &&
+         !isTransportOrResponseFailure(item);
+}
+
 export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummary) {
   return buildBatchDiagnosticReportForChat(batchSummary);
 }
@@ -27,6 +56,9 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
     parseFailureSummary: buildParseFailureSummary(batchSummary.items),
+    networkFailureSummary: buildNetworkFailureSummary(batchSummary.items),
+    validationFailureSummary: buildValidationFailureSummary(batchSummary.items),
+    rateLimitSummary: buildRateLimitSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: compactItems
   };
@@ -61,6 +93,9 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
     parseFailureSummary: buildParseFailureSummary(batchSummary.items),
+    networkFailureSummary: buildNetworkFailureSummary(batchSummary.items),
+    validationFailureSummary: buildValidationFailureSummary(batchSummary.items),
+    rateLimitSummary: buildRateLimitSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: summaryItems
   };
@@ -73,7 +108,7 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
 }
 
 function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
-  const failedItems = items.filter(item => !item.success && item.responseDiagnostics && item.failureKind !== 'jsonParseError');
+  const failedItems = items.filter(isTransportOrResponseFailure);
   const byStatus: Record<string, number> = {};
   const byContentType: Record<string, number> = {};
   const byHtmlTitle: Record<string, number> = {};
@@ -122,8 +157,88 @@ function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
   };
 }
 
+function buildNetworkFailureSummary(items: PublicSampleBatchRunItem[]) {
+  const networkFailures = items.filter(isNetworkFailure);
+  const samples = networkFailures.map(item => ({
+    sampleId: item.sampleId,
+    error: item.error || "Unknown network error",
+    attempts: item.retryDiagnostics?.attempts ?? 1,
+    retried: item.retryDiagnostics?.retried ?? false,
+    finalFailureKind: item.retryDiagnostics?.finalFailureKind || item.failureKind
+  }));
+  let totalAttempts = 0;
+  let totalRetried = 0;
+  for (const item of networkFailures) {
+    totalAttempts += item.retryDiagnostics?.attempts ?? 1;
+    if (item.retryDiagnostics?.retried) totalRetried++;
+  }
+  return {
+    total: networkFailures.length,
+    attempts: totalAttempts,
+    retried: totalRetried,
+    samples
+  };
+}
+
+function buildValidationFailureSummary(items: PublicSampleBatchRunItem[]) {
+  const valFailures = items.filter(isSchemaValidationFailure);
+  const byErrorCode: Record<string, number> = {};
+  const byMessage: Record<string, number> = {};
+  const samples: any[] = [];
+
+  for (const item of valFailures) {
+    const issues = item.qualityIssues || [];
+    for (const issue of issues) {
+      const code = issue.code || "SCHEMA_ERROR";
+      byErrorCode[code] = (byErrorCode[code] || 0) + 1;
+      const msg = issue.message || "Schema mismatch";
+      byMessage[msg] = (byMessage[msg] || 0) + 1;
+    }
+
+    const analysisRun = item.analysisRun || item.responseRaw?.analysisRun;
+    const model = analysisRun?.execution?.usedModelName || item.responseRaw?.usedModelName || "UNKNOWN";
+    const jsonMode = analysisRun?.execution?.jsonMode || item.responseRaw?.effectiveStructuredExecutionMode || "UNKNOWN";
+    const providerFamily = analysisRun?.execution?.providerFamily || item.responseRaw?.providerFamily || "UNKNOWN";
+
+    samples.push({
+      sampleId: item.sampleId,
+      modelName: model,
+      jsonMode: jsonMode,
+      providerFamily: providerFamily,
+      issues: issues.map((i: any) => i.message),
+      jsonRecovery: analysisRun?.execution?.jsonRecovery || item.responseRaw?.analysisRun?.execution?.jsonRecovery
+    });
+  }
+
+  return {
+    total: valFailures.length,
+    byErrorCode,
+    byMessage,
+    samples
+  };
+}
+
+function buildRateLimitSummary(items: PublicSampleBatchRunItem[]) {
+  const rateLimitedItems = items.filter(item => !item.success && item.failureKind === 'rateLimited');
+  const samples = rateLimitedItems.map(item => ({
+    sampleId: item.sampleId,
+    attempts: item.retryDiagnostics?.attempts ?? 1,
+    retried: item.retryDiagnostics?.retried ?? false,
+    retryEvents: item.retryDiagnostics?.events || []
+  }));
+  let totalAttempts = 0;
+  for (const item of rateLimitedItems) {
+    totalAttempts += item.retryDiagnostics?.attempts ?? 1;
+  }
+  return {
+    total429: rateLimitedItems.length,
+    totalAttempts,
+    samples
+  };
+}
+
 function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
-  const parseFailures = items.filter(item => !item.success && item.failureKind === 'jsonParseError');
+  const parseFailures = items.filter(isModelParseFailure);
   
   const byModelName: Record<string, number> = {};
   const byProviderFamily: Record<string, number> = {};
@@ -207,7 +322,7 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
 }
 
 function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
-  const failedItems = items.filter(item => !item.success && item.failureKind !== 'jsonParseError' && !item.responseDiagnostics);
+  const failedItems = items.filter(isProviderGenerationFailure);
   const byProviderStatus: Record<string, number> = {};
   const byStatusCode: Record<string, number> = {};
   const byMimeType: Record<string, number> = {};

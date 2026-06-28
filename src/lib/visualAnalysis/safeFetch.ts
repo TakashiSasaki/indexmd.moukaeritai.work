@@ -10,6 +10,7 @@ export interface ResponseDiagnostics {
   parseErrorMessage?: string;
   isTransientStartupHtml?: boolean;
   transientReason?: string;
+  retryAfterSeconds?: number;
 }
 
 export interface SafeFetchResult<T> {
@@ -101,6 +102,20 @@ export async function safeFetch<T>(
       trimmedText.startsWith("{") ||
       trimmedText.startsWith("[");
 
+    const retryAfterHeader = res.headers.get("retry-after");
+    let retryAfterSeconds: number | undefined;
+    if (retryAfterHeader) {
+      const parsed = parseInt(retryAfterHeader, 10);
+      if (!isNaN(parsed)) {
+        retryAfterSeconds = parsed;
+      } else {
+        const dateParsed = Date.parse(retryAfterHeader);
+        if (!isNaN(dateParsed)) {
+          retryAfterSeconds = Math.max(0, Math.ceil((dateParsed - Date.parse(new Date().toUTCString())) / 1000));
+        }
+      }
+    }
+
     const diagnostics: ResponseDiagnostics = {
       status: res.status,
       statusText: res.statusText,
@@ -112,7 +127,17 @@ export async function safeFetch<T>(
       htmlTitle,
       isTransientStartupHtml,
       transientReason,
+      retryAfterSeconds,
     };
+
+    if (res.status === 429) {
+      return {
+        success: false,
+        failureKind: "rateLimited",
+        error: `HTTP 429 Too Many Requests: ${res.statusText}`,
+        responseDiagnostics: diagnostics,
+      };
+    }
 
     if (!looksLikeJson) {
       return {
@@ -198,7 +223,9 @@ export async function safeFetchWithRetry<T>(
       };
     }
 
-    const delayMs = delaysMs[attempt - 1] || delaysMs[delaysMs.length - 1] || 5000;
+    const delayMs = result.responseDiagnostics?.retryAfterSeconds
+      ? result.responseDiagnostics.retryAfterSeconds * 1000
+      : (delaysMs[attempt - 1] || delaysMs[delaysMs.length - 1] || 5000);
     
     const event: SafeFetchRetryEvent = {
       attempt,

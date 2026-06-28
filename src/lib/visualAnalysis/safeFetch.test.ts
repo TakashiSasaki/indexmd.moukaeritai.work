@@ -75,6 +75,27 @@ describe('safeFetch', () => {
     assert.strictEqual(result.failureKind, 'invalidJsonResponse');
     assert.ok(result.responseDiagnostics?.parseErrorMessage);
   });
+
+  it('classifies HTTP 429 response as rateLimited and parses Retry-After header', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => ({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+      headers: new Headers({
+        'content-type': 'application/json',
+        'retry-after': '45'
+      }),
+      url: 'http://localhost/api/visual/health',
+      text: async () => '{"error":"Rate limit exceeded"}',
+    }));
+
+    const result = await safeFetch('http://localhost/api/visual/health');
+
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.failureKind, 'rateLimited');
+    assert.strictEqual(result.responseDiagnostics?.status, 429);
+    assert.strictEqual(result.responseDiagnostics?.retryAfterSeconds, 45);
+  });
 });
 
 describe('safeFetchWithRetry', () => {
@@ -159,5 +180,44 @@ describe('safeFetchWithRetry', () => {
     assert.strictEqual(result.failureKind, 'nonJsonResponse');
     assert.strictEqual(result.retryDiagnostics?.attempts, 1);
     assert.strictEqual(result.retryDiagnostics?.retried, false);
+  });
+
+  it('retries on HTTP 429 and respects Retry-After delay', async (t) => {
+    let callCount = 0;
+    t.mock.method(globalThis, 'fetch', async () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Headers({
+            'content-type': 'application/json',
+            'retry-after': '1' // 1 second
+          }),
+          url: 'http://localhost/api/visual/health',
+          text: async () => '{"error":"Rate limit exceeded"}',
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        url: 'http://localhost/api/visual/health',
+        text: async () => '{"ok":true}',
+      };
+    });
+
+    const result = await safeFetchWithRetry('http://localhost/api/visual/health', undefined, {
+      maxAttempts: 3,
+      delaysMs: [10000, 20000],
+      retryHttpStatuses: [429]
+    });
+
+    assert.strictEqual(result.success, true);
+    assert.deepStrictEqual(result.data, { ok: true });
+    assert.strictEqual(result.retryDiagnostics?.attempts, 2);
+    assert.strictEqual(result.retryDiagnostics?.events[0].delayMs, 1000); // 1 sec from Retry-After, not 10000ms from delaysMs
   });
 });

@@ -18,6 +18,9 @@ export interface VisualJsonRecoveryMetadata {
   localRepairSucceeded?: boolean;
   modelRetryAttempted?: boolean;
   modelRetrySucceeded?: boolean;
+  schemaValidationRecoveryAttempted?: boolean;
+  schemaValidationRecoverySucceeded?: boolean;
+  schemaValidationRetryCount?: number;
   rawOutputPreview?: string;
   rawOutputLength?: number;
   rawOutputHash?: string;

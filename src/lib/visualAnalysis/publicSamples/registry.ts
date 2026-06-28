@@ -8,6 +8,13 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "landscapePhoto",
     expectedElementCategories: ["landscapeElement", "terrain", "plant", "waterBody", "weatherOrSky"],
     expectedVisibleElementLabels: ["sky", "mountain", "valley", "trees", "clouds"],
+    expectedVisibleElementLabelAliases: {
+      "sky": ["weatherOrSky", "clouds", "sky"],
+      "mountain": ["terrain", "mountains", "cliff", "cliffs", "mountain"],
+      "valley": ["valley", "tunnel view", "canyon", "meadow"],
+      "trees": ["forest", "vegetation", "plant", "trees", "pines"],
+      "clouds": ["cloud", "sky", "clouds", "mist"]
+    },
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Yosemite_Valley_from_Tunnel_View.jpg",
@@ -82,6 +89,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "naturalPhoto",
     expectedElementCategories: ["plant"],
     expectedVisibleElementLabels: ["sunflower", "petals", "leaves"],
+    expectedVisibleElementLabelAliases: {
+      "sunflower": ["flower", "plant", "sunflower"],
+      "petals": ["petal", "yellow petals", "petals"],
+      "leaves": ["leaf", "green leaves", "leaves", "foliage"]
+    },
     optionalElementCategories: ["weatherOrSky"],
     optionalVisibleElementLabels: ["sky"],
     source: {
@@ -104,6 +116,13 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "naturalPhoto",
     expectedElementCategories: ["furniture", "plant", "building"],
     expectedVisibleElementLabels: ["sofa", "table", "window", "plant", "wall"],
+    expectedVisibleElementLabelAliases: {
+      "sofa": ["couch", "sofa", "seating", "chair"],
+      "table": ["coffee table", "table"],
+      "window": ["windows", "window"],
+      "plant": ["potted plant", "houseplant", "plant", "indoor plant"],
+      "wall": ["walls", "wall", "room divider"]
+    },
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Sittingroom-edit1.jpg",
@@ -124,6 +143,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "productPhoto",
     expectedElementCategories: ["furniture"],
     expectedVisibleElementLabels: ["chair", "wood", "legs", "seat"],
+    expectedVisibleElementLabelAliases: {
+      "chair": ["armchair", "side chair", "chair", "furniture"],
+      "wood": ["wooden", "wood", "timber"],
+      "legs": ["chair legs", "legs"],
+      "seat": ["cushion", "seat"]
+    },
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Set_of_fourteen_side_chairs_MET_DP110780.jpg",
@@ -171,6 +196,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "naturalPhoto",
     expectedElementCategories: ["document", "furniture"],
     expectedVisibleElementLabels: ["books", "shelf", "spines", "wood"],
+    expectedVisibleElementLabelAliases: {
+      "books": ["book", "library", "books"],
+      "shelf": ["bookshelf", "shelves", "shelf"],
+      "spines": ["book spines", "spines"],
+      "wood": ["wooden shelf", "wood"]
+    },
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Interior_of_Biblioth%C3%A8que_Mazarine_003.JPG",
@@ -191,6 +222,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "documentPhoto",
     expectedElementCategories: ["document", "textRegion"],
     expectedVisibleElementLabels: ["paper", "text", "ink", "page"],
+    expectedVisibleElementLabelAliases: {
+      "paper": ["parchment", "vellum", "paper", "document"],
+      "text": ["handwriting", "script", "latin text", "text", "writing"],
+      "ink": ["dark ink", "ink"],
+      "page": ["manuscript page", "page", "document"]
+    },
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Magna_Carta_(British_Library_Cotton_MS_Augustus_II.106).jpg",
@@ -237,6 +274,13 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "receiptPhoto",
     expectedElementCategories: ["document", "textRegion"],
     expectedVisibleElementLabels: ["receipt", "text", "prices", "items", "total"],
+    expectedVisibleElementLabelAliases: {
+      "receipt": ["receipt", "bill", "invoice", "document"],
+      "text": ["text", "print", "writing"],
+      "prices": ["price", "prices", "cost", "total"],
+      "items": ["itemized list", "items", "products"],
+      "total": ["total", "amount", "total amount"]
+    },
     expectedVisibleText: ["TOTAL", "$"],
     source: {
       provider: "localFixture",
@@ -256,6 +300,13 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "documentPhoto",
     expectedElementCategories: ["document", "textRegion"],
     expectedVisibleElementLabels: ["ticket", "text", "gate", "seat", "event"],
+    expectedVisibleElementLabelAliases: {
+      "ticket": ["ticket", "pass", "document"],
+      "text": ["text", "print", "writing"],
+      "gate": ["gate number", "gate"],
+      "seat": ["seat number", "seat"],
+      "event": ["event details", "event"]
+    },
     expectedVisibleText: ["ADMIT ONE", "TICKET"],
     source: {
       provider: "localFixture",
@@ -275,6 +326,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "artworkPhoto",
     expectedElementCategories: ["landscapeElement", "weatherOrSky", "building"],
     expectedVisibleElementLabels: ["painting", "starry sky", "cypress", "village"],
+    expectedVisibleElementLabelAliases: {
+      "painting": ["artwork", "painting", "canvas", "oil painting"],
+      "starry sky": ["sky", "stars", "starry sky", "night sky"],
+      "cypress": ["tree", "cypress tree", "cypress"],
+      "village": ["town", "village", "houses", "settlement"]
+    },
     optionalElementCategories: ["terrain"],
     optionalVisibleElementLabels: ["moon", "stars", "brushstrokes", "hills"],
     source: {
@@ -297,6 +354,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "artifactPhoto",
     expectedElementCategories: ["document", "textRegion", "symbol"],
     expectedVisibleElementLabels: ["stone slab", "inscription", "text"],
+    expectedVisibleElementLabelAliases: {
+      "stone slab": ["stone", "slab", "rosetta stone", "stele"],
+      "inscription": ["hieroglyphs", "carvings", "inscription", "carving"],
+      "text": ["writing", "text", "script"]
+    },
     optionalElementCategories: ["unknown"],
     optionalVisibleElementLabels: ["museum artifact", "broken stone", "carved text"],
     source: {
@@ -319,6 +381,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "spacePhoto",
     expectedElementCategories: ["waterBody", "terrain", "weatherOrSky"],
     expectedVisibleElementLabels: ["earth", "clouds", "ocean", "land"],
+    expectedVisibleElementLabelAliases: {
+      "earth": ["planet", "earth", "globe", "blue marble"],
+      "clouds": ["weatherOrSky", "clouds"],
+      "ocean": ["waterBody", "sea", "ocean", "water"],
+      "land": ["continent", "land", "terrain", "africa", "antarctica"]
+    },
     optionalElementCategories: ["symbol"],
     optionalVisibleElementLabels: ["space", "planet"],
     source: {
@@ -341,6 +409,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "medicalImage",
     expectedElementCategories: ["medical", "bodyPart"],
     expectedVisibleElementLabels: ["x-ray", "chest", "ribs"],
+    expectedVisibleElementLabelAliases: {
+      "x-ray": ["radiograph", "x-ray", "medical image"],
+      "chest": ["thorax", "chest"],
+      "ribs": ["bones", "rib cage", "ribs"]
+    },
     optionalElementCategories: ["unknown"],
     optionalVisibleElementLabels: ["lungs", "spine", "grayscale"],
     source: {
@@ -363,6 +436,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "mapImage",
     expectedElementCategories: ["textRegion", "symbol"],
     expectedVisibleElementLabels: ["map", "labels", "boundaries"],
+    expectedVisibleElementLabelAliases: {
+      "map": ["world map", "hemisphere map", "map"],
+      "labels": ["text", "labels", "names", "placenames"],
+      "boundaries": ["borders", "lines", "boundaries"]
+    },
     optionalElementCategories: ["waterBody", "terrain"],
     optionalVisibleText: ["PACIFIC", "ATLANTIC", "OCEAN"],
     source: {
@@ -385,6 +463,10 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "foodPhoto",
     expectedElementCategories: ["food", "container"],
     expectedVisibleElementLabels: ["food", "plate"],
+    expectedVisibleElementLabelAliases: {
+      "food": ["roasted turkey", "roasted chicken", "pilaf", "rice", "meal", "food"],
+      "plate": ["serving plate", "dish", "plate", "container"]
+    },
     optionalElementCategories: ["unknown"],
     optionalVisibleElementLabels: ["roasted turkey", "garnishes"],
     source: {
@@ -407,6 +489,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "landscapePhoto",
     expectedElementCategories: ["building", "signage"],
     expectedVisibleElementLabels: ["street", "signs", "neon"],
+    expectedVisibleElementLabelAliases: {
+      "street": ["roadOrPath", "street", "alley", "kabukicho street"],
+      "signs": ["signage", "billboards", "signs"],
+      "neon": ["neon signs", "lights", "neon"]
+    },
     optionalElementCategories: ["roadOrPath"],
     optionalVisibleText: ["KABUKICHO"],
     source: {
@@ -429,6 +516,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "naturalPhoto",
     expectedElementCategories: ["vehicle", "roadOrPath"],
     expectedVisibleElementLabels: ["car", "camera", "street"],
+    expectedVisibleElementLabelAliases: {
+      "car": ["vehicle", "automobile", "camera car", "car"],
+      "camera": ["street view camera", "camera system", "camera"],
+      "street": ["roadOrPath", "road", "street", "pavement"]
+    },
     optionalElementCategories: ["building"],
     optionalVisibleElementLabels: ["wheels", "road"],
     source: {
@@ -451,6 +543,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "whiteboardPhoto",
     expectedElementCategories: ["document", "textRegion"],
     expectedVisibleElementLabels: ["whiteboard", "handwriting", "numbers"],
+    expectedVisibleElementLabelAliases: {
+      "whiteboard": ["dry erase board", "whiteboard"],
+      "handwriting": ["text", "writing", "handwritten notes", "handwriting"],
+      "numbers": ["digits", "attendance figure", "numbers"]
+    },
     optionalElementCategories: ["unknown"],
     optionalVisibleText: ["ATTENDANCE", "WHITE SOX"],
     source: {
@@ -500,6 +597,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "packageImage",
     expectedElementCategories: ["productPackage", "textRegion"],
     expectedVisibleElementLabels: ["bottle", "label", "shampoo"],
+    expectedVisibleElementLabelAliases: {
+      "bottle": ["shampoo bottle", "plastic bottle", "bottle", "container"],
+      "label": ["product label", "label"],
+      "shampoo": ["body wash", "soap", "shampoo"]
+    },
     optionalElementCategories: ["unknown"],
     optionalVisibleText: ["Dove", "Nutritive Solutions"],
     source: {

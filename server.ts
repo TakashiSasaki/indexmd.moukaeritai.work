@@ -1828,7 +1828,10 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       modelRetrySucceeded,
       rawOutputLength,
       rawOutputHash,
-      parseErrorMessage
+      parseErrorMessage,
+      schemaValidationRecoveryAttempted: false,
+      schemaValidationRecoverySucceeded: false,
+      schemaValidationRetryCount: 0
     };
 
     if (!parseRes.ok) {
@@ -1933,14 +1936,76 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       return res.json(result);
     }
 
-    const canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
+    let canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
       providerFamily: isGemma ? "gemma" : "gemini",
       modelName: targetModel,
       structuredExecutionMode: mode,
       jsonMode
     });
-    const normalized = canonicalization.result;
-    const validation = validateVisualAnalysis(normalized);
+    let normalized = canonicalization.result;
+    let validation = validateVisualAnalysis(normalized);
+
+    let schemaValidationRecoveryAttempted = false;
+    let schemaValidationRecoverySucceeded = false;
+    let schemaValidationRetryCount = 0;
+
+    if (!validation.isValid && mode === "promptedJson") {
+      schemaValidationRecoveryAttempted = true;
+      console.warn(`[public-sample] Initial validation failed for ${sample.id}. Attempting schema-validation retry.`);
+      
+      const errorsList = validation.errors.join("\n- ");
+      const retryPrompt = `The previous output was valid JSON but failed canonical schema validation with the following errors:\n- ${errorsList}\n\nOriginal JSON output:\n${JSON.stringify(parsed, null, 2)}\n\nPlease analyze the image again and output only one valid JSON object that exactly matches the canonical schema.\n\nCRITICAL CONSTRAINTS:\n1. Use only canonical fields:\n   - schemaVersion\n   - summary\n   - visualInfo\n   - indexing\n   - quality\n2. DO NOT use "visual_elements", "layout", or other non-canonical top-level fields.\n3. Make sure to fill "visualInfo.sceneDescription".\n4. Put UI/form/layout elements under "visualInfo.visibleElements".\n5. Put all OCR text under "visualInfo.visibleText".\n\nOutput only valid JSON. Do not include markdown fences, explanations, or trailing text.`;
+
+      try {
+        const retryConfig = {
+          ...configOption,
+          temperature: 0.1,
+        };
+        delete retryConfig.responseMimeType;
+        delete retryConfig.responseSchema;
+
+        const retryAiRes = await generateContentWithRetry(
+          targetModel,
+          [
+            { inlineData: { data: base64Data, mimeType: mimeType } },
+            { text: retryPrompt }
+          ],
+          1,
+          retryConfig
+        );
+
+        schemaValidationRetryCount++;
+        const retryOutputText = retryAiRes.text?.trim() || "{}";
+        const retryParseRes = parseModelJsonOutput(retryOutputText, 3);
+        
+        if (retryParseRes.ok) {
+          const retryCanonicalization = canonicalizeVisualAnalysisProviderOutput(retryParseRes.parsed, {
+            providerFamily: isGemma ? "gemma" : "gemini",
+            modelName: targetModel,
+            structuredExecutionMode: mode,
+            jsonMode
+          });
+          const retryValidation = validateVisualAnalysis(retryCanonicalization.result);
+          if (retryValidation.isValid) {
+            schemaValidationRecoverySucceeded = true;
+            canonicalization = retryCanonicalization;
+            normalized = retryCanonicalization.result;
+            validation = retryValidation;
+            console.log(`[public-sample] Schema-validation recovery succeeded for ${sample.id}!`);
+          } else {
+            console.warn(`[public-sample] Schema-validation recovery output is still invalid: ${retryValidation.errors.join(", ")}`);
+          }
+        }
+      } catch (retryErr) {
+        console.error(`[public-sample] Schema-validation retry failed for ${sample.id}`, retryErr);
+      }
+
+      if (runMetadata.execution.jsonRecovery) {
+        runMetadata.execution.jsonRecovery.schemaValidationRecoveryAttempted = schemaValidationRecoveryAttempted;
+        runMetadata.execution.jsonRecovery.schemaValidationRecoverySucceeded = schemaValidationRecoverySucceeded;
+        runMetadata.execution.jsonRecovery.schemaValidationRetryCount = schemaValidationRetryCount;
+      }
+    }
 
     let qualityStatus = "invalid";
     let qualityScore = 0;
@@ -1961,6 +2026,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
 
     const result: any = {
       success: validation.isValid,
+      ...(validation.isValid ? {} : { failureKind: "schemaValidationError" }),
       sampleMetadata: {
         id: sample.id,
         title: sample.title,
