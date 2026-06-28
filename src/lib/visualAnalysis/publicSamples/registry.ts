@@ -174,9 +174,6 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     category: "documentLike",
     expectedImageKind: "documentPhoto",
     expectedElementCategories: ["document", "textRegion"],
-    expectedElementCategoryAlternatives: {
-      "document": ["handwrittenNote"]
-    },
     expectedVisibleElementLabels: ["paper", "text", "ink", "page"],
     source: {
       provider: "Wikimedia Commons",
