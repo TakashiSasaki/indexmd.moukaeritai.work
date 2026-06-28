@@ -139,9 +139,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       return null;
     }
   });
-  const [modelName, setModelName] = useState<string>(() => {
-    return localStorage.getItem("image_experiment_model_name") || config.gemini_model || "gemini-3.5-flash";
+  const [modelSelection, setModelSelection] = useState<string>(() => {
+    return localStorage.getItem("image_experiment_model_selection") || 
+      `${config.gemini_model || "gemini-3.5-flash"}|${config.json_mode || "prompt_only"}`;
   });
+
+  const [modelName, jsonModeOption] = modelSelection.includes("|") 
+    ? modelSelection.split("|") 
+    : [modelSelection, config.json_mode || "prompt_only"];
+
+  useEffect(() => {
+    localStorage.setItem("image_experiment_model_selection", modelSelection);
+  }, [modelSelection]);
   const [copied, setCopied] = useState<string | null>(null);
   const [includePreview, setIncludePreview] = useState(false);
   const [customInstruction, setCustomInstruction] = useState<string>("");
@@ -305,10 +314,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   }, [selectedSampleId]);
 
   useEffect(() => {
-    localStorage.setItem("image_experiment_model_name", modelName);
-  }, [modelName]);
-
-  useEffect(() => {
     if (samples.length === 0) {
       setIsLoadingSamples(true);
       fetch("/api/visual/public-samples")
@@ -372,7 +377,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       sampleId: selectedSampleId,
       modelName,
       includeRequestPreview: includePreview,
-      jsonMode: config.json_mode,
+      jsonMode: jsonModeOption,
       customInstruction: customInstruction.trim()
     };
 
@@ -479,7 +484,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               body: JSON.stringify({
                 sampleId: sample.id,
                 modelName: modelName,
-                jsonMode: config.json_mode,
+                jsonMode: jsonModeOption,
                 includeRequestPreview: false, // Force false for batch
                 customInstruction: customInstruction.trim()
               })
@@ -562,7 +567,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         runId: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         modelName,
-        jsonMode: config.json_mode,
+        jsonMode: jsonModeOption,
         total,
         successCount,
         failureCount,
@@ -792,16 +797,20 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="flex flex-col gap-1 w-full md:w-auto flex-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">AI Model</label>
                   <select
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
+                    value={modelSelection}
+                    onChange={(e) => setModelSelection(e.target.value)}
                     className={`w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 min-w-[220px] h-[38px] ${visualCap.recommendation === 'experimental' ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
                   >
-                    <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended)</option>
-                    <option value="gemini-flash-latest">Gemini Flash Latest</option>
-                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Recommended)</option>
-                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Experimental)</option>
-                    <option value="gemma-4-31b-it">Gemma 4 31B IT (Not Recommended)</option>
-                    <option value="gemma-4-26b-a4b-it">Gemma 4 26B (Not Recommended)</option>
+                    <option value="gemini-3.5-flash|native_schema">Gemini 3.5 Flash (Native Schema - 推奨)</option>
+                    <option value="gemini-3.5-flash|prompt_only">Gemini 3.5 Flash (Prompted JSON - 推奨)</option>
+                    <option value="gemini-flash-latest|native_schema">Gemini Flash Latest (Native Schema)</option>
+                    <option value="gemini-flash-latest|prompt_only">Gemini Flash Latest (Prompted JSON)</option>
+                    <option value="gemini-3.1-flash-lite|native_schema">Gemini 3.1 Flash Lite (Native Schema - 推奨)</option>
+                    <option value="gemini-3.1-flash-lite|prompt_only">Gemini 3.1 Flash Lite (Prompted JSON - 推奨)</option>
+                    <option value="gemini-1.5-pro|native_schema">Gemini 1.5 Pro (Native Schema - 実験的)</option>
+                    <option value="gemini-1.5-pro|prompt_only">Gemini 1.5 Pro (Prompted JSON - 実験的)</option>
+                    <option value="gemma-4-31b-it|prompt_only">Gemma 4 31B IT (Prompted JSON - 非推奨)</option>
+                    <option value="gemma-4-26b-a4b-it|prompt_only">Gemma 4 26B (Prompted JSON - 非推奨)</option>
                   </select>
                   <div className="flex items-center justify-between px-1">
                     {visualCap.recommendation === 'recommended' ? (
