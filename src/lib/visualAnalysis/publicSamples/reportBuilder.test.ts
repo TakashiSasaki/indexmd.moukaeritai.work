@@ -217,4 +217,112 @@ describe('buildBatchReportForChat', () => {
     assert.strictEqual(itemReport.artifactIntegrity.artifactKind, "item");
     assert.strictEqual(itemReport.artifactIntegrity.endSentinel, "END_OF_VISUAL_ANALYSIS_ITEM_REPORT");
   });
+
+  test('should keep parse, generation, and API response summaries non-overlapping', () => {
+    const mixedSummary: PublicSampleBatchRunSummary = {
+      runId: "run-mixed",
+      timestamp: "2026-06-28",
+      modelName: "test-model",
+      jsonMode: "standard",
+      total: 3,
+      successCount: 0,
+      failureCount: 3,
+      validCount: 0,
+      validLowQualityCount: 0,
+      invalidJsonCount: 1,
+      expectedComparisonPassCount: 0,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 0,
+      items: [
+        {
+          sampleId: "parse-fail",
+          title: "Parse Fail",
+          success: false,
+          failureKind: "jsonParseError",
+          error: "JSON error"
+        },
+        {
+          sampleId: "api-fail",
+          title: "API Fail",
+          success: false,
+          failureKind: "apiError",
+          responseDiagnostics: {
+            status: 500,
+            contentType: "text/html",
+            bodyLength: 200,
+            bodyPreview: "Internal Error"
+          } as any
+        },
+        {
+          sampleId: "provider-fail",
+          title: "Provider Fail",
+          success: false,
+          failureKind: "generationError",
+          generationDiagnostics: {
+            providerStatus: "RESOURCE_EXHAUSTED",
+            statusCode: 429
+          }
+        }
+      ]
+    };
+
+    const report = buildBatchReportForChat(mixedSummary);
+    
+    // Assert non-overlapping counts
+    assert.strictEqual(report.parseFailureSummary.total, 1);
+    assert.strictEqual(report.parseFailureSummary.samples[0].sampleId, "parse-fail");
+
+    assert.strictEqual(report.apiResponseFailureSummary.total, 1);
+    assert.strictEqual(report.apiResponseFailureSummary.samples[0].sampleId, "api-fail");
+
+    assert.strictEqual(report.generationFailureSummary.total, 1);
+    assert.strictEqual(report.generationFailureSummary.largestInputs.length, 0); // No input size diag provided
+  });
+
+  test('should compile mediaResolution diagnostics correctly', () => {
+    const summaryWithMedia: PublicSampleBatchRunSummary = {
+      runId: "run-media",
+      timestamp: "2026-06-28",
+      modelName: "test-model",
+      jsonMode: "standard",
+      total: 1,
+      successCount: 1,
+      failureCount: 0,
+      validCount: 1,
+      validLowQualityCount: 0,
+      invalidJsonCount: 0,
+      expectedComparisonPassCount: 0,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 0,
+      items: [
+        {
+          sampleId: "sample-media",
+          title: "Media",
+          success: true,
+          analysisRun: {
+            metadata: {
+              runId: "run-1",
+              timestamp: "2026-06-28",
+              model: { name: "gemini-1.5-pro", providerFamily: "gemini" },
+              generationConfig: {
+                mediaResolutionRequested: "HIGH",
+                mediaResolutionConfigured: true,
+                mediaResolutionProviderAccepted: true,
+                mediaResolutionApplied: true,
+                mediaResolutionFallbackUsed: false
+              }
+            } as any
+          }
+        }
+      ]
+    };
+
+    const report = buildBatchReportForChat(summaryWithMedia);
+    assert.strictEqual(report.inputSizeSummary.mediaResolution.highRequested, 1);
+    assert.strictEqual(report.inputSizeSummary.mediaResolution.mediumRequested, 0);
+    assert.strictEqual(report.inputSizeSummary.mediaResolution.configured, 1);
+    assert.strictEqual(report.inputSizeSummary.mediaResolution.providerAccepted, 1);
+    assert.strictEqual(report.inputSizeSummary.mediaResolution.applied, 1);
+    assert.strictEqual(report.inputSizeSummary.mediaResolution.fallbackUsed, 0);
+  });
 });
