@@ -1,5 +1,28 @@
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from './batchTypes';
 import { stringifyJsonArtifact } from './artifactUtils';
+import {
+  isNetworkFailure,
+  isRateLimitFailure,
+  isTransportOrResponseFailure,
+  isModelParseFailure,
+  isSchemaValidationFailure,
+  getItemExecutionMetadata
+} from './reportBuilder';
+
+export function getItemJsonRecovery(item: any) {
+  const exec = getItemExecutionMetadata(item);
+  return exec.jsonRecovery;
+}
+
+export function getItemFailureTaxonomy(item: PublicSampleBatchRunItem): string {
+  if (item.success) return "success";
+  if (isRateLimitFailure(item)) return "rateLimit";
+  if (isNetworkFailure(item)) return "network";
+  if (isTransportOrResponseFailure(item)) return "transport";
+  if (isModelParseFailure(item)) return "parse";
+  if (isSchemaValidationFailure(item)) return "validation";
+  return "generation";
+}
 
 export interface VisualAnalysisPublicSampleBatchComparison {
   reportKind: "visualAnalysisPublicSampleBatchComparison";
@@ -28,8 +51,13 @@ export interface VisualAnalysisPublicSampleBatchComparison {
       reviewStatus?: string;
       expectedComparisonStatus?: string;
       parseFailure?: boolean;
+      validationFailure?: boolean;
+      rateLimited?: boolean;
+      networkFailure?: boolean;
+      schemaValidationRecoveryUsed?: boolean;
       jsonRecoveryUsed?: boolean;
       schemaVersionCorrected?: boolean;
+      taxonomyCategory?: string;
     }>;
   }>;
   aggregateDelta?: {
@@ -44,6 +72,10 @@ export interface VisualAnalysisPublicSampleBatchComparison {
   diagnosticNotes: {
     promptRecoveryUsedCount: number;
     apiFailureCount: number;
+    networkFailureCount?: number;
+    rateLimitCount?: number;
+    parseFailureCount?: number;
+    validationFailureCount?: number;
     generationFailureCount: number;
     mediaResolutionFallbackCount: number;
   };
@@ -101,8 +133,8 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
     for (const run of runs) {
       const item = run.items.find(it => it.sampleId === sampleId);
       if (item) {
-        const execution = item.analysisRun?.execution ?? item.responseRaw?.analysisRun?.execution;
-        const jsonRecovery = execution?.jsonRecovery;
+        const exec = getItemExecutionMetadata(item);
+        const jsonRecovery = exec.jsonRecovery;
         const localRepairAttempted = jsonRecovery?.localRepairAttempted ?? false;
         const modelRetryAttempted = jsonRecovery?.modelRetryAttempted ?? false;
         const retryCount = jsonRecovery?.retryCount ?? 0;
@@ -111,6 +143,12 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
         const normDiag = item.normalizationDiagnostics ?? item.responseRaw?.normalizationDiagnostics ?? item.analysisRun?.normalizationDiagnostics;
         const schemaVersionCorrected = normDiag?.schemaVersionCorrected ?? false;
 
+        const taxonomyCategory = getItemFailureTaxonomy(item);
+        const schemaValidationRecoveryUsed = !!(
+          jsonRecovery?.schemaValidationRecoveryAttempted || 
+          (jsonRecovery?.schemaValidationRetryCount && jsonRecovery.schemaValidationRetryCount > 0)
+        );
+
         byRun[run.runId] = {
           success: item.success,
           failureKind: item.failureKind,
@@ -118,9 +156,14 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
           qualityScore: item.qualityScore,
           reviewStatus: item.comparison?.reviewStatus,
           expectedComparisonStatus: item.comparison?.overallStatus,
-          parseFailure: item.failureKind === 'jsonParseError',
+          parseFailure: isModelParseFailure(item),
+          validationFailure: isSchemaValidationFailure(item),
+          rateLimited: isRateLimitFailure(item),
+          networkFailure: isNetworkFailure(item),
+          schemaValidationRecoveryUsed,
           jsonRecoveryUsed,
-          schemaVersionCorrected
+          schemaVersionCorrected,
+          taxonomyCategory
         };
       }
     }
@@ -135,12 +178,29 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
 
   // 4. Calculate aggregate deltas if native_schema and prompted_json are both present
   let aggregateDelta: VisualAnalysisPublicSampleBatchComparison["aggregateDelta"] = undefined;
-  const nativeRun = runs.find(r => r.jsonMode === 'native_schema');
-  const promptedRun = runs.find(r => r.jsonMode === 'prompted_json');
+  
+  const nativeRun = runs.find(r => 
+    r.jsonMode === 'native_schema' || 
+    r.jsonMode === 'nativeSchema' || 
+    r.items.some(it => {
+      const exec = getItemExecutionMetadata(it);
+      return exec.structuredExecutionMode === 'nativeSchema' || exec.jsonMode === 'native_schema';
+    })
+  );
+  
+  const promptedRun = runs.find(r => 
+    r.jsonMode === 'prompted_json' || 
+    r.jsonMode === 'prompt_only' || 
+    r.jsonMode === 'promptedJson' ||
+    r.items.some(it => {
+      const exec = getItemExecutionMetadata(it);
+      return exec.structuredExecutionMode === 'promptedJson' || exec.jsonMode === 'prompt_only' || exec.jsonMode === 'prompted_json';
+    })
+  );
 
   if (nativeRun && promptedRun) {
-    const nativeParseFailures = nativeRun.items.filter(it => it.failureKind === 'jsonParseError').length;
-    const promptedParseFailures = promptedRun.items.filter(it => it.failureKind === 'jsonParseError').length;
+    const nativeParseFailures = nativeRun.items.filter(isModelParseFailure).length;
+    const promptedParseFailures = promptedRun.items.filter(isModelParseFailure).length;
 
     aggregateDelta = {
       nativeSchemaVsPromptedJson: {
@@ -156,24 +216,38 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
   // 5. Build diagnostics aggregates
   let promptRecoveryUsedCount = 0;
   let apiFailureCount = 0;
+  let networkFailureCount = 0;
+  let rateLimitCount = 0;
+  let parseFailureCount = 0;
+  let validationFailureCount = 0;
   let generationFailureCount = 0;
   let mediaResolutionFallbackCount = 0;
 
   for (const run of runs) {
     for (const item of run.items) {
       // Prompt recovery
-      const execution = item.analysisRun?.execution ?? item.responseRaw?.analysisRun?.execution;
-      const jsonRecovery = execution?.jsonRecovery;
-      if (jsonRecovery?.localRepairAttempted || jsonRecovery?.modelRetryAttempted || (jsonRecovery?.retryCount ?? 0) > 0) {
+      const jsonRecovery = getItemJsonRecovery(item);
+      if (
+        jsonRecovery?.localRepairAttempted || 
+        jsonRecovery?.modelRetryAttempted || 
+        (jsonRecovery?.retryCount ?? 0) > 0 ||
+        jsonRecovery?.schemaValidationRecoveryAttempted
+      ) {
         promptRecoveryUsedCount++;
       }
 
-      // API failure
+      // Detailed failure taxonomy aggregates
       if (!item.success) {
-        if (item.failureKind === 'apiError' || item.responseDiagnostics) {
+        if (isRateLimitFailure(item)) {
+          rateLimitCount++;
+        } else if (isNetworkFailure(item)) {
+          networkFailureCount++;
+        } else if (isTransportOrResponseFailure(item)) {
           apiFailureCount++;
-        } else if (item.failureKind === 'jsonParseError') {
-          // not counted as API failure or generation exception
+        } else if (isModelParseFailure(item)) {
+          parseFailureCount++;
+        } else if (isSchemaValidationFailure(item)) {
+          validationFailureCount++;
         } else {
           generationFailureCount++;
         }
@@ -190,6 +264,10 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
   const diagnosticNotes = {
     promptRecoveryUsedCount,
     apiFailureCount,
+    networkFailureCount,
+    rateLimitCount,
+    parseFailureCount,
+    validationFailureCount,
     generationFailureCount,
     mediaResolutionFallbackCount
   };

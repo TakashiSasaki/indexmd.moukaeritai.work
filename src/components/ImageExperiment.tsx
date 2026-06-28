@@ -472,8 +472,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         },
         body: JSON.stringify(payload)
       }, {
+        retryHttpStatuses: [429, 502, 503, 504],
+        maxAttempts: 5,
+        delaysMs: [10000, 30000, 60000, 120000],
         onRetry: (event: SafeFetchRetryEvent) => {
-          onAddLog("warn", `[Image Analysis] サーバーウォームアップを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
+          const reason = event.status === 429 
+            ? "レート制限 (429)" 
+            : event.status 
+              ? `HTTP エラー (${event.status})` 
+              : event.failureKind === "networkError" 
+                ? "ネットワークエラー" 
+                : event.htmlTitle || "一時的なエラー";
+          onAddLog("warn", `[Image Analysis] リトライが必要なエラーを検出しました (${reason})。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
         }
       });
 
@@ -548,8 +558,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     onAddLog("info", "バッチ開始前にヘルスチェックを実行しています...");
     const hcResult = await safeFetchWithRetry<any>("/api/visual/health", undefined, {
       maxAttempts: 3,
+      retryHttpStatuses: [502, 503, 504],
       onRetry: (event: SafeFetchRetryEvent) => {
-        onAddLog("warn", `[Health Check] サーバーウォームアップを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
+        onAddLog("warn", `[Health Check] サーバーウォームアップまたは一時的エラーを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
       }
     });
     
@@ -719,8 +730,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 customInstruction: customInstruction.trim()
               })
             }, {
+              retryHttpStatuses: [429, 502, 503, 504],
+              maxAttempts: 5,
+              delaysMs: [10000, 30000, 60000, 120000],
               onRetry: (event: SafeFetchRetryEvent) => {
-                onAddLog("warn", `[Batch ${sample.id}] サーバーウォームアップを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
+                const reason = event.status === 429 
+                  ? "レート制限 (429)" 
+                  : event.status 
+                    ? `HTTP エラー (${event.status})` 
+                    : event.failureKind === "networkError" 
+                      ? "ネットワークエラー" 
+                      : event.htmlTitle || "一時的なエラー";
+                onAddLog("warn", `[Batch ${sample.id}] リトライが必要なエラーを検出しました (${reason})。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
               }
             });
             

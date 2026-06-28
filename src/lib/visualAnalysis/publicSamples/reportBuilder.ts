@@ -1,11 +1,20 @@
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from "./batchTypes";
 
+export function isNetworkFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && item.failureKind === 'networkError';
+}
+
+export function isRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && item.failureKind === 'rateLimited';
+}
+
 export function isTransportOrResponseFailure(item: PublicSampleBatchRunItem): boolean {
   return !item.success && 
+         !isNetworkFailure(item) &&
+         !isRateLimitFailure(item) &&
          (item.failureKind === 'nonJsonResponse' || 
           item.failureKind === 'invalidJsonResponse' || 
           item.failureKind === 'apiError' || 
-          item.failureKind === 'rateLimited' ||
           item.failureKind === 'startupHtml');
 }
 
@@ -17,13 +26,10 @@ export function isSchemaValidationFailure(item: PublicSampleBatchRunItem): boole
   return !item.success && item.failureKind === 'schemaValidationError';
 }
 
-export function isNetworkFailure(item: PublicSampleBatchRunItem): boolean {
-  return !item.success && item.failureKind === 'networkError';
-}
-
 export function isProviderGenerationFailure(item: PublicSampleBatchRunItem): boolean {
   return !item.success && 
          !isNetworkFailure(item) &&
+         !isRateLimitFailure(item) &&
          !isSchemaValidationFailure(item) &&
          !isModelParseFailure(item) &&
          !isTransportOrResponseFailure(item);
@@ -180,6 +186,34 @@ function buildNetworkFailureSummary(items: PublicSampleBatchRunItem[]) {
   };
 }
 
+export function getItemExecutionMetadata(item: any) {
+  if (item.execution) {
+    return {
+      modelName: item.execution.modelName || "UNKNOWN",
+      providerFamily: item.execution.providerFamily || "UNKNOWN",
+      structuredExecutionMode: item.execution.structuredExecutionMode || "UNKNOWN",
+      jsonMode: item.execution.jsonMode || "UNKNOWN",
+      jsonRecovery: item.execution.jsonRecovery
+    };
+  }
+  const analysisRun = item.analysisRun ?? item.responseRaw?.analysisRun;
+  const run = analysisRun?.metadata ?? analysisRun;
+  
+  const modelName = run?.model?.name || run?.execution?.usedModelName || run?.execution?.modelName || item.responseRaw?.usedModelName || "UNKNOWN";
+  const providerFamily = run?.model?.providerFamily || run?.execution?.providerFamily || item.responseRaw?.providerFamily || "UNKNOWN";
+  const structuredExecutionMode = run?.execution?.structuredExecutionMode || item.responseRaw?.effectiveStructuredExecutionMode || "UNKNOWN";
+  const jsonMode = run?.execution?.jsonMode || item.responseRaw?.jsonMode || "UNKNOWN";
+  const jsonRecovery = run?.execution?.jsonRecovery || item.responseRaw?.jsonRecovery;
+  
+  return {
+    modelName,
+    providerFamily,
+    structuredExecutionMode,
+    jsonMode,
+    jsonRecovery
+  };
+}
+
 function buildValidationFailureSummary(items: PublicSampleBatchRunItem[]) {
   const valFailures = items.filter(isSchemaValidationFailure);
   const byErrorCode: Record<string, number> = {};
@@ -195,18 +229,15 @@ function buildValidationFailureSummary(items: PublicSampleBatchRunItem[]) {
       byMessage[msg] = (byMessage[msg] || 0) + 1;
     }
 
-    const analysisRun = item.analysisRun || item.responseRaw?.analysisRun;
-    const model = analysisRun?.execution?.usedModelName || item.responseRaw?.usedModelName || "UNKNOWN";
-    const jsonMode = analysisRun?.execution?.jsonMode || item.responseRaw?.effectiveStructuredExecutionMode || "UNKNOWN";
-    const providerFamily = analysisRun?.execution?.providerFamily || item.responseRaw?.providerFamily || "UNKNOWN";
+    const exec = getItemExecutionMetadata(item);
 
     samples.push({
       sampleId: item.sampleId,
-      modelName: model,
-      jsonMode: jsonMode,
-      providerFamily: providerFamily,
+      modelName: exec.modelName,
+      jsonMode: exec.jsonMode,
+      providerFamily: exec.providerFamily,
       issues: issues.map((i: any) => i.message),
-      jsonRecovery: analysisRun?.execution?.jsonRecovery || item.responseRaw?.analysisRun?.execution?.jsonRecovery
+      jsonRecovery: exec.jsonRecovery
     });
   }
 
@@ -219,7 +250,7 @@ function buildValidationFailureSummary(items: PublicSampleBatchRunItem[]) {
 }
 
 function buildRateLimitSummary(items: PublicSampleBatchRunItem[]) {
-  const rateLimitedItems = items.filter(item => !item.success && item.failureKind === 'rateLimited');
+  const rateLimitedItems = items.filter(isRateLimitFailure);
   const samples = rateLimitedItems.map(item => ({
     sampleId: item.sampleId,
     attempts: item.retryDiagnostics?.attempts ?? 1,
@@ -580,16 +611,14 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
      };
   }
 
-  const run = item.analysisRun?.metadata ?? item.analysisRun;
-  if (run) {
-    compact.execution = {
-      modelName: run.model?.name || run.execution?.modelName,
-      providerFamily: run.model?.providerFamily || run.execution?.providerFamily,
-      structuredExecutionMode: run.execution?.structuredExecutionMode,
-      jsonMode: run.execution?.jsonMode,
-      jsonRecovery: run.execution?.jsonRecovery
-    };
-  }
+  const exec = getItemExecutionMetadata(item);
+  compact.execution = {
+    modelName: exec.modelName,
+    providerFamily: exec.providerFamily,
+    structuredExecutionMode: exec.structuredExecutionMode,
+    jsonMode: exec.jsonMode,
+    jsonRecovery: exec.jsonRecovery
+  };
 
   const visualAnalysis = item.responseRaw?.visualAnalysis;
   const vi = visualAnalysis?.visualInfo;
