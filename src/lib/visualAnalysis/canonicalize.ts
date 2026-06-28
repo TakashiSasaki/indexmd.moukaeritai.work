@@ -1,6 +1,8 @@
 import { VISUAL_ANALYSIS_SCHEMA_VERSION } from "./schema";
 import { normalizeVisualAnalysis } from "./normalize";
 
+import { GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_NAME, GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_VERSION } from "./providerSchema";
+
 export interface CanonicalizationContext {
   providerFamily?: string;
   modelName?: string;
@@ -12,6 +14,12 @@ export interface CanonicalizationDiagnostics {
   canonicalSchemaVersionApplied: boolean;
   originalSchemaVersion?: string;
   correctedSchemaVersion?: string;
+  providerFamily?: string;
+  modelName?: string;
+  structuredExecutionMode?: string;
+  jsonMode?: string;
+  providerSchemaName?: string;
+  providerSchemaVersion?: string;
   changes: Array<{ path: string; action: string; from?: any; to?: any }>;
 }
 
@@ -26,8 +34,17 @@ export function canonicalizeVisualAnalysisProviderOutput(
 ): CanonicalizationResult {
   const diagnostics: CanonicalizationDiagnostics = {
     canonicalSchemaVersionApplied: false,
+    providerFamily: context?.providerFamily,
+    modelName: context?.modelName,
+    structuredExecutionMode: context?.structuredExecutionMode,
+    jsonMode: context?.jsonMode,
     changes: []
   };
+
+  if (context?.structuredExecutionMode === "nativeSchema") {
+    diagnostics.providerSchemaName = GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_NAME;
+    diagnostics.providerSchemaVersion = GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_VERSION;
+  }
 
   if (!providerOutput || typeof providerOutput !== 'object') {
     return { result: providerOutput, diagnostics };

@@ -35,6 +35,7 @@ export async function generateContentWithRetry(
     systemInstruction?: string; 
     responseMimeType?: string; 
     responseSchema?: any; 
+    mediaResolution?: string;
   }
 ) {
   let currentModel = modelName;
@@ -69,6 +70,9 @@ export async function generateContentWithRetry(
         }
         if (configOption.responseSchema) {
           callParams.config.responseSchema = configOption.responseSchema;
+        }
+        if (configOption.mediaResolution) {
+          callParams.config.mediaResolution = configOption.mediaResolution;
         }
       }
 

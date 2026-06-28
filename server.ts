@@ -1510,15 +1510,18 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     if (!sample) return res.status(404).json({ error: "Sample not found" });
 
     // Fetch Image Bytes
-    const { buffer, mimeType, sourceUrlKind } = await fetchPublicSampleImage(sampleId, "analysis");
+    const fetchResult = await fetchPublicSampleImage(sampleId, "analysis");
+    const { buffer, mimeType, sourceUrlKind, diagnostics: inputDiagnostics } = fetchResult;
     const base64Data = buffer.toString("base64");
     
     // Add input size warnings for diagnostics
     let inputSizeWarning: string | undefined;
-    if (buffer.byteLength > 5 * 1024 * 1024) {
-      inputSizeWarning = "Image size exceeds 5MB hard cap for analysis. Consider using a smaller variant.";
-    } else if (buffer.byteLength > 2 * 1024 * 1024 && sourceUrlKind === "imageUrlFallback") {
-      inputSizeWarning = "Image size exceeds 2MB and fell back to original URL. This may cause high latency or failure.";
+    if (inputDiagnostics?.analysisHardCapBytes && buffer.byteLength > inputDiagnostics.analysisHardCapBytes) {
+      inputSizeWarning = `Image size (${Math.round(buffer.byteLength / 1024)}KB) exceeds hard cap of ${Math.round(inputDiagnostics.analysisHardCapBytes / 1024)}KB.`;
+    } else if (inputDiagnostics?.analysisTargetBytes && buffer.byteLength > inputDiagnostics.analysisTargetBytes) {
+      inputSizeWarning = `Image size (${Math.round(buffer.byteLength / 1024)}KB) exceeds target of ${Math.round(inputDiagnostics.analysisTargetBytes / 1024)}KB, but remains under hard cap.`;
+    } else if (!inputDiagnostics && buffer.byteLength > 2 * 1024 * 1024) {
+       inputSizeWarning = "Image size exceeds 2MB and fell back to original URL or no diagnostics available.";
     }
 
     // Prepare Prompt & Options
@@ -1757,7 +1760,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           base64Length: runMetadata.input.base64Length,
           imageVariant: "analysis",
           analysisSourceUrlKind: sourceUrlKind,
-          inputSizeWarning
+          inputSizeWarning,
+          ...inputDiagnostics
         }
       };
 
@@ -1833,7 +1837,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         base64Length: runMetadata.input.base64Length,
         imageVariant: "analysis",
         analysisSourceUrlKind: sourceUrlKind,
-        inputSizeWarning
+        inputSizeWarning,
+        ...inputDiagnostics
       }
     };
 

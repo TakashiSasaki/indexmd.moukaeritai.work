@@ -1,7 +1,10 @@
 import { VISUAL_ANALYSIS_SCHEMA } from "./schema";
 
-export function buildGeminiVisualAnalysisResponseSchema(): any {
-  const schema = JSON.parse(JSON.stringify(VISUAL_ANALYSIS_SCHEMA));
+export const GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_NAME = "gemini-visual-analysis-response-schema";
+export const GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_VERSION = "provider-adapter.v0.1.0";
+
+export function buildGeminiVisualAnalysisResponseSchema(canonicalSchema: any): any {
+  const schema = JSON.parse(JSON.stringify(canonicalSchema));
 
   // Remove top-level schema properties that might confuse Gemini API
   delete schema.$schema;
@@ -18,26 +21,27 @@ export function buildGeminiVisualAnalysisResponseSchema(): any {
   }
 
   // Remove const since some providers don't like it in response schema
-  // We already removed schemaVersion which used const, but we can do a deep clean if needed.
-  // Currently, the canonical schema only has const on schemaVersion, but we can be thorough:
-  const removeConst = (obj: any) => {
+  const removeConstAndAdditional = (obj: any) => {
     if (!obj || typeof obj !== 'object') return;
     if (Array.isArray(obj)) {
-      obj.forEach(removeConst);
+      obj.forEach(removeConstAndAdditional);
     } else {
       if ('const' in obj) {
         // Just convert const to an enum with one element
         obj.enum = [obj.const];
         delete obj.const;
       }
+      if ('additionalProperties' in obj) {
+        delete obj.additionalProperties;
+      }
       for (const key of Object.keys(obj)) {
-        removeConst(obj[key]);
+        removeConstAndAdditional(obj[key]);
       }
     }
   };
-  removeConst(schema);
+  removeConstAndAdditional(schema);
 
   return schema;
 }
 
-export const GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA = buildGeminiVisualAnalysisResponseSchema();
+export const GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA = buildGeminiVisualAnalysisResponseSchema(VISUAL_ANALYSIS_SCHEMA);

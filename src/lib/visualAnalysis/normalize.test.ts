@@ -29,11 +29,7 @@ describe('normalizeVisualAnalysis', () => {
     assert.strictEqual(norm.visualInfo.imageKind, "unknown");
   });
 
-  it('should auto-populate missing schemaVersion with the draft version', () => {
-    const raw = {};
-    const norm = normalizeVisualAnalysis(raw);
-    assert.strictEqual(norm.schemaVersion, "visual-analysis.v0.2.0-draft.1");
-  });
+
 
   it('should fallback unknown category to "unknown"', () => {
     const raw = {

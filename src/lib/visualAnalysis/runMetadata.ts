@@ -1,5 +1,6 @@
 import { VisualAnalysisResultV1, VisualAnalysisResultV2 } from "./types";
 import { VISUAL_ANALYSIS_SCHEMA_VERSION } from "./schema";
+import { GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_NAME, GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_VERSION } from "./providerSchema";
 import { VISUAL_ANALYSIS_PROMPT_VERSION, VISUAL_ANALYSIS_SYSTEM_INSTRUCTION_VERSION } from "./prompts";
 
 export const VISUAL_ANALYSIS_GENERATION_CONFIG = {
@@ -36,7 +37,9 @@ export interface VisualAnalysisRunMetadata {
 
   schema: {
     resultSchemaVersion: "visual-analysis.v0.2.0-draft.1" | string;
-    responseSchemaVersion?: string;
+    providerResponseSchemaName?: string;
+    providerResponseSchemaVersion?: string;
+    providerResponseSchemaDerivedFrom?: string;
     customSchemaUsed: boolean;
   };
 
@@ -99,7 +102,11 @@ export function buildVisualAnalysisRunMetadata(params: {
     },
     schema: {
       resultSchemaVersion: params.customSchemaUsed ? "custom" : VISUAL_ANALYSIS_SCHEMA_VERSION,
-      responseSchemaVersion: params.mode === "nativeSchema" && !params.customSchemaUsed ? VISUAL_ANALYSIS_SCHEMA_VERSION : undefined,
+      ...(params.mode === "nativeSchema" && !params.customSchemaUsed ? {
+        providerResponseSchemaName: GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_NAME,
+        providerResponseSchemaVersion: GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_VERSION,
+        providerResponseSchemaDerivedFrom: VISUAL_ANALYSIS_SCHEMA_VERSION
+      } : {}),
       customSchemaUsed: params.customSchemaUsed,
     },
     prompt: {

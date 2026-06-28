@@ -182,13 +182,19 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
 }
 
 function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
-  const inputsInfo: Array<{
-    sampleId: string;
-    byteLength?: number;
-    base64Length?: number;
-    success: boolean;
-    failureKind?: string;
-  }> = [];
+  const inputsInfo: Array<any> = [];
+
+  let overTargetInputs = 0;
+  let overHardCapInputs = 0;
+  let resizedInputs = 0;
+  let recompressedInputs = 0;
+  let imageUrlFallbackInputs = 0;
+  let totalOriginalBytes = 0;
+  let totalProcessedBytes = 0;
+  let totalBase64Bytes = 0;
+  let maxOriginalBytes = 0;
+  let maxProcessedBytes = 0;
+  let inputsWithOriginalBytes = 0;
 
   for (const item of items) {
     const inputDiag = item.inputDiagnostics;
@@ -200,6 +206,38 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
         success: item.success,
         failureKind: item.failureKind
       });
+
+      if (inputDiag.analysisSourceUrlKind === "imageUrlFallback") {
+        imageUrlFallbackInputs++;
+      }
+
+      if (inputDiag.resized) resizedInputs++;
+      if (inputDiag.recompressed) recompressedInputs++;
+
+      if (inputDiag.originalByteLength) {
+        totalOriginalBytes += inputDiag.originalByteLength;
+        if (inputDiag.originalByteLength > maxOriginalBytes) {
+          maxOriginalBytes = inputDiag.originalByteLength;
+        }
+        inputsWithOriginalBytes++;
+      }
+
+      if (inputDiag.processedByteLength) {
+        totalProcessedBytes += inputDiag.processedByteLength;
+        if (inputDiag.processedByteLength > maxProcessedBytes) {
+          maxProcessedBytes = inputDiag.processedByteLength;
+        }
+      }
+
+      if (inputDiag.base64Length) {
+        totalBase64Bytes += inputDiag.base64Length;
+      }
+
+      if (inputDiag.analysisHardCapBytes && inputDiag.byteLength > inputDiag.analysisHardCapBytes) {
+        overHardCapInputs++;
+      } else if (inputDiag.analysisTargetBytes && inputDiag.byteLength > inputDiag.analysisTargetBytes) {
+        overTargetInputs++;
+      }
     }
   }
 
@@ -208,8 +246,25 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     .sort((a, b) => (b.byteLength || 0) - (a.byteLength || 0))
     .slice(0, 5);
 
+  const totalBytesSaved = totalOriginalBytes - totalProcessedBytes;
+  const averageReductionRatio = inputsWithOriginalBytes > 0 && totalOriginalBytes > 0 
+    ? totalProcessedBytes / totalOriginalBytes 
+    : 1;
+
   return {
-    largestInputs
+    largestInputs,
+    overTargetInputs,
+    overHardCapInputs,
+    resizedInputs,
+    recompressedInputs,
+    imageUrlFallbackInputs,
+    totalOriginalBytes,
+    totalProcessedBytes,
+    totalBase64Bytes,
+    maxOriginalBytes,
+    maxProcessedBytes,
+    totalBytesSaved,
+    averageReductionRatio
   };
 }
 

@@ -3,9 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { ImageProcessingDiagnostics, optimizeImageForAnalysis, AnalysisSizingPolicy } from '../imagePayloadSizing';
 
 const ALLOWED_HOSTS = [
-  "upload.wikimedia.org",
   "commons.wikimedia.org"
 ];
 
@@ -24,6 +24,7 @@ export interface FetchSampleResult {
   buffer: Buffer;
   mimeType: string;
   sourceUrlKind?: "analysisUrl" | "thumbnailRewrite" | "thumbnailUrl" | "imageUrlFallback" | "localFixture";
+  diagnostics?: ImageProcessingDiagnostics;
 }
 
 const inMemoryCache = new Map<string, FetchSampleResult>();
@@ -38,7 +39,12 @@ try {
   console.warn('[serverFetch] Failed to create cache directory:', e);
 }
 
+const PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION = "analysis-image-policy.v0.2.0";
+
 function getCacheKey(sampleId: string, variant: string): string {
+  if (variant === "analysis") {
+    return `${sampleId}_${variant}_${PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION}`;
+  }
   return `${sampleId}_${variant}`;
 }
 
@@ -46,12 +52,22 @@ function readFromDiskCache(sampleId: string, variant: string): FetchSampleResult
   const cacheKey = getCacheKey(sampleId, variant);
   const binPath = path.join(CACHE_DIR, `${cacheKey}.bin`);
   const mimePath = path.join(CACHE_DIR, `${cacheKey}.mime`);
+  const metaPath = path.join(CACHE_DIR, `${cacheKey}.meta.json`);
 
   if (fs.existsSync(binPath) && fs.existsSync(mimePath)) {
     try {
       const buffer = fs.readFileSync(binPath);
       const mimeType = fs.readFileSync(mimePath, 'utf8').trim();
-      return { buffer, mimeType };
+      let meta: any = {};
+      if (fs.existsSync(metaPath)) {
+        meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      }
+      return { 
+        buffer, 
+        mimeType,
+        sourceUrlKind: meta.sourceUrlKind,
+        diagnostics: meta.diagnostics
+      };
     } catch (e) {
       console.warn(`[serverFetch] Failed to read disk cache for ${cacheKey}:`, e);
     }
@@ -63,13 +79,41 @@ function writeToDiskCache(sampleId: string, variant: string, result: FetchSample
   const cacheKey = getCacheKey(sampleId, variant);
   const binPath = path.join(CACHE_DIR, `${cacheKey}.bin`);
   const mimePath = path.join(CACHE_DIR, `${cacheKey}.mime`);
+  const metaPath = path.join(CACHE_DIR, `${cacheKey}.meta.json`);
 
   try {
     fs.writeFileSync(binPath, result.buffer);
     fs.writeFileSync(mimePath, result.mimeType, 'utf8');
+    const meta = {
+      sourceUrlKind: result.sourceUrlKind,
+      diagnostics: result.diagnostics
+    };
+    fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
   } catch (e) {
     console.warn(`[serverFetch] Failed to write disk cache for ${cacheKey}:`, e);
   }
+}
+
+function determineSizingPolicy(sample: any): AnalysisSizingPolicy {
+  if (
+    sample.expectedImageKind === "documentPhoto" ||
+    sample.expectedImageKind === "receiptPhoto" ||
+    sample.expectedImageKind === "handwrittenNote" ||
+    sample.expectedImageKind === "whiteboardPhoto" ||
+    sample.expectedImageKind === "chartOrTable" ||
+    sample.expectedImageKind === "mapImage" ||
+    sample.expectedImageKind === "screenshot" ||
+    sample.expectedImageKind === "packageImage"
+  ) {
+    return "detailHeavy";
+  }
+  if (sample.expectedVisibleText && sample.expectedVisibleText.length > 0) {
+    return "detailHeavy";
+  }
+  if (sample.id.includes("receipt") || sample.id.includes("document") || sample.id.includes("invoice") || sample.id.includes("chart")) {
+    return "detailHeavy";
+  }
+  return "default";
 }
 
 export async function fetchPublicSampleImage(sampleId: string, variant: "preview" | "thumbnail" | "full" | "analysis"): Promise<FetchSampleResult> {
@@ -135,7 +179,19 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     if (ext === '.png') mimeType = 'image/png';
     else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
 
-    const result: FetchSampleResult = { buffer, mimeType, sourceUrlKind: "localFixture" };
+    let result: FetchSampleResult = { buffer, mimeType, sourceUrlKind: "localFixture" };
+    
+    if (variant === "analysis" && mimeType !== 'image/svg+xml') {
+      const policy = determineSizingPolicy(sample);
+      const processed = await optimizeImageForAnalysis(result.buffer, policy);
+      result = {
+        buffer: processed.buffer,
+        mimeType: processed.mimeType,
+        sourceUrlKind: "localFixture",
+        diagnostics: processed.diagnostics
+      };
+    }
+
     inMemoryCache.set(cacheKey, result);
     return result;
   }
@@ -169,6 +225,17 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     } else {
       throw err;
     }
+  }
+
+  if (variant === "analysis" && result.mimeType !== 'image/svg+xml' && result.mimeType !== 'image/gif') {
+    const policy = determineSizingPolicy(sample);
+    const processed = await optimizeImageForAnalysis(result.buffer, policy);
+    result = {
+      buffer: processed.buffer,
+      mimeType: processed.mimeType,
+      sourceUrlKind: result.sourceUrlKind,
+      diagnostics: processed.diagnostics
+    };
   }
 
   // 3. Populate Caches
