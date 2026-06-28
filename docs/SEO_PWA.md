@@ -1,4 +1,6 @@
-# PWA and Site Metadata
+# SEO and PWA Guidelines
+
+This document outlines the SEO (Search Engine Optimization) and PWA (Progressive Web App) architecture and auditing rules.
 
 ## SEO & Open Graph
 - Canonical URL is maintained strictly as `https://indexmd.moukaeritai.work/`.
@@ -16,9 +18,9 @@
 
 ## Service Worker Caching Strategy
 - The Service Worker (`public/sw.js`) provides app-shell caching (HTML, JS, CSS, Icons).
-- **Strict Exclusions**:
-  - `*googleapis.com*` (Google APIs)
-  - `*firestore*` (Firebase)
+- **Strict Exclusions (Security Rule)**:
+  - The Service Worker MUST NOT cache API responses, OAuth tokens, Drive file content, or any data from `firestore.googleapis.com` or `googleapis.com`.
   - `/api/*` (Internal server APIs)
 - The Service Worker employs a Network-First strategy with an offline fallback for navigation requests. Stale-while-revalidate is used for static assets.
 - Registration occurs securely in `src/main.tsx` only during production (`import.meta.env.PROD`).
+- **Cloud Run Caveat**: When updating static assets, ensure `sw.js` cache versions are incremented so returning users don't get stuck on old Cloud Run deployments.
