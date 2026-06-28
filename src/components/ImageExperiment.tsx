@@ -913,8 +913,28 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               <div className="space-y-4">
                   {/* Quick Selection Actions & Thumbnail Grid Panel */}
                   <div className="flex flex-col gap-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-2 border-b border-slate-100 pb-3">
-                      <div className="flex flex-wrap gap-1.5 shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                      {/* Top Batch Button (Mobile-friendly duplication) */}
+                      <div className="flex-1 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => handleRunBatch()}
+                          disabled={isBatchRunning || samples.length === 0 || loading}
+                          className="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors h-[32px] justify-center whitespace-nowrap shadow-sm"
+                        >
+                          {isBatchRunning ? (
+                            <>
+                              <Activity className="w-3.5 h-3.5 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
+                            </>
+                          ) : (
+                            <>
+                              <Activity className="w-3.5 h-3.5" /> 選択サンプルの解析実行 (Run Selected)
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                         <select
                           value={sampleFilter}
                           onChange={(e) => setSampleFilter(e.target.value as any)}
