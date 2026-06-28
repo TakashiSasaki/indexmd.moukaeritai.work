@@ -120,3 +120,22 @@ Every comparison generates a detailed, multi-dimensional `coverage` structure ba
 ### Known Coverage Gaps
 - **Mixed Content**: The `sample-mixed-1` originally expected to test mixed content but represents antique furniture.
   - **Status**: We have successfully introduced a new local synthetic mixed sample (`sample-mixed-scene-synthetic`) representing a modern desk setup with a journal, coffee cup, phone, and sticky note. This restores full test coverage for the `mixed` image kind and mixed-scene taxonomies.
+
+## Public Sample Corpus Reliability Policy
+
+To maintain a reliable and robust test set for our AI logic, we observe the following policies regarding public samples:
+
+1. **Balance of Real and Synthetic Images**: The corpus should contain a healthy mix of real, open-license photos and local synthetic SVG fixtures. Synthetic fixtures are retained because they provide predictable layouts and exact ground truth for visible text (e.g., charts, forms, receipts), whereas external real images test model performance on natural lighting, noise, and unexpected angles. We aim to keep the corpus below ~30 images in total.
+2. **Strict Host Allowlisting**: All external real image samples must be served over HTTPS from a strictly allowlisted set of exact hostnames (primarily Wikimedia Commons). No wildcard host support will be introduced.
+3. **Link Stability**: When adding an external image, always verify that direct image URLs are stable. In cases of 404s, 403s (Hotlink Protection), or HTML fallbacks, images should be diagnosed and either repaired with a stable alternative (e.g., swapping a Public Domain Pictures URL for an equivalent Wikimedia Commons URL) or gracefully rendered with an error placeholder in the UI.
+4. **Validating Corpus Health**: A diagnostic script is provided to verify that all images resolve correctly. 
+
+### Diagnostics Script
+
+To verify that all public sample thumbnails, preview sizes, and full-resolution images resolve successfully without 404s, hotlink blocking, or unsupported content types, run the diagnostics script:
+
+```bash
+npm run validate:public-samples:images
+```
+
+This script evaluates HTTP responses and logs a failure report indicating the root cause (e.g. `thumbnailUrlNotFound`, `hostNotAllowlisted`, `hotlinkBlocked`, `imageTooLarge`) to ensure ongoing regression health.

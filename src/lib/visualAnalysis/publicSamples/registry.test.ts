@@ -92,6 +92,30 @@ describe('Public Visual Sample Registry', () => {
     }
   });
 
+  it('every external sample uses HTTPS and an allowlisted host', () => {
+    const ALLOWED_HOSTS = [
+      "upload.wikimedia.org",
+      "commons.wikimedia.org"
+    ];
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (sample.source.provider !== 'localFixture') {
+        assert.ok(sample.source.pageUrl?.startsWith('https://'), `pageUrl must use HTTPS for ${sample.id}`);
+        assert.ok(sample.source.imageUrl?.startsWith('https://'), `imageUrl must use HTTPS for ${sample.id}`);
+        if (sample.source.thumbnailUrl) {
+            assert.ok(sample.source.thumbnailUrl.startsWith('https://'), `thumbnailUrl must use HTTPS for ${sample.id}`);
+        }
+        
+        try {
+            const parsedImage = new URL(sample.source.imageUrl!);
+            assert.ok(ALLOWED_HOSTS.includes(parsedImage.hostname), `imageUrl hostname ${parsedImage.hostname} is not allowlisted for ${sample.id}`);
+        } catch (e) {
+            assert.fail(`Invalid imageUrl for ${sample.id}: ${e}`);
+        }
+      }
+    }
+  });
+
   it('calibrates sample-plant-1 and sample-person-1 accurately', () => {
     const samples = getAllPublicSamples();
     const plantSample = samples.find(s => s.id === "sample-plant-1");

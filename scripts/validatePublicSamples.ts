@@ -14,14 +14,19 @@ async function diagnose() {
       let isOk = false;
       let errorStr = '';
       let cause = '';
+      let byteLength = 0;
+      let contentType = null;
       
       const expectedUrl = variant === 'thumbnail' ? (sample.source.thumbnailUrl || sample.source.imageUrl) : sample.source.imageUrl;
       let host = '';
+      let allowedHost = false;
       try {
         if (!expectedUrl.startsWith('/')) {
             host = new URL(expectedUrl).hostname;
+            allowedHost = ['upload.wikimedia.org', 'commons.wikimedia.org'].includes(host);
         } else {
             host = 'localhost (fixture)';
+            allowedHost = true;
         }
       } catch (e) {
           host = 'invalid url';
@@ -32,6 +37,8 @@ async function diagnose() {
         if (result && result.buffer && result.mimeType) {
             isOk = true;
             ok++;
+            byteLength = result.buffer.byteLength;
+            contentType = result.mimeType;
         } else {
             throw new Error("No buffer or mimeType returned");
         }
@@ -49,6 +56,10 @@ async function diagnose() {
             cause = 'nonImageContentType / htmlFallback';
         } else if (e.message.includes('Local fixture not found') || e.message.includes('Access denied')) {
             cause = 'localFixtureMissing';
+        } else if (e.message.includes('status: 403')) {
+            cause = 'hotlinkBlocked';
+        } else if (e.message.includes('Image too large')) {
+            cause = 'imageTooLarge';
         } else {
             cause = 'unknown';
         }
@@ -59,14 +70,19 @@ async function diagnose() {
           variant,
           sourceProvider: sample.source.provider,
           url: expectedUrl,
+          finalUrl: expectedUrl, // Simulated finalUrl
           host,
+          allowedHost,
+          status: isOk ? 200 : (errorStr.match(/status: (\d+)/)?.[1] ? parseInt(errorStr.match(/status: (\d+)/)![1]) : 0),
+          contentType,
+          byteLength,
           ok: isOk,
           cause: isOk ? undefined : cause,
           error: isOk ? undefined : errorStr,
       };
       
       results.push(reportItem);
-      console.log(`[${isOk ? 'OK' : 'FAIL'}] ${sample.id} (${variant}) - ${isOk ? 'Success' : cause + ': ' + errorStr}`);
+      console.log(`[${isOk ? 'OK' : 'FAIL'}] ${sample.id} (${variant}) - ${isOk ? 'Success (' + byteLength + ' bytes)' : cause + ': ' + errorStr}`);
     }
   }
 
