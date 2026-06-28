@@ -398,6 +398,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     let expectedComparisonPassCount = 0;
     let expectedComparisonWarningCount = 0;
     let expectedComparisonFailCount = 0;
+    let reviewPassCount = 0;
+    let reviewNeedsReviewCount = 0;
+    let reviewFailCount = 0;
 
     for (let i = 0; i < total; i++) {
         const sample = targetSamples[i];
@@ -433,6 +436,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               analysisRun: data.analysisRun,
               parseDiagnostics: data.parseDiagnostics,
               generationDiagnostics: data.generationDiagnostics,
+              inputDiagnostics: data.inputDiagnostics,
               failureKind: data.failureKind,
               error: data.error,
               responseRaw: data
@@ -450,8 +454,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
                 if (comp.overallStatus === 'warning') expectedComparisonWarningCount++;
                 if (comp.overallStatus === 'fail') expectedComparisonFailCount++;
+
+                if (comp.reviewStatus === 'pass') reviewPassCount++;
+                if (comp.reviewStatus === 'needsReview') reviewNeedsReviewCount++;
+                if (comp.reviewStatus === 'fail') reviewFailCount++;
             } else {
                 failureCount++;
+                reviewFailCount++;
                 if (data.failureKind === 'jsonParseError' || (data.parseDiagnostics && !data.parseDiagnostics.success && data.parseDiagnostics.attempts)) {
                     invalidJsonCount++;
                 }
@@ -459,6 +468,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             items.push(item);
         } catch (e: any) {
             failureCount++;
+            reviewFailCount++;
             items.push({
                sampleId: sample.id,
                title: sample.title,
@@ -483,6 +493,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         expectedComparisonPassCount,
         expectedComparisonWarningCount,
         expectedComparisonFailCount,
+        reviewPassCount,
+        reviewNeedsReviewCount,
+        reviewFailCount,
         items
     };
     
@@ -787,7 +800,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[11px]">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-[11px]">
              <div className="p-3 bg-slate-50 rounded border border-slate-100">
                 <span className="block text-slate-400 mb-1">Total Run</span>
                 <span className="font-bold text-lg text-slate-700">{batchSummary.total}</span>
@@ -804,6 +817,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <span className="block text-indigo-600 mb-1">Comparison (Pass/Warn/Fail)</span>
                 <span className="font-bold text-lg text-indigo-700">{batchSummary.expectedComparisonPassCount} / {batchSummary.expectedComparisonWarningCount} / {batchSummary.expectedComparisonFailCount}</span>
              </div>
+             <div className="p-3 bg-violet-50 rounded border border-violet-100">
+                <span className="block text-violet-600 mb-1">Review (Pass/Review/Fail)</span>
+                <span className="font-bold text-lg text-violet-700">{batchSummary.reviewPassCount ?? 0} / {batchSummary.reviewNeedsReviewCount ?? 0} / {batchSummary.reviewFailCount ?? 0}</span>
+             </div>
           </div>
 
           <div className="overflow-x-auto border border-slate-200 rounded-lg">
@@ -814,6 +831,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                      <th className="px-3 py-2 font-semibold">Quality Status</th>
                      <th className="px-3 py-2 font-semibold">Image Kind</th>
                      <th className="px-3 py-2 font-semibold">Expected Comparison</th>
+                     <th className="px-3 py-2 font-semibold">Review Status</th>
                      <th className="px-3 py-2 font-semibold">Copy</th>
                   </tr>
                </thead>
@@ -843,6 +861,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                          {item.comparison && (
                             <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.comparison.overallStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.comparison.overallStatus === 'warning' ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50'}`}>
                                {item.comparison.overallStatus}
+                            </span>
+                         )}
+                      </td>
+                      <td className="px-3 py-2">
+                         {item.comparison && (
+                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.comparison.reviewStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.comparison.reviewStatus === 'needsReview' ? 'text-indigo-600 bg-indigo-50' : 'text-red-600 bg-red-50'}`}>
+                               {item.comparison.reviewStatus}
                             </span>
                          )}
                       </td>

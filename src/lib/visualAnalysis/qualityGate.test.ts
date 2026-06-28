@@ -33,6 +33,16 @@ describe('evaluateVisualAnalysisQuality', () => {
     assert.ok(rep.issues.some(i => i.code === "NO_LANDSCAPE_ELEMENTS"));
   });
 
+  it('should NOT warn on no landscape elements in natural photo', () => {
+    const result: any = {
+      summary: { caption: "Test" },
+      visualInfo: { imageKind: "naturalPhoto", visibleElements: [{category: "person"}], visibleText: [] },
+      quality: { confidence: 0.9 }
+    };
+    const rep = evaluateVisualAnalysisQuality(result);
+    assert.ok(!rep.issues.some(i => i.code === "NO_LANDSCAPE_ELEMENTS"));
+  });
+
   it('should mark invalid on missing description', () => {
     const result: any = {
       summary: { caption: "Test", description: "" },

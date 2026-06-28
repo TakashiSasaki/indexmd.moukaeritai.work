@@ -99,6 +99,21 @@ export async function generateContentWithRetry(
         } catch(e) {}
       }
       
+      if (providerStatus === "UNKNOWN" && err.message) {
+        const upperMsg = err.message.toUpperCase();
+        if (upperMsg.includes("INVALID_ARGUMENT")) {
+          providerStatus = "INVALID_ARGUMENT";
+        } else if (upperMsg.includes("RESOURCE_EXHAUSTED")) {
+          providerStatus = "RESOURCE_EXHAUSTED";
+        } else if (upperMsg.includes("PERMISSION_DENIED")) {
+          providerStatus = "PERMISSION_DENIED";
+        } else if (upperMsg.includes("UNAUTHENTICATED")) {
+          providerStatus = "UNAUTHENTICATED";
+        } else if (upperMsg.includes("QUOTA_EXCEEDED")) {
+          providerStatus = "RESOURCE_EXHAUSTED";
+        }
+      }
+      
       const isQuotaExceeded = statusCode === 429;
       const isNotFound = statusCode === 404;
       const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500;

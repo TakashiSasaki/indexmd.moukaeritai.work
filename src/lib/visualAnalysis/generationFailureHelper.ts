@@ -43,12 +43,7 @@ export function buildGenerationFailureResponse(args: {
     success: false,
     error: err?.message || "Generate content failed",
     failureKind: "generationError",
-    analysisRun: {
-      metadata: runMetadata,
-      execution: {
-        error: err?.message || "Generation Error"
-      }
-    },
+    analysisRun: runMetadata,
     generationDiagnostics: diagnostics
   };
 

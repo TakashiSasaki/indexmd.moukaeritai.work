@@ -39,5 +39,8 @@ export interface PublicSampleBatchRunSummary {
   expectedComparisonPassCount: number;
   expectedComparisonWarningCount: number;
   expectedComparisonFailCount: number;
+  reviewPassCount?: number;
+  reviewNeedsReviewCount?: number;
+  reviewFailCount?: number;
   items: PublicSampleBatchRunItem[];
 }

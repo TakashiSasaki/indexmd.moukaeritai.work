@@ -18,6 +18,9 @@ export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummar
     expectedComparisonPassCount: batchSummary.expectedComparisonPassCount,
     expectedComparisonWarningCount: batchSummary.expectedComparisonWarningCount,
     expectedComparisonFailCount: batchSummary.expectedComparisonFailCount,
+    reviewPassCount: batchSummary.reviewPassCount,
+    reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
+    reviewFailCount: batchSummary.reviewFailCount,
     items: compactItems
   };
 }
@@ -66,41 +69,54 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
         labels: item.comparison.labels,
         visibleText: item.comparison.visibleText,
         overallStatus: item.comparison.overallStatus,
-        reasons: item.comparison.reasons
+        reasons: item.comparison.reasons,
+        reviewStatus: item.comparison.reviewStatus,
+        reviewReasons: item.comparison.reviewReasons
      };
   }
 
-  if (item.analysisRun) {
+  const run = item.analysisRun?.metadata ?? item.analysisRun;
+  if (run) {
     compact.execution = {
-      modelName: item.analysisRun.model?.name || item.analysisRun.execution?.modelName,
-      providerFamily: item.analysisRun.model?.providerFamily || item.analysisRun.execution?.providerFamily,
-      structuredExecutionMode: item.analysisRun.execution?.structuredExecutionMode,
-      jsonMode: item.analysisRun.execution?.jsonMode,
-      jsonRecovery: item.analysisRun.execution?.jsonRecovery
+      modelName: run.model?.name || run.execution?.modelName,
+      providerFamily: run.model?.providerFamily || run.execution?.providerFamily,
+      structuredExecutionMode: run.execution?.structuredExecutionMode,
+      jsonMode: run.execution?.jsonMode,
+      jsonRecovery: run.execution?.jsonRecovery
     };
   }
 
+  const visualAnalysis = item.responseRaw?.visualAnalysis;
+  const vi = visualAnalysis?.visualInfo;
+  const indexing = visualAnalysis?.indexing;
   const normalized = item.analysisRun?.result?.normalized;
-  if (normalized) {
+
+  if (vi || normalized) {
+    const imageKind = vi?.imageKind ?? normalized?.imageKind;
+    const imageKindConfidence = vi?.imageKindConfidence ?? normalized?.imageKindConfidence;
+    const visibleElements = vi?.visibleElements ?? normalized?.visibleElements;
+    const visibleText = vi?.visibleText ?? normalized?.visibleText;
+    const keywords = indexing?.keywords ?? normalized?.indexing?.keywords ?? normalized?.keywords;
+
     compact.detected = {
-      imageKind: normalized.imageKind,
-      imageKindConfidence: normalized.imageKindConfidence,
-      visibleElements: normalized.visibleElements?.map((el: any) => ({
+      imageKind,
+      imageKindConfidence,
+      visibleElements: visibleElements?.map((el: any) => ({
         label: el.label,
         category: el.category,
         confidence: el.confidence,
         attributes: el.attributes
       })),
-      visibleText: normalized.visibleText?.map((txt: any) => ({
-        text: typeof txt === 'string' ? txt : txt.text,
-        confidence: typeof txt === 'string' ? undefined : txt.confidence,
-        locationHint: typeof txt === 'string' ? undefined : txt.locationHint,
-        language: typeof txt === 'string' ? undefined : txt.language
+      visibleText: visibleText?.map((txt: any) => ({
+        text: typeof txt === 'string' ? txt : txt?.text,
+        confidence: typeof txt === 'string' ? undefined : txt?.confidence,
+        locationHint: typeof txt === 'string' ? undefined : txt?.locationHint,
+        language: typeof txt === 'string' ? undefined : txt?.language
       })),
-      keywords: normalized.indexing?.keywords || normalized.keywords?.map((kw: any) => ({
-        value: typeof kw === 'string' ? kw : kw.value,
-        confidence: typeof kw === 'string' ? undefined : kw.confidence,
-        importance: typeof kw === 'string' ? undefined : kw.importance
+      keywords: keywords?.map((kw: any) => ({
+        value: typeof kw === 'string' ? kw : kw?.value,
+        confidence: typeof kw === 'string' ? undefined : kw?.confidence,
+        importance: typeof kw === 'string' ? undefined : kw?.importance
       }))
     };
   }

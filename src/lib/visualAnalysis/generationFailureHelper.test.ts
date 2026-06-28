@@ -83,4 +83,15 @@ describe('buildGenerationFailureResponse', () => {
     assert.deepEqual(response.expectedMetadata, { kind: "photo" });
     assert.deepEqual(response.requestPreview, { prompt: "hello" });
   });
+
+  test('should unify analysisRun with runMetadata', () => {
+    const err = new Error("Test");
+    const response = buildGenerationFailureResponse({
+      err,
+      targetModel: "test-model",
+      providerFamily: "gemini",
+      runMetadata: mockRunMetadata as any
+    });
+    assert.deepEqual(response.analysisRun, mockRunMetadata);
+  });
 });

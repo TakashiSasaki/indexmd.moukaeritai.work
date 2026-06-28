@@ -141,7 +141,7 @@ export interface PublicSampleComparisonSummary {
     details?: string;
   };
   categories: {
-    exact: string[];
+    matched: string[];
     acceptable: string[];
     missing: string[];
     extra: string[];
@@ -159,6 +159,8 @@ export interface PublicSampleComparisonSummary {
   };
   overallStatus: "pass" | "warning" | "fail";
   reasons: string[];
+  reviewStatus: "pass" | "needsReview" | "fail";
+  reviewReasons: string[];
 }
 
 export function evaluateSampleComparison(sample: PublicVisualSample, result: any): PublicSampleComparisonSummary {
@@ -202,6 +204,35 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
     labelsResult.missing.forEach(label => reasons.push(`missing expected label: ${label}`));
   }
 
+  let reviewStatus: "pass" | "needsReview" | "fail" = "pass";
+  const reviewReasons: string[] = [];
+
+  if (kindResult.status === "diverged") {
+    reviewStatus = "needsReview";
+    reviewReasons.push(`imageKind diverged: expected ${expectedImageKind}, detected ${kindDetected}`);
+  } else if (kindResult.status === "acceptable") {
+    reviewReasons.push(`imageKind acceptable: expected ${expectedImageKind}, detected ${kindDetected}`);
+  }
+
+  if (visibleTextResult.missing.length > 0) {
+    reviewStatus = "fail";
+    visibleTextResult.missing.forEach(txt => reviewReasons.push(`missing expected visible text: ${txt}`));
+  }
+
+  if (categoriesResult.missing.length > 0) {
+    if (reviewStatus === "pass") {
+      reviewStatus = "needsReview";
+    }
+    categoriesResult.missing.forEach(cat => reviewReasons.push(`missing expected category: ${cat}`));
+  }
+
+  if (labelsResult.missing.length > 0) {
+    if (reviewStatus === "pass") {
+      reviewStatus = "needsReview";
+    }
+    labelsResult.missing.forEach(label => reviewReasons.push(`missing expected label: ${label}`));
+  }
+
   return {
     imageKind: {
       expected: expectedImageKind,
@@ -226,6 +257,8 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
       missing: visibleTextResult.missing
     },
     overallStatus,
-    reasons
+    reasons,
+    reviewStatus,
+    reviewReasons
   };
 }

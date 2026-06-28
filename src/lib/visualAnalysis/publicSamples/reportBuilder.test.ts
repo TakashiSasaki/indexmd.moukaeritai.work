@@ -59,6 +59,97 @@ describe('buildBatchReportForChat', () => {
     assert.strictEqual(failItem.failureKind, "jsonParseError");
   });
 
+  test('should extract detected fields from responseRaw.visualAnalysis', () => {
+    const summaryWithVisual: PublicSampleBatchRunSummary = {
+      ...mockSummary,
+      items: [
+        {
+          sampleId: "success-sample",
+          title: "Success",
+          success: true,
+          responseRaw: {
+            visualAnalysis: {
+              visualInfo: {
+                imageKind: "productPhoto",
+                imageKindConfidence: 0.95,
+                visibleElements: [{ label: "logo", category: "brand" }],
+                visibleText: ["BrandX"]
+              },
+              indexing: {
+                keywords: ["kw1"]
+              }
+            }
+          }
+        }
+      ]
+    };
+    const report = buildBatchReportForChat(summaryWithVisual);
+    const item = report.items[0];
+    assert.ok(item.detected);
+    assert.strictEqual(item.detected.imageKind, "productPhoto");
+    assert.strictEqual(item.detected.imageKindConfidence, 0.95);
+    assert.deepEqual(item.detected.visibleElements, [{ label: "logo", category: "brand", confidence: undefined, attributes: undefined }]);
+    assert.deepEqual(item.detected.visibleText, [{ text: "BrandX", confidence: undefined, locationHint: undefined, language: undefined }]);
+    assert.deepEqual(item.detected.keywords, [{ value: "kw1", confidence: undefined, importance: undefined }]);
+  });
+
+  test('should handle legacy analysisRun.metadata fallback', () => {
+    const summaryLegacy: PublicSampleBatchRunSummary = {
+      ...mockSummary,
+      items: [
+        {
+          sampleId: "legacy-sample",
+          title: "Legacy",
+          success: true,
+          analysisRun: {
+            metadata: {
+              model: { name: "legacy-model", providerFamily: "gemini" },
+              execution: { structuredExecutionMode: "jsonSchema", jsonMode: true }
+            }
+          }
+        }
+      ]
+    };
+    const report = buildBatchReportForChat(summaryLegacy);
+    const item = report.items[0];
+    assert.ok(item.execution);
+    assert.strictEqual(item.execution.modelName, "legacy-model");
+    assert.strictEqual(item.execution.providerFamily, "gemini");
+    assert.strictEqual(item.execution.structuredExecutionMode, "jsonSchema");
+  });
+
+  test('should include execution and inputDiagnostics for generation failures', () => {
+    const summaryFailure: PublicSampleBatchRunSummary = {
+      ...mockSummary,
+      items: [
+        {
+          sampleId: "failed-sample",
+          title: "Failed",
+          success: false,
+          analysisRun: {
+            model: { name: "failed-model", providerFamily: "gemini" },
+            execution: { structuredExecutionMode: "jsonSchema", jsonMode: true }
+          },
+          inputDiagnostics: {
+            sourceKind: "publicSample",
+            sampleId: "failed-sample",
+            mimeType: "image/png",
+            byteLength: 1000,
+            base64Length: 1334
+          }
+        }
+      ]
+    };
+    const report = buildBatchReportForChat(summaryFailure);
+    const item = report.items[0];
+    assert.ok(item.execution);
+    assert.strictEqual(item.execution.modelName, "failed-model");
+    assert.strictEqual(item.execution.providerFamily, "gemini");
+    assert.ok(item.inputDiagnostics);
+    assert.strictEqual(item.inputDiagnostics.mimeType, "image/png");
+    assert.strictEqual(item.inputDiagnostics.byteLength, 1000);
+  });
+
   test('buildFailuresOnlyReport should include only failures', () => {
     const report = buildFailuresOnlyReport(mockSummary);
     assert.strictEqual(report.totalFailures, 1);
