@@ -28,6 +28,7 @@ export interface ImageProcessingDiagnostics {
   processedByteLength: number;
   resized: boolean;
   recompressed: boolean;
+  reencoded?: boolean;
   outputFormat: "jpeg" | "png" | "webp";
   quality: number;
   analysisSizingPolicy: AnalysisSizingPolicy;
@@ -181,7 +182,8 @@ export async function optimizeImageForAnalysis(
       originalByteLength,
       processedByteLength,
       resized,
-      recompressed: recompressed || targetFormat !== metadata.format || metadata.format === 'svg',
+      recompressed: recompressed || processedByteLength !== originalByteLength || targetFormat !== metadata.format || metadata.format === 'svg' || (targetFormat === 'jpeg' && quality !== 85) || (targetFormat === 'png' && quality !== 90),
+      reencoded: true,
       outputFormat: targetFormat as any,
       quality,
       analysisSizingPolicy: policyName,

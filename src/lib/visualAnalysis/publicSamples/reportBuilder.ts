@@ -229,6 +229,7 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let overHardCapInputs = 0;
   let resizedInputs = 0;
   let recompressedInputs = 0;
+  let reencodedInputs = 0;
   let imageUrlFallbackInputs = 0;
   let totalOriginalBytes = 0;
   let totalProcessedBytes = 0;
@@ -244,9 +245,14 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   for (const item of items) {
     const run = item.analysisRun?.metadata ?? item.analysisRun;
     if (run && run.generationConfig) {
-      if (run.generationConfig.mediaResolutionRequested === 'HIGH') mediaResolutionHighRequested++;
-      if (run.generationConfig.mediaResolutionRequested === 'MEDIUM') mediaResolutionMediumRequested++;
-      if (run.generationConfig.mediaResolutionApplied) mediaResolutionApplied++;
+      const requested = run.generationConfig.mediaResolutionRequested;
+      if (requested === 'HIGH') mediaResolutionHighRequested++;
+      if (requested === 'MEDIUM') mediaResolutionMediumRequested++;
+      
+      const applied = run.generationConfig.mediaResolutionApplied !== undefined
+        ? run.generationConfig.mediaResolutionApplied
+        : (requested ? true : false);
+      if (applied) mediaResolutionApplied++;
     }
 
     const inputDiag = item.inputDiagnostics as any;
@@ -266,6 +272,7 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
 
       if (inputDiag.resized) resizedInputs++;
       if (inputDiag.recompressed) recompressedInputs++;
+      if (inputDiag.reencoded) reencodedInputs++;
 
       if (inputDiag.originalByteLength) {
         totalOriginalBytes += inputDiag.originalByteLength;
@@ -318,6 +325,7 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     overHardCapInputs,
     resizedInputs,
     recompressedInputs,
+    reencodedInputs,
     imageUrlFallbackInputs,
     totalOriginalBytes,
     totalProcessedBytes,

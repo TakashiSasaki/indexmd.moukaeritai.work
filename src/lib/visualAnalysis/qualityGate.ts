@@ -194,7 +194,24 @@ export function evaluateVisualAnalysisQuality(
   // B. Check if visible text is completely ignored by keywords (for short text)
   if (text.length > 0) {
     const allKeywordStr = keywords.map(k => k.value.toLowerCase()).join(' ');
-    const unindexedText = text.filter(t => t.text.length < 20 && t.text.length > 1 && !allKeywordStr.includes(t.text.toLowerCase()));
+    let unindexedText = text.filter(t => t.text.length < 20 && t.text.length > 1 && !allKeywordStr.includes(t.text.toLowerCase()));
+    
+    if (vi?.imageKind === "chartOrTable") {
+      const isChartOrTableNoise = (textStr: string): boolean => {
+        const t = textStr.trim();
+        if (/^\d+([.,]\d+)?%?$/.test(t)) return true;
+        if (/^[\$£€¥\u00a5\u20a0-\u20cf]?\s*\d+([.,]\d+)?\s*[KkMmB]?%?$/.test(t)) return true;
+        if (/^(19|20)\d{2}$/.test(t)) return true;
+        if (/^\d{1,2}[-/\s]*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-/\s]*\d{0,4}$/i.test(t)) return true;
+        if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-/\s]*\d{2,4}$/i.test(t)) return true;
+        if (/^\d{1,2}[-/\s]\d{1,2}[-/\s]\d{2,4}$/.test(t)) return true;
+        if (/^-?\d+([.,]\d+)?\s*[KkMm]?$/.test(t)) return true;
+        if (t.length <= 1) return true;
+        return false;
+      };
+      unindexedText = unindexedText.filter(t => !isChartOrTableNoise(t.text));
+    }
+
     if (unindexedText.length > 0) {
       // Don't deduct score, just info
       issues.push({

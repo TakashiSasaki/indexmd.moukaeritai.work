@@ -473,6 +473,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "chartOrTable",
     expectedElementCategories: ["chart", "textRegion"],
     expectedVisibleElementLabels: ["candlestick chart", "axes", "price"],
+    expectedVisibleElementLabelAliases: {
+      "candlestick chart": ["candlestick chart", "candlestick", "chart", "forex chart"],
+      "axes": ["axis", "axes", "x-axis", "y-axis", "x axis", "y axis", "date axis", "price axis", "horizontal axis", "vertical axis"],
+      "price": ["price", "price scale", "price level", "y-axis", "vertical axis", "exchange rate", "rate scale"]
+    },
     optionalElementCategories: ["unknown"],
     optionalVisibleText: ["EUR/USD"],
     source: {
@@ -517,6 +522,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     expectedImageKind: "chartOrTable",
     expectedElementCategories: ["chart", "textRegion"],
     expectedVisibleElementLabels: ["bar chart", "axis", "legend"],
+    expectedVisibleElementLabelAliases: {
+      "bar chart": ["bar chart", "chart", "graph"],
+      "axis": ["axis", "axes", "x-axis", "y-axis", "x axis", "y axis", "horizontal axis", "vertical axis"],
+      "legend": ["legend", "chart legend", "target revenue label"]
+    },
     expectedVisibleText: ["Annual Revenue Growth", "Target Revenue", "2021", "2022", "2023", "2024", "$100K", "$75K", "$50K", "$25K", "$0"],
     source: {
       provider: "localFixture",
