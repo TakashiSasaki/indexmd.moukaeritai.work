@@ -23,6 +23,7 @@ export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummar
     reviewFailCount: batchSummary.reviewFailCount,
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
+    inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: compactItems
   };
 }
@@ -93,37 +94,34 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
   }> = [];
 
   for (const item of items) {
-    const isFailed = !item.success;
+    if (item.success) continue; // Only failure items
+
     const diag = item.generationDiagnostics;
     const inputDiag = item.inputDiagnostics;
 
-    if (isFailed) {
-      if (diag) {
-        const provStatus = diag.providerStatus || "UNKNOWN";
-        byProviderStatus[provStatus] = (byProviderStatus[provStatus] || 0) + 1;
-        
-        const statusCodeStr = diag.statusCode ? String(diag.statusCode) : "UNKNOWN";
-        byStatusCode[statusCodeStr] = (byStatusCode[statusCodeStr] || 0) + 1;
-      } else {
-        byProviderStatus["UNKNOWN"] = (byProviderStatus["UNKNOWN"] || 0) + 1;
-        byStatusCode["UNKNOWN"] = (byStatusCode["UNKNOWN"] || 0) + 1;
-      }
-
-      if (inputDiag) {
-        const mime = inputDiag.mimeType || "UNKNOWN";
-        byMimeType[mime] = (byMimeType[mime] || 0) + 1;
-      } else {
-        byMimeType["UNKNOWN"] = (byMimeType["UNKNOWN"] || 0) + 1;
-      }
+    if (diag) {
+      const provStatus = diag.providerStatus || "UNKNOWN";
+      byProviderStatus[provStatus] = (byProviderStatus[provStatus] || 0) + 1;
+      
+      const statusCodeStr = diag.statusCode ? String(diag.statusCode) : "UNKNOWN";
+      byStatusCode[statusCodeStr] = (byStatusCode[statusCodeStr] || 0) + 1;
+    } else {
+      byProviderStatus["UNKNOWN"] = (byProviderStatus["UNKNOWN"] || 0) + 1;
+      byStatusCode["UNKNOWN"] = (byStatusCode["UNKNOWN"] || 0) + 1;
     }
 
     if (inputDiag) {
+      const mime = inputDiag.mimeType || "UNKNOWN";
+      byMimeType[mime] = (byMimeType[mime] || 0) + 1;
+
       inputsInfo.push({
         sampleId: item.sampleId,
         byteLength: inputDiag.byteLength,
         base64Length: inputDiag.base64Length,
         providerStatus: diag?.providerStatus
       });
+    } else {
+      byMimeType["UNKNOWN"] = (byMimeType["UNKNOWN"] || 0) + 1;
     }
   }
 
@@ -137,6 +135,38 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
     byProviderStatus,
     byStatusCode,
     byMimeType,
+    largestInputs
+  };
+}
+
+function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
+  const inputsInfo: Array<{
+    sampleId: string;
+    byteLength?: number;
+    base64Length?: number;
+    success: boolean;
+    failureKind?: string;
+  }> = [];
+
+  for (const item of items) {
+    const inputDiag = item.inputDiagnostics;
+    if (inputDiag) {
+      inputsInfo.push({
+        sampleId: item.sampleId,
+        byteLength: inputDiag.byteLength,
+        base64Length: inputDiag.base64Length,
+        success: item.success,
+        failureKind: item.failureKind
+      });
+    }
+  }
+
+  const largestInputs = inputsInfo
+    .filter(i => i.byteLength !== undefined)
+    .sort((a, b) => (b.byteLength || 0) - (a.byteLength || 0))
+    .slice(0, 5);
+
+  return {
     largestInputs
   };
 }

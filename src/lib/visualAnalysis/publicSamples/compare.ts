@@ -27,59 +27,107 @@ export function compareExpectedCategories(sample: any, detectedCategories: strin
   acceptable: string[];
   missing: string[];
   extra: string[];
+  matches?: Array<{
+    expected: string;
+    detected: string;
+    status: "exact" | "acceptable";
+    method: "exact" | "softEquivalence" | "alias";
+  }>;
 } {
   const exact: string[] = [];
   const acceptable: string[] = [];
   const missing: string[] = [];
-  const uniqueDetected = Array.from(new Set(detectedCategories));
-  const extra: string[] = [...uniqueDetected];
+  const matches: Array<{
+    expected: string;
+    detected: string;
+    status: "exact" | "acceptable";
+    method: "exact" | "softEquivalence" | "alias";
+  }> = [];
 
   const expectedElementCategories = sample.expectedElementCategories || sample.elementCategories || [];
   const expectedElementCategoryAlternatives = sample.expectedElementCategoryAlternatives || sample.elementCategoryAlternatives;
 
+  // Track remaining detected categories and their consumption state
+  interface CategoryCandidate {
+    name: string;
+    consumed: boolean;
+  }
+
+  const detectedCandidates: CategoryCandidate[] = detectedCategories.map(c => ({
+    name: c,
+    consumed: false
+  }));
+
+  // Phase 1: Exact matches
+  const unresolvedExpected: string[] = [];
+
   for (const expected of expectedElementCategories) {
+    const matchCand = detectedCandidates.find(c => !c.consumed && c.name === expected);
+    if (matchCand) {
+      matchCand.consumed = true;
+      exact.push(expected);
+      matches.push({
+        expected,
+        detected: matchCand.name,
+        status: "exact",
+        method: "exact"
+      });
+    } else {
+      unresolvedExpected.push(expected);
+    }
+  }
+
+  // Phase 2: Soft equivalence / alternatives
+  for (const expected of unresolvedExpected) {
+    let foundMatch = false;
+
     // Check landscapeElement soft equivalence
     if (expected === "landscapeElement") {
       const landscapeEquivalents = ["terrain", "plant", "waterBody", "weatherOrSky", "roadOrPath"];
-      let foundEq = false;
       for (const eq of landscapeEquivalents) {
-        const eqIdx = extra.indexOf(eq);
-        if (eqIdx !== -1) {
-          acceptable.push(eq);
-          extra.splice(eqIdx, 1);
-          foundEq = true;
+        const matchCand = detectedCandidates.find(c => !c.consumed && c.name === eq);
+        if (matchCand) {
+          matchCand.consumed = true;
+          acceptable.push(expected);
+          matches.push({
+            expected,
+            detected: matchCand.name,
+            status: "acceptable",
+            method: "softEquivalence"
+          });
+          foundMatch = true;
           break;
         }
       }
-      if (foundEq) continue;
+      if (foundMatch) continue;
     }
 
-    const idx = extra.indexOf(expected);
-    if (idx !== -1) {
-      exact.push(expected);
-      extra.splice(idx, 1);
-      continue;
-    }
-
-    let foundAlternative = false;
-    if (expectedElementCategoryAlternatives && expectedElementCategoryAlternatives[expected]) {
-      for (const alt of expectedElementCategoryAlternatives[expected]) {
-        const altIdx = extra.indexOf(alt);
-        if (altIdx !== -1) {
-          acceptable.push(alt); // found an acceptable alternative
-          extra.splice(altIdx, 1);
-          foundAlternative = true;
-          break;
-        }
+    // Check custom alternatives
+    const alternatives = expectedElementCategoryAlternatives?.[expected] || [];
+    for (const alt of alternatives) {
+      const matchCand = detectedCandidates.find(c => !c.consumed && c.name === alt);
+      if (matchCand) {
+        matchCand.consumed = true;
+        acceptable.push(expected);
+        matches.push({
+          expected,
+          detected: matchCand.name,
+          status: "acceptable",
+          method: "alias"
+        });
+        foundMatch = true;
+        break;
       }
     }
 
-    if (!foundAlternative) {
+    if (!foundMatch) {
       missing.push(expected);
     }
   }
 
-  return { exact, acceptable, missing, extra };
+  const extra = Array.from(new Set(detectedCandidates.filter(c => !c.consumed).map(c => c.name)));
+
+  return { exact, acceptable, missing, extra, matches };
 }
 
 export function compareExpectedLabels(
@@ -96,6 +144,7 @@ export function compareExpectedLabels(
     detected: string;
     status: "exact" | "acceptable";
     method: "exact" | "alias" | "substring" | "tokenOverlap" | "keyword";
+    source?: "visibleElementLabel" | "keyword";
   }>;
 } {
   const exact: string[] = [];
@@ -106,123 +155,231 @@ export function compareExpectedLabels(
     detected: string;
     status: "exact" | "acceptable";
     method: "exact" | "alias" | "substring" | "tokenOverlap" | "keyword";
+    source?: "visibleElementLabel" | "keyword";
   }> = [];
 
-  const extra = [...detectedLabels.map(l => l.toLowerCase())];
   const expectedLabels = sample.expectedVisibleElementLabels || sample.visibleElementLabels || [];
   const expectedVisibleElementLabelAliases = sample.expectedVisibleElementLabelAliases || sample.visibleElementLabelAliases;
 
+  function cleanAndNormalize(text: string): string {
+    let val = text.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ");
+    val = val.replace(/\s+/g, " ").trim();
+    return val;
+  }
+
   function normalizeWord(word: string): string {
-    let w = word.trim().toLowerCase();
+    let w = word.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
     if (w.endsWith('s') && w.length > 3) {
-      w = w.slice(0, -1);
+      if (w.endsWith('ves')) {
+        w = w.slice(0, -3) + 'f';
+      } else if (w.endsWith('ies')) {
+        w = w.slice(0, -3) + 'y';
+      } else {
+        w = w.slice(0, -1);
+      }
     }
     return w;
   }
 
-  function hasTokenOverlap(expected: string, detected: string): boolean {
-    const expTokens = expected.toLowerCase().split(/\s+/).map(normalizeWord).filter(Boolean);
-    const detTokens = detected.toLowerCase().split(/\s+/).map(normalizeWord).filter(Boolean);
-    return expTokens.some(t1 => detTokens.some(t2 => t1 === t2 || t1.includes(t2) || t2.includes(t1)));
+  interface LabelCandidate {
+    original: string;
+    normalized: string;
+    tokens: string[];
+    consumed: boolean;
   }
 
-  for (const expected of expectedLabels) {
-    const expectedLower = expected.toLowerCase();
+  interface KeywordCandidate {
+    original: string;
+    normalized: string;
+    tokens: string[];
+  }
 
-    // 1. Exact Match
-    const exactIdx = extra.indexOf(expectedLower);
-    if (exactIdx !== -1) {
-      exact.push(expected);
-      const originalDetected = detectedLabels[exactIdx] || expectedLower;
-      matches.push({
-        expected,
-        detected: originalDetected,
-        status: "exact",
-        method: "exact"
-      });
-      extra.splice(exactIdx, 1);
-      continue;
-    }
+  const labelCandidates: LabelCandidate[] = detectedLabels.map(l => {
+    const norm = cleanAndNormalize(l);
+    return {
+      original: l,
+      normalized: norm,
+      tokens: norm.split(" ").map(normalizeWord).filter(t => t.length > 2),
+      consumed: false
+    };
+  });
 
-    let foundMatch = false;
+  const keywordCandidates: KeywordCandidate[] = detectedKeywords.map(k => {
+    const norm = cleanAndNormalize(k);
+    return {
+      original: k,
+      normalized: norm,
+      tokens: norm.split(" ").map(normalizeWord).filter(t => t.length > 2)
+    };
+  });
 
-    // 2. Alias Match
-    if (expectedVisibleElementLabelAliases && expectedVisibleElementLabelAliases[expected]) {
-      for (const alt of expectedVisibleElementLabelAliases[expected]) {
-        const altLower = alt.toLowerCase();
-        const altIdx = extra.findIndex(e => e === altLower || e.includes(altLower));
-        if (altIdx !== -1) {
-          const originalDetected = detectedLabels[altIdx] || extra[altIdx];
-          acceptable.push(originalDetected);
-          matches.push({
-            expected,
-            detected: originalDetected,
-            status: "acceptable",
-            method: "alias"
-          });
-          extra.splice(altIdx, 1);
-          foundMatch = true;
-          break;
-        }
+  function isAcceptableLabelMatch(
+    expectedNorm: string,
+    expectedTokens: string[],
+    candidateNorm: string,
+    candidateTokens: string[]
+  ): { matched: boolean; method: "substring" | "tokenOverlap" } | null {
+    if (expectedNorm.length > 2 && candidateNorm.length > 2) {
+      const escapedExpected = expectedNorm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex1 = new RegExp(`\\b${escapedExpected}\\b`);
+      if (regex1.test(candidateNorm)) {
+        return { matched: true, method: "substring" };
+      }
+      
+      const escapedCandidate = candidateNorm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex2 = new RegExp(`\\b${escapedCandidate}\\b`);
+      if (regex2.test(expectedNorm)) {
+        return { matched: true, method: "substring" };
       }
     }
-    if (foundMatch) continue;
 
-    // 3. Substring Match
-    const subIdx = extra.findIndex(e => {
-      const normE = normalizeWord(e);
-      const normExp = normalizeWord(expectedLower);
-      return normE === normExp || normE.includes(normExp) || normExp.includes(normE) || e.includes(expectedLower) || expectedLower.includes(e);
-    });
-    if (subIdx !== -1) {
-      const originalDetected = detectedLabels[subIdx] || extra[subIdx];
-      acceptable.push(originalDetected);
-      matches.push({
-        expected,
-        detected: originalDetected,
-        status: "acceptable",
-        method: "substring"
-      });
-      extra.splice(subIdx, 1);
-      continue;
+    if (expectedTokens.length > 0 && candidateTokens.length > 0) {
+      const overlap = expectedTokens.some(et => candidateTokens.includes(et));
+      if (overlap) {
+        return { matched: true, method: "tokenOverlap" };
+      }
     }
 
-    // 4. Token Overlap Match
-    const tokIdx = extra.findIndex(e => hasTokenOverlap(expectedLower, e));
-    if (tokIdx !== -1) {
-      const originalDetected = detectedLabels[tokIdx] || extra[tokIdx];
-      acceptable.push(originalDetected);
-      matches.push({
-        expected,
-        detected: originalDetected,
-        status: "acceptable",
-        method: "tokenOverlap"
-      });
-      extra.splice(tokIdx, 1);
-      continue;
-    }
-
-    // 5. Keyword Match
-    const kwIdx = detectedKeywords.findIndex(kw => {
-      const kwLower = kw.toLowerCase();
-      const normKw = normalizeWord(kwLower);
-      const normExp = normalizeWord(expectedLower);
-      return normKw === normExp || normKw.includes(normExp) || normExp.includes(normKw) || kwLower.includes(expectedLower) || expectedLower.includes(kwLower) || hasTokenOverlap(expectedLower, kwLower);
-    });
-    if (kwIdx !== -1) {
-      const matchedKw = detectedKeywords[kwIdx];
-      acceptable.push(matchedKw);
-      matches.push({
-        expected,
-        detected: matchedKw,
-        status: "acceptable",
-        method: "keyword"
-      });
-      continue;
-    }
-
-    missing.push(expected);
+    return null;
   }
+
+  // Phase 1: Exact matches for expected labels
+  const unresolvedExpected: Array<{
+    original: string;
+    normalized: string;
+    tokens: string[];
+  }> = [];
+
+  for (const expected of expectedLabels) {
+    const expectedNorm = cleanAndNormalize(expected);
+    const expectedTokens = expectedNorm.split(" ").map(normalizeWord).filter(t => t.length > 2);
+
+    const exactMatchCandidate = labelCandidates.find(
+      c => !c.consumed && c.normalized === expectedNorm
+    );
+
+    if (exactMatchCandidate) {
+      exactMatchCandidate.consumed = true;
+      exact.push(expected);
+      matches.push({
+        expected,
+        detected: exactMatchCandidate.original,
+        status: "exact",
+        method: "exact",
+        source: "visibleElementLabel"
+      });
+    } else {
+      unresolvedExpected.push({
+        original: expected,
+        normalized: expectedNorm,
+        tokens: expectedTokens
+      });
+    }
+  }
+
+  // Phase 2: Alias matches for remaining expected labels
+  const stillUnresolved: typeof unresolvedExpected = [];
+
+  for (const item of unresolvedExpected) {
+    let foundAlias = false;
+    const aliases = expectedVisibleElementLabelAliases?.[item.original] || [];
+
+    for (const alias of aliases) {
+      const aliasNorm = cleanAndNormalize(alias);
+      const aliasMatchCandidate = labelCandidates.find(
+        c => !c.consumed && c.normalized === aliasNorm
+      );
+
+      if (aliasMatchCandidate) {
+        aliasMatchCandidate.consumed = true;
+        acceptable.push(item.original);
+        matches.push({
+          expected: item.original,
+          detected: aliasMatchCandidate.original,
+          status: "acceptable",
+          method: "alias",
+          source: "visibleElementLabel"
+        });
+        foundAlias = true;
+        break;
+      }
+    }
+
+    if (!foundAlias) {
+      stillUnresolved.push(item);
+    }
+  }
+
+  // Phase 3: Substring / Token Overlap matching on Label Candidates
+  const unresolvedAfterLabelMatching: typeof unresolvedExpected = [];
+
+  for (const item of stillUnresolved) {
+    let foundMatch = false;
+
+    for (const cand of labelCandidates) {
+      if (cand.consumed) continue;
+
+      const matchRes = isAcceptableLabelMatch(
+        item.normalized,
+        item.tokens,
+        cand.normalized,
+        cand.tokens
+      );
+
+      if (matchRes) {
+        cand.consumed = true;
+        acceptable.push(item.original);
+        matches.push({
+          expected: item.original,
+          detected: cand.original,
+          status: "acceptable",
+          method: matchRes.method,
+          source: "visibleElementLabel"
+        });
+        foundMatch = true;
+        break;
+      }
+    }
+
+    if (!foundMatch) {
+      unresolvedAfterLabelMatching.push(item);
+    }
+  }
+
+  // Phase 4: Keyword matching on Keyword Candidates
+  for (const item of unresolvedAfterLabelMatching) {
+    let foundMatch = false;
+
+    for (const cand of keywordCandidates) {
+      const matchRes = isAcceptableLabelMatch(
+        item.normalized,
+        item.tokens,
+        cand.normalized,
+        cand.tokens
+      );
+
+      if (matchRes) {
+        acceptable.push(item.original);
+        matches.push({
+          expected: item.original,
+          detected: cand.original,
+          status: "acceptable",
+          method: "keyword",
+          source: "keyword"
+        });
+        foundMatch = true;
+        break;
+      }
+    }
+
+    if (!foundMatch) {
+      missing.push(item.original);
+    }
+  }
+
+  const extra = labelCandidates
+    .filter(c => !c.consumed)
+    .map(c => c.original);
 
   return { exact, acceptable, missing, extra, matches };
 }
@@ -260,6 +417,12 @@ export interface PublicSampleComparisonSummary {
     acceptable: string[];
     missing: string[];
     extra: string[];
+    matches?: Array<{
+      expected: string;
+      detected: string;
+      status: "exact" | "acceptable";
+      method: "exact" | "softEquivalence" | "alias";
+    }>;
   };
   labels: {
     matched: string[];
@@ -271,6 +434,7 @@ export interface PublicSampleComparisonSummary {
       detected: string;
       status: "exact" | "acceptable";
       method: "exact" | "alias" | "substring" | "tokenOverlap" | "keyword";
+      source?: "visibleElementLabel" | "keyword";
     }>;
   };
   visibleText: {
@@ -366,7 +530,8 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
       matched: categoriesResult.exact,
       acceptable: categoriesResult.acceptable,
       missing: categoriesResult.missing,
-      extra: categoriesResult.extra
+      extra: categoriesResult.extra,
+      matches: categoriesResult.matches
     },
     labels: {
       matched: labelsResult.exact,
