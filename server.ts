@@ -35,10 +35,12 @@ import {
 } from "./src/lib/privacyAndCache";
 import { buildVisualAnalysisSystemInstruction, buildVisualAnalysisTaskPrompt } from "./src/lib/visualAnalysis/prompts";
 import { normalizeVisualAnalysis } from "./src/lib/visualAnalysis/normalize";
+import { canonicalizeVisualAnalysisProviderOutput } from "./src/lib/visualAnalysis/canonicalize";
 import { validateVisualAnalysis } from "./src/lib/visualAnalysis/validate";
 import { evaluateVisualAnalysisQuality } from "./src/lib/visualAnalysis/qualityGate";
 import { parseModelJsonOutput } from "./src/lib/visualAnalysis/jsonParsing";
 import { VISUAL_ANALYSIS_SCHEMA, VISUAL_ANALYSIS_SCHEMA_VERSION } from "./src/lib/visualAnalysis/schema";
+import { GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA } from "./src/lib/visualAnalysis/providerSchema";
 import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } from "./src/lib/visualAnalysis/runMetadata";
 import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
 import { generateContentWithRetry } from "./src/lib/gemini";
@@ -1508,8 +1510,16 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     if (!sample) return res.status(404).json({ error: "Sample not found" });
 
     // Fetch Image Bytes
-    const { buffer, mimeType } = await fetchPublicSampleImage(sampleId, "analysis");
+    const { buffer, mimeType, sourceUrlKind } = await fetchPublicSampleImage(sampleId, "analysis");
     const base64Data = buffer.toString("base64");
+    
+    // Add input size warnings for diagnostics
+    let inputSizeWarning: string | undefined;
+    if (buffer.byteLength > 5 * 1024 * 1024) {
+      inputSizeWarning = "Image size exceeds 5MB hard cap for analysis. Consider using a smaller variant.";
+    } else if (buffer.byteLength > 2 * 1024 * 1024 && sourceUrlKind === "imageUrlFallback") {
+      inputSizeWarning = "Image size exceeds 2MB and fell back to original URL. This may cause high latency or failure.";
+    }
 
     // Prepare Prompt & Options
     const visualCap = getVisualModelCapability(modelName);
@@ -1541,14 +1551,43 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     const systemInstruction = buildVisualAnalysisSystemInstruction();
     const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
+    // media resolution policy based on input sample
+    let mediaResolutionRequested: string | undefined;
+    let mediaResolutionReason: string | undefined;
+
+    if (!isGemma) {
+      if (
+        sample && (
+          sample.expectedImageKind === "chartOrTable" ||
+          sample.expectedImageKind === "mapImage" ||
+          sample.expectedImageKind === "documentPhoto" ||
+          sample.expectedImageKind === "receiptPhoto" ||
+          sample.expectedImageKind === "handwrittenNote" ||
+          sample.expectedImageKind === "whiteboardPhoto" ||
+          sample.expectedImageKind === "screenshot" ||
+          sample.expectedImageKind === "packageImage"
+        )
+      ) {
+        mediaResolutionRequested = "HIGH";
+        mediaResolutionReason = "Detail-heavy image kind";
+      } else if (sample && sample.expectedVisibleText && sample.expectedVisibleText.length > 0) {
+        mediaResolutionRequested = "HIGH";
+        mediaResolutionReason = "Expected visible text exists";
+      } else {
+        mediaResolutionRequested = "MEDIUM";
+        mediaResolutionReason = "Simple image kind";
+      }
+    }
+
     let configOption: any = {
       ...VISUAL_ANALYSIS_GENERATION_CONFIG,
-      systemInstruction
+      systemInstruction,
+      ...(mediaResolutionRequested ? { mediaResolution: mediaResolutionRequested } : {})
     };
 
     if (mode === "nativeSchema") {
       configOption.responseMimeType = "application/json";
-      configOption.responseSchema = extractedSchema || VISUAL_ANALYSIS_SCHEMA;
+      configOption.responseSchema = extractedSchema || GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA;
     }
 
     const runMetadata = buildVisualAnalysisRunMetadata({
@@ -1564,7 +1603,9 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       sampleId: sample.id,
       mimeType: mimeType,
       byteLength: buffer.length,
-      base64Length: base64Data.length
+      base64Length: base64Data.length,
+      mediaResolutionRequested,
+      mediaResolutionReason
     });
 
     const requestPreview = includeRequestPreview ? {
@@ -1657,7 +1698,10 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           sampleId: runMetadata.input.sampleId,
           mimeType: runMetadata.input.mimeType,
           byteLength: runMetadata.input.byteLength,
-          base64Length: runMetadata.input.base64Length
+          base64Length: runMetadata.input.base64Length,
+          imageVariant: "analysis",
+          analysisSourceUrlKind: sourceUrlKind,
+          inputSizeWarning
         },
         ...(requestPreview ? { requestPreview } : {})
       });
@@ -1710,7 +1754,10 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           sampleId: runMetadata.input.sampleId,
           mimeType: runMetadata.input.mimeType,
           byteLength: runMetadata.input.byteLength,
-          base64Length: runMetadata.input.base64Length
+          base64Length: runMetadata.input.base64Length,
+          imageVariant: "analysis",
+          analysisSourceUrlKind: sourceUrlKind,
+          inputSizeWarning
         }
       };
 
@@ -1721,7 +1768,13 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       return res.json(result);
     }
 
-    const normalized = normalizeVisualAnalysis(parsed);
+    const canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
+      providerFamily: isGemma ? "gemma" : "gemini",
+      modelName: targetModel,
+      structuredExecutionMode: mode,
+      jsonMode
+    });
+    const normalized = canonicalization.result;
     const validation = validateVisualAnalysis(normalized);
 
     let qualityStatus = "invalid";
@@ -1764,6 +1817,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       visualAnalysis: normalized,
       analysisRun: runMetadata,
       parseDiagnostics: parseDiagnosticsLight,
+      normalizationDiagnostics: canonicalization.diagnostics,
       qualityStatus,
       qualityScore,
       qualityIssues,
@@ -1776,7 +1830,10 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         sampleId: runMetadata.input.sampleId,
         mimeType: runMetadata.input.mimeType,
         byteLength: runMetadata.input.byteLength,
-        base64Length: runMetadata.input.base64Length
+        base64Length: runMetadata.input.base64Length,
+        imageVariant: "analysis",
+        analysisSourceUrlKind: sourceUrlKind,
+        inputSizeWarning
       }
     };
 
@@ -1868,7 +1925,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
 
     if (mode === "nativeSchema") {
       configOption.responseMimeType = "application/json";
-      configOption.responseSchema = extractedSchema || VISUAL_ANALYSIS_SCHEMA;
+      configOption.responseSchema = extractedSchema || GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA;
     }
 
     const runMetadata = buildVisualAnalysisRunMetadata({
@@ -1985,7 +2042,13 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       return res.json(result);
     }
 
-    const normalized = normalizeVisualAnalysis(parsed);
+    const canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
+      providerFamily: isGemma ? "gemma" : "gemini",
+      modelName: targetModel,
+      structuredExecutionMode: mode,
+      jsonMode
+    });
+    const normalized = canonicalization.result;
     const validation = validateVisualAnalysis(normalized);
     
     let qualityStatus = "invalid";
@@ -2012,6 +2075,7 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       visualAnalysis: normalized,
       analysisRun: runMetadata,
       parseDiagnostics: parseDiagnosticsLight,
+      normalizationDiagnostics: canonicalization.diagnostics,
       qualityStatus,
       qualityScore,
       qualityIssues,

@@ -40,6 +40,7 @@ export interface PublicVisualSampleSource {
   pageUrl?: string;
   imageUrl?: string;
   thumbnailUrl?: string;
+  analysisUrl?: string;
   licenseKind: PublicVisualSampleLicenseKind;
   licenseName: string;
   licenseUrl?: string;

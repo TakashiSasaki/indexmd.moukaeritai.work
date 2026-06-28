@@ -23,6 +23,7 @@ const FETCH_TIMEOUT_MS = 8000;
 export interface FetchSampleResult {
   buffer: Buffer;
   mimeType: string;
+  sourceUrlKind?: "analysisUrl" | "thumbnailRewrite" | "thumbnailUrl" | "imageUrlFallback" | "localFixture";
 }
 
 const inMemoryCache = new Map<string, FetchSampleResult>();
@@ -91,9 +92,13 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     throw new Error(`Sample not found: ${sampleId}`);
   }
 
-  let urlToFetch = (variant === "thumbnail" || variant === "preview" || variant === "analysis") 
-    ? (sample.source.thumbnailUrl || sample.source.imageUrl) 
-    : sample.source.imageUrl;
+  let urlToFetch = sample.source.imageUrl;
+  if (variant === "thumbnail" || variant === "preview") {
+    urlToFetch = sample.source.thumbnailUrl || sample.source.imageUrl;
+  } else if (variant === "analysis") {
+    urlToFetch = sample.source.analysisUrl || sample.source.thumbnailUrl || sample.source.imageUrl;
+  }
+  
   if (!urlToFetch) {
     throw new Error(`No image URL available for variant: ${variant}`);
   }
@@ -130,26 +135,37 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     if (ext === '.png') mimeType = 'image/png';
     else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
 
-    const result = { buffer, mimeType };
+    const result: FetchSampleResult = { buffer, mimeType, sourceUrlKind: "localFixture" };
     inMemoryCache.set(cacheKey, result);
     return result;
   }
 
   let result: FetchSampleResult;
+  let finalSourceUrlKind: FetchSampleResult["sourceUrlKind"] = "imageUrlFallback";
+  if (variant === "analysis") {
+    if (sample.source.analysisUrl && urlToFetch === sample.source.analysisUrl) finalSourceUrlKind = "analysisUrl";
+    else if (urlToFetch.includes('/1024px-')) finalSourceUrlKind = "thumbnailRewrite";
+    else if (sample.source.thumbnailUrl && urlToFetch === sample.source.thumbnailUrl) finalSourceUrlKind = "thumbnailUrl";
+  }
+
   try {
     result = await fetchExternalImage(urlToFetch, 0);
+    result.sourceUrlKind = finalSourceUrlKind;
   } catch (err: any) {
     if (variant === "analysis" && urlToFetch.includes('/1024px-') && sample.source.thumbnailUrl) {
       console.warn(`[serverFetch] Failed to fetch 1024px variant from ${urlToFetch}. Falling back to 640px thumbnailUrl: ${sample.source.thumbnailUrl}`);
       try {
         result = await fetchExternalImage(sample.source.thumbnailUrl, 0);
+        result.sourceUrlKind = "thumbnailUrl";
       } catch (fallbackErr: any) {
         console.warn(`[serverFetch] Failed to fetch 640px fallback. Falling back to original imageUrl: ${sample.source.imageUrl}`);
-        result = await fetchExternalImage(sample.source.imageUrl, 0);
+        result = await fetchExternalImage(sample.source.imageUrl || "", 0);
+        result.sourceUrlKind = "imageUrlFallback";
       }
     } else if (variant !== "full" && urlToFetch !== sample.source.imageUrl && sample.source.imageUrl) {
       console.warn(`[serverFetch] Failed to fetch variant ${variant} from ${urlToFetch}. Falling back to original imageUrl: ${sample.source.imageUrl}`, err);
       result = await fetchExternalImage(sample.source.imageUrl, 0);
+      result.sourceUrlKind = "imageUrlFallback";
     } else {
       throw err;
     }

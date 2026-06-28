@@ -50,6 +50,8 @@ export interface VisualAnalysisRunMetadata {
     temperature: number;
     topP: number;
     topK: number;
+    mediaResolutionRequested?: string;
+    mediaResolutionReason?: string;
   };
 
   input: {
@@ -77,6 +79,8 @@ export function buildVisualAnalysisRunMetadata(params: {
   mimeType?: string;
   byteLength?: number;
   base64Length?: number;
+  mediaResolutionRequested?: string;
+  mediaResolutionReason?: string;
 }): VisualAnalysisRunMetadata {
   return {
     runId: crypto.randomUUID(),
@@ -107,6 +111,8 @@ export function buildVisualAnalysisRunMetadata(params: {
       temperature: VISUAL_ANALYSIS_GENERATION_CONFIG.temperature,
       topP: VISUAL_ANALYSIS_GENERATION_CONFIG.topP,
       topK: VISUAL_ANALYSIS_GENERATION_CONFIG.topK,
+      mediaResolutionRequested: params.mediaResolutionRequested,
+      mediaResolutionReason: params.mediaResolutionReason
     },
     input: {
       sourceKind: params.sourceKind,
