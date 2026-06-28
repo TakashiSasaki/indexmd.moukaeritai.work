@@ -14,6 +14,11 @@ export class ProviderError extends Error {
   attempts?: any[];
   retryable?: boolean;
   apiRetryCount?: number;
+  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError";
+  quotaExceeded?: boolean;
+  rateLimited?: boolean;
+  retryAfterMs?: number;
+  retryAfterReason?: string;
 
   constructor(message: string, statusCode?: number, providerStatus?: string, rawMessageSummary?: string) {
     super(message);
@@ -129,9 +134,85 @@ export async function generateContentWithRetry(
         }
       }
       
-      const isQuotaExceeded = statusCode === 429;
+      let providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError" = "providerGenerationError";
+      let quotaExceeded = false;
+      let rateLimited = false;
+
+      if (statusCode === 429) {
+        rateLimited = true;
+        providerFailureKind = "providerRateLimited";
+      }
+
+      const upperMsgStr = rawMessage.toUpperCase();
+      if (providerStatus === "RESOURCE_EXHAUSTED" || providerStatus === "QUOTA_EXCEEDED" || 
+          upperMsgStr.includes("RESOURCE_EXHAUSTED") || 
+          upperMsgStr.includes("QUOTA") || 
+          upperMsgStr.includes("RATE LIMIT") || 
+          upperMsgStr.includes("RATE_LIMIT")) {
+        quotaExceeded = true;
+        if (statusCode === 429) {
+          providerFailureKind = "providerRateLimited";
+        } else {
+          providerFailureKind = "providerQuotaExceeded";
+        }
+      }
+
+      if (statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || upperMsgStr.includes("UNAVAILABLE")) {
+        providerFailureKind = "providerUnavailable";
+      }
+
+      if (statusCode === 400 || providerStatus === "INVALID_ARGUMENT" || upperMsgStr.includes("INVALID_ARGUMENT")) {
+        providerFailureKind = "providerInvalidArgument";
+      }
+
+      let retryAfterMs: number | undefined = undefined;
+      let retryAfterReason: string | undefined = undefined;
+
+      // 1. Try to find RetryInfo in error details (JSON)
+      if (rawMessage) {
+        try {
+          const parsed = JSON.parse(rawMessage);
+          if (parsed.error?.details && Array.isArray(parsed.error.details)) {
+            for (const detail of parsed.error.details) {
+              if (detail["@type"] === "type.googleapis.com/google.rpc.RetryInfo" || detail.retryDelay) {
+                const delayStr = detail.retryDelay; // e.g. "1.5s" or "30s"
+                if (typeof delayStr === "string" && delayStr.endsWith("s")) {
+                  const secs = parseFloat(delayStr.slice(0, -1));
+                  if (!isNaN(secs)) {
+                    retryAfterMs = secs * 1000;
+                    retryAfterReason = "google.rpc.RetryInfo";
+                  }
+                }
+              }
+            }
+          }
+        } catch(e) {}
+      }
+
+      // 2. Try HTTP headers
+      const retryAfterHeader = err.response?.headers?.["retry-after"] || (err.response?.headers && typeof err.response.headers.get === "function" && err.response.headers.get("retry-after"));
+      if (retryAfterHeader) {
+        const secs = parseFloat(retryAfterHeader);
+        if (!isNaN(secs)) {
+          retryAfterMs = secs * 1000;
+          retryAfterReason = "HTTP retry-after header";
+        } else {
+          const ms = Date.parse(retryAfterHeader) - Date.now();
+          if (!isNaN(ms) && ms > 0) {
+            retryAfterMs = ms;
+            retryAfterReason = "HTTP retry-after date header";
+          }
+        }
+      }
+
+      const isQuotaExceeded = statusCode === 429 || quotaExceeded;
       const isNotFound = statusCode === 404;
-      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500;
+      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || quotaExceeded;
+
+      let delayMs = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
+      if (isRetryable && retryAfterMs !== undefined && retryAfterMs > 0) {
+        delayMs = retryAfterMs;
+      }
 
       attempts.push({
         attempt: attempts.length + 1,
@@ -139,7 +220,11 @@ export async function generateContentWithRetry(
         statusCode,
         providerStatus,
         retryable: isRetryable,
-        errorMessageSummary: rawMessage.substring(0, 500)
+        errorMessageSummary: rawMessage.substring(0, 500),
+        delayMs: isRetryable ? delayMs : undefined,
+        retryAfterMs,
+        retryReason: retryAfterReason,
+        providerFailureKind
       });
       
       lastError = new ProviderError(
@@ -152,6 +237,11 @@ export async function generateContentWithRetry(
       lastError.attempts = attempts;
       lastError.retryable = isRetryable;
       lastError.apiRetryCount = i;
+      lastError.providerFailureKind = providerFailureKind;
+      lastError.quotaExceeded = quotaExceeded;
+      lastError.rateLimited = rateLimited;
+      lastError.retryAfterMs = retryAfterMs;
+      lastError.retryAfterReason = retryAfterReason;
       
       // Fallback logic for 500 errors with native schema
       if (statusCode === 500 && configOption?.responseSchema) {
@@ -161,8 +251,7 @@ export async function generateContentWithRetry(
         configOption.systemInstruction = (configOption.systemInstruction || "") + 
           "\n\nCRITICAL INSTRUCTION: You MUST return ONLY a valid JSON object. Do NOT wrap the JSON in Markdown formatting (e.g. ```json). Just the raw JSON object.";
         
-        const delay = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }
 
@@ -182,8 +271,7 @@ export async function generateContentWithRetry(
       }
       
       if (isRetryable && i < maxRetries) {
-        const delay = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }
       

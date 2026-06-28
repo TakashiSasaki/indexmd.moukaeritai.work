@@ -5,10 +5,14 @@ export interface GenerationAttemptDiagnostic {
   providerStatus?: string;
   retryable?: boolean;
   errorMessageSummary?: string;
+  delayMs?: number;
+  retryAfterMs?: number;
+  retryReason?: string;
+  providerFailureKind?: string;
 }
 
 export interface GenerationDiagnostics {
-  failureKind: "generationError";
+  failureKind: "generationError" | "providerRateLimited" | "providerQuotaExceeded";
   stage: "modelGenerateContent";
   modelName: string;
   providerFamily?: string;
@@ -19,4 +23,9 @@ export interface GenerationDiagnostics {
   apiRetryCount?: number;
   attemptedModels?: string[];
   attempts?: GenerationAttemptDiagnostic[];
+  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError";
+  quotaExceeded?: boolean;
+  rateLimited?: boolean;
+  retryAfterMs?: number;
+  retryAfterReason?: string;
 }

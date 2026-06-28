@@ -8,10 +8,24 @@ export function isRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
   return !item.success && item.failureKind === 'rateLimited';
 }
 
+export function isProviderRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && item.failureKind === 'providerRateLimited';
+}
+
+export function isProviderQuotaFailure(item: PublicSampleBatchRunItem): boolean {
+  return !item.success && item.failureKind === 'providerQuotaExceeded';
+}
+
+export function isProviderQuotaOrRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
+  return isProviderRateLimitFailure(item) || isProviderQuotaFailure(item);
+}
+
 export function isTransportOrResponseFailure(item: PublicSampleBatchRunItem): boolean {
   return !item.success && 
          !isNetworkFailure(item) &&
          !isRateLimitFailure(item) &&
+         !isProviderRateLimitFailure(item) &&
+         !isProviderQuotaFailure(item) &&
          (item.failureKind === 'nonJsonResponse' || 
           item.failureKind === 'invalidJsonResponse' || 
           item.failureKind === 'apiError' || 
@@ -30,6 +44,8 @@ export function isProviderGenerationFailure(item: PublicSampleBatchRunItem): boo
   return !item.success && 
          !isNetworkFailure(item) &&
          !isRateLimitFailure(item) &&
+         !isProviderRateLimitFailure(item) &&
+         !isProviderQuotaFailure(item) &&
          !isSchemaValidationFailure(item) &&
          !isModelParseFailure(item) &&
          !isTransportOrResponseFailure(item);
@@ -65,6 +81,7 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
     networkFailureSummary: buildNetworkFailureSummary(batchSummary.items),
     validationFailureSummary: buildValidationFailureSummary(batchSummary.items),
     rateLimitSummary: buildRateLimitSummary(batchSummary.items),
+    providerQuotaSummary: buildProviderQuotaSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: compactItems
   };
@@ -102,6 +119,7 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
     networkFailureSummary: buildNetworkFailureSummary(batchSummary.items),
     validationFailureSummary: buildValidationFailureSummary(batchSummary.items),
     rateLimitSummary: buildRateLimitSummary(batchSummary.items),
+    providerQuotaSummary: buildProviderQuotaSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: summaryItems
   };
@@ -264,6 +282,65 @@ function buildRateLimitSummary(items: PublicSampleBatchRunItem[]) {
   return {
     total429: rateLimitedItems.length,
     totalAttempts,
+    samples
+  };
+}
+
+function buildProviderQuotaSummary(items: PublicSampleBatchRunItem[]) {
+  const quotaFailures = items.filter(isProviderQuotaOrRateLimitFailure);
+  const byProviderStatus: Record<string, number> = {};
+  const byStatusCode: Record<string, number> = {};
+  const byModelName: Record<string, number> = {};
+  const samples: Array<{
+    sampleId: string;
+    modelName: string;
+    failureKind: string;
+    statusCode?: number;
+    providerStatus?: string;
+    rawMessageSummary?: string;
+    apiRetryCount?: number;
+    retryAfterMs?: number;
+    retryAfterReason?: string;
+    attemptsCount: number;
+  }> = [];
+
+  let totalAttempts = 0;
+  for (const item of quotaFailures) {
+    const diag = item.generationDiagnostics;
+    const exec = getItemExecutionMetadata(item);
+    
+    const provStatus = diag?.providerStatus || "UNKNOWN";
+    byProviderStatus[provStatus] = (byProviderStatus[provStatus] || 0) + 1;
+    
+    const statusCodeStr = diag?.statusCode ? String(diag.statusCode) : "UNKNOWN";
+    byStatusCode[statusCodeStr] = (byStatusCode[statusCodeStr] || 0) + 1;
+
+    const modelName = exec.modelName || diag?.modelName || "UNKNOWN";
+    byModelName[modelName] = (byModelName[modelName] || 0) + 1;
+
+    const attemptsCount = diag?.attempts?.length || 1;
+    totalAttempts += attemptsCount;
+
+    samples.push({
+      sampleId: item.sampleId,
+      modelName,
+      failureKind: item.failureKind || "providerRateLimited",
+      statusCode: diag?.statusCode,
+      providerStatus: diag?.providerStatus,
+      rawMessageSummary: diag?.rawMessageSummary,
+      apiRetryCount: diag?.apiRetryCount,
+      retryAfterMs: diag?.retryAfterMs,
+      retryAfterReason: diag?.retryAfterReason,
+      attemptsCount
+    });
+  }
+
+  return {
+    total: quotaFailures.length,
+    totalAttempts,
+    byProviderStatus,
+    byStatusCode,
+    byModelName,
     samples
   };
 }

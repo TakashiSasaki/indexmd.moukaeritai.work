@@ -4,6 +4,8 @@ import { PUBLIC_VISUAL_SAMPLES } from './registry';
 import {
   isNetworkFailure,
   isRateLimitFailure,
+  isProviderRateLimitFailure,
+  isProviderQuotaFailure,
   isTransportOrResponseFailure,
   isModelParseFailure,
   isSchemaValidationFailure,
@@ -18,6 +20,8 @@ export function getItemJsonRecovery(item: any) {
 export function getItemFailureTaxonomy(item: PublicSampleBatchRunItem): string {
   if (item.success) return "success";
   if (isRateLimitFailure(item)) return "rateLimit";
+  if (isProviderRateLimitFailure(item)) return "providerRateLimit";
+  if (isProviderQuotaFailure(item)) return "providerQuota";
   if (isNetworkFailure(item)) return "network";
   if (isTransportOrResponseFailure(item)) return "transport";
   if (isModelParseFailure(item)) return "parse";
@@ -54,6 +58,8 @@ export interface VisualAnalysisPublicSampleBatchComparison {
       parseFailure?: boolean;
       validationFailure?: boolean;
       rateLimited?: boolean;
+      providerRateLimited?: boolean;
+      providerQuotaExceeded?: boolean;
       networkFailure?: boolean;
       schemaValidationRecoveryUsed?: boolean;
       jsonRecoveryUsed?: boolean;
@@ -75,6 +81,8 @@ export interface VisualAnalysisPublicSampleBatchComparison {
     apiFailureCount: number;
     networkFailureCount?: number;
     rateLimitCount?: number;
+    providerRateLimitCount?: number;
+    providerQuotaCount?: number;
     parseFailureCount?: number;
     validationFailureCount?: number;
     generationFailureCount: number;
@@ -165,6 +173,8 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
           parseFailure: isModelParseFailure(item),
           validationFailure: isSchemaValidationFailure(item),
           rateLimited: isRateLimitFailure(item),
+          providerRateLimited: isProviderRateLimitFailure(item),
+          providerQuotaExceeded: isProviderQuotaFailure(item),
           networkFailure: isNetworkFailure(item),
           schemaValidationRecoveryUsed,
           jsonRecoveryUsed,
@@ -224,6 +234,8 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
   let apiFailureCount = 0;
   let networkFailureCount = 0;
   let rateLimitCount = 0;
+  let providerRateLimitCount = 0;
+  let providerQuotaCount = 0;
   let parseFailureCount = 0;
   let validationFailureCount = 0;
   let generationFailureCount = 0;
@@ -246,6 +258,10 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
       if (!item.success) {
         if (isRateLimitFailure(item)) {
           rateLimitCount++;
+        } else if (isProviderRateLimitFailure(item)) {
+          providerRateLimitCount++;
+        } else if (isProviderQuotaFailure(item)) {
+          providerQuotaCount++;
         } else if (isNetworkFailure(item)) {
           networkFailureCount++;
         } else if (isTransportOrResponseFailure(item)) {
@@ -272,6 +288,8 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
     apiFailureCount,
     networkFailureCount,
     rateLimitCount,
+    providerRateLimitCount,
+    providerQuotaCount,
     parseFailureCount,
     validationFailureCount,
     generationFailureCount,

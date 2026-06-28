@@ -15,8 +15,18 @@ export function buildGenerationFailureResponse(args: {
 }) {
   const { err, targetModel, providerFamily, runMetadata, outputMode, requestPreview, sampleMetadata, expectedMetadata, inputDiagnostics } = args;
 
+  let failureKind: "generationError" | "providerRateLimited" | "providerQuotaExceeded" = "generationError";
+
+  if (err instanceof ProviderError) {
+    if (err.providerFailureKind === "providerRateLimited") {
+      failureKind = "providerRateLimited";
+    } else if (err.providerFailureKind === "providerQuotaExceeded") {
+      failureKind = "providerQuotaExceeded";
+    }
+  }
+
   const diagnostics: GenerationDiagnostics = {
-    failureKind: "generationError",
+    failureKind,
     stage: "modelGenerateContent",
     modelName: targetModel,
     providerFamily,
@@ -30,6 +40,11 @@ export function buildGenerationFailureResponse(args: {
     diagnostics.apiRetryCount = err.apiRetryCount;
     diagnostics.attemptedModels = err.attemptedModels;
     diagnostics.attempts = err.attempts;
+    diagnostics.providerFailureKind = err.providerFailureKind;
+    diagnostics.quotaExceeded = err.quotaExceeded;
+    diagnostics.rateLimited = err.rateLimited;
+    diagnostics.retryAfterMs = err.retryAfterMs;
+    diagnostics.retryAfterReason = err.retryAfterReason;
   } else if (err instanceof Error) {
     diagnostics.rawMessageSummary = err.message.substring(0, 1000);
   } else {
@@ -43,7 +58,7 @@ export function buildGenerationFailureResponse(args: {
   const response: any = {
     success: false,
     error: err?.message || "Generate content failed",
-    failureKind: "generationError",
+    failureKind,
     analysisRun: runMetadata,
     generationDiagnostics: diagnostics
   };

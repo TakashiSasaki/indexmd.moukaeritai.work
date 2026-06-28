@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play, RotateCw } from 'lucide-react';
+import { Search, Image as ImageIcon, AlertCircle, AlertTriangle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play, RotateCw } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
 import { 
@@ -1554,6 +1554,40 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
              </div>
           </div>
 
+          {/* Provider Quota & Rate Limit Summary */}
+          {batchSummary && ((batchSummary.providerQuotaSummary && batchSummary.providerQuotaSummary.total > 0) || (batchSummary.rateLimitSummary && batchSummary.rateLimitSummary.total429 > 0)) && (
+            <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/50 space-y-2 mt-2">
+              <h4 className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                Provider Quota & Rate-Limit Diagnostics
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[10px] text-slate-700">
+                {batchSummary.providerQuotaSummary && batchSummary.providerQuotaSummary.total > 0 && (
+                  <div className="space-y-1">
+                    <span className="font-bold text-amber-800">Model Quota Failures ({batchSummary.providerQuotaSummary.total})</span>
+                    <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
+                      <li>Total attempts across failures: {batchSummary.providerQuotaSummary.totalAttempts}</li>
+                      {Object.entries(batchSummary.providerQuotaSummary.byProviderStatus || {}).map(([status, count]: [string, any]) => (
+                        <li key={status}>Status "{status}": {count} event(s)</li>
+                      ))}
+                      {Object.entries(batchSummary.providerQuotaSummary.byModelName || {}).map(([model, count]: [string, any]) => (
+                        <li key={model}>Model "{model}": {count} event(s)</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {batchSummary.rateLimitSummary && batchSummary.rateLimitSummary.total429 > 0 && (
+                  <div className="space-y-1">
+                    <span className="font-bold text-red-800">Transport-level 429 Rate Limits ({batchSummary.rateLimitSummary.total429})</span>
+                    <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
+                      <li>Total attempts: {batchSummary.rateLimitSummary.totalAttempts}</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Comparative Baseline Engine UI */}
           {pastBatchRuns.length > 0 && (
             <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/20 space-y-3 mt-2">
@@ -1634,6 +1668,35 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         {!item.success && (
                           <div className="mt-1 space-y-1 font-sans">
                             <span className="block font-normal text-red-600 mt-0.5">{item.error || 'Failed'}</span>
+                            {item.generationDiagnostics && (
+                              <div className="bg-white rounded border border-amber-200 p-2 text-[9px] space-y-1 font-sans mt-1">
+                                <div className="font-bold text-amber-800">
+                                  [{item.failureKind}] Model: {item.generationDiagnostics.modelName} | Code: {item.generationDiagnostics.statusCode || "N/A"} ({item.generationDiagnostics.providerStatus || "N/A"})
+                                </div>
+                                {item.generationDiagnostics.providerFailureKind && (
+                                  <div className="text-amber-700 font-medium font-mono">
+                                    Provider Failure Class: {item.generationDiagnostics.providerFailureKind}
+                                  </div>
+                                )}
+                                {item.generationDiagnostics.retryAfterMs !== undefined && (
+                                  <div className="text-indigo-600 font-semibold font-mono">
+                                    Retry-After: {item.generationDiagnostics.retryAfterMs}ms (Reason: {item.generationDiagnostics.retryAfterReason || "N/A"})
+                                  </div>
+                                )}
+                                {item.generationDiagnostics.attempts && item.generationDiagnostics.attempts.length > 0 && (
+                                  <div className="text-slate-500 font-sans mt-1">
+                                    <span className="font-semibold block text-slate-700">Generation Attempts ({item.generationDiagnostics.attempts.length}):</span>
+                                    <ul className="list-disc list-inside pl-1 text-[8px] space-y-0.5 mt-0.5">
+                                      {item.generationDiagnostics.attempts.map((att: any, aIdx: number) => (
+                                        <li key={aIdx} className="font-mono text-slate-600">
+                                          # {att.attempt} Model: {att.modelName} | Status: {att.statusCode} ({att.providerStatus || "N/A"}) | Kind: {att.providerFailureKind || "N/A"} {att.delayMs ? `| Backoff: ${Math.round(att.delayMs)}ms` : ""} {att.retryAfterMs ? `| Retry-After: ${att.retryAfterMs}ms` : ""}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {item.responseDiagnostics && (
                               <div className="bg-white rounded border border-red-200 p-2 text-[9px] space-y-1 font-sans mt-1">
                                 <div className="font-bold text-red-800">
