@@ -1,4 +1,5 @@
 import { PublicSampleComparisonSummary } from './compare';
+import { ResponseDiagnostics } from '../safeFetch';
 
 export interface PublicSampleBatchRunItem {
   sampleId: string;
@@ -22,6 +23,7 @@ export interface PublicSampleBatchRunItem {
     dimensions?: { width: number; height: number };
   };
   responseRaw?: any;
+  responseDiagnostics?: ResponseDiagnostics;
 }
 
 export interface PublicSampleBatchRunSummary {

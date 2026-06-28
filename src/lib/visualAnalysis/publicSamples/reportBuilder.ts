@@ -22,7 +22,60 @@ export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummar
     reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
     reviewFailCount: batchSummary.reviewFailCount,
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
+    apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
     items: compactItems
+  };
+}
+
+function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
+  const failedItems = items.filter(item => !item.success && item.responseDiagnostics);
+  const byStatus: Record<string, number> = {};
+  const byContentType: Record<string, number> = {};
+  const byHtmlTitle: Record<string, number> = {};
+  const samples: Array<{
+    sampleId: string;
+    status?: number;
+    contentType?: string;
+    htmlTitle?: string;
+    bodyLength?: number;
+    bodyPreview?: string;
+  }> = [];
+
+  for (const item of items) {
+    if (!item.success && item.responseDiagnostics) {
+      const diag = item.responseDiagnostics;
+      
+      const statusStr = String(diag.status || "UNKNOWN");
+      byStatus[statusStr] = (byStatus[statusStr] || 0) + 1;
+
+      const ct = diag.contentType || "UNKNOWN";
+      byContentType[ct] = (byContentType[ct] || 0) + 1;
+
+      const title = diag.htmlTitle || "NONE";
+      byHtmlTitle[title] = (byHtmlTitle[title] || 0) + 1;
+
+      let preview = diag.bodyPreview;
+      if (preview && preview.length > 1500) {
+        preview = preview.slice(0, 750) + "\n... [TRUNCATED FOR REPORT] ...\n" + preview.slice(-750);
+      }
+
+      samples.push({
+        sampleId: item.sampleId,
+        status: diag.status,
+        contentType: diag.contentType,
+        htmlTitle: diag.htmlTitle,
+        bodyLength: diag.bodyLength,
+        bodyPreview: preview,
+      });
+    }
+  }
+
+  return {
+    total: failedItems.length,
+    byStatus,
+    byContentType,
+    byHtmlTitle,
+    samples,
   };
 }
 
@@ -196,6 +249,10 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     compact.parseDiagnostics = { ...item.parseDiagnostics };
     delete compact.parseDiagnostics.rawOutputPreview;
     delete compact.parseDiagnostics.requestPreview;
+  }
+
+  if (item.responseDiagnostics) {
+    compact.responseDiagnostics = { ...item.responseDiagnostics };
   }
 
   return compact;

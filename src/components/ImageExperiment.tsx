@@ -14,6 +14,7 @@ import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/vi
 import { buildBatchReportForChat, buildFailuresOnlyReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { sanitizeDebugResponseForLocalStorage } from '../lib/visualAnalysis/debugLogSanitizer';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
+import { safeFetch, ResponseDiagnostics } from '../lib/visualAnalysis/safeFetch';
 
 export interface ImageDebugLog {
   id: string;
@@ -88,28 +89,8 @@ function ImagePreview({ fileId, token }: { fileId: string; token: string }) {
 }
 
 export default function ImageExperiment({ token, config, onAddLog, onSessionExpiry }: ImageExperimentProps) {
-  const [mode, setMode] = useState<"drive" | "public">(() => {
-    const saved = localStorage.getItem("image_experiment_mode");
-    return (saved === "drive" || saved === "public") ? saved : "drive";
-  });
-
-  // Drive mode state
-  const [fileId, setFileId] = useState(() => {
-    return localStorage.getItem("image_experiment_file_id") || "";
-  });
-  const [debouncedFileId, setDebouncedFileId] = useState("");
-
-  useEffect(() => {
-    const trimmed = fileId.trim();
-    if (!trimmed) {
-      setDebouncedFileId("");
-      return;
-    }
-    const handler = setTimeout(() => {
-      setDebouncedFileId(trimmed);
-    }, 600);
-    return () => clearTimeout(handler);
-  }, [fileId]);
+  // Drive mode is retired, always use public sample mode
+  const mode = "public";
 
   // Public sample mode state
   const [samples, setSamples] = useState<any[]>([]);
@@ -184,6 +165,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number } | null>(null);
   const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(null);
+
+  // Health check states
+  const [healthCheckFailed, setHealthCheckFailed] = useState<boolean>(false);
+  const [healthCheckDiagnostics, setHealthCheckDiagnostics] = useState<ResponseDiagnostics | null>(null);
+  const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
 
   const chatReport = useMemo(() => batchSummary ? buildBatchReportForChat(batchSummary) : null, [batchSummary]);
   const failuresReport = useMemo(() => batchSummary ? buildFailuresOnlyReport(batchSummary) : null, [batchSummary]);
@@ -334,14 +320,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
   // Synchronize state changes to localStorage
   useEffect(() => {
-    localStorage.setItem("image_experiment_mode", mode);
-  }, [mode]);
-
-  useEffect(() => {
-    localStorage.setItem("image_experiment_file_id", fileId);
-  }, [fileId]);
-
-  useEffect(() => {
     if (selectedSampleId) {
       localStorage.setItem("image_experiment_selected_sample_id", selectedSampleId);
     } else {
@@ -354,7 +332,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   }, [modelName]);
 
   useEffect(() => {
-    if (mode === "public" && samples.length === 0) {
+    if (samples.length === 0) {
       setIsLoadingSamples(true);
       fetch("/api/visual/public-samples")
         .then(res => res.json())
@@ -377,12 +355,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         .catch(err => onAddLog("error", "Failed to fetch public samples", err.message))
         .finally(() => setIsLoadingSamples(false));
     }
-  }, [mode, samples.length, onAddLog, selectedSampleId]);
+  }, [samples.length, onAddLog, selectedSampleId]);
 
   const filteredSamples = samples;
 
   useEffect(() => {
-    if (mode === "public" && samples.length > 0) {
+    if (samples.length > 0) {
       if (filteredSamples.length === 0) {
         setSelectedSampleId("");
       } else if (!selectedSampleId || !filteredSamples.find(s => s.id === selectedSampleId)) {
@@ -394,63 +372,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         }
       }
     }
-  }, [filteredSamples, mode, samples.length, selectedSampleId]);
-
-  const handleAnalyzeDrive = async () => {
-    if (!fileId.trim()) {
-      onAddLog("warn", "File ID is required");
-      return;
-    }
-    
-    setLoading(true);
-    setResult(null);
-    const payload = {
-      fileId: fileId.trim(),
-      modelName,
-      includeRequestPreview: includePreview,
-      jsonMode: config.json_mode,
-      customInstruction: customInstruction.trim(),
-      retryOnInvalidJson
-    };
-
-    try {
-      const res = await fetch("/api/drive/debug/analyze-image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.status === 401) {
-        onSessionExpiry();
-        saveDebugLog("drive", payload, { error: "Session expired (401)" }, false, "Session expired (401)");
-        return;
-      }
-
-      let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        throw new Error("Failed to parse server response");
-      }
-
-      setResult(data);
-      if (!res.ok) {
-        onAddLog("error", "Image analysis failed", data.error || "Failed to analyze image");
-        saveDebugLog("drive", payload, data, false, data.error || "Failed to analyze image");
-      } else {
-        onAddLog("success", "Image analyzed successfully");
-        saveDebugLog("drive", payload, data, true);
-      }
-    } catch (err: any) {
-      onAddLog("error", "Image analysis failed", err.message);
-      saveDebugLog("drive", payload, null, false, err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [filteredSamples, samples.length, selectedSampleId]);
 
   const handleAnalyzePublic = async () => {
     if (!selectedSampleId) {
@@ -470,7 +392,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     };
 
     try {
-      const res = await fetch("/api/visual/public-samples/analyze", {
+      const sfResult = await safeFetch<any>("/api/visual/public-samples/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -478,28 +400,37 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         body: JSON.stringify(payload)
       });
 
-      if (res.status === 401) {
+      if (sfResult.responseDiagnostics?.status === 401) {
         onSessionExpiry();
         saveDebugLog("public", payload, { error: "Session expired (401)" }, false, "Session expired (401)");
         return;
       }
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        throw new Error("Failed to parse server response");
-      }
+      const data = sfResult.data || {};
 
-      setResult(data);
-      if (!res.ok) {
-        onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
-        saveDebugLog("public", payload, data, false, data.error || "Failed to analyze public sample");
+      if (!sfResult.success) {
+        const errMsg = sfResult.error || "Failed to analyze public sample";
+        const errorResult = {
+          success: false,
+          error: errMsg,
+          failureKind: sfResult.failureKind,
+          responseDiagnostics: sfResult.responseDiagnostics
+        };
+        setResult(errorResult);
+        onAddLog("error", `[Image Analysis] Error: ${errMsg}`);
+        saveDebugLog("public", payload, errorResult, false, errMsg);
         setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
       } else {
-        onAddLog(data.success ? "success" : "warn", `[Image Analysis] Complete for sample ${selectedSampleId}`);
-        saveDebugLog("public", payload, data, data.success);
-        setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: data.success ? "success" : "failure" }));
+        setResult(data);
+        if (!data.success) {
+          onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
+          saveDebugLog("public", payload, data, false, data.error || "Failed to analyze public sample");
+          setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
+        } else {
+          onAddLog("success", `[Image Analysis] Complete for sample ${selectedSampleId}`);
+          saveDebugLog("public", payload, data, true);
+          setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "success" }));
+        }
       }
     } catch (err: any) {
       onAddLog("error", `[Image Analysis] Error: ${err.message}`);
@@ -518,9 +449,28 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       return;
     }
 
+    setHealthCheckFailed(false);
+    setHealthCheckDiagnostics(null);
+    setHealthCheckError(null);
+
     setIsBatchRunning(true);
     setBatchSummary(null);
     setResult(null); // Clear single result
+
+    // Pre-batch health check
+    onAddLog("info", "バッチ開始前にヘルスチェックを実行しています...");
+    const hcResult = await safeFetch<any[]>("/api/visual/public-samples");
+    if (!hcResult.success || !Array.isArray(hcResult.data)) {
+      setIsBatchRunning(false);
+      setHealthCheckFailed(true);
+      setHealthCheckDiagnostics(hcResult.responseDiagnostics || null);
+      setHealthCheckError(hcResult.error || "ヘルスチェック応答がJSON配列ではありません。");
+      onAddLog("error", `ヘルスチェックに失敗しました。バッチ処理は開始されません。: ${hcResult.error}`);
+      return;
+    }
+
+    onAddLog("success", "ヘルスチェックに成功しました。バッチ解析を開始します。");
+
     const total = targetSamples.length;
     setBatchProgress({ current: 0, total });
 
@@ -543,7 +493,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         const sample = targetSamples[i];
         setBatchProgress({ current: i + 1, total });
         try {
-            const res = await fetch('/api/visual/public-samples/analyze', {
+            const sfResult = await safeFetch<any>('/api/visual/public-samples/analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -556,17 +506,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               })
             });
             
-            if (res.status === 401) {
+            if (sfResult.responseDiagnostics?.status === 401) {
               onSessionExpiry();
               throw new Error("Session expired (401)");
             }
 
-            const data = await res.json();
+            const data = sfResult.data || {};
             
             const item: PublicSampleBatchRunItem = {
               sampleId: sample.id,
               title: sample.title,
-              success: data.success,
+              success: sfResult.success && data.success,
               qualityStatus: data.qualityStatus,
               qualityScore: data.qualityScore,
               qualityIssues: data.qualityIssues,
@@ -574,12 +524,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               parseDiagnostics: data.parseDiagnostics,
               generationDiagnostics: data.generationDiagnostics,
               inputDiagnostics: data.inputDiagnostics,
-              failureKind: data.failureKind,
-              error: data.error,
-              responseRaw: data
+              failureKind: sfResult.failureKind || data.failureKind,
+              error: sfResult.error || data.error,
+              responseRaw: data,
+              responseDiagnostics: sfResult.responseDiagnostics
             };
 
-            if (data.success) {
+            if (sfResult.success && data.success) {
                 successCount++;
                 newStatuses[sample.id] = "success";
                 if (data.qualityStatus === 'valid') validCount++;
@@ -600,7 +551,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 failureCount++;
                 reviewFailCount++;
                 newStatuses[sample.id] = "failure";
-                if (data.failureKind === 'jsonParseError' || (data.parseDiagnostics && !data.parseDiagnostics.success && data.parseDiagnostics.attempts)) {
+                if (item.failureKind === 'jsonParseError' || (data.parseDiagnostics && !data.parseDiagnostics.success && data.parseDiagnostics.attempts)) {
                     invalidJsonCount++;
                 }
             }
@@ -703,57 +654,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               <p className="text-[11px] text-slate-500">Test the visual analysis schema against Drive images or public samples.</p>
             </div>
           </div>
-          <div className="flex items-center p-1 bg-slate-200 rounded-lg">
-            <button
-              onClick={() => { setMode("drive"); setResult(null); }}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "drive" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Drive Image
-            </button>
-            <button
-              onClick={() => { setMode("public"); setResult(null); }}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === "public" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Public Sample
-            </button>
-          </div>
         </div>
         <div className="p-5">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left side: Inputs */}
             <div className="lg:col-span-12 space-y-4">
-              {mode === "drive" ? (
-                <div className="flex flex-col gap-4">
-                  <div className="space-y-1 w-full">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Drive File ID</label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Google Drive Image File ID (e.g. 1A2B3C...)"
-                        value={fileId}
-                        onChange={(e) => setFileId(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1 w-full mt-2">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input 
-                        type="checkbox" 
-                        checked={storeRawOutputPreviewInDrive} 
-                        onChange={(e) => setStoreRawOutputPreviewInDrive(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-[11px] text-slate-600 group-hover:text-slate-900 transition-colors flex items-center gap-1">
-                        Store raw output preview in Drive debug logs
-                        <Info className="w-3.5 h-3.5 text-slate-400" title="If unchecked, sensitive OCR text and JSON raw outputs are redacted when saved to localStorage." />
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
+              <div className="space-y-4">
                   {/* Quick Selection Actions & Thumbnail Grid Panel */}
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -886,7 +792,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     )}
                   </div>
                 </div>
-              )}
 
               <div className="mt-4">
                 {/* Custom Instruction section removed as requested */}
@@ -982,38 +887,94 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
-                  {mode === "public" ? (
-                    <button
-                      onClick={handleRunBatch}
-                      disabled={isBatchRunning || samples.length === 0 || loading}
-                      className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
-                    >
-                      {isBatchRunning ? (
-                        <>
-                          <Activity className="w-4 h-4 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
-                        </>
-                      ) : (
-                        <>
-                          <Activity className="w-4 h-4" /> 選択サンプルの解析実行 (Run Selected)
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleAnalyzeDrive}
-                      disabled={loading || !fileId.trim()}
-                      className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
-                    >
-                      {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
-                      {loading ? "解析中..." : "解析実行"}
-                    </button>
-                  )}
+                  <button
+                    onClick={handleRunBatch}
+                    disabled={isBatchRunning || samples.length === 0 || loading}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    {isBatchRunning ? (
+                      <>
+                        <Activity className="w-4 h-4 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-4 h-4" /> 選択サンプルの解析実行 (Run Selected)
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {healthCheckFailed && healthCheckDiagnostics && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 space-y-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-red-100 text-red-600 rounded-full shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div className="space-y-1 w-full">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-red-900">Pre-batch Health Check Failed</h3>
+                <button
+                  onClick={() => handleCopy(JSON.stringify(healthCheckDiagnostics, null, 2), 'healthcheck-error')}
+                  className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 bg-red-100/50 px-3 py-1.5 rounded"
+                >
+                  {copied === 'healthcheck-error' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied === 'healthcheck-error' ? "Copied!" : "Copy Diagnostics"}
+                </button>
+              </div>
+              <p className="text-sm text-red-700 leading-relaxed mt-1">
+                Before initiating a batch analysis, a quick health check is performed on <code className="bg-red-100 px-1 py-0.5 rounded font-mono">GET /api/visual/public-samples</code>.
+                The response was not a valid JSON array, indicating a backend connectivity or static hosting route issue.
+              </p>
+              <p className="text-xs text-red-600 italic font-medium mt-1">
+                This usually means "/api/..." is being served by the frontend/static fallback instead of the API server.
+              </p>
+              
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                   <div className="p-2 bg-white rounded border border-red-100">
+                      <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">HTTP Status</span>
+                      <span className="font-bold text-xs text-red-800">{healthCheckDiagnostics.status} ({healthCheckDiagnostics.statusText || "N/A"})</span>
+                   </div>
+                   <div className="p-2 bg-white rounded border border-red-100">
+                      <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">Content Type</span>
+                      <span className="font-bold text-xs text-red-800 truncate block" title={healthCheckDiagnostics.contentType}>{healthCheckDiagnostics.contentType || "N/A"}</span>
+                   </div>
+                   <div className="p-2 bg-white rounded border border-red-100">
+                      <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">Body Length</span>
+                      <span className="font-bold text-xs text-red-800">{healthCheckDiagnostics.bodyLength} chars</span>
+                   </div>
+                   <div className="p-2 bg-white rounded border border-red-100">
+                      <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">HTML Title</span>
+                      <span className="font-bold text-xs text-red-800 truncate block" title={healthCheckDiagnostics.htmlTitle}>{healthCheckDiagnostics.htmlTitle || "None Detected"}</span>
+                   </div>
+                </div>
+
+                <div className="p-2 bg-white rounded border border-red-100">
+                   <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">Request URL</span>
+                   <span className="font-mono text-xs text-slate-600 break-all">{healthCheckDiagnostics.url}</span>
+                </div>
+
+                {healthCheckDiagnostics.bodyPreview && (
+                  <details className="text-xs bg-white rounded border border-red-100 group mt-2" open>
+                    <summary className="px-3 py-2 font-bold text-red-800 cursor-pointer hover:bg-red-50 transition-colors flex items-center justify-between select-none">
+                      <span>Response Body Preview (Max 4000 chars)</span>
+                      <span className="text-red-400 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div className="p-3 border-t border-red-100 bg-slate-50 font-mono text-[10px] whitespace-pre-wrap text-slate-700 overflow-x-auto max-h-96 overflow-y-auto">
+                      {healthCheckDiagnostics.bodyPreview}
+                    </div>
+                  </details>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {batchSummary && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
@@ -1156,7 +1117,29 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <tr key={idx} className={item.success ? "hover:bg-slate-50" : "bg-red-50 hover:bg-red-100/50"}>
                       <td className="px-3 py-2 font-semibold text-slate-700" title={item.sampleId}>
                         {item.title}
-                        {!item.success && <span className="block font-normal text-red-600 mt-0.5">{item.error || 'Failed'}</span>}
+                        {!item.success && (
+                          <div className="mt-1 space-y-1 font-sans">
+                            <span className="block font-normal text-red-600 mt-0.5">{item.error || 'Failed'}</span>
+                            {item.responseDiagnostics && (
+                              <div className="bg-white rounded border border-red-200 p-2 text-[9px] space-y-1 font-sans mt-1">
+                                <div className="font-bold text-red-800">
+                                  [{item.failureKind}] Status: {item.responseDiagnostics.status} ({item.responseDiagnostics.statusText || "N/A"}) | Content-Type: {item.responseDiagnostics.contentType}
+                                </div>
+                                {item.responseDiagnostics.htmlTitle && (
+                                  <div className="text-slate-600 font-medium">
+                                    HTML Title: <span className="font-mono bg-slate-100 px-1 py-0.5 rounded">{item.responseDiagnostics.htmlTitle}</span>
+                                  </div>
+                                )}
+                                <details className="mt-1 text-slate-500">
+                                  <summary className="cursor-pointer hover:text-red-800 font-semibold select-none">Response Body Preview</summary>
+                                  <div className="mt-1 p-2 bg-slate-50 rounded border border-slate-200 font-mono text-[9px] max-h-32 overflow-y-auto whitespace-pre-wrap text-slate-700">
+                                    {item.responseDiagnostics.bodyPreview}
+                                  </div>
+                                </details>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                          {item.success && (
@@ -1420,6 +1403,84 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     </div>
                   </details>
                 )}
+              </div>
+            )}
+
+            {result.success === false && (result.failureKind === "nonJsonResponse" || result.failureKind === "invalidJsonResponse") && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-red-100 text-red-600 rounded-full shrink-0">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1 w-full font-sans">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-red-900">
+                        {result.failureKind === "nonJsonResponse" 
+                          ? "Execution Failure: Non-JSON Response Received" 
+                          : "Execution Failure: Invalid JSON Response Received"}
+                      </h3>
+                      <button
+                        onClick={() => handleCopy(JSON.stringify(result, null, 2), 'non-json-error')}
+                        className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center gap-1 bg-red-100/50 px-2 py-1 rounded"
+                      >
+                        {copied === 'non-json-error' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copied === 'non-json-error' ? "Copied!" : "Copy Details"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-red-700 leading-relaxed mt-1">
+                      {result.failureKind === "nonJsonResponse"
+                        ? "The API returned a response that is not formatted as JSON. This usually means '/api/...' is being served by the frontend/static fallback instead of the API server."
+                        : "The API returned a response that is supposed to be JSON, but cannot be parsed. This usually happens if the backend crashed mid-response, or returned an unexpected truncated stream."}
+                    </p>
+                    
+                    {result.responseDiagnostics && (
+                      <div className="mt-4 space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                           <div className="p-2 bg-white rounded border border-red-100">
+                              <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">HTTP Status</span>
+                              <span className="font-bold text-xs text-red-800">{result.responseDiagnostics.status} ({result.responseDiagnostics.statusText || "N/A"})</span>
+                           </div>
+                           <div className="p-2 bg-white rounded border border-red-100">
+                              <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">Content Type</span>
+                              <span className="font-bold text-xs text-red-800 truncate block" title={result.responseDiagnostics.contentType}>{result.responseDiagnostics.contentType || "N/A"}</span>
+                           </div>
+                           <div className="p-2 bg-white rounded border border-red-100">
+                              <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">Body Length</span>
+                              <span className="font-bold text-xs text-red-800">{result.responseDiagnostics.bodyLength} chars</span>
+                           </div>
+                           <div className="p-2 bg-white rounded border border-red-100">
+                              <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">HTML Title</span>
+                              <span className="font-bold text-xs text-red-800 truncate block" title={result.responseDiagnostics.htmlTitle}>{result.responseDiagnostics.htmlTitle || "None Detected"}</span>
+                           </div>
+                        </div>
+
+                        <div className="p-2 bg-white rounded border border-red-100">
+                           <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">Request URL</span>
+                           <span className="font-mono text-xs text-slate-600 break-all">{result.responseDiagnostics.url}</span>
+                        </div>
+
+                        {result.responseDiagnostics.parseErrorMessage && (
+                          <div className="p-2 bg-white rounded border border-red-100">
+                             <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">JSON Parse Error</span>
+                             <span className="font-mono text-xs text-red-600">{result.responseDiagnostics.parseErrorMessage}</span>
+                          </div>
+                        )}
+
+                        {result.responseDiagnostics.bodyPreview && (
+                          <details className="text-xs bg-white rounded border border-red-100 group mt-2" open>
+                            <summary className="px-3 py-2 font-bold text-red-800 cursor-pointer hover:bg-red-50 transition-colors flex items-center justify-between select-none">
+                              <span>Response Body Preview (Max 4000 chars)</span>
+                              <span className="text-red-400 group-open:rotate-180 transition-transform">▼</span>
+                            </summary>
+                            <div className="p-3 border-t border-red-100 bg-slate-50 font-mono text-[10px] whitespace-pre-wrap text-slate-700 overflow-x-auto max-h-96 overflow-y-auto">
+                              {result.responseDiagnostics.bodyPreview}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
