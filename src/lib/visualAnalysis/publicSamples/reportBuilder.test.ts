@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { buildBatchReportForChat, buildFailuresOnlyReport } from './reportBuilder';
+import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from './reportBuilder';
 import { PublicSampleBatchRunSummary } from './batchTypes';
 
 describe('buildBatchReportForChat', () => {
@@ -155,5 +155,35 @@ describe('buildBatchReportForChat', () => {
     assert.strictEqual(report.totalFailures, 1);
     assert.strictEqual(report.items.length, 1);
     assert.strictEqual(report.items[0].sampleId, "fail-sample");
+    assert.ok(report.artifactIntegrity);
+    assert.strictEqual(report.artifactIntegrity.endSentinel, "END_OF_VISUAL_ANALYSIS_FAILURES_ONLY");
+  });
+
+  test('should include artifactIntegrity endSentinel in report', () => {
+    const report = buildBatchReportForChat(mockSummary);
+    assert.ok(report.artifactIntegrity);
+    assert.strictEqual(report.artifactIntegrity.artifactKind, "diagnostic");
+    assert.strictEqual(report.artifactIntegrity.endSentinel, "END_OF_VISUAL_ANALYSIS_BATCH_DIAGNOSTIC");
+  });
+
+  test('buildBatchSummaryReportForChat should generate a small summary report', () => {
+    const summaryReport = buildBatchSummaryReportForChat(mockSummary);
+    assert.strictEqual(summaryReport.reportKind, "visualAnalysisPublicSampleBatchSummary");
+    assert.ok(summaryReport.artifactIntegrity);
+    assert.strictEqual(summaryReport.artifactIntegrity.artifactKind, "summary");
+    assert.strictEqual(summaryReport.artifactIntegrity.endSentinel, "END_OF_VISUAL_ANALYSIS_BATCH_SUMMARY");
+    
+    const successItem = summaryReport.items[0];
+    assert.strictEqual(successItem.parseDiagnostics, undefined);
+    assert.strictEqual(successItem.detected, undefined);
+  });
+
+  test('buildFullItemReport should generate a full item report', () => {
+    const item = mockSummary.items[0];
+    const itemReport = buildFullItemReport(item);
+    assert.strictEqual(itemReport.reportKind, "visualAnalysisPublicSampleItemReport");
+    assert.ok(itemReport.artifactIntegrity);
+    assert.strictEqual(itemReport.artifactIntegrity.artifactKind, "item");
+    assert.strictEqual(itemReport.artifactIntegrity.endSentinel, "END_OF_VISUAL_ANALYSIS_ITEM_REPORT");
   });
 });

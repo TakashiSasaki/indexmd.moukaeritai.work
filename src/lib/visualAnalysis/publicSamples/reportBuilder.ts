@@ -1,10 +1,14 @@
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from "./batchTypes";
 
 export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummary) {
+  return buildBatchDiagnosticReportForChat(batchSummary);
+}
+
+export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatchRunSummary) {
   const compactItems = batchSummary.items.map(item => buildCompactItem(item));
 
-  return {
-    reportKind: "visualAnalysisPublicSampleBatchReport",
+  const report = {
+    reportKind: "visualAnalysisPublicSampleBatchDiagnostic",
     generatedAt: new Date().toISOString(),
     modelName: batchSummary.modelName,
     jsonMode: batchSummary.jsonMode,
@@ -26,6 +30,46 @@ export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummar
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: compactItems
   };
+
+  return attachArtifactIntegrity(report, {
+    artifactKind: "diagnostic",
+    items: batchSummary.items,
+    endSentinel: "END_OF_VISUAL_ANALYSIS_BATCH_DIAGNOSTIC"
+  });
+}
+
+export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRunSummary) {
+  const summaryItems = batchSummary.items.map(item => buildSummaryItem(item));
+
+  const report = {
+    reportKind: "visualAnalysisPublicSampleBatchSummary",
+    generatedAt: new Date().toISOString(),
+    modelName: batchSummary.modelName,
+    jsonMode: batchSummary.jsonMode,
+    retryOnInvalidJson: batchSummary.retryOnInvalidJson,
+    total: batchSummary.total,
+    successCount: batchSummary.successCount,
+    failureCount: batchSummary.failureCount,
+    validCount: batchSummary.validCount,
+    validLowQualityCount: batchSummary.validLowQualityCount,
+    invalidJsonCount: batchSummary.invalidJsonCount,
+    expectedComparisonPassCount: batchSummary.expectedComparisonPassCount,
+    expectedComparisonWarningCount: batchSummary.expectedComparisonWarningCount,
+    expectedComparisonFailCount: batchSummary.expectedComparisonFailCount,
+    reviewPassCount: batchSummary.reviewPassCount,
+    reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
+    reviewFailCount: batchSummary.reviewFailCount,
+    generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
+    apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
+    inputSizeSummary: buildInputSizeSummary(batchSummary.items),
+    items: summaryItems
+  };
+
+  return attachArtifactIntegrity(report, {
+    artifactKind: "summary",
+    items: batchSummary.items,
+    endSentinel: "END_OF_VISUAL_ANALYSIS_BATCH_SUMMARY"
+  });
 }
 
 function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
@@ -175,7 +219,7 @@ export function buildFailuresOnlyReport(batchSummary: PublicSampleBatchRunSummar
   const failures = batchSummary.items.filter(item => !item.success || item.qualityStatus === 'invalid');
   const compactItems = failures.map(item => buildCompactItem(item));
 
-  return {
+  const report = {
     reportKind: "visualAnalysisPublicSampleFailuresReport",
     generatedAt: new Date().toISOString(),
     modelName: batchSummary.modelName,
@@ -184,6 +228,12 @@ export function buildFailuresOnlyReport(batchSummary: PublicSampleBatchRunSummar
     totalFailures: failures.length,
     items: compactItems
   };
+
+  return attachArtifactIntegrity(report, {
+    artifactKind: "failures",
+    items: failures,
+    endSentinel: "END_OF_VISUAL_ANALYSIS_FAILURES_ONLY"
+  });
 }
 
 function buildCompactItem(item: PublicSampleBatchRunItem) {
@@ -282,8 +332,95 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
   }
 
   if (item.responseDiagnostics) {
-    compact.responseDiagnostics = { ...item.responseDiagnostics };
+    const includeBodyPreview = !item.success && (
+      item.failureKind === "nonJsonResponse" || 
+      item.failureKind === "invalidJsonResponse" || 
+      item.responseDiagnostics.looksLikeHtml === true
+    );
+    
+    compact.responseDiagnostics = {
+      ...item.responseDiagnostics,
+      bodyPreview: includeBodyPreview ? item.responseDiagnostics.bodyPreview : undefined
+    };
+    
+    if (compact.responseDiagnostics.bodyPreview === undefined) {
+      delete compact.responseDiagnostics.bodyPreview;
+    }
   }
 
   return compact;
+}
+
+export function buildFullItemReport(item: PublicSampleBatchRunItem) {
+  const report = {
+    reportKind: "visualAnalysisPublicSampleItemReport",
+    generatedAt: new Date().toISOString(),
+    item
+  };
+
+  return attachArtifactIntegrity(report, {
+    artifactKind: "item",
+    items: [item],
+    endSentinel: "END_OF_VISUAL_ANALYSIS_ITEM_REPORT"
+  });
+}
+
+function attachArtifactIntegrity(report: any, options: {
+  artifactKind: "summary" | "diagnostic" | "failures" | "full" | "item";
+  items: PublicSampleBatchRunItem[];
+  endSentinel: string;
+}) {
+  const itemCount = options.items.length;
+  const firstSampleId = options.items[0]?.sampleId || "NONE";
+  const lastSampleId = options.items[itemCount - 1]?.sampleId || "NONE";
+
+  report.artifactIntegrity = {
+    artifactKind: options.artifactKind,
+    itemCount,
+    firstSampleId,
+    lastSampleId,
+    endSentinel: options.endSentinel
+  };
+  return report;
+}
+
+function buildSummaryItem(item: PublicSampleBatchRunItem) {
+  const summary: any = {
+    sampleId: item.sampleId,
+    title: item.title,
+    success: item.success
+  };
+
+  if (item.error) summary.error = item.error;
+  if (item.failureKind) summary.failureKind = item.failureKind;
+  if (item.qualityStatus) summary.qualityStatus = item.qualityStatus;
+  if (item.qualityScore !== undefined) summary.qualityScore = item.qualityScore;
+  
+  if (item.qualityIssues && item.qualityIssues.length > 0) {
+    summary.issues = item.qualityIssues.map((issue: any) => typeof issue === 'string' ? issue : issue.code || issue.type).filter(Boolean);
+  }
+
+  if (item.comparison) {
+    summary.reviewStatus = item.comparison.reviewStatus;
+    summary.expectedImageKind = item.responseRaw?.expectedMetadata?.imageKind || item.comparison.imageKind?.expected;
+    summary.detectedImageKind = item.comparison.imageKind?.detected;
+    summary.imageKindStatus = item.comparison.imageKind?.status;
+    
+    const categoriesMatched = item.comparison.categories?.matched?.length || 0;
+    const categoriesExpected = (item.comparison.categories?.matched?.length || 0) + (item.comparison.categories?.missing?.length || 0);
+    const labelsMatched = item.comparison.labels?.matched?.length || 0;
+    const labelsExpected = (item.comparison.labels?.matched?.length || 0) + (item.comparison.labels?.missing?.length || 0);
+    
+    const totalExpected = categoriesExpected + labelsExpected;
+    const totalMatched = categoriesMatched + labelsMatched;
+    summary.coverage = totalExpected > 0 ? parseFloat((totalMatched / totalExpected).toFixed(2)) : 1.0;
+
+    summary.missing = {
+      categories: item.comparison.categories?.missing || [],
+      labels: item.comparison.labels?.missing || [],
+      visibleText: item.comparison.visibleText?.missing || []
+    };
+  }
+
+  return summary;
 }

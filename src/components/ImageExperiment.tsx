@@ -11,7 +11,7 @@ import {
   PublicSampleComparisonSummary
 } from '../lib/visualAnalysis/publicSamples/compare';
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
-import { buildBatchReportForChat, buildFailuresOnlyReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
+import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { sanitizeDebugResponseForLocalStorage } from '../lib/visualAnalysis/debugLogSanitizer';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, ResponseDiagnostics } from '../lib/visualAnalysis/safeFetch';
@@ -171,13 +171,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [healthCheckDiagnostics, setHealthCheckDiagnostics] = useState<ResponseDiagnostics | null>(null);
   const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
 
-  const chatReport = useMemo(() => batchSummary ? buildBatchReportForChat(batchSummary) : null, [batchSummary]);
+  const chatSummaryReport = useMemo(() => batchSummary ? buildBatchSummaryReportForChat(batchSummary) : null, [batchSummary]);
+  const chatDiagnosticReport = useMemo(() => batchSummary ? buildBatchDiagnosticReportForChat(batchSummary) : null, [batchSummary]);
   const failuresReport = useMemo(() => batchSummary ? buildFailuresOnlyReport(batchSummary) : null, [batchSummary]);
   
-  const chatReportStats = useMemo(() => {
-    if (!chatReport) return null;
-    return stringifyJsonArtifact(chatReport);
-  }, [chatReport]);
+  const chatSummaryReportStats = useMemo(() => {
+    if (!chatSummaryReport) return null;
+    return stringifyJsonArtifact(chatSummaryReport);
+  }, [chatSummaryReport]);
+
+  const chatDiagnosticReportStats = useMemo(() => {
+    if (!chatDiagnosticReport) return null;
+    return stringifyJsonArtifact(chatDiagnosticReport);
+  }, [chatDiagnosticReport]);
 
   const failuresReportStats = useMemo(() => {
     if (!failuresReport) return null;
@@ -984,41 +990,79 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <Activity className="w-4 h-4 text-indigo-600" /> Batch Regression Summary
               </h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-              {/* 1. ChatGPT Report Section */}
-              <div className="p-3 rounded-lg border border-indigo-100 bg-indigo-50/50 flex flex-col justify-between space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+              {/* 1. ChatGPT Summary Report */}
+              <div className="p-3 rounded-lg border border-emerald-100 bg-emerald-50/30 flex flex-col justify-between space-y-2">
                 <div>
-                  <div className="text-[11px] font-bold text-indigo-900">ChatGPT Compact Report</div>
-                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Optimized format for paste diagnostics (excludes large previews).</p>
-                  {chatReportStats && (
-                    <div className="text-[9px] font-mono text-indigo-700/80 mt-1">
-                      Size: {chatReportStats.byteLength} bytes ({chatReportStats.charLength} chars) | Hash: {chatReportStats.hash}
+                  <div className="flex items-center gap-1.5 justify-between">
+                    <div className="text-[11px] font-bold text-emerald-900">ChatGPT Summary</div>
+                    <span className="text-[8.5px] bg-emerald-100 text-emerald-800 px-1 rounded font-black uppercase">Copy Recommended</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Minimalist, ultra-compact text representation. High-speed copy, targeted &lt;50KB.</p>
+                  {chatSummaryReportStats && (
+                    <div className="text-[9px] font-mono text-emerald-700/80 mt-1">
+                      Size: {chatSummaryReportStats.byteLength} bytes ({chatSummaryReportStats.charLength} chars) | Hash: {chatSummaryReportStats.hash}
                     </div>
                   )}
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleCopy(chatReportStats?.text || "", 'batch-report-chat')}
-                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm flex-1"
+                    onClick={() => handleCopy(chatSummaryReportStats?.text || "", 'batch-report-summary')}
+                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center justify-center gap-1 bg-white hover:bg-emerald-50 px-2 py-1.5 rounded border border-emerald-200 shadow-sm flex-1"
                   >
-                    {copied === 'batch-report-chat' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    {copied === 'batch-report-chat' ? "Copied" : "Copy"}
+                    {copied === 'batch-report-summary' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copied === 'batch-report-summary' ? "Copied" : "Copy Report"}
                   </button>
                   <button
-                    onClick={() => handleDownload(chatReport, `visual-analysis-chat-report-${Date.now()}.json`, 'batch-report-chat-dl')}
-                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm"
+                    onClick={() => handleDownload(chatSummaryReport, `visual-analysis-summary-${Date.now()}.json`, 'batch-report-summary-dl')}
+                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-850 flex items-center justify-center gap-1 bg-white hover:bg-emerald-50 px-2 py-1.5 rounded border border-emerald-200 shadow-sm"
                     title="Download as JSON file"
                   >
-                    {copied === 'batch-report-chat-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                    {copied === 'batch-report-summary-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
                   </button>
                 </div>
               </div>
 
-              {/* 2. Failures Only Section */}
+              {/* 2. ChatGPT Diagnostic Report */}
+              <div className="p-3 rounded-lg border border-indigo-100 bg-indigo-50/50 flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center gap-1.5 justify-between">
+                    <div className="text-[11px] font-bold text-indigo-900">ChatGPT Diagnostic</div>
+                    <span className="text-[8.5px] bg-indigo-100 text-indigo-800 px-1 rounded font-black uppercase">Copy Recommended</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Compact diagnostics (excludes success bodyPreviews). Target size: 50KB-100KB.</p>
+                  {chatDiagnosticReportStats && (
+                    <div className="text-[9px] font-mono text-indigo-700/80 mt-1">
+                      Size: {chatDiagnosticReportStats.byteLength} bytes ({chatDiagnosticReportStats.charLength} chars) | Hash: {chatDiagnosticReportStats.hash}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCopy(chatDiagnosticReportStats?.text || "", 'batch-report-diagnostic')}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm flex-1"
+                  >
+                    {copied === 'batch-report-diagnostic' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copied === 'batch-report-diagnostic' ? "Copied" : "Copy Report"}
+                  </button>
+                  <button
+                    onClick={() => handleDownload(chatDiagnosticReport, `visual-analysis-diagnostic-${Date.now()}.json`, 'batch-report-diagnostic-dl')}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm"
+                    title="Download as JSON file"
+                  >
+                    {copied === 'batch-report-diagnostic-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Failures Only Section */}
               <div className="p-3 rounded-lg border border-red-100 bg-red-50/50 flex flex-col justify-between space-y-2">
                 <div>
-                  <div className="text-[11px] font-bold text-red-900">Failures Only JSON</div>
-                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Only contains samples that failed generation or validation.</p>
+                  <div className="flex items-center gap-1.5 justify-between">
+                    <div className="text-[11px] font-bold text-red-900">Failures Only JSON</div>
+                    <span className="text-[8.5px] bg-red-100 text-red-800 px-1 rounded font-black uppercase">Copy Recommended</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Only contains samples that failed generation, schemas or validation checks.</p>
                   {failuresReportStats && (
                     <div className="text-[9px] font-mono text-red-700/80 mt-1">
                       Size: {failuresReportStats.byteLength} bytes ({failuresReportStats.charLength} chars) | Hash: {failuresReportStats.hash}
@@ -1043,13 +1087,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </div>
               </div>
 
-              {/* 3. Full Batch Section (Download recommended) */}
+              {/* 4. Full Batch Section (Download recommended) */}
               <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex flex-col justify-between space-y-2">
                 <div>
-                  <div className="text-[11px] font-bold text-slate-900 flex items-center gap-1">
-                    Full Batch JSON <span className="text-[9px] text-slate-400 font-normal">(Download Recommended)</span>
+                  <div className="flex items-center gap-1.5 justify-between">
+                    <div className="text-[11px] font-bold text-slate-900">Full Batch JSON</div>
+                    <span className="text-[8.5px] bg-slate-200 text-slate-800 px-1 rounded font-black uppercase">Download Recommended</span>
                   </div>
-                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Full execution logs, input/output previews and diagnostic frames.</p>
+                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Full raw output, complete execution runs, and raw responses.</p>
                   {fullReportStats && (
                     <div className="text-[9px] font-mono text-slate-600 mt-1">
                       Size: {fullReportStats.byteLength} bytes ({fullReportStats.charLength} chars) | Hash: {fullReportStats.hash}
