@@ -1,8 +1,9 @@
 export interface VisualJsonParseAttempt {
   requestAttempt?: number;
-  mode: "direct" | "fenceStripped" | "extractedObject" | "retryFailed";
+  mode: "direct" | "fenceStripped" | "extractedObject" | "retryFailed" | "localRepair";
   success: boolean;
   errorMessage?: string;
+  repairKinds?: string[];
 }
 
 export interface VisualJsonParseDiagnostics {
@@ -17,7 +18,7 @@ export type VisualJsonParseResult =
   | {
       ok: true;
       parsed: any;
-      parseMode: "direct" | "fenceStripped" | "extractedObject";
+      parseMode: "direct" | "fenceStripped" | "extractedObject" | "localRepair";
       diagnostics: VisualJsonParseDiagnostics;
     }
   | {
@@ -73,6 +74,30 @@ function extractBalancedObject(text: string): string | null {
   }
   
   return null;
+}
+
+export function simpleJsonRepair(text: string): string {
+  let repaired = text.trim();
+  
+  // Remove markdown fences if present
+  repaired = repaired.replace(/^```(json)?|```$/gm, '').trim();
+
+  // Remove trailing junk (often from truncated/bad generation like '}  issues: []')
+  // We can try extracting the outermost matched braces if there's junk at the end
+  const extracted = extractBalancedObject(repaired);
+  if (extracted) {
+    repaired = extracted;
+  }
+
+  // Common syntax error 1: dangling commas before closing bracket/brace
+  repaired = repaired.replace(/,\s*([\]}])/g, '$1');
+
+  // Common syntax error 2: unescaped control characters like newlines within strings.
+  // This is a bit tricky with simple regex, but we can try to escape unescaped literal newlines
+  // We'll skip complex unescaped newline fixing for now to avoid corrupting valid json strings that might happen to match our naive regex, 
+  // since JSON-only retry will catch it anyway.
+
+  return repaired;
 }
 
 export function parseModelJsonOutput(outputText: string, requestAttempt: number = 1): VisualJsonParseResult {
@@ -142,6 +167,28 @@ export function parseModelJsonOutput(outputText: string, requestAttempt: number 
     } catch (e: any) {
       parseErrorMessage = e.message;
       attempts.push({ requestAttempt, mode: "extractedObject", success: false, errorMessage: e.message });
+    }
+  }
+  
+  // 4. Local Repair (dangling commas, etc.)
+  const repaired = simpleJsonRepair(outputText);
+  if (repaired !== extracted && repaired !== cleaned && repaired !== outputText.trim()) {
+    try {
+      const parsed = JSON.parse(repaired);
+      attempts.push({ requestAttempt, mode: "localRepair", success: true, repairKinds: ["danglingCommaOrFences"] });
+      return {
+        ok: true,
+        parsed,
+        parseMode: "localRepair",
+        diagnostics: {
+          rawOutputLength,
+          rawOutputPreview,
+          attempts
+        }
+      };
+    } catch (e: any) {
+      parseErrorMessage = e.message;
+      attempts.push({ requestAttempt, mode: "localRepair", success: false, errorMessage: e.message, repairKinds: ["danglingCommaOrFences"] });
     }
   }
 

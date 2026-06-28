@@ -109,14 +109,14 @@ export function isCheckpointCompatible(
     modelName: string;
     jsonMode: string;
     customInstructionHash: string;
-    targetSampleIdsHash: string;
+    availableSampleIds: string[];
   }
 ): boolean {
   return (
     checkpoint.modelName === currentSettings.modelName &&
     checkpoint.jsonMode === currentSettings.jsonMode &&
     checkpoint.customInstructionHash === currentSettings.customInstructionHash &&
-    checkpoint.runFingerprint.targetSampleIdsHash === currentSettings.targetSampleIdsHash
+    checkpoint.targetSampleIds.every(id => currentSettings.availableSampleIds.includes(id))
   );
 }
 

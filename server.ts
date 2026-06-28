@@ -1688,17 +1688,64 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     // Parse and Validate
     let parseRes = parseModelJsonOutput(outputText, 1);
     let retryCount = 0;
+    
+    // JSON Recovery
+    let localRecoveryEnabled = true;
+    let retryStrategy: "none" | "sameRequestOnce" | "localRepairThenJsonOnlyRetry" = "localRepairThenJsonOnlyRetry";
+    
+    if (!parseRes.ok && mode === "promptedJson") {
+      console.warn(`[public-sample] Initial parse failed for ${sample.id}. Attempting JSON-only retry.`);
+      
+      const retryPrompt = `The previous output was invalid JSON. Output ONLY a valid JSON object based on the original request. Do not include any markdown, explanations, or trailing text. Preserve the original analysis content.\n\nOriginal invalid output:\n${outputText.substring(0, 800)}...`;
+      
+      try {
+        const retryConfig = {
+          ...configOption,
+          temperature: 0.1, // lower temp for retry
+        };
+        
+        const retryAiRes = await generateContentWithRetry(targetModel, {
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        { text: retryPrompt },
+                        {
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: base64Data
+                            }
+                        }
+                    ]
+                }
+            ],
+            generationConfig: retryConfig
+        });
+        
+        retryCount++;
+        const retryOutputText = retryAiRes.text?.trim() || "{}";
+        
+        const retryParseRes = parseModelJsonOutput(retryOutputText, 2);
+        
+        // Append previous attempts to diagnostics
+        retryParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...retryParseRes.diagnostics.attempts];
+        parseRes = retryParseRes;
+        
+      } catch (retryErr) {
+        console.error(`[public-sample] JSON-only retry failed for ${sample.id}`, retryErr);
+      }
+    }
 
     // Add recovery stats to run metadata
     runMetadata.execution.jsonRecovery = {
-      localRecoveryEnabled: false,
-      retryStrategy: "none",
+      localRecoveryEnabled,
+      retryStrategy,
       retryCount,
       finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
     };
 
     if (!parseRes.ok) {
-      return res.status(500).json({
+      return res.status(200).json({
         success: false,
         error: "Model returned invalid JSON",
         failureKind: "jsonParseError",
@@ -2024,15 +2071,61 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     let retryCount = 0;
 
     // Add recovery stats to run metadata
+    let localRecoveryEnabled = true;
+    let retryStrategy: "none" | "sameRequestOnce" | "localRepairThenJsonOnlyRetry" = "localRepairThenJsonOnlyRetry";
+    
+    if (!parseRes.ok && mode === "promptedJson") {
+      console.warn(`[drive-file] Initial parse failed for ${fileId}. Attempting JSON-only retry.`);
+      
+      const retryPrompt = `The previous output was invalid JSON. Output ONLY a valid JSON object based on the original request. Do not include any markdown, explanations, or trailing text. Preserve the original analysis content.\n\nOriginal invalid output:\n${outputText.substring(0, 800)}...`;
+      
+      try {
+        const retryConfig = {
+          ...configOption,
+          temperature: 0.1, // lower temp for retry
+        };
+        
+        const retryAiRes = await generateContentWithRetry(targetModel, {
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        { text: retryPrompt },
+                        {
+                            inlineData: {
+                                mimeType: fileMeta.mimeType,
+                                data: base64Data
+                            }
+                        }
+                    ]
+                }
+            ],
+            generationConfig: retryConfig
+        });
+        
+        retryCount++;
+        const retryOutputText = retryAiRes.text?.trim() || "{}";
+        
+        const retryParseRes = parseModelJsonOutput(retryOutputText, 2);
+        
+        // Append previous attempts to diagnostics
+        retryParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...retryParseRes.diagnostics.attempts];
+        parseRes = retryParseRes;
+        
+      } catch (retryErr) {
+        console.error(`[drive-file] JSON-only retry failed for ${fileId}`, retryErr);
+      }
+    }
+    
     runMetadata.execution.jsonRecovery = {
-      localRecoveryEnabled: false,
-      retryStrategy: "none",
+      localRecoveryEnabled,
+      retryStrategy,
       retryCount,
       finalParseMode: parseRes.ok ? parseRes.parseMode : undefined
     };
 
     if (!parseRes.ok) {
-      return res.status(500).json({ 
+      return res.status(200).json({ 
         success: false,
         outputMode: "structured",
         error: "Model returned invalid JSON", 

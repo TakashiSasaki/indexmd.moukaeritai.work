@@ -26,6 +26,7 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
     reviewFailCount: batchSummary.reviewFailCount,
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
+    parseFailureSummary: buildParseFailureSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: compactItems
   };
@@ -59,6 +60,7 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
     reviewFailCount: batchSummary.reviewFailCount,
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
+    parseFailureSummary: buildParseFailureSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
     items: summaryItems
   };
@@ -71,7 +73,7 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
 }
 
 function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
-  const failedItems = items.filter(item => !item.success && item.responseDiagnostics);
+  const failedItems = items.filter(item => !item.success && item.responseDiagnostics && item.failureKind !== 'jsonParseError');
   const byStatus: Record<string, number> = {};
   const byContentType: Record<string, number> = {};
   const byHtmlTitle: Record<string, number> = {};
@@ -84,33 +86,31 @@ function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
     bodyPreview?: string;
   }> = [];
 
-  for (const item of items) {
-    if (!item.success && item.responseDiagnostics) {
-      const diag = item.responseDiagnostics;
-      
-      const statusStr = String(diag.status || "UNKNOWN");
-      byStatus[statusStr] = (byStatus[statusStr] || 0) + 1;
+  for (const item of failedItems) {
+    const diag = item.responseDiagnostics!;
+    
+    const statusStr = String(diag.status || "UNKNOWN");
+    byStatus[statusStr] = (byStatus[statusStr] || 0) + 1;
 
-      const ct = diag.contentType || "UNKNOWN";
-      byContentType[ct] = (byContentType[ct] || 0) + 1;
+    const ct = diag.contentType || "UNKNOWN";
+    byContentType[ct] = (byContentType[ct] || 0) + 1;
 
-      const title = diag.htmlTitle || "NONE";
-      byHtmlTitle[title] = (byHtmlTitle[title] || 0) + 1;
+    const title = diag.htmlTitle || "NONE";
+    byHtmlTitle[title] = (byHtmlTitle[title] || 0) + 1;
 
-      let preview = diag.bodyPreview;
-      if (preview && preview.length > 1500) {
-        preview = preview.slice(0, 750) + "\n... [TRUNCATED FOR REPORT] ...\n" + preview.slice(-750);
-      }
-
-      samples.push({
-        sampleId: item.sampleId,
-        status: diag.status,
-        contentType: diag.contentType,
-        htmlTitle: diag.htmlTitle,
-        bodyLength: diag.bodyLength,
-        bodyPreview: preview,
-      });
+    let preview = diag.bodyPreview;
+    if (preview && preview.length > 1500) {
+      preview = preview.slice(0, 750) + "\n... [TRUNCATED FOR REPORT] ...\n" + preview.slice(-750);
     }
+
+    samples.push({
+      sampleId: item.sampleId,
+      status: diag.status,
+      contentType: diag.contentType,
+      htmlTitle: diag.htmlTitle,
+      bodyLength: diag.bodyLength,
+      bodyPreview: preview,
+    });
   }
 
   return {
@@ -119,6 +119,47 @@ function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
     byContentType,
     byHtmlTitle,
     samples,
+  };
+}
+
+function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
+  const parseFailures = items.filter(item => !item.success && item.failureKind === 'jsonParseError');
+  
+  const byModelName: Record<string, number> = {};
+  const byProviderFamily: Record<string, number> = {};
+  const byStructuredExecutionMode: Record<string, number> = {};
+  const samples: Array<{
+    sampleId: string;
+    parseErrorMessage?: string;
+    rawOutputLength?: number;
+  }> = [];
+  
+  for (const item of parseFailures) {
+    const analysisRun = item.analysisRun || item.responseRaw?.analysisRun;
+    const model = analysisRun?.execution?.usedModelName || "UNKNOWN";
+    const family = analysisRun?.execution?.providerFamily || "UNKNOWN";
+    const execMode = analysisRun?.execution?.effectiveStructuredExecutionMode || "UNKNOWN";
+    
+    byModelName[model] = (byModelName[model] || 0) + 1;
+    byProviderFamily[family] = (byProviderFamily[family] || 0) + 1;
+    byStructuredExecutionMode[execMode] = (byStructuredExecutionMode[execMode] || 0) + 1;
+    
+    const parseDiag = item.parseDiagnostics || item.responseRaw?.parseDiagnostics;
+    const lastAttempt = parseDiag?.attempts?.[parseDiag.attempts.length - 1];
+    
+    samples.push({
+      sampleId: item.sampleId,
+      parseErrorMessage: lastAttempt?.errorMessage || "Unknown parse error",
+      rawOutputLength: parseDiag?.rawOutputLength
+    });
+  }
+  
+  return {
+    total: parseFailures.length,
+    byModelName,
+    byProviderFamily,
+    byStructuredExecutionMode,
+    samples
   };
 }
 

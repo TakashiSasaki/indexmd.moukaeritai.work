@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play } from 'lucide-react';
+import { Search, Image as ImageIcon, AlertCircle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play, RotateCw } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
 import { 
@@ -214,7 +214,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         modelName,
         jsonMode: jsonModeOption,
         customInstructionHash: fnv1a32(customInstruction.trim()),
-        targetSampleIdsHash: buildTargetSampleIdsHash(targetSamples.map(s => s.id))
+        availableSampleIds: samples.map(s => s.id)
       };
       
       if (isCheckpointCompatible(checkpoint, currentSettings)) {
@@ -465,7 +465,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
-  const handleRunBatch = async (resumeMode: boolean = false) => {
+  const handleRunBatch = async (resumeMode: boolean = false, includeFailed: boolean = false) => {
     let targetSamples = samples.filter(s => selectedSampleIds[s.id]);
     
     let isResuming = false;
@@ -474,12 +474,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     if (resumeMode && activeCheckpoint) {
       isResuming = true;
       initialCheckpoint = activeCheckpoint;
-      // Filter target samples to only those pending
-      targetSamples = targetSamples.filter(s => activeCheckpoint.pendingSampleIds.includes(s.id));
-    } else if (targetSamples.length === 0) {
-      onAddLog("warn", "実行対象のサンプルが選択されていません。");
-      alert("実行対象のサンプルが選択されていません。チェックボックスで選択してください。");
-      return;
+      const idsToRun = includeFailed
+        ? [...activeCheckpoint.pendingSampleIds, ...activeCheckpoint.failedSampleIds]
+        : [...activeCheckpoint.pendingSampleIds];
+      targetSamples = samples.filter(s => idsToRun.includes(s.id));
+    } else {
+      if (targetSamples.length === 0) {
+        onAddLog("warn", "実行対象のサンプルが選択されていません。");
+        alert("実行対象のサンプルが選択されていません。チェックボックスで選択してください。");
+        return;
+      }
     }
 
     setHealthCheckFailed(false);
@@ -513,34 +517,99 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     onAddLog("success", "ヘルスチェックに成功しました。バッチ解析を開始します。");
 
     // Initialize or restore state
-    let total = isResuming && initialCheckpoint ? initialCheckpoint.targetSampleIds.length : samples.filter(s => selectedSampleIds[s.id]).length;
-    let currentProgress = isResuming && initialCheckpoint ? initialCheckpoint.completedSampleIds.length : 0;
+    let total = isResuming && initialCheckpoint ? initialCheckpoint.targetSampleIds.length : targetSamples.length;
+    let currentProgress = isResuming && initialCheckpoint 
+      ? (includeFailed 
+          ? initialCheckpoint.targetSampleIds.length - (initialCheckpoint.pendingSampleIds.length + initialCheckpoint.failedSampleIds.length)
+          : initialCheckpoint.completedSampleIds.length)
+      : 0;
     setBatchProgress({ current: currentProgress, total });
 
-    const items: PublicSampleBatchRunItem[] = isResuming && initialCheckpoint ? [...initialCheckpoint.items] : [];
+    let items: PublicSampleBatchRunItem[] = [];
     
-    let successCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.successCount : 0;
-    let failureCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.failureCount : 0;
-    let validCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.validCount : 0;
-    let validLowQualityCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.validLowQualityCount : 0;
-    let invalidJsonCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.invalidJsonCount : 0;
-    let expectedComparisonPassCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.expectedComparisonPassCount : 0;
-    let expectedComparisonWarningCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.expectedComparisonWarningCount : 0;
-    let expectedComparisonFailCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.expectedComparisonFailCount : 0;
-    let reviewPassCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.reviewPassCount : 0;
-    let reviewNeedsReviewCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.reviewNeedsReviewCount : 0;
-    let reviewFailCount = isResuming && initialCheckpoint ? initialCheckpoint.counters.reviewFailCount : 0;
+    let successCount = 0;
+    let failureCount = 0;
+    let validCount = 0;
+    let validLowQualityCount = 0;
+    let invalidJsonCount = 0;
+    let expectedComparisonPassCount = 0;
+    let expectedComparisonWarningCount = 0;
+    let expectedComparisonFailCount = 0;
+    let reviewPassCount = 0;
+    let reviewNeedsReviewCount = 0;
+    let reviewFailCount = 0;
+
+    if (isResuming && initialCheckpoint) {
+      if (includeFailed) {
+        // Exclude failed items from items list to re-run them
+        items = initialCheckpoint.items.filter(it => !initialCheckpoint!.failedSampleIds.includes(it.sampleId));
+      } else {
+        items = [...initialCheckpoint.items];
+      }
+      
+      // Re-sum counters from remaining/restored items
+      for (const item of items) {
+        if (item.success) {
+          successCount++;
+          if (item.qualityStatus === 'valid') validCount++;
+          if (item.qualityStatus === 'validLowQuality') validLowQualityCount++;
+          
+          const comp = item.comparison;
+          if (comp) {
+            if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
+            if (comp.overallStatus === 'warning') expectedComparisonWarningCount++;
+            if (comp.overallStatus === 'fail') expectedComparisonFailCount++;
+
+            if (comp.reviewStatus === 'pass') reviewPassCount++;
+            if (comp.reviewStatus === 'needsReview') reviewNeedsReviewCount++;
+            if (comp.reviewStatus === 'fail') reviewFailCount++;
+          }
+        } else {
+          failureCount++;
+          reviewFailCount++;
+          if (item.failureKind === 'jsonParseError') {
+            invalidJsonCount++;
+          }
+        }
+      }
+    }
 
     const newStatuses = { ...sampleStatuses };
     
     let currentCheckpoint: PublicSampleBatchCheckpoint;
     
     if (isResuming && initialCheckpoint) {
-       currentCheckpoint = { ...initialCheckpoint, status: 'running' };
-       saveActiveBatchCheckpoint(currentCheckpoint);
+       currentCheckpoint = { 
+         ...initialCheckpoint, 
+         status: 'running',
+         ...(includeFailed ? {
+           pendingSampleIds: [...initialCheckpoint.pendingSampleIds, ...initialCheckpoint.failedSampleIds],
+           failedSampleIds: [],
+           completedSampleIds: initialCheckpoint.completedSampleIds.filter(id => !initialCheckpoint!.failedSampleIds.includes(id)),
+           items: [...items],
+           counters: {
+             successCount,
+             failureCount,
+             validCount,
+             validLowQualityCount,
+             invalidJsonCount,
+             expectedComparisonPassCount,
+             expectedComparisonWarningCount,
+             expectedComparisonFailCount,
+             reviewPassCount,
+             reviewNeedsReviewCount,
+             reviewFailCount
+           }
+         } : {})
+       };
+       try {
+         saveActiveBatchCheckpoint(currentCheckpoint);
+       } catch (err) {
+         console.warn("Failed to save initial checkpoint to localStorage", err);
+       }
        setActiveCheckpoint(currentCheckpoint);
     } else {
-       const initialTargetIds = samples.filter(s => selectedSampleIds[s.id]).map(s => s.id);
+       const initialTargetIds = targetSamples.map(s => s.id);
        currentCheckpoint = {
          checkpointVersion: "public-sample-batch-checkpoint.v0.1.0",
          runId: crypto.randomUUID(),
@@ -575,7 +644,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
            targetSampleIdsHash: buildTargetSampleIdsHash(initialTargetIds)
          }
        };
-       saveActiveBatchCheckpoint(currentCheckpoint);
+       try {
+         saveActiveBatchCheckpoint(currentCheckpoint);
+       } catch (err) {
+         console.warn("Failed to save initial checkpoint to localStorage", err);
+         onAddLog("warn", "警告: ローカルストレージへのチェックポイント保存に失敗しました。解析は続行されます。");
+       }
        setActiveCheckpoint(currentCheckpoint);
     }
 
@@ -699,7 +773,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             reviewFailCount
           }
         };
-        saveActiveBatchCheckpoint(currentCheckpoint);
+        try {
+          saveActiveBatchCheckpoint(currentCheckpoint);
+        } catch (err) {
+          console.warn("Failed to save checkpoint progress to localStorage", err);
+        }
         setActiveCheckpoint(currentCheckpoint);
     }
 
@@ -807,13 +885,22 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   >
                     破棄する
                   </button>
-                  <button
-                    onClick={() => handleRunBatch(true)}
+                   <button
+                    onClick={() => handleRunBatch(true, false)}
                     disabled={isBatchRunning}
                     className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 shadow-sm"
                   >
                     <Play className="w-3.5 h-3.5" /> 続きから再開
                   </button>
+                  {activeCheckpoint.failedSampleIds.length > 0 && (
+                    <button
+                      onClick={() => handleRunBatch(true, true)}
+                      disabled={isBatchRunning}
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" /> 失敗分も含めて再開
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

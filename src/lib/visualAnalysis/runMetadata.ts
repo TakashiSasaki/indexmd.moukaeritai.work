@@ -11,9 +11,9 @@ export const VISUAL_ANALYSIS_GENERATION_CONFIG = {
 
 export interface VisualJsonRecoveryMetadata {
   localRecoveryEnabled: boolean;
-  retryStrategy: "none" | "sameRequestOnce";
+  retryStrategy: "none" | "sameRequestOnce" | "localRepairThenJsonOnlyRetry";
   retryCount: number;
-  finalParseMode?: "direct" | "fenceStripped" | "extractedObject";
+  finalParseMode?: "direct" | "fenceStripped" | "extractedObject" | "localRepair";
 }
 
 export interface VisualAnalysisRunMetadata {
