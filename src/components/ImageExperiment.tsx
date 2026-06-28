@@ -860,7 +860,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-5">
-          {activeCheckpoint && (
+          {activeCheckpoint && !isBatchRunning && (
             <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50">
               <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
                 <div className="space-y-1">
