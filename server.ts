@@ -1569,12 +1569,19 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
     // media resolution policy based on input sample
+    // media resolution policy based on input sample
     let mediaResolutionRequested: string | undefined;
-    let mediaResolutionReason: string | undefined;
+    let mediaResolutionConfigured: boolean = false;
+    let mediaResolutionProviderAccepted: boolean = false;
     let mediaResolutionApplied: boolean = false;
+    let mediaResolutionReason: string | undefined;
+    let mediaResolutionUnsupportedReason: string | undefined;
+    let mediaResolutionFallbackUsed: boolean = false;
     let mediaResolutionProviderField: string | undefined;
 
-    if (!isGemma) {
+    if (isGemma) {
+      mediaResolutionUnsupportedReason = "providerFamilyUnsupported";
+    } else {
       if (
         sample && (
           sample.expectedImageKind === "chartOrTable" ||
@@ -1596,7 +1603,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         mediaResolutionRequested = "MEDIUM";
         mediaResolutionReason = "Simple image kind";
       }
-      mediaResolutionApplied = true;
+      mediaResolutionConfigured = true;
       mediaResolutionProviderField = mediaResolutionRequested === "HIGH" ? "MEDIA_RESOLUTION_HIGH" : "MEDIA_RESOLUTION_MEDIUM";
     }
 
@@ -1610,26 +1617,6 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       configOption.responseMimeType = "application/json";
       configOption.responseSchema = extractedSchema || GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA;
     }
-
-    const runMetadata = buildVisualAnalysisRunMetadata({
-      targetModel,
-      providerFamily: isGemma ? "gemma" : "gemini",
-      visualRecommendation: visualCap.recommendation,
-      mode,
-      jsonMode,
-      customInstructionUsed: !!customInstruction,
-      customSchemaUsed: extractedCustomSchema,
-      requestPreviewIncluded: includeRequestPreview,
-      sourceKind: "publicSample",
-      sampleId: sample.id,
-      mimeType: mimeType,
-      byteLength: buffer.length,
-      base64Length: base64Data.length,
-      mediaResolutionRequested,
-      mediaResolutionApplied,
-      mediaResolutionReason,
-      mediaResolutionProviderField
-    });
 
     const requestPreview = includeRequestPreview ? {
       model: targetModel,
@@ -1648,40 +1635,117 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         { inlineData: { data: base64Data, mimeType: mimeType } },
         { text: taskPrompt }
       ], 4, configOption);
+      
+      if (mediaResolutionConfigured) {
+        mediaResolutionProviderAccepted = true;
+        mediaResolutionApplied = true;
+      }
     } catch (err: any) {
-      const failRes = buildGenerationFailureResponse({
-        err,
-        targetModel,
-        providerFamily: isGemma ? "gemma" : "gemini",
-        runMetadata,
-        sampleMetadata: {
-          id: sample.id,
-          title: sample.title,
-          category: sample.category,
-          licenseKind: sample.source.licenseKind,
-          licenseName: sample.source.licenseName,
-          attributionText: sample.source.attributionText,
-          sourcePageUrl: sample.source.pageUrl
-        },
-        expectedMetadata: {
-          imageKind: sample.expectedImageKind,
-          elementCategories: sample.expectedElementCategories,
-          elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-          visibleElementLabels: sample.expectedVisibleElementLabels,
-          visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-          visibleText: sample.expectedVisibleText,
-          notes: sample.expectedNotes
-        },
-        requestPreview,
-        inputDiagnostics: {
-          imageVariant: "analysis",
-          analysisSourceUrlKind: sourceUrlKind,
-          inputSizeWarning,
-          ...inputDiagnostics
+      const errMsg = err?.message || "";
+      if (mediaResolutionConfigured && errMsg.includes("INVALID_ARGUMENT") && (errMsg.includes("mediaResolution") || errMsg.includes("media_resolution"))) {
+        console.warn(`[public-sample] mediaResolution configuration was rejected by provider. Retrying without mediaResolution fallback.`);
+        mediaResolutionFallbackUsed = true;
+        mediaResolutionUnsupportedReason = "rejectedByProvider";
+        
+        try {
+          const fallbackConfig = { ...configOption };
+          delete fallbackConfig.mediaResolution;
+          
+          aiRes = await generateContentWithRetry(targetModel, [
+            { inlineData: { data: base64Data, mimeType: mimeType } },
+            { text: taskPrompt }
+          ], 2, fallbackConfig);
+          
+          mediaResolutionProviderAccepted = false;
+          mediaResolutionApplied = false;
+        } catch (fallbackErr: any) {
+          err = fallbackErr;
         }
-      });
-      return res.status(200).json(failRes); // 200 so UI can handle structured failure
+      }
+      
+      if (!aiRes) {
+        const failRunMetadata = buildVisualAnalysisRunMetadata({
+          targetModel,
+          providerFamily: isGemma ? "gemma" : "gemini",
+          visualRecommendation: visualCap.recommendation,
+          mode,
+          jsonMode,
+          customInstructionUsed: !!customInstruction,
+          customSchemaUsed: extractedCustomSchema,
+          requestPreviewIncluded: includeRequestPreview,
+          sourceKind: "publicSample",
+          sampleId: sample.id,
+          mimeType: mimeType,
+          byteLength: buffer.length,
+          base64Length: base64Data.length,
+          mediaResolutionRequested,
+          mediaResolutionConfigured,
+          mediaResolutionProviderAccepted,
+          mediaResolutionApplied,
+          mediaResolutionReason,
+          mediaResolutionUnsupportedReason,
+          mediaResolutionFallbackUsed,
+          mediaResolutionProviderField
+        });
+
+        const failRes = buildGenerationFailureResponse({
+          err,
+          targetModel,
+          providerFamily: isGemma ? "gemma" : "gemini",
+          runMetadata: failRunMetadata,
+          sampleMetadata: {
+            id: sample.id,
+            title: sample.title,
+            category: sample.category,
+            licenseKind: sample.source.licenseKind,
+            licenseName: sample.source.licenseName,
+            attributionText: sample.source.attributionText,
+            sourcePageUrl: sample.source.pageUrl
+          },
+          expectedMetadata: {
+            imageKind: sample.expectedImageKind,
+            elementCategories: sample.expectedElementCategories,
+            elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
+            visibleElementLabels: sample.expectedVisibleElementLabels,
+            visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
+            visibleText: sample.expectedVisibleText,
+            notes: sample.expectedNotes
+          },
+          requestPreview,
+          inputDiagnostics: {
+            imageVariant: "analysis",
+            analysisSourceUrlKind: sourceUrlKind,
+            inputSizeWarning,
+            ...inputDiagnostics
+          }
+        });
+        return res.status(200).json(failRes);
+      }
     }
+
+    const runMetadata = buildVisualAnalysisRunMetadata({
+      targetModel,
+      providerFamily: isGemma ? "gemma" : "gemini",
+      visualRecommendation: visualCap.recommendation,
+      mode,
+      jsonMode,
+      customInstructionUsed: !!customInstruction,
+      customSchemaUsed: extractedCustomSchema,
+      requestPreviewIncluded: includeRequestPreview,
+      sourceKind: "publicSample",
+      sampleId: sample.id,
+      mimeType: mimeType,
+      byteLength: buffer.length,
+      base64Length: base64Data.length,
+      mediaResolutionRequested,
+      mediaResolutionConfigured,
+      mediaResolutionProviderAccepted,
+      mediaResolutionApplied,
+      mediaResolutionReason,
+      mediaResolutionUnsupportedReason,
+      mediaResolutionFallbackUsed,
+      mediaResolutionProviderField
+    });
 
     let outputText = aiRes.text?.trim() || "{}";
 
@@ -1744,6 +1808,15 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     }
 
     // Add recovery stats to run metadata
+    const rawOutputLength = outputText.length;
+    let hashVal = 2166136261;
+    for (let i = 0; i < outputText.length; i++) {
+      hashVal ^= outputText.charCodeAt(i);
+      hashVal += (hashVal << 1) + (hashVal << 4) + (hashVal << 7) + (hashVal << 8) + (hashVal << 24);
+    }
+    const rawOutputHash = (hashVal >>> 0).toString(16);
+    const parseErrorMessage = parseRes.diagnostics?.parseErrorMessage || undefined;
+
     runMetadata.execution.jsonRecovery = {
       localRecoveryEnabled,
       retryStrategy,
@@ -1753,7 +1826,9 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       localRepairSucceeded,
       modelRetryAttempted,
       modelRetrySucceeded,
-      rawOutputPreview: parseRes.diagnostics?.rawOutputPreview
+      rawOutputLength,
+      rawOutputHash,
+      parseErrorMessage
     };
 
     if (!parseRes.ok) {
@@ -2002,15 +2077,21 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
     let mediaResolutionRequested: string | undefined;
-    let mediaResolutionReason: string | undefined;
+    let mediaResolutionConfigured: boolean = false;
+    let mediaResolutionProviderAccepted: boolean = false;
     let mediaResolutionApplied: boolean = false;
+    let mediaResolutionReason: string | undefined;
+    let mediaResolutionUnsupportedReason: string | undefined;
+    let mediaResolutionFallbackUsed: boolean = false;
     let mediaResolutionProviderField: string | undefined;
 
-    if (!isGemma) {
+    if (isGemma) {
+      mediaResolutionUnsupportedReason = "providerFamilyUnsupported";
+    } else {
       // By default drive images are high detail (documents, etc.)
       mediaResolutionRequested = "HIGH";
       mediaResolutionReason = "Drive images default to HIGH resolution";
-      mediaResolutionApplied = true;
+      mediaResolutionConfigured = true;
       mediaResolutionProviderField = "MEDIA_RESOLUTION_HIGH";
     }
 
@@ -2024,24 +2105,6 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       configOption.responseMimeType = "application/json";
       configOption.responseSchema = extractedSchema || GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA;
     }
-
-    const runMetadata = buildVisualAnalysisRunMetadata({
-      targetModel,
-      providerFamily: isGemma ? "gemma" : "gemini",
-      visualRecommendation: visualCap.recommendation,
-      mode,
-      jsonMode,
-      customInstructionUsed: !!customInstruction,
-      customSchemaUsed: extractedCustomSchema,
-      requestPreviewIncluded: includeRequestPreview,
-      sourceKind: "driveFile",
-      fileId: fileId,
-      mimeType: fileMeta.mimeType,
-      mediaResolutionRequested,
-      mediaResolutionApplied,
-      mediaResolutionReason,
-      mediaResolutionProviderField
-    });
 
     const requestPreview = includeRequestPreview ? {
       model: targetModel,
@@ -2060,21 +2123,94 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
         { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
         { text: taskPrompt }
       ], 4, configOption);
+      
+      if (mediaResolutionConfigured) {
+        mediaResolutionProviderAccepted = true;
+        mediaResolutionApplied = true;
+      }
     } catch (err: any) {
-      const failRes = buildGenerationFailureResponse({
-        err,
-        targetModel,
-        providerFamily: isGemma ? "gemma" : "gemini",
-        runMetadata,
-        outputMode: "structured",
-        metadata: fileMeta,
-        requestPreview,
-        inputDiagnostics: {
-          imageVariant: "full"
+      const errMsg = err?.message || "";
+      if (mediaResolutionConfigured && errMsg.includes("INVALID_ARGUMENT") && (errMsg.includes("mediaResolution") || errMsg.includes("media_resolution"))) {
+        console.warn(`[drive-file] mediaResolution configuration was rejected by provider. Retrying without mediaResolution fallback.`);
+        mediaResolutionFallbackUsed = true;
+        mediaResolutionUnsupportedReason = "rejectedByProvider";
+        
+        try {
+          const fallbackConfig = { ...configOption };
+          delete fallbackConfig.mediaResolution;
+          
+          aiRes = await generateContentWithRetry(targetModel, [
+            { inlineData: { data: base64Data, mimeType: fileMeta.mimeType } },
+            { text: taskPrompt }
+          ], 2, fallbackConfig);
+          
+          mediaResolutionProviderAccepted = false;
+          mediaResolutionApplied = false;
+        } catch (fallbackErr: any) {
+          err = fallbackErr;
         }
-      } as any);
-      return res.status(200).json(failRes);
+      }
+      
+      if (!aiRes) {
+        const failRunMetadata = buildVisualAnalysisRunMetadata({
+          targetModel,
+          providerFamily: isGemma ? "gemma" : "gemini",
+          visualRecommendation: visualCap.recommendation,
+          mode,
+          jsonMode,
+          customInstructionUsed: !!customInstruction,
+          customSchemaUsed: extractedCustomSchema,
+          requestPreviewIncluded: includeRequestPreview,
+          sourceKind: "driveFile",
+          fileId: fileId,
+          mimeType: fileMeta.mimeType,
+          mediaResolutionRequested,
+          mediaResolutionConfigured,
+          mediaResolutionProviderAccepted,
+          mediaResolutionApplied,
+          mediaResolutionReason,
+          mediaResolutionUnsupportedReason,
+          mediaResolutionFallbackUsed,
+          mediaResolutionProviderField
+        });
+
+        const failRes = buildGenerationFailureResponse({
+          err,
+          targetModel,
+          providerFamily: isGemma ? "gemma" : "gemini",
+          runMetadata: failRunMetadata,
+          outputMode: "structured",
+          metadata: fileMeta,
+          requestPreview,
+          inputDiagnostics: {
+            imageVariant: "full"
+          }
+        } as any);
+        return res.status(200).json(failRes);
+      }
     }
+
+    const runMetadata = buildVisualAnalysisRunMetadata({
+      targetModel,
+      providerFamily: isGemma ? "gemma" : "gemini",
+      visualRecommendation: visualCap.recommendation,
+      mode,
+      jsonMode,
+      customInstructionUsed: !!customInstruction,
+      customSchemaUsed: extractedCustomSchema,
+      requestPreviewIncluded: includeRequestPreview,
+      sourceKind: "driveFile",
+      fileId: fileId,
+      mimeType: fileMeta.mimeType,
+      mediaResolutionRequested,
+      mediaResolutionConfigured,
+      mediaResolutionProviderAccepted,
+      mediaResolutionApplied,
+      mediaResolutionReason,
+      mediaResolutionUnsupportedReason,
+      mediaResolutionFallbackUsed,
+      mediaResolutionProviderField
+    });
 
     let outputText = aiRes.text?.trim() || "{}";
     
@@ -2136,6 +2272,15 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       }
     }
     
+    const rawOutputLength = outputText.length;
+    let hashVal = 2166136261;
+    for (let i = 0; i < outputText.length; i++) {
+      hashVal ^= outputText.charCodeAt(i);
+      hashVal += (hashVal << 1) + (hashVal << 4) + (hashVal << 7) + (hashVal << 8) + (hashVal << 24);
+    }
+    const rawOutputHash = (hashVal >>> 0).toString(16);
+    const parseErrorMessage = parseRes.diagnostics?.parseErrorMessage || undefined;
+
     runMetadata.execution.jsonRecovery = {
       localRecoveryEnabled,
       retryStrategy,
@@ -2145,7 +2290,9 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       localRepairSucceeded,
       modelRetryAttempted,
       modelRetrySucceeded,
-      rawOutputPreview: parseRes.diagnostics?.rawOutputPreview
+      rawOutputLength,
+      rawOutputHash,
+      parseErrorMessage
     };
 
     if (!parseRes.ok) {

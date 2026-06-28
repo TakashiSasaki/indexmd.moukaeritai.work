@@ -91,6 +91,15 @@ export function shrinkCheckpointForLocalStorage(checkpoint: PublicSampleBatchChe
       delete item.responseRaw.rawOutput;
       delete item.responseRaw.rawOutputPreview;
       delete item.responseRaw.requestPreview;
+      if (item.responseRaw.analysisRun?.execution?.jsonRecovery) {
+        delete (item.responseRaw.analysisRun.execution.jsonRecovery as any).rawOutputPreview;
+      }
+    }
+    if (item.analysisRun?.execution?.jsonRecovery) {
+      delete (item.analysisRun.execution.jsonRecovery as any).rawOutputPreview;
+    }
+    if (item.parseDiagnostics) {
+      delete (item.parseDiagnostics as any).rawOutputPreview;
     }
     return item;
   });
@@ -120,16 +129,8 @@ export function isCheckpointCompatible(
   );
   if (!baseMatch) return false;
 
-  if (currentSettings.selectedSampleIds && currentSettings.selectedSampleIds.length > 0) {
-    const selected = currentSettings.selectedSampleIds;
-    const target = checkpoint.targetSampleIds;
-    const selectedSet = new Set(selected);
-    const targetSet = new Set(target);
-    const selectedIsSubset = selected.every(id => targetSet.has(id));
-    const targetIsSubset = target.every(id => selectedSet.has(id));
-    return selectedIsSubset || targetIsSubset;
-  }
-
+  // Checkbox independence: We no longer invalidate the checkpoint when selectedSampleIds changes.
+  // The checkpoint remains compatible as long as its target samples are available in the system.
   return checkpoint.targetSampleIds.every(id => currentSettings.availableSampleIds.includes(id));
 }
 

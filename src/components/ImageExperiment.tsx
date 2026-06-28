@@ -170,6 +170,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number } | null>(null);
   const [activeCheckpoint, setActiveCheckpoint] = useState<PublicSampleBatchCheckpoint | null>(null);
+  const [hasIncompatibleCheckpoint, setHasIncompatibleCheckpoint] = useState<boolean>(false);
   const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(() => {
     try {
       const saved = localStorage.getItem("image_experiment_last_batch_summary");
@@ -209,25 +210,26 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     
     const checkpoint = loadActiveBatchCheckpoint();
     if (checkpoint && (checkpoint.status === 'running' || checkpoint.status === 'failed')) {
-      const targetSamples = samples.filter(s => selectedSampleIds[s.id]);
       const currentSettings = {
         modelName,
         jsonMode: jsonModeOption,
         customInstructionHash: fnv1a32(customInstruction.trim()),
-        availableSampleIds: samples.map(s => s.id),
-        selectedSampleIds: targetSamples.map(s => s.id)
+        availableSampleIds: samples.map(s => s.id)
       };
       
       if (isCheckpointCompatible(checkpoint, currentSettings)) {
         setActiveCheckpoint(checkpoint);
+        setHasIncompatibleCheckpoint(false);
       } else {
         setActiveCheckpoint(null);
+        setHasIncompatibleCheckpoint(true);
         // Do not clear it automatically, let user discard it or switch back settings
       }
     } else {
       setActiveCheckpoint(null);
+      setHasIncompatibleCheckpoint(false);
     }
-  }, [samples, selectedSampleIds, modelName, jsonModeOption, customInstruction]);
+  }, [samples, modelName, jsonModeOption, customInstruction]);
 
   // Health check states
   const [healthCheckFailed, setHealthCheckFailed] = useState<boolean>(false);
@@ -478,7 +480,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       const idsToRun = includeFailed
         ? [...activeCheckpoint.pendingSampleIds, ...activeCheckpoint.failedSampleIds]
         : [...activeCheckpoint.pendingSampleIds];
-      targetSamples = samples.filter(s => idsToRun.includes(s.id) && selectedSampleIds[s.id]);
+      targetSamples = samples.filter(s => idsToRun.includes(s.id));
     } else {
       if (targetSamples.length === 0) {
         onAddLog("warn", "実行対象のサンプルが選択されていません。");
@@ -870,6 +872,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </h3>
                   <p className="text-xs text-amber-700">
                     前回の実行が途中で中断されました。続きから再開できます。<br/>
+                    <span className="font-semibold text-amber-800">※ チェックボックスの選択に関わらず、保存されたチェックポイントの対象サンプルで実行されます。</span><br/>
                     モデル: <span className="font-semibold">{activeCheckpoint.modelName}</span> ({activeCheckpoint.jsonMode})<br/>
                     進捗: {activeCheckpoint.completedSampleIds.length} / {activeCheckpoint.targetSampleIds.length} 完了
                     {activeCheckpoint.failedSampleIds.length > 0 && <span className="ml-2 text-red-600">({activeCheckpoint.failedSampleIds.length} エラー)</span>}
@@ -902,6 +905,34 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       <RotateCw className="w-3.5 h-3.5" /> 失敗分も含めて再開
                     </button>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {hasIncompatibleCheckpoint && !isBatchRunning && (
+            <div className="mb-6 p-4 rounded-lg border border-slate-200 bg-slate-50">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-slate-500" />
+                    中断されたバッチ解析がありますが、現在の設定と一致しません
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    設定（モデル、JSONモード、または指示文など）が異なるため、このまま再開することはできません。設定を元に戻すか、このバッチを破棄してください。
+                  </p>
+                </div>
+                <div className="flex gap-2 w-full md:w-auto shrink-0 justify-end">
+                  <button
+                    onClick={() => {
+                      clearActiveBatchCheckpoint();
+                      setHasIncompatibleCheckpoint(false);
+                    }}
+                    disabled={isBatchRunning}
+                    className="px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-800 bg-slate-200/60 hover:bg-slate-300/60 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    破棄する
+                  </button>
                 </div>
               </div>
             </div>

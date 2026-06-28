@@ -19,6 +19,9 @@ export interface VisualJsonRecoveryMetadata {
   modelRetryAttempted?: boolean;
   modelRetrySucceeded?: boolean;
   rawOutputPreview?: string;
+  rawOutputLength?: number;
+  rawOutputHash?: string;
+  parseErrorMessage?: string;
 }
 
 export interface VisualAnalysisRunMetadata {
@@ -59,9 +62,13 @@ export interface VisualAnalysisRunMetadata {
     topP: number;
     topK: number;
     mediaResolutionRequested?: string;
+    mediaResolutionConfigured?: boolean;
+    mediaResolutionProviderField?: string;
+    mediaResolutionProviderAccepted?: boolean;
     mediaResolutionApplied?: boolean;
     mediaResolutionReason?: string;
-    mediaResolutionProviderField?: string;
+    mediaResolutionUnsupportedReason?: string;
+    mediaResolutionFallbackUsed?: boolean;
   };
 
   input: {
@@ -90,9 +97,13 @@ export function buildVisualAnalysisRunMetadata(params: {
   byteLength?: number;
   base64Length?: number;
   mediaResolutionRequested?: string;
+  mediaResolutionConfigured?: boolean;
+  mediaResolutionProviderField?: string;
+  mediaResolutionProviderAccepted?: boolean;
   mediaResolutionApplied?: boolean;
   mediaResolutionReason?: string;
-  mediaResolutionProviderField?: string;
+  mediaResolutionUnsupportedReason?: string;
+  mediaResolutionFallbackUsed?: boolean;
 }): VisualAnalysisRunMetadata {
   return {
     runId: crypto.randomUUID(),
@@ -128,9 +139,13 @@ export function buildVisualAnalysisRunMetadata(params: {
       topP: VISUAL_ANALYSIS_GENERATION_CONFIG.topP,
       topK: VISUAL_ANALYSIS_GENERATION_CONFIG.topK,
       mediaResolutionRequested: params.mediaResolutionRequested,
+      mediaResolutionConfigured: params.mediaResolutionConfigured,
+      mediaResolutionProviderField: params.mediaResolutionProviderField,
+      mediaResolutionProviderAccepted: params.mediaResolutionProviderAccepted,
       mediaResolutionApplied: params.mediaResolutionApplied,
       mediaResolutionReason: params.mediaResolutionReason,
-      mediaResolutionProviderField: params.mediaResolutionProviderField
+      mediaResolutionUnsupportedReason: params.mediaResolutionUnsupportedReason,
+      mediaResolutionFallbackUsed: params.mediaResolutionFallbackUsed,
     },
     input: {
       sourceKind: params.sourceKind,

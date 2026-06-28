@@ -128,29 +128,71 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
   const byModelName: Record<string, number> = {};
   const byProviderFamily: Record<string, number> = {};
   const byStructuredExecutionMode: Record<string, number> = {};
+  const byJsonMode: Record<string, number> = {};
   const samples: Array<{
     sampleId: string;
     parseErrorMessage?: string;
     rawOutputLength?: number;
+    recovery?: {
+      localRepairAttempted: boolean;
+      localRepairSucceeded: boolean;
+      modelRetryAttempted: boolean;
+      modelRetrySucceeded: boolean;
+      retryCount: number;
+      finalParseMode?: string;
+    };
   }> = [];
   
   for (const item of parseFailures) {
     const analysisRun = item.analysisRun || item.responseRaw?.analysisRun;
-    const model = analysisRun?.execution?.usedModelName || "UNKNOWN";
-    const family = analysisRun?.execution?.providerFamily || "UNKNOWN";
-    const execMode = analysisRun?.execution?.effectiveStructuredExecutionMode || "UNKNOWN";
+    
+    const model =
+      analysisRun?.model?.name ??
+      analysisRun?.execution?.usedModelName ??
+      "UNKNOWN";
+
+    const family =
+      analysisRun?.model?.providerFamily ??
+      analysisRun?.execution?.providerFamily ??
+      "UNKNOWN";
+
+    const execMode =
+      analysisRun?.execution?.structuredExecutionMode ??
+      analysisRun?.execution?.effectiveStructuredExecutionMode ??
+      "UNKNOWN";
+      
+    const jsonMode =
+      analysisRun?.execution?.jsonMode ??
+      "UNKNOWN";
     
     byModelName[model] = (byModelName[model] || 0) + 1;
     byProviderFamily[family] = (byProviderFamily[family] || 0) + 1;
     byStructuredExecutionMode[execMode] = (byStructuredExecutionMode[execMode] || 0) + 1;
+    byJsonMode[jsonMode] = (byJsonMode[jsonMode] || 0) + 1;
     
     const parseDiag = item.parseDiagnostics || item.responseRaw?.parseDiagnostics;
     const lastAttempt = parseDiag?.attempts?.[parseDiag.attempts.length - 1];
     
+    const jsonRecovery = analysisRun?.execution?.jsonRecovery;
+    const localRepairAttempted = jsonRecovery?.localRepairAttempted ?? false;
+    const localRepairSucceeded = jsonRecovery?.localRepairSucceeded ?? false;
+    const modelRetryAttempted = jsonRecovery?.modelRetryAttempted ?? false;
+    const modelRetrySucceeded = jsonRecovery?.modelRetrySucceeded ?? false;
+    const retryCount = jsonRecovery?.retryCount ?? 0;
+    const finalParseMode = jsonRecovery?.finalParseMode;
+    
     samples.push({
       sampleId: item.sampleId,
       parseErrorMessage: lastAttempt?.errorMessage || "Unknown parse error",
-      rawOutputLength: parseDiag?.rawOutputLength
+      rawOutputLength: parseDiag?.rawOutputLength,
+      recovery: {
+        localRepairAttempted,
+        localRepairSucceeded,
+        modelRetryAttempted,
+        modelRetrySucceeded,
+        retryCount,
+        finalParseMode
+      }
     });
   }
   
@@ -159,6 +201,7 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
     byModelName,
     byProviderFamily,
     byStructuredExecutionMode,
+    byJsonMode,
     samples
   };
 }
@@ -239,7 +282,11 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   
   let mediaResolutionHighRequested = 0;
   let mediaResolutionMediumRequested = 0;
+  let mediaResolutionConfigured = 0;
+  let mediaResolutionProviderAccepted = 0;
   let mediaResolutionApplied = 0;
+  let mediaResolutionUnsupported = 0;
+  let mediaResolutionFallbackUsed = 0;
 
   for (const item of items) {
     const run = item.analysisRun?.metadata ?? item.analysisRun;
@@ -248,10 +295,24 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       if (requested === 'HIGH') mediaResolutionHighRequested++;
       if (requested === 'MEDIUM') mediaResolutionMediumRequested++;
       
+      if (run.generationConfig.mediaResolutionConfigured) {
+        mediaResolutionConfigured++;
+      }
+      if (run.generationConfig.mediaResolutionProviderAccepted) {
+        mediaResolutionProviderAccepted++;
+      }
+      
       const applied = run.generationConfig.mediaResolutionApplied !== undefined
         ? run.generationConfig.mediaResolutionApplied
         : (requested ? true : false);
       if (applied) mediaResolutionApplied++;
+
+      if (run.generationConfig.mediaResolutionUnsupportedReason && run.generationConfig.mediaResolutionUnsupportedReason !== "") {
+        mediaResolutionUnsupported++;
+      }
+      if (run.generationConfig.mediaResolutionFallbackUsed) {
+        mediaResolutionFallbackUsed++;
+      }
     }
 
     const inputDiag = item.inputDiagnostics as any;
@@ -337,7 +398,11 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     mediaResolution: {
       highRequested: mediaResolutionHighRequested,
       mediumRequested: mediaResolutionMediumRequested,
-      applied: mediaResolutionApplied
+      configured: mediaResolutionConfigured,
+      providerAccepted: mediaResolutionProviderAccepted,
+      applied: mediaResolutionApplied,
+      unsupported: mediaResolutionUnsupported,
+      fallbackUsed: mediaResolutionFallbackUsed
     }
   };
 }
