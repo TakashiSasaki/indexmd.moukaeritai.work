@@ -198,6 +198,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   
   // Privacy options
   const [storeRawOutputPreviewInDrive, setStoreRawOutputPreviewInDrive] = useState<boolean>(false);
+  
+  // Public sample filtering state
+  const [sampleFilter, setSampleFilter] = useState<"all" | "external" | "synthetic">("all");
 
   // Load debug logs on mount
   useEffect(() => {
@@ -364,7 +367,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   }, [samples.length, onAddLog, selectedSampleId]);
 
-  const filteredSamples = samples;
+  const filteredSamples = useMemo(() => {
+    if (sampleFilter === "all") return samples;
+    return samples.filter(s => {
+      const isSynthetic = s.source?.provider === "localFixture";
+      if (sampleFilter === "synthetic") return isSynthetic;
+      if (sampleFilter === "external") return !isSynthetic;
+      return true;
+    });
+  }, [samples, sampleFilter]);
 
   useEffect(() => {
     if (samples.length > 0) {
@@ -689,6 +700,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </div>
 
                       <div className="flex flex-wrap gap-1.5 shrink-0">
+                        <select
+                          value={sampleFilter}
+                          onChange={(e) => setSampleFilter(e.target.value as any)}
+                          className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold shadow-sm text-slate-700 outline-none"
+                        >
+                          <option value="all">All Samples</option>
+                          <option value="external">External Only</option>
+                          <option value="synthetic">Synthetic Only</option>
+                        </select>
                         <button
                           type="button"
                           onClick={handleSelectAllSamples}
@@ -767,6 +787,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                     alt={s.title}
                                     referrerPolicy="no-referrer"
                                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      e.currentTarget.parentElement?.classList.add('broken-image-fallback');
+                                    }}
                                   />
                                 ) : (
                                   <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -780,9 +804,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                 }`} title={s.title}>
                                   {s.title}
                                 </span>
-                                <span className="text-[8.5px] text-slate-400 font-medium truncate block capitalize leading-none mt-0.5">
-                                  {s.category}
-                                </span>
+                                <div className="flex items-center gap-1 mt-0.5 overflow-hidden">
+                                  <span className="text-[8.5px] text-slate-400 font-medium truncate capitalize shrink-0">
+                                    {s.category}
+                                  </span>
+                                  <span className={`text-[7px] font-bold px-1 py-0.5 rounded-sm shrink-0 uppercase tracking-wider ${
+                                    s.source?.provider === "localFixture" 
+                                      ? "bg-amber-100 text-amber-700" 
+                                      : "bg-blue-100 text-blue-700"
+                                  }`}>
+                                    {s.source?.provider === "localFixture" ? "SYNTHETIC" : "EXTERNAL"}
+                                  </span>
+                                </div>
                               </div>
 
                               {/* Overlaid status badge or indicators */}

@@ -279,9 +279,9 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     optionalVisibleElementLabels: ["moon", "stars", "brushstrokes", "hills"],
     source: {
       provider: "Wikimedia Commons",
-      pageUrl: "https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/640px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/0/01/Vincent_van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Vincent_van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/640px-Vincent_van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
       licenseKind: "publicDomain",
       licenseName: "Public Domain",
       licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
@@ -345,15 +345,15 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     optionalVisibleElementLabels: ["lungs", "spine", "grayscale"],
     source: {
       provider: "Wikimedia Commons",
-      pageUrl: "https://commons.wikimedia.org/wiki/File:Chest_Xray_PA_3-9-2010.png",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Chest_Xray_PA_3-9-2010.png",
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Chest_Xray_PA_3-9-2010.png/640px-Chest_Xray_PA_3-9-2010.png",
-      licenseKind: "ccBySa",
-      licenseName: "CC BY-SA 3.0",
-      licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0/",
-      author: "Stillwaterising",
-      requiresAttribution: true,
-      attributionText: "Stillwaterising, CC BY-SA 3.0, via Wikimedia Commons"
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Chest_radiograph_2D_Fourier_Spectrum.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5f/Chest_radiograph_2D_Fourier_Spectrum.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Chest_radiograph_2D_Fourier_Spectrum.jpg/640px-Chest_radiograph_2D_Fourier_Spectrum.jpg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
+      author: "Kieran Maher",
+      requiresAttribution: false,
+      attributionText: "Kieran Maher, Public domain, via Wikimedia Commons"
     }
   },
   {
@@ -367,15 +367,15 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     optionalVisibleText: ["PACIFIC", "ATLANTIC", "OCEAN"],
     source: {
       provider: "Wikimedia Commons",
-      pageUrl: "https://commons.wikimedia.org/wiki/File:Kavrayskiy_VII_projection_SW.jpg",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c4/Kavrayskiy_VII_projection_SW.jpg",
-      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Kavrayskiy_VII_projection_SW.jpg/640px-Kavrayskiy_VII_projection_SW.jpg",
-      licenseKind: "ccBySa",
-      licenseName: "CC BY-SA 3.0",
-      licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0/",
-      author: "Daniel R. Strebe",
-      requiresAttribution: true,
-      attributionText: "Daniel R. Strebe, CC BY-SA 3.0, via Wikimedia Commons"
+      pageUrl: "https://commons.wikimedia.org/wiki/File:World_Map_1689.JPG",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/3/3b/World_Map_1689.JPG",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/World_Map_1689.JPG/640px-World_Map_1689.JPG",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
+      author: "Gerard van Schagen",
+      requiresAttribution: false,
+      attributionText: "Gerard van Schagen, Public domain, via Wikimedia Commons"
     }
   },
   {
@@ -388,16 +388,126 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     optionalElementCategories: ["unknown"],
     optionalVisibleElementLabels: ["roasted turkey", "garnishes"],
     source: {
-      provider: "Public Domain Pictures",
-      pageUrl: "https://www.publicdomainpictures.net/en/view-image.php?image=240989&picture=roasted-turkey-plate",
-      imageUrl: "https://www.publicdomainpictures.net/pictures/250000/velka/roasted-turkey-plate.jpg",
-      thumbnailUrl: "https://www.publicdomainpictures.net/pictures/250000/nahled/roasted-turkey-plate.jpg",
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Roasted_chicken_and_Turkish_pilaf.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/b/ba/Roasted_chicken_and_Turkish_pilaf.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Roasted_chicken_and_Turkish_pilaf.jpg/640px-Roasted_chicken_and_Turkish_pilaf.jpg",
+      licenseKind: "ccBySa",
+      licenseName: "CC BY-SA 4.0",
+      licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/",
+      author: "E4024",
+      requiresAttribution: true,
+      attributionText: "E4024, CC BY-SA 4.0, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-street-signs-1",
+    title: "Tokyo Neon Street Signs",
+    category: "street",
+    expectedImageKind: "landscapePhoto",
+    expectedElementCategories: ["building", "signage"],
+    expectedVisibleElementLabels: ["street", "signs", "neon"],
+    optionalElementCategories: ["roadOrPath"],
+    optionalVisibleText: ["KABUKICHO"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Kabukicho_red_gate_and_colorful_neon_street_signs_at_night,_Shinjuku,_Tokyo,_Japan.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/9/92/Kabukicho_red_gate_and_colorful_neon_street_signs_at_night%2C_Shinjuku%2C_Tokyo%2C_Japan.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/Kabukicho_red_gate_and_colorful_neon_street_signs_at_night%2C_Shinjuku%2C_Tokyo%2C_Japan.jpg/640px-Kabukicho_red_gate_and_colorful_neon_street_signs_at_night%2C_Shinjuku%2C_Tokyo%2C_Japan.jpg",
+      licenseKind: "ccBySa",
+      licenseName: "CC BY-SA 4.0",
+      licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/",
+      author: "Basile Morin",
+      requiresAttribution: true,
+      attributionText: "Basile Morin, CC BY-SA 4.0, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-vehicle-1",
+    title: "Street View Camera Car",
+    category: "vehicle",
+    expectedImageKind: "naturalPhoto",
+    expectedElementCategories: ["vehicle", "roadOrPath"],
+    expectedVisibleElementLabels: ["car", "camera", "street"],
+    optionalElementCategories: ["building"],
+    optionalVisibleElementLabels: ["wheels", "road"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Google_Street_View_camera_car_in_Barcelona.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/53/Google_Street_View_camera_car_in_Barcelona.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_Street_View_camera_car_in_Barcelona.jpg/640px-Google_Street_View_camera_car_in_Barcelona.jpg",
       licenseKind: "publicDomain",
-      licenseName: "Public Domain CC0",
-      licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
-      author: "Jean Beaufort",
+      licenseName: "CC0",
+      licenseUrl: "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      author: "Jove",
       requiresAttribution: false,
-      attributionText: "Jean Beaufort, Public Domain CC0, via Public Domain Pictures"
+      attributionText: "Jove, CC0, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-whiteboard-1",
+    title: "Press Box Whiteboard",
+    category: "documentLike",
+    expectedImageKind: "whiteboardPhoto",
+    expectedElementCategories: ["document", "textRegion"],
+    expectedVisibleElementLabels: ["whiteboard", "handwriting", "numbers"],
+    optionalElementCategories: ["unknown"],
+    optionalVisibleText: ["ATTENDANCE", "WHITE SOX"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Attendance_figure_on_whiteboard_in_Camden_Yards_press_box_for_April_29,_2015,_White_Sox_game.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c5/Attendance_figure_on_whiteboard_in_Camden_Yards_press_box_for_April_29%2C_2015%2C_White_Sox_game.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Attendance_figure_on_whiteboard_in_Camden_Yards_press_box_for_April_29%2C_2015%2C_White_Sox_game.jpg/640px-Attendance_figure_on_whiteboard_in_Camden_Yards_press_box_for_April_29%2C_2015%2C_White_Sox_game.jpg",
+      licenseKind: "publicDomain",
+      licenseName: "Public Domain",
+      licenseUrl: "https://en.wikipedia.org/wiki/Public_domain",
+      author: "Greg Fiume",
+      requiresAttribution: false,
+      attributionText: "Greg Fiume, Public domain, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-chart-1",
+    title: "Candlestick Chart",
+    category: "chartOrTable",
+    expectedImageKind: "chartOrTable",
+    expectedElementCategories: ["chart", "textRegion"],
+    expectedVisibleElementLabels: ["candlestick chart", "axes", "price"],
+    optionalElementCategories: ["unknown"],
+    optionalVisibleText: ["EUR/USD"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Candlestick_chart_EURUSD_October_2009.PNG",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/9/91/Candlestick_chart_EURUSD_October_2009.PNG",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Candlestick_chart_EURUSD_October_2009.PNG/640px-Candlestick_chart_EURUSD_October_2009.PNG",
+      licenseKind: "ccBySa",
+      licenseName: "CC BY-SA 3.0",
+      licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0",
+      author: "Lyakhovskiy Pavel",
+      requiresAttribution: true,
+      attributionText: "Lyakhovskiy Pavel, CC BY-SA 3.0, via Wikimedia Commons"
+    }
+  },
+  {
+    id: "sample-package-1",
+    title: "Shampoo Bottle",
+    category: "package",
+    expectedImageKind: "packageImage",
+    expectedElementCategories: ["productPackage", "textRegion"],
+    expectedVisibleElementLabels: ["bottle", "label", "shampoo"],
+    optionalElementCategories: ["unknown"],
+    optionalVisibleText: ["Dove", "Nutritive Solutions"],
+    source: {
+      provider: "Wikimedia Commons",
+      pageUrl: "https://commons.wikimedia.org/wiki/File:Dove_shampoo_bottle.jpg",
+      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/6/68/Dove_shampoo_bottle.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Dove_shampoo_bottle.jpg/640px-Dove_shampoo_bottle.jpg",
+      licenseKind: "publicDomain",
+      licenseName: "CC0",
+      licenseUrl: "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      author: "Ranjima np",
+      requiresAttribution: false,
+      attributionText: "Ranjima np, CC0, via Wikimedia Commons"
     }
   },
   {

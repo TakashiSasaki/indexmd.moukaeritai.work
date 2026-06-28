@@ -29,6 +29,8 @@ export type PublicVisualSampleCategory =
   | "map"
   | "medical"
   | "space"
+  | "street"
+  | "vehicle"
   | "ui"
   | "form"
   | "package";
