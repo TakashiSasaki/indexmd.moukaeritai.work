@@ -1,3 +1,6 @@
 ## 2024-06-25 - [O(M*N) nested filter inside render loop]
 **Learning:** Found an `O(M*N)` performance bottleneck where an `array.filter` was used inside an `array.map` in a React component's render function, resulting in poor performance as data scales up.
 **Action:** When evaluating arrays within a component loop, avoid nested array iterations such as `.filter()`. Pre-calculate data into hash maps grouping the items using `useMemo` so mapping loops get an `O(1)` constant time lookup.
+## 2025-06-29 - O(N) Unmounts from Dynamic Keys in Prepended Lists
+**Learning:** In React, appending an array index to a unique ID (e.g., `key={log.id ? \`\${log.id}-\${idx}\` : idx}`) for items in a list where new items are prepended completely destroys React's reconciliation. Since new items shift the `idx` of all existing items, React thinks every single element has changed and forces a full unmount and remount from scratch. For a list capped at 2000 items, this is a massive O(N) performance bottleneck on every insertion.
+**Action:** Always use stable, unique identifiers (like `log.id` or a combination of `timestamp` and a unique hash) as keys. Avoid incorporating the array index in the key, especially for lists that undergo insertions at the beginning. Combine this with `React.memo` for the list item component to ensure O(1) DOM updates.
