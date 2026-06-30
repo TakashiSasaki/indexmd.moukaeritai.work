@@ -1,9 +1,31 @@
+This repository may be edited by multiple coding agents, including but not limited to Google Jules, OpenAI Codex, GitHub Copilot, and Google AI Studio assisted editing. Treat this file as an agent-neutral repository contract. Do not assume agent-specific memory, prior chat context, local setup, or hidden project knowledge. Work only from repository files and explicitly supplied task context.
+
 # indexmd Agent Instructions & Context
 
-This file provides critical context and constraints for AI coding agents working on the `indexmd` project. **Read this before making any logic changes.**
+This file provides critical context and constraints for all AI coding agents working on the `indexmd` project. **Read this before making any logic changes.**
 
 ## 🎯 Core Mission
 Build a high-performance, cost-effective Google Drive indexer that generates/updates `index.md` files in every directory with AI-generated summaries.
+
+## 🤖 Multi-Agent Operations
+
+The repository relies on interventions by multiple distinct agents, often in parallel.
+All agents must adhere strictly to the rules outlined in this document. Do not overwrite or relax these constraints.
+
+### 1. Document versus Implementation Source-of-Truth
+- If the repository implementation diverges from documentation, **do not assume the code is right**. Check the `docs/` and `AGENTS.md` for the intended architecture, security, and schema handling policies.
+- Do not mix functional code changes with broad documentation refactoring. Update documentation reflecting only the specific changes you implemented.
+
+### 2. Multi-Agent Roles
+- **Google AI Studio (Base Editor)**: `main` is the source-of-truth branch used by Google AI Studio. **Never rename or force-push `main`.** See `docs/RUNTIME_ENVIRONMENTS.md` for AI Studio specific constraints (e.g. iframe and preview environments).
+- **Google Jules (Auditor/Integrator)**: Regularly audits the repository and performs integration tasks. Jules works primarily against `jules/integration`. Do not assume Jules has access to local private Google Drive data.
+- **OpenAI Codex (Local/Cloud Editor)**: May intervene dynamically for command line execution, code edits, and testing. Must ensure commands are environment-agnostic and do not permanently lock resources.
+- **GitHub Copilot (IDE/Cloud PRs)**: Used for PR generation, reviews, and small conflict resolutions in GitHub. See `.github/copilot-instructions.md`.
+
+### 3. Conflict Resolution Policy
+- **Source of truth during conflicts:** `main` is the primary source of truth, synchronized to `jules/integration` via `.github/workflows/sync-main-to-jules-integration.yml`.
+- Never automatically resolve conflicts by deleting `AGENTS.md` constraints, schema version data, lockfiles (`package-lock.json`), or security constraints. Ensure both sides of `package.json` and `package-lock.json` remain synchronized.
+- Generated artifacts (`cache/`, `dist/`), private local histories, and local-only environment files (`.env`) MUST NOT be committed as part of a conflict resolution.
 
 ## 🛠 Tech Stack
 - **Frontend**: React 18 (Vite), Tailwind CSS, Lucide icons.
