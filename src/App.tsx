@@ -32,7 +32,6 @@ import defaultAppConfig from "./config.json";
 import { VALID_TAB_IDS, resolveActiveTab, AppTabId } from "./lib/appTabs";
 
 import DriveDashboard from "./components/DriveDashboard";
-import DriveLogs from "./components/DriveLogs";
 
 
 import { 
