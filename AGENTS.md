@@ -1,6 +1,8 @@
+This repository may be edited by multiple coding agents, including but not limited to Google Jules, OpenAI Codex, GitHub Copilot, and Google AI Studio assisted editing. Treat this file as an agent-neutral repository contract. Do not assume agent-specific memory, prior chat context, local setup, or hidden project knowledge. Work only from repository files and explicitly supplied task context.
+
 # indexmd Agent Instructions & Context
 
-This file provides critical context and constraints for AI coding agents working on the `indexmd` project. **Read this before making any logic changes.**
+This file provides critical context and constraints for all AI coding agents working on the `indexmd` project. **Read this before making any logic changes.**
 
 ## 🎯 Core Mission
 Build a high-performance, cost-effective Google Drive indexer that generates/updates `index.md` files in every directory with AI-generated summaries.
@@ -8,7 +10,7 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 ## 🛠 Tech Stack
 - **Frontend**: React 18 (Vite), Tailwind CSS, Lucide icons.
 - **Backend**: Node.js (Express), `@google/genai` (Gemini SDK).
-- **Storage**: 
+- **Storage**:
   - **Firestore**: Tracks directory traversal state and metadata.
     - **Project ID**: `moukaeritaid`
     - **Database ID**: `indexmd-db` (Native mode)
@@ -46,30 +48,29 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 ## 📂 Project Structure Note
 - `src/components/DriveDashboard.tsx`: The heart of the application. Contains the scan orchestration, Firestore sync logic, and drive API calls.
 - `server.ts`: Handles secure Gemini requests, Drive API proxying (to keep tokens secret), and history persistence.
+- **Docs**: Detailed procedures, architecture, environment constraints and SEO rules are located in `docs/` (`ARCHITECTURE.md`, `RUNTIME_ENVIRONMENTS.md`, `AGENT_WORKFLOWS.md`, `OPERATIONS.md`, `SECURITY.md`, `SEO_PWA.md`).
 
-## 🌿 Branch workflow for Google AI Studio and Jules
+## 🌿 Multi-Agent Workflow and Conflict Resolution
 
-`main` is the source-of-truth branch used by Google AI Studio. Do not rename it.
-
-`jules/integration` is the integration branch used by Jules. The workflow
-`.github/workflows/sync-main-to-jules-integration.yml` keeps it up to date with
-`main`.
-
-Do not remove this workflow as unused or deprecated. It is repository-operation
-infrastructure, not application runtime code.
-
-The workflow may merge `main` into `jules/integration`, but must never reset or
-force-push `jules/integration`. If a merge conflict occurs, it opens or updates a
-PR from `automation/sync-main-to-jules-integration` into `jules/integration`.
+- **Source of Truth**: `main` is the primary source-of-truth branch, specifically used by Google AI Studio. **Do not rename or reset it.**
+- **Jules Integration**: `jules/integration` is used by Jules for audits and operations. A GitHub Action syncs `main` into it. **Never force-push or reset `jules/integration` to match `main`.** Always use standard `git merge`.
+- **Copilot and Codex**: Use isolated branches for specific PRs. Break tasks down to minimize the risk of massive merge conflicts.
+- **Conflict Resolution Rules**:
+  - Never blindly overwrite or wipe out security rules, schemas, token storage policies, or core architecture.
+  - If there is a contradiction between implementations and documentation (`AGENTS.md`, `docs/`, `README.md`), pause and prioritize documentation accuracy while maintaining system stability.
+  - After any automated conflict resolution, you **must** run `npm run lint`, `npm run build`, and `npm run test:unit`. Document in your PR if any tests could not be run.
+  - Ensure no cache artifacts (`cache/`), local test history files, or private user credentials/fixtures are committed during merge conflict resolutions.
 
 ## 🔒 Hard Safety Constraints
-- **Drive Safety**: Do NOT delete Google Drive files, folders, or generated `index.md` files. Do NOT run full Drive-wide indexing.
+- **Drive Safety**: Do NOT delete Google Drive files, folders, or generated `index.md` files. Do NOT run full Drive-wide indexing against real accounts.
 - **Data Safety**: Firestore database ID is `indexmd-db`. Do not loosen security rules or re-add `(default)`.
-- **Auth Safety**: Do NOT store refresh tokens anywhere. Do NOT store Drive access tokens in localStorage. Do NOT log OAuth tokens or API URLs.
+- **Auth Safety**: Do NOT store refresh tokens anywhere. Do NOT store Drive access tokens in localStorage (use `sessionStorage`). Do NOT log OAuth tokens or API URLs.
 - **File Safety**: Do NOT commit `cache/` contents. Do NOT use real private user documents as fixtures.
+- **Safety invariants MUST NEVER BE RELAXED**, even if it seems to make testing or feature development easier for the agent.
 - **Quality Safety**: Always run `npm run lint`, `npm run test:unit`, and `npm run build` before committing. Use latest schema/prompt versions and keep schema changelogs updated.
 
 ## 🛠 Local Agent Skills (Workspace Local)
 In addition to the standard system skills, this project defines **workspace-local skills** in the `skills/` directory at the project root.
 - When performing repetitive or complex tasks (e.g., testing local API endpoints or SDK features), check the `skills/` directory for established local conventions and boilerplate scripts.
 - For example, `skills/local-testing/SKILL.md` contains the standard workflow for spinning up standalone TypeScript testing scripts (like `test-analyze.ts`) to verify `server.ts` endpoints or Gemini models.
+EOF
