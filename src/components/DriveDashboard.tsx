@@ -685,6 +685,17 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
     const sortedDirs = [...filteredDirs].sort((a,b) => b.depth - a.depth);
     setIndexingProgress({ current: 0, total: sortedDirs.length });
 
+    // ⚡ Bolt: Pre-calculate child directories to convert O(n²) nested search into O(n) hash map lookup
+    const childrenMap = new Map<string, typeof filteredDirs>();
+    for (const d of filteredDirs) {
+      if (d.parent_id) {
+        if (!childrenMap.has(d.parent_id)) {
+          childrenMap.set(d.parent_id, []);
+        }
+        childrenMap.get(d.parent_id)!.push(d);
+      }
+    }
+
     let successCount = 0;
     let skipCount = 0;
 
@@ -709,7 +720,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
 
         // Retrieve pre-generated summaries of immediately lower subfolders to support cascading summary propagation
         // Children of this folder have: parent_id = current drive_id
-        const childDirs = filteredDirs.filter(d => d.parent_id === item.drive_id);
+        const childDirs = childrenMap.get(item.drive_id) || [];
         const subdirsWithSummaries = childDirs.map(child => ({
           id: child.drive_id,
           name: (child.path || "").split("/").pop() || "",

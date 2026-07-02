@@ -36,6 +36,17 @@ export async function runIndexingJob(
   const sortedDirs = [...directories].sort((a, b) => b.depth - a.depth);
   setIndexingProgress({ current: 0, total: sortedDirs.length });
 
+  // ⚡ Bolt: Pre-calculate child directories to convert O(n²) nested search into O(n) hash map lookup
+  const childrenMap = new Map<string, typeof directories>();
+  for (const d of directories) {
+    if (d.parent_id) {
+      if (!childrenMap.has(d.parent_id)) {
+        childrenMap.set(d.parent_id, []);
+      }
+      childrenMap.get(d.parent_id)!.push(d);
+    }
+  }
+
   let successCount = 0;
   let skipCount = 0;
 
@@ -58,7 +69,7 @@ export async function runIndexingJob(
       await updateDoc(itemRef, { index_status: "processing" });
 
       // Children summaries
-      const childDirs = directories.filter(d => d.parent_id === item.drive_id);
+      const childDirs = childrenMap.get(item.drive_id) || [];
       const subdirsWithSummaries = childDirs.map(child => ({
         id: child.drive_id,
         name: (child.path || "").split("/").pop() || "",
