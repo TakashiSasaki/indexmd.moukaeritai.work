@@ -127,7 +127,7 @@ jobs:
 
           Important notes:
 
-          - \`${INTEGRATION_BRANCH}\` is the Jules working/integration branch.
+          - \`${INTEGRATION_BRANCH}\` is the Jules working branch.
           - This workflow never resets \`${INTEGRATION_BRANCH}\`.
           - On a clean merge, it merges \`${MAIN_BRANCH}\` into \`${INTEGRATION_BRANCH}\` and pushes the result.
           - On conflict, it updates \`${SYNC_BRANCH}\` to the latest \`${MAIN_BRANCH}\` and opens or updates this PR.
