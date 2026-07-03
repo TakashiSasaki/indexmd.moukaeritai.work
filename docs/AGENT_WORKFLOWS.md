@@ -17,7 +17,7 @@ This document outlines the standard operating procedures for any coding agent (J
 - **Reporting**: If an agent cannot run a test (e.g., due to missing dependencies in a sandbox), it MUST state this explicitly in the PR description or final message (e.g., "Tested statically, but unit tests were not run due to environment constraints").
 
 ## 4. Conflict Resolution Strategy
-- **jules/integration vs main**: When resolving conflicts on `jules/integration` after a sync from `main`, use standard `git merge`. Do not force push.
+- **jules vs main**: When resolving conflicts on `jules` after a sync from `main`, use standard `git merge`. Do not force push.
 - **Protect Critical Files**: When auto-resolving conflicts, never overwrite:
   - `package-lock.json` (prefer `npm install` to resolve).
   - Firestore security rules (`firestore.rules`).

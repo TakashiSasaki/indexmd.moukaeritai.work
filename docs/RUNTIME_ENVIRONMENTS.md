@@ -15,7 +15,7 @@ This document details the distinct environments where the `indexmd` application 
 
 ## 3. Google Jules (Audit & Maintenance)
 - **Purpose**: Runs periodic audits and repository maintenance.
-- **Branch**: Operates on `jules/integration` and creates ephemeral branches.
+- **Branch**: Operates on `jules` and creates ephemeral branches.
 - **Execution**: Can run headless static analysis (`npm run lint`, `npm run test:unit`) and execute code transformations.
 
 ## 4. OpenAI Codex / GitHub Copilot (Ad-hoc Edits)
@@ -29,4 +29,4 @@ This document details the distinct environments where the `indexmd` application 
 
 ## 6. CI (GitHub Actions)
 - **Environment**: Ephemeral Linux runners.
-- **Tasks**: Automated branch syncing (`sync-main-to-jules-integration`), static type checking, and unit testing. Secrets are not available to unverified PRs.
+- **Tasks**: Automated branch syncing (`sync-main-to-jules`), static type checking, and unit testing. Secrets are not available to unverified PRs.

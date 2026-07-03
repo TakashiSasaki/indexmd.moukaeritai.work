@@ -53,7 +53,7 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 ## 🌿 Branch workflow for Google AI Studio and Jules / Multi-Agent Conflict Resolution
 
 - **Source of Truth**: `main` is the primary source-of-truth branch, specifically used by Google AI Studio. **Do not rename or reset it.**
-- **Jules Integration**: `jules/integration` is used by Jules for audits and operations. A GitHub Action (`.github/workflows/sync-main-to-jules-integration.yml`) keeps it up to date with `main`. **Never force-push or reset `jules/integration` to match `main`.** Always use standard `git merge`. If a merge conflict occurs, the action opens or updates a PR from `automation/sync-main-to-jules-integration` into `jules/integration`. Do not remove this workflow as unused or deprecated; it is repository-operation infrastructure.
+- **Jules Integration**: `jules` is used by Jules for audits and operations. A GitHub Action (`.github/workflows/sync-main-to-jules.yml`) keeps it up to date with `main`. **Never force-push or reset `jules` to match `main`.** Always use standard `git merge`. If a merge conflict occurs, the action opens or updates a PR from `automation/sync-main-to-jules` into `jules`. Do not remove this workflow as unused or deprecated; it is repository-operation infrastructure.
 - **Copilot and Codex**: Use isolated branches for specific PRs. Break tasks down to minimize the risk of massive merge conflicts.
 - **Conflict Resolution Rules**:
   - Never blindly overwrite or wipe out security rules, schemas, token storage policies, or core architecture.

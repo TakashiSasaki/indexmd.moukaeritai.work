@@ -7,7 +7,7 @@ This project is a multi-agent coding environment (Google Jules, OpenAI Codex, Gi
 ## Copilot-Specific Rules
 1. **Branching & PRs**:
    - Keep changes scoped and minimal to avoid massive merge conflicts.
-   - Do NOT commit directly to `main` or `jules/integration`.
+   - Do NOT commit directly to `main` or `jules`.
    - When creating a PR or generating a summary, clearly list what was statically verified, what was tested dynamically, and what remains unverified (e.g., "Tested build, but Cloud Run deployment unverified").
 2. **Conflict Resolution**:
    - When resolving merge conflicts, never override `AGENTS.md`, schemas, `package-lock.json`, or security rules without explicit user instruction.
