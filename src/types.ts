@@ -52,6 +52,7 @@ export interface ExperimentHistoryRecord {
   parseSuccess?: boolean;
   validationSuccess?: boolean;
   structuredResult?: any;
+  summary?: string;
   rawOutput?: string;
   error?: string;
   validationErrors?: string[];

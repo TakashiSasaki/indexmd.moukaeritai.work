@@ -1287,7 +1287,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </div>
                 <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
                   <button
-                    onClick={handleRunBatch}
+                    onClick={() => handleRunBatch()}
                     disabled={isBatchRunning || samples.length === 0 || loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
                   >

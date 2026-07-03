@@ -60,5 +60,7 @@ export interface PublicSampleBatchRunSummary {
   reviewPassCount?: number;
   reviewNeedsReviewCount?: number;
   reviewFailCount?: number;
+  providerQuotaSummary?: any;
+  rateLimitSummary?: any;
   items: PublicSampleBatchRunItem[];
 }

@@ -1,4 +1,4 @@
-name: Sync main to Jules
+name: Sync main to Agent Branches
 
 on:
   push:
@@ -11,18 +11,17 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: sync-main-to-jules
+  group: sync-main-to-agents-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  MAIN_BRANCH: main
-  INTEGRATION_BRANCH: jules
-  SYNC_BRANCH: automation/sync-main-to-jules
-
 jobs:
-  sync-main-to-jules:
-    name: Sync main to jules
+  sync-main:
+    name: Sync main to ${{ matrix.target_branch }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target_branch: [jules, codex, chatgpt]
 
     steps:
       - name: Checkout repository
@@ -36,12 +35,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge main into jules or open conflict PR
+      - name: Merge main into ${{ matrix.target_branch }} or open conflict PR
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
           REPO: ${{ github.repository }}
           PUSH_SHA: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MAIN_BRANCH: main
+          INTEGRATION_BRANCH: ${{ matrix.target_branch }}
+          SYNC_BRANCH: automation/sync-main-to-${{ matrix.target_branch }}
         run: |
           set -euo pipefail
 
@@ -55,7 +57,7 @@ jobs:
             "+refs/heads/${MAIN_BRANCH}:refs/remotes/origin/${MAIN_BRANCH}" \
             --prune
 
-          # Create jules from main if it does not exist yet.
+          # Create target branch from main if it does not exist yet.
           if ! git ls-remote --exit-code --heads origin "${INTEGRATION_BRANCH}" >/dev/null 2>&1; then
             echo "Integration branch ${INTEGRATION_BRANCH} does not exist. Creating it from ${MAIN_BRANCH}."
             git switch -C "${INTEGRATION_BRANCH}" "origin/${MAIN_BRANCH}"
@@ -109,7 +111,7 @@ jobs:
           git merge --abort || true
 
           # Create/update a branch that represents the current main state.
-          # This branch is used only to create a PR into jules.
+          # This branch is used only to create a PR into the target branch.
           git switch -C "${SYNC_BRANCH}" "origin/${MAIN_BRANCH}"
           git push --force origin "HEAD:refs/heads/${SYNC_BRANCH}"
 
@@ -127,7 +129,7 @@ jobs:
 
           Important notes:
 
-          - \`${INTEGRATION_BRANCH}\` is the Jules working branch.
+          - \`${INTEGRATION_BRANCH}\` is the target working branch.
           - This workflow never resets \`${INTEGRATION_BRANCH}\`.
           - On a clean merge, it merges \`${MAIN_BRANCH}\` into \`${INTEGRATION_BRANCH}\` and pushes the result.
           - On conflict, it updates \`${SYNC_BRANCH}\` to the latest \`${MAIN_BRANCH}\` and opens or updates this PR.

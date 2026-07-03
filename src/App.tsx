@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, Routes, Route, Navigate, Link } from "react-router-dom";
 import { 
   auth, 
   GoogleAuthProvider, 
@@ -58,7 +58,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-  const [config, setConfig] = useState<AppConfig>(defaultAppConfig);
+  const [config, setConfig] = useState<AppConfig>(defaultAppConfig as AppConfig);
   const [configLoading, setConfigLoading] = useState<boolean>(true);
   const [logs, setLogs] = useState<DriveLog[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -284,10 +284,10 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            <a href="/docs" className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors bg-slate-100 hover:bg-indigo-50 px-2 py-1 rounded-md border border-slate-200">
+            <Link to="/docs" className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors bg-slate-100 hover:bg-indigo-50 px-2 py-1 rounded-md border border-slate-200">
               <Code className="w-3 h-3" />
               <span>開発者Docs</span>
-            </a>
+            </Link>
             {user ? (
               <div className="relative">
                 <button 
@@ -356,9 +356,11 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto p-0 space-y-6">
-        
-        {!user ? (
-          // Welcoming Hero & Secure login screen
+        <Routes>
+          <Route path="/docs" element={<DeveloperDocs />} />
+          <Route path="/*" element={
+            !user ? (
+              // Welcoming Hero & Secure login screen
           <div className="max-w-2xl mx-auto text-center space-y-6 py-12" id="welcome-container">
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full text-xs font-semibold tracking-wide font-display">
@@ -477,7 +479,6 @@ export default function App() {
 
             {/* Double section layout: Configuration Tuning and Real-Time Log Auditor */}
             <Routes>
-              <Route path="/docs" element={<DeveloperDocs />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" />
@@ -498,8 +499,9 @@ export default function App() {
               <Route path="/image-experiment" element={null} />
             </Routes>
           </div>
-        )}
-
+            )
+          } />
+        </Routes>
       </main>
 
       {/* Footer credits */}
