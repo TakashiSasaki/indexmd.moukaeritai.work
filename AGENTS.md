@@ -63,6 +63,7 @@ force-push `jules/integration`. If a merge conflict occurs, it opens or updates 
 PR from `automation/sync-main-to-jules-integration` into `jules/integration`.
 
 ## 🔒 Hard Safety Constraints
+- **File System Case Sensitivity**: Do NOT create multiple files in the same directory that differ only by uppercase/lowercase letters (e.g., `testing.md` vs `TESTING.md`). This causes conflicts on case-insensitive file systems like Windows.
 - **Drive Safety**: Do NOT delete Google Drive files, folders, or generated `index.md` files. Do NOT run full Drive-wide indexing.
 - **Data Safety**: Firestore database ID is `indexmd-db`. Do not loosen security rules or re-add `(default)`.
 - **Auth Safety**: Do NOT store refresh tokens anywhere. Do NOT store Drive access tokens in localStorage. Do NOT log OAuth tokens or API URLs.
