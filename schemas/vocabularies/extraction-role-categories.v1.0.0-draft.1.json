@@ -1,0 +1,49 @@
+{
+  "vocabularyId": "extraction-role-categories",
+  "version": "1.0.0-draft.1",
+  "temporalRoleCategories": [
+    { "value": "documentLifecycle", "description": "Date related to creation, updating, archiving of the document", "deprecated": false, "aliases": [] },
+    { "value": "event", "description": "Date of an event, meeting, appointment, or occurrence", "deprecated": false, "aliases": [] },
+    { "value": "deadline", "description": "Due date, submission limit, or task deadline", "deprecated": false, "aliases": [] },
+    { "value": "validity", "description": "Date specifying start, end, expiration, or effective range", "deprecated": false, "aliases": [] },
+    { "value": "transaction", "description": "Date of payment, purchase, receipt, or invoice issuance", "deprecated": false, "aliases": [] },
+    { "value": "publication", "description": "Date of formal publication or broadcast", "deprecated": false, "aliases": [] },
+    { "value": "access", "description": "Date of viewing, retrieval, or reading", "deprecated": false, "aliases": [] },
+    { "value": "other", "description": "Other temporal classification", "deprecated": false, "aliases": [] },
+    { "value": "unknown", "description": "Temporal category cannot be determined", "deprecated": false, "aliases": [] }
+  ],
+  "partyKinds": [
+    { "value": "person", "description": "A human individual", "deprecated": false, "aliases": [] },
+    { "value": "organization", "description": "A corporation, government agency, non-profit, or group", "deprecated": false, "aliases": [] },
+    { "value": "system", "description": "An automated system, API, or software client", "deprecated": false, "aliases": [] },
+    { "value": "group", "description": "An informal group, team, or collective of individuals", "deprecated": false, "aliases": [] },
+    { "value": "unknown", "description": "Party kind cannot be determined", "deprecated": false, "aliases": [] }
+  ],
+  "partyRoleCategories": [
+    { "value": "authorship", "description": "Author, creator, editor, or contributor of the document", "deprecated": false, "aliases": [] },
+    { "value": "senderReceiver", "description": "Sender, recipient, addressee, or mail carrier", "deprecated": false, "aliases": [] },
+    { "value": "approval", "description": "Approver, sign-off authority, or verifier", "deprecated": false, "aliases": [] },
+    { "value": "payment", "description": "Payer, payee, merchant, or financial intermediate", "deprecated": false, "aliases": [] },
+    { "value": "commerce", "description": "Seller, buyer, client, or commercial partner", "deprecated": false, "aliases": [] },
+    { "value": "contract", "description": "Signatory or contracting party in a legal agreement", "deprecated": false, "aliases": [] },
+    { "value": "medical", "description": "Patient, doctor, hospital, practitioner, or health insurer", "deprecated": false, "aliases": [] },
+    { "value": "administrative", "description": "Government official, administrative contact, registrar", "deprecated": false, "aliases": [] },
+    { "value": "project", "description": "Project manager, assignee, reviewer, or developer", "deprecated": false, "aliases": [] },
+    { "value": "other", "description": "Other role category", "deprecated": false, "aliases": [] },
+    { "value": "unknown", "description": "Party role category cannot be determined", "deprecated": false, "aliases": [] }
+  ],
+  "monetaryRoleCategories": [
+    { "value": "price", "description": "Unit price, cost of an item", "deprecated": false, "aliases": [] },
+    { "value": "tax", "description": "VAT, GST, sales tax, or duty", "deprecated": false, "aliases": [] },
+    { "value": "fee", "description": "Service charge, late fee, shipping fee, handling", "deprecated": false, "aliases": [] },
+    { "value": "discount", "description": "Promotional deduction, coupon, markdown, or rebate", "deprecated": false, "aliases": [] },
+    { "value": "payment", "description": "Amount paid, transaction total payment, or billed amount", "deprecated": false, "aliases": [] },
+    { "value": "refund", "description": "Refunded amount or reimbursement", "deprecated": false, "aliases": [] },
+    { "value": "balance", "description": "Outstanding balance, credit remaining, or amount due", "deprecated": false, "aliases": [] },
+    { "value": "budget", "description": "Allocated project/personal budget, maximum limit", "deprecated": false, "aliases": [] },
+    { "value": "estimate", "description": "Estimated cost, quote, or price calculation", "deprecated": false, "aliases": [] },
+    { "value": "insurance", "description": "Deductible, copay, coverage amount, premium", "deprecated": false, "aliases": [] },
+    { "value": "other", "description": "Other monetary classification", "deprecated": false, "aliases": [] },
+    { "value": "unknown", "description": "Monetary category cannot be determined", "deprecated": false, "aliases": [] }
+  ]
+}

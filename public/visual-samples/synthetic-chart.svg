@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="100%">
+  <rect width="600" height="400" fill="#f8fafc" rx="8"/>
+  
+  <!-- Title -->
+  <text x="300" y="40" font-family="sans-serif" font-size="20" font-weight="bold" fill="#1e293b" text-anchor="middle">Annual Revenue Growth</text>
+  
+  <!-- Axes -->
+  <line x1="80" y1="320" x2="520" y2="320" stroke="#64748b" stroke-width="2"/>
+  <line x1="80" y1="80" x2="80" y2="320" stroke="#64748b" stroke-width="2"/>
+  
+  <!-- Grid Lines -->
+  <line x1="80" y1="260" x2="520" y2="260" stroke="#e2e8f0" stroke-dasharray="4"/>
+  <line x1="80" y1="200" x2="520" y2="200" stroke="#e2e8f0" stroke-dasharray="4"/>
+  <line x1="80" y1="140" x2="520" y2="140" stroke="#e2e8f0" stroke-dasharray="4"/>
+  <line x1="80" y1="80" x2="520" y2="80" stroke="#e2e8f0" stroke-dasharray="4"/>
+  
+  <!-- Y-Axis Labels -->
+  <text x="70" y="324" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="end">$0</text>
+  <text x="70" y="264" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="end">$25K</text>
+  <text x="70" y="204" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="end">$50K</text>
+  <text x="70" y="144" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="end">$75K</text>
+  <text x="70" y="84" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="end">$100K</text>
+  
+  <!-- X-Axis Labels (Years) -->
+  <text x="140" y="340" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="middle">2021</text>
+  <text x="240" y="340" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="middle">2022</text>
+  <text x="340" y="340" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="middle">2023</text>
+  <text x="440" y="340" font-family="sans-serif" font-size="12" fill="#64748b" text-anchor="middle">2024</text>
+  
+  <!-- Bars (Chart Data) -->
+  <rect x="110" y="230" width="60" height="90" fill="#818cf8" rx="4"/>
+  <rect x="210" y="180" width="60" height="140" fill="#6366f1" rx="4"/>
+  <rect x="310" y="130" width="60" height="190" fill="#4f46e5" rx="4"/>
+  <rect x="410" y="95" width="60" height="225" fill="#3730a3" rx="4"/>
+  
+  <!-- Legend -->
+  <g transform="translate(450, 45)">
+    <rect width="12" height="12" fill="#4f46e5" rx="2"/>
+    <text x="20" y="11" font-family="sans-serif" font-size="12" fill="#475569">Target Revenue</text>
+  </g>
+</svg>

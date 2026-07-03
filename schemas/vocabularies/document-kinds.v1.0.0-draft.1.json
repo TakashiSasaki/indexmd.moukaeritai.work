@@ -1,0 +1,28 @@
+{
+  "vocabularyId": "document-kinds",
+  "version": "1.0.0-draft.1",
+  "terms": [
+    { "value": "note", "description": "Informal notes, scratchpad, or simple personal record", "deprecated": false, "aliases": [] },
+    { "value": "report", "description": "Formal report, presentation, or analysis document", "deprecated": false, "aliases": [] },
+    { "value": "specification", "description": "Technical specification, requirements document, or protocol", "deprecated": false, "aliases": [] },
+    { "value": "manual", "description": "User manual, guide, or documentation book", "deprecated": false, "aliases": [] },
+    { "value": "academicPaper", "description": "Scientific paper, journal article, or thesis", "deprecated": false, "aliases": [] },
+    { "value": "abstract", "description": "Short executive summary or paper abstract", "deprecated": false, "aliases": [] },
+    { "value": "summary", "description": "A comprehensive summary of other documents", "deprecated": false, "aliases": [] },
+    { "value": "receipt", "description": "Transaction receipt, payment confirmation", "deprecated": false, "aliases": [] },
+    { "value": "invoice", "description": "Billing statement, request for payment", "deprecated": false, "aliases": [] },
+    { "value": "contract", "description": "Legal agreement, terms of service, NDA", "deprecated": false, "aliases": [] },
+    { "value": "cancellationNotice", "description": "Formal cancellation of service or agreement", "deprecated": false, "aliases": [] },
+    { "value": "applicationForm", "description": "Form submitted to request a service, job, or benefit", "deprecated": false, "aliases": [] },
+    { "value": "certificate", "description": "Official certification, diploma, or warrant", "deprecated": false, "aliases": [] },
+    { "value": "bookmark", "description": "Saved URL, reference link, or web clip", "deprecated": false, "aliases": [] },
+    { "value": "correspondence", "description": "Emails, letters, chats, or other messages", "deprecated": false, "aliases": [] },
+    { "value": "meetingNotes", "description": "Minutes or transcription of a meeting", "deprecated": false, "aliases": [] },
+    { "value": "taskList", "description": "Todo list, project plan tasks", "deprecated": false, "aliases": [] },
+    { "value": "sourceCode", "description": "Programming language source file or script", "deprecated": false, "aliases": [] },
+    { "value": "dataset", "description": "Structured data format, CSV, TSV, or XML/JSON data", "deprecated": false, "aliases": [] },
+    { "value": "log", "description": "System logs, activity trace, or journal logs", "deprecated": false, "aliases": [] },
+    { "value": "config", "description": "Configuration file, properties, settings", "deprecated": false, "aliases": [] },
+    { "value": "unknown", "description": "Document kind cannot be determined", "deprecated": false, "aliases": [] }
+  ]
+}

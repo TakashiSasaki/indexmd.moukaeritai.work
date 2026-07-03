@@ -1,0 +1,44 @@
+# Image Experiment Tab
+
+## Purpose
+The "画像解析実験" (Image Experiment) tab provides a sandboxed environment to test the extraction of visual indexing metadata using the `visual-analysis.v0.1.0-draft.1` schema.
+
+## Features
+- **Drive Image Selection:** Input a Google Drive file ID to analyze any image file in your Drive.
+- **Model Selection:** Supports testing against multiple models. Gemini Flash class is **Recommended**. Gemma is **Experimental** and not recommended for vision.
+- **Request Preview (Opt-in):** Debugging information including system instructions and prompts is only returned if explicitly requested via the "リクエストプレビュー" checkbox.
+- **Quality Gates:** Evaluates the generated visual metadata (e.g., warning if a landscape photo has no landscape elements, or if a document photo has no extracted text).
+- **Immediate Debug Output:** Displays the generated caption, scene description, visible elements (including attributes, evidence, and location hints), visible text, and quality scores in a structured UI.
+
+## Privacy & Persistence Constraints
+- **No Raw Byte Persistence:** The image bytes fetched from Google Drive are sent directly to the model and are NEVER saved or cached on the server.
+- **No Drive Writes:** The image experiment tab does not modify any files on Google Drive and does not write or update `index.md` files.
+- **No Output Persistence:** The raw model output and prompt payloads are never persisted.
+- **Limited Diagnostic Info:** On JSON parse failure, only the length of the raw output (`rawOutputLength`) and the error message are returned; the actual raw model output is stripped to prevent accidental PII leakage.
+- **Normalized JSON:** The displayed JSON is the **Normalized and Validated** output, not the raw text from the model.
+
+## Usage
+1. Navigate to the `画像解析実験` tab.
+2. Enter the Google Drive file ID of an image (e.g., `.jpg`, `.png`).
+3. Select the target model.
+4. Click `解析実行` to view the parsed visual indexing metadata and quality report.
+
+## Public Sample Matrix & Batch Execution
+The Image Experiment tab supports a **Public Sample** mode.
+This allows testing the visual schema against a curated matrix of public-domain and CC-licensed images across diverse categories.
+- Previews and analyses run through a CORS-safe server proxy.
+- Expected metadata from a local registry is compared against the live model output.
+
+### Public Sample Batch Report RC
+You can execute a batch regression run across **all** registered public samples sequentially.
+- **License Filter Removed:** Batch runs unconditionally across all public samples regardless of license or category.
+- **ChatGPT Report JSON:** A specialized "Copy ChatGPT Report JSON" button generates a compact summary of the batch run. To prevent context overflow in ChatGPT, this JSON explicitly omits `requestPreview` and `rawOutputPreview`.
+- **Full JSON & Failures:** You can also copy the "Full Batch JSON" (for deep debugging) or a "Failures Only" JSON.
+- **No Server Persistence:** The batch execution runs client-side and saves summaries only to `localStorage`. Server-side execution and persistence are currently out of scope.
+
+### Transient API Failures & Retry Policies
+When running in cloud environments (like AI Studio or Cloud Run), the backend container might be warming up or restarting.
+- **Starting Server HTML:** If the `/api/visual/...` endpoints respond with a status 200 `text/html` page containing "Starting Server..." or "Please wait while your application starts", this is classified as a transient failure (`isTransientStartupHtml: true`).
+- **Retry Mechanism:** Both single analysis and batch analysis use `safeFetchWithRetry`, which automatically retries transient startup HTML and network errors (default 4 attempts, with delays).
+- **Pre-Batch Readiness Check:** Before starting a batch run, the client polls `GET /api/visual/health` (which returns `{ ok: true }`) to ensure the server is ready, helping to avoid mass failures due to cold starts.
+- **Retry Diagnostics:** Batch execution reports (like the diagnostic report or failures report) include `retryDiagnostics` indicating how many attempts were made and why, preserving observability even when retries eventually succeed or fail.

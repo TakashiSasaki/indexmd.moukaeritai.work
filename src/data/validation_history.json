@@ -1,0 +1,1199 @@
+[
+  {
+    "id": "auto-134",
+    "timestamp": "2026-06-23T14:51:46Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいたファイルは、Google Geminiのユーザーインターフェース（設定画面やサイドバー等）の構造を記録したテキストデータです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-133",
+    "timestamp": "2026-06-23T14:51:42Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイル『applet_access_history.json』は、ユーザーが利用した複数のアプリケーション（アプレット）のアクセス履歴を記録したものです。"
+  },
+  {
+    "id": "auto-132",
+    "timestamp": "2026-06-23T14:50:48Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいたファイルは、Google Geminiのユーザーインターフェース（設定画面やサイドバー等）の構造を記録したテキストデータです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-131",
+    "timestamp": "2026-06-23T14:50:44Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際の「Copilot Credits（クレジット）」の消費量および予算を試算するためのシミュレーション用スプレッドシートです。"
+  },
+  {
+    "id": "auto-130",
+    "timestamp": "2026-06-23T14:50:40Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイル『applet_access_history.json』は、ユーザーが利用した複数のアプリケーション（アプレット）のアクセス履歴を記録したものです。"
+  },
+  {
+    "id": "auto-129",
+    "timestamp": "2026-06-23T14:49:13Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際の「Copilot Credits（クレジット）」の消費量および予算を試算するためのシミュレーション用スプレッドシートです。"
+  },
+  {
+    "id": "auto-128",
+    "timestamp": "2026-06-23T14:47:12Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-127",
+    "timestamp": "2026-06-23T14:47:08Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイルは、和歌山県にある「奥熊野 川湯温泉」の旅館（山水館 川湯みどりや、まつや、きのくに）の「請求明細書」および「領収書」の画像です。"
+  },
+  {
+    "id": "auto-126",
+    "timestamp": "2026-06-23T14:46:05Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいたファイル「applet_access_history.json」は、ユーザーが利用した複数のアプリケーション（アプレット）のアクセス履歴および各アプレットのメタデータを記録したリストです。"
+  },
+  {
+    "id": "auto-125",
+    "timestamp": "2026-06-23T14:44:39Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイルは、Google Geminiのユーザーインターフェース（設定画面やサイドバー等）から抽出されたデータスニペットです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-124",
+    "timestamp": "2026-06-23T14:43:02Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたスプレッドシートのファイル内容は、主にYouTubeチャンネルの動画タイトル、概要欄（ディスクリプション）、動画ID、投稿日時をまとめたリストです。"
+  },
+  {
+    "id": "auto-123",
+    "timestamp": "2026-06-23T14:42:58Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいた画像には、青い手帳型スマートフォンのケース内に、医薬品のPTPシート（錠剤包装）が置かれている様子が写っています。"
+  },
+  {
+    "id": "auto-122",
+    "timestamp": "2026-06-23T14:42:54Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいたファイルは、Google Geminiのユーザーインターフェース（設定画面やサイドバー等）の構成要素を抽出したテキストデータです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-121",
+    "timestamp": "2026-06-23T14:42:50Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいた画像には、青い手帳型スマートフォンのケース内に、医薬品のPTPシート（錠剤包装）が置かれている様子が写っています。"
+  },
+  {
+    "id": "auto-120",
+    "timestamp": "2026-06-23T14:41:40Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいたファイルは、Google Geminiのユーザーインターフェース（設定画面やサイドバー等）の構成要素を抽出したテキストデータです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-119",
+    "timestamp": "2026-06-23T14:38:43Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいた画像には、以下の内容が写っています。"
+  },
+  {
+    "id": "auto-118",
+    "timestamp": "2026-06-23T14:38:38Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいた「情報セキュリティ 第9回 電子署名（講師：佐々木隆志氏）」の講義資料の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-117",
+    "timestamp": "2026-06-23T14:38:33Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」の内容を分析し、要約しました。"
+  },
+  {
+    "id": "auto-116",
+    "timestamp": "2026-06-23T14:36:24Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいたファイルには、主にYouTubeチャンネルの動画タイトル、概要欄（ディスクリプション）、動画ID、公開日時が含まれています。これらを分析した主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-115",
+    "timestamp": "2026-06-23T14:36:19Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいた「Google Compute Engine Free Tier に関する詳細レポート」の内容を要約します。"
+  },
+  {
+    "id": "auto-114",
+    "timestamp": "2026-06-23T14:06:15Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいた`applet_access_history.json`は、ユーザーが利用した複数のアプリケーション（アプレット）のアクセス履歴を記録したものです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-113",
+    "timestamp": "2026-06-23T14:06:11Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-112",
+    "timestamp": "2026-06-23T14:00:37Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいたファイルは、和歌山県にある「奥熊野 川湯温泉」の宿泊施設（山水館 川湯みどりや、山水館 川湯まつや、山水館 川湯きのくに）による「請求明細書」および「領収書」のコピーです。"
+  },
+  {
+    "id": "auto-111",
+    "timestamp": "2026-06-23T13:58:44Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいた画像には、青い手帳型スマートフォンのケースの上に置かれた、金色の包装の錠剤（シート）が写っています。"
+  },
+  {
+    "id": "auto-110",
+    "timestamp": "2026-06-23T13:55:48Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいた講義資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-109",
+    "timestamp": "2026-06-23T13:55:44Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイル内容は、「情報セキュリティ」講義の第9回目（電子署名）に関する資料です。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-108",
+    "timestamp": "2026-06-23T13:55:40Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイル内容は、「情報セキュリティ」講義の第9回目（電子署名）に関する資料です。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-107",
+    "timestamp": "2026-06-23T13:54:43Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいた研究提案書「動物心拍の非接触計測に関する研究」（平本宗大氏）の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-106",
+    "timestamp": "2026-06-23T13:53:25Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際の「Copilot Credits」の消費量とコストを試算するためのシミュレーション用ツールです。"
+  },
+  {
+    "id": "auto-105",
+    "timestamp": "2026-06-23T13:50:17Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-104",
+    "timestamp": "2026-06-23T13:48:44Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3.1-pro-preview",
+    "details": "ご提示いただいた研究提案書（PowerPointファイル）の内容を要約しました。"
+  },
+  {
+    "id": "auto-103",
+    "timestamp": "2026-06-23T13:48:40Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたファイルは、和歌山県の奥熊野・川湯温泉にある「山水館 川湯みどりや・まつや・きのくに」の**請求明細書および領収書**です。"
+  },
+  {
+    "id": "auto-102",
+    "timestamp": "2026-06-23T13:46:56Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいたスプレッドシートのファイル内容は、YouTubeチャンネルの動画タイトル、概要欄（ディスクリプション）、動画ID、公開日時をまとめたリストです。"
+  },
+  {
+    "id": "auto-101",
+    "timestamp": "2026-06-23T13:46:50Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたファイルは、和歌山県の「奥熊野 川湯温泉」にある宿泊施設（山水館 川湯みどりや、山水館 川湯まつや、山水館 川湯きのくに）の「請求明細書」および「領収書」です。"
+  },
+  {
+    "id": "auto-100",
+    "timestamp": "2026-06-23T13:45:38Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたファイル「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-99",
+    "timestamp": "2026-06-23T13:44:14Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいたPDFファイルは、和歌山県・奥熊野川湯温泉の旅館（山水館 川湯みどりや、まつや、きのくに）の「請求明細書」および「領収書」です。"
+  },
+  {
+    "id": "auto-98",
+    "timestamp": "2026-06-23T13:30:41Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際に消費される「Copilot Credits（コパイロット・クレジット）」のコストを試算・シミュレーションするためのツールです。"
+  },
+  {
+    "id": "auto-97",
+    "timestamp": "2026-06-23T12:49:41Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたファイルは、和歌山県の「奥熊野 川湯温泉 山水館 川湯みどりや・まつや・きのくに」による宿泊の請求明細書および領収書です。"
+  },
+  {
+    "id": "auto-96",
+    "timestamp": "2026-06-23T12:48:45Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」は、Google Compute Engine（GCE）の無料枠（Free Tier）に関する詳細な解説レポートです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-94",
+    "timestamp": "2026-06-23T12:46:57Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたファイルは、Geminiのウェブインターフェースにおける「パーソナルコンテキスト（個人用設定）」画面の構造データ（DOM要素）をテキスト化したものです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-93",
+    "timestamp": "2026-06-23T12:45:41Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいた`applet_access_history.json`は、ユーザーが利用した複数の「Applet（アプリケーションやツール）」のアクセス履歴と詳細情報を記録したログデータです。"
+  },
+  {
+    "id": "auto-92",
+    "timestamp": "2026-06-23T12:44:34Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたファイルは、GoogleのAIサービス「Gemini」の画面構成や設定情報を記録したテキストデータのようです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-91",
+    "timestamp": "2026-06-23T12:43:41Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた講義資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-90",
+    "timestamp": "2026-06-23T12:42:30Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいた資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-89",
+    "timestamp": "2026-06-23T12:39:52Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいた「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際に消費される「Copilotクレジット」のコストを試算するためのシミュレーションツールです。"
+  },
+  {
+    "id": "auto-88",
+    "timestamp": "2026-06-23T12:30:24Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-87",
+    "timestamp": "2026-06-23T12:28:58Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたファイルは、YouTube動画のタイトル、説明文、動画ID、公開日などが記録されたリスト（スニペット）です。"
+  },
+  {
+    "id": "auto-86",
+    "timestamp": "2026-06-23T12:27:14Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-2.5-pro",
+    "details": "提供されたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際に消費される「Copilot Credits」と、それに基づくコストを見積もるためのシミュレーションツールです。"
+  },
+  {
+    "id": "auto-85",
+    "timestamp": "2026-06-23T12:26:14Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた「CustomerCoworkEstimator.xlsx」は、企業が「Cowork」を利用する際に必要となる「Copilot Credits（クレジット）」の消費量と、それに基づくコストを試算するためのシミュレーション用ツールです。"
+  },
+  {
+    "id": "auto-84",
+    "timestamp": "2026-06-23T12:24:44Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた「Google Compute Engine Free Tier に関する詳細レポート」の内容を要約します。"
+  },
+  {
+    "id": "auto-83",
+    "timestamp": "2026-06-23T12:14:45Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3.5-pro",
+    "details": "提供されたファイルは、情報セキュリティの講義（第9回「電子署名」）のスライド資料です。主な内容は、電子署名の必要性、代表的なアルゴリズムであるDSAの仕組みと計算例、最新の署名技術の動向、および信頼性を担保するPKI（公開鍵基盤）について解説しています。"
+  },
+  {
+    "id": "auto-82",
+    "timestamp": "2026-06-23T12:13:27Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-3.5-flash",
+    "details": "提供されたJSONファイル `applet_access_history.json` は、開発または利用された複数の「アプレット（アプリケーション/ツール）」のアクセス履歴を記録したデータです。"
+  },
+  {
+    "id": "auto-81",
+    "timestamp": "2026-06-23T10:57:05Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたファイル『applet_access_history.json』は、ユーザーが利用した複数のアプリケーション（アプレット）のアクセス履歴および各アプリの概要を記録したJSONデータです。"
+  },
+  {
+    "id": "auto-80",
+    "timestamp": "2026-06-23T10:55:31Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-79",
+    "timestamp": "2026-06-23T10:55:30Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたプレゼンテーション資料「動物心拍の非接触計測に関する研究」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-78",
+    "timestamp": "2026-06-23T10:54:10Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた画像には、青い手帳型スマートフォンのケースの上に置かれた、金色のアルミ包装（PTPシート）に入った錠剤が写っています。"
+  },
+  {
+    "id": "auto-77",
+    "timestamp": "2026-06-23T10:53:07Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-2.5-flash",
+    "details": "ご提示いただいたファイルは、Google Geminiのユーザーインターフェース（設定画面やサイドバーなど）を構成するDOM要素のテキストデータです。"
+  },
+  {
+    "id": "auto-76",
+    "timestamp": "2026-06-23T10:53:06Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいた画像には、以下の内容が写っています。"
+  },
+  {
+    "id": "auto-75",
+    "timestamp": "2026-06-23T10:46:19Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいた画像には、青い手帳型スマートフォンのケースの上に置かれた、金色の包装の錠剤シートが写っています。"
+  },
+  {
+    "id": "auto-74",
+    "timestamp": "2026-06-23T10:46:18Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいた講義資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-73",
+    "timestamp": "2026-06-23T10:46:17Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提供いただいたファイル内容は、YouTube動画のタイトル、説明文、動画ID、公開日時をまとめたリストです。このデータには約60件の動画情報が含まれており、主な内容は以下の通り要約できます。"
+  },
+  {
+    "id": "auto-72",
+    "timestamp": "2026-06-23T10:46:16Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいた研究提案書「動物心拍の非接触計測に関する研究」の内容を要約します。"
+  },
+  {
+    "id": "auto-71",
+    "timestamp": "2026-06-23T10:40:15Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」の内容を分析し、要約しました。"
+  },
+  {
+    "id": "auto-70",
+    "timestamp": "2026-06-23T10:40:16Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-3-flash-preview",
+    "details": "提供されたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」ツールを利用する際に必要となる「Copilot Credits（クレジット）」の消費量とコストを予測するためのシミュレーション用スプレッドシートです。"
+  },
+  {
+    "id": "auto-69",
+    "timestamp": "2026-06-23T10:40:17Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたプレゼンテーション資料「動物心拍の非接触計測に関する研究」（作成者：平本宗大氏）の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-68",
+    "timestamp": "2026-06-23T10:40:18Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたファイルは、和歌山県の「奥熊野 川湯温泉 山水館 川湯みどりや・まつや・きのくに」で発行された宿泊の「請求・明細書」および「領収書」の画像です。"
+  },
+  {
+    "id": "auto-67",
+    "timestamp": "2026-06-23T10:40:19Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-2.5-flash-lite",
+    "details": "ご提示いただいたYouTubeの動画タイトルと概要欄（スニペット）を分析した結果、主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-66",
+    "timestamp": "2026-06-23T10:35:38Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-2.5-pro",
+    "details": "ご提示いただいた研究提案書「動物心拍の非接触計測に関する研究」の内容を要約しました。"
+  },
+  {
+    "id": "auto-65",
+    "timestamp": "2026-06-23T10:34:25Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたPDFファイルは、和歌山県の「奥熊野 川湯温泉」にある宿泊施設（山水館 川湯みどりや・まつや・きのくに）の「請求明細書」および「領収書」です。"
+  },
+  {
+    "id": "auto-64",
+    "timestamp": "2026-06-23T10:34:24Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいた画像には、以下の内容が写っています。"
+  },
+  {
+    "id": "auto-63",
+    "timestamp": "2026-06-23T10:34:23Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたYouTubeの動画タイトルと概要欄（スニペット）を分析した結果、主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-62",
+    "timestamp": "2026-06-23T10:34:22Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-3.5-pro",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-61",
+    "timestamp": "2026-06-23T10:34:21Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいたファイル内容は、主にYouTubeチャンネルの動画リスト（メタデータおよび概要欄）です。分析した主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-60",
+    "timestamp": "2026-06-23T10:31:46Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3.5-flash",
+    "details": "ご提示いただいた研究提案書（PowerPointファイル）の内容を要約しました。"
+  },
+  {
+    "id": "auto-59",
+    "timestamp": "2026-06-23T10:28:24Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-2.5-flash-lite",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-58",
+    "timestamp": "2026-06-23T10:28:23Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたファイルは、Gemini（GoogleのAIサービス）のWebインターフェースにおける「パーソナルコンテキスト（個人設定・履歴）」および「アカウント管理画面」のHTML構造からテキスト情報を抽出したものと見受けられます。"
+  },
+  {
+    "id": "auto-57",
+    "timestamp": "2026-06-23T10:28:22Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-56",
+    "timestamp": "2026-06-23T10:28:21Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-flash-latest",
+    "details": "ご提示いただいた研究提案書「動物心拍の非接触計測に関する研究」（作成者：平本宗大氏）の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-55",
+    "timestamp": "2026-06-23T10:17:36Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-3-flash-preview",
+    "details": "提供されたファイル `applet_access_history.json` は、ユーザーがアクセスした様々な「アプレット（小型アプリケーション）」の利用履歴を記録したJSONデータです。"
+  },
+  {
+    "id": "auto-54",
+    "timestamp": "2026-06-23T10:13:52Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-2.5-flash-lite",
+    "details": "このファイルは、GeminiというAIアシスタントのパーソナルコンテキスト設定に関するWebページの構造と内容を表しています。"
+  },
+  {
+    "id": "auto-53",
+    "timestamp": "2026-06-23T10:11:23Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-flash-latest",
+    "details": "提供されたファイル「CustomerCoworkEstimator.xlsx」（シート名: Budget）は、組織が**「Cowork」**を導入する際に消費される**Copilot Credit（コパイロット・クレジット）**と、それに伴う月間の予算（コスト）を段階的にシミュレーションするための見積もり用スプレッドシートです。"
+  },
+  {
+    "id": "auto-52",
+    "timestamp": "2026-06-23T10:05:23Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-flash-latest",
+    "details": "提供されたファイル「Gce Free Tier Toc.docx」は、**Google Compute Engine (GCE) の無料枠（Free Tier / Always Free）**の適用条件や仕様、およびリージョンごとのリソース制限について詳しく解説したレポートです。"
+  },
+  {
+    "id": "auto-51",
+    "timestamp": "2026-06-23T09:57:16Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-2.5-flash-lite",
+    "details": "このファイルは「情報セキュリティ」の第9回講義であり、テーマは「電子署名」です。"
+  },
+  {
+    "id": "auto-50",
+    "timestamp": "2026-06-23T09:57:16Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-2.5-flash-lite",
+    "details": "このドキュメントは、Google Compute Engine (GCE) の無料枠 (Free Tier) に関する詳細なレポートです。主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-49",
+    "timestamp": "2026-06-23T09:57:16Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-2.5-flash-lite",
+    "details": "## ファイル内容の要約：情報セキュリティ 第9回 電子署名"
+  },
+  {
+    "id": "auto-48",
+    "timestamp": "2026-06-23T09:52:10Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemma-4-31b-it",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の内容を要約しました。"
+  },
+  {
+    "id": "auto-47",
+    "timestamp": "2026-06-23T09:50:07Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemma-4-31b-it",
+    "details": "ご提示いただいたファイルは、YouTubeで「高く評価（Like）」した動画の履歴リスト（タイトル、概要、ビデオID、投稿日）であると考えられます。"
+  },
+  {
+    "id": "auto-46",
+    "timestamp": "2026-06-23T09:48:10Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemma-4-31b-it",
+    "details": "ご提示いただいたファイルは、YouTubeの「高評価（Likes）」などの履歴と思われる、動画のタイトル、説明文、ビデオID、投稿日時が記録されたリストです。"
+  },
+  {
+    "id": "auto-45",
+    "timestamp": "2026-06-23T09:48:10Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の内容を要約しました。"
+  },
+  {
+    "id": "auto-44",
+    "timestamp": "2026-06-23T09:48:10Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "提供されたファイルは、YouTube動画のメタデータ（タイトル、説明文、ビデオID、公開日）が記録されたスプレッドシート形式のデータです。"
+  },
+  {
+    "id": "auto-43",
+    "timestamp": "2026-06-23T09:39:41Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいたファイル内容は、GoogleのAIサービス「Gemini」のユーザーインターフェース（UI）の構造情報および、個人の設定・アクティビティ管理画面のコンテキストです。"
+  },
+  {
+    "id": "auto-42",
+    "timestamp": "2026-06-23T09:39:41Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいたファイル「CustomerCoworkEstimator.xlsx」は、組織が「Cowork」を利用する際の「Copilotクレジット」の消費量と、それに伴う月額コストを概算するためのシミュレーションツールです。"
+  },
+  {
+    "id": "auto-41",
+    "timestamp": "2026-06-23T09:39:41Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいた画像には、以下の内容が写っています。"
+  },
+  {
+    "id": "auto-40",
+    "timestamp": "2026-06-23T09:34:13Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-2.5-flash",
+    "details": "提供された画像には、以下のような内容が描写されています。"
+  },
+  {
+    "id": "auto-39",
+    "timestamp": "2026-06-23T09:34:13Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-2.5-flash",
+    "details": "「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」は、生成AIの普及が進む中で、その活用方法が働く人の心理や生産性に与える影響について分析し、特に受動的なAI利用（丸投げ・コピペ）の弊害と、能動的な「人間ファースト」の協働型アプローチの重要性を提言しています。"
+  },
+  {
+    "id": "auto-38",
+    "timestamp": "2026-06-23T09:34:13Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-2.5-flash-lite",
+    "details": "このJSONファイルは、アプリケーション（アプレット）のアクセス履歴を記録したものです。各アプレットは、最後にアクセスされた日時、最初にアクセスされた日時、ソース情報、名前、説明、および一部にはランタイムタイプを含んでいます。"
+  },
+  {
+    "id": "auto-37",
+    "timestamp": "2026-06-23T09:34:13Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-2.5-flash",
+    "details": "このファイルは、複数のアプレット（アプリケーション）のアクセス履歴を記録したJSONデータです。"
+  },
+  {
+    "id": "auto-36",
+    "timestamp": "2026-06-23T09:34:13Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "ご提示いただいたファイルは、和歌山県の「奥熊野 川湯温泉（山水館 川湯みどりや、まつや、きのくに）」が発行した、**宿泊に関する「請求・明細書」および「領収書」**です。"
+  },
+  {
+    "id": "auto-35",
+    "timestamp": "2026-06-23T09:26:36Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "ご提示いただいたレポートの要約を以下にまとめました。"
+  },
+  {
+    "id": "auto-34",
+    "timestamp": "2026-06-23T09:26:36Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "ご提示いただいたファイル内容は、GoogleのAIサービスである**Geminiの「Personal context（パーソナルコンテキスト）」設定画面**から抽出されたテキストデータのスニペットです。"
+  },
+  {
+    "id": "auto-33",
+    "timestamp": "2026-06-23T09:26:36Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-2.5-flash-lite",
+    "details": "このPDFファイルは、日本の温泉旅館「山水館」からの請求書および領収書です。"
+  },
+  {
+    "id": "auto-32",
+    "timestamp": "2026-06-23T09:20:12Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-2.5-flash-lite",
+    "details": "この研究提案書は、動物の健康状態を把握するための非接触型心拍計測法に関するものです。"
+  },
+  {
+    "id": "auto-31",
+    "timestamp": "2026-06-23T09:16:56Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいた「研究提案書 (1).pptx」の内容を要約します。"
+  },
+  {
+    "id": "auto-30",
+    "timestamp": "2026-06-23T09:16:56Z",
+    "status": "success",
+    "fileName": "AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2",
+    "mimeType": "application/vnd.google-apps.document",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいたレポート「AI活用がもたらす労働心理への影響と正しい協働術に関するレポート V2」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-29",
+    "timestamp": "2026-06-23T09:16:56Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」の内容を分析し、主な内容を日本語で要約しました。"
+  },
+  {
+    "id": "auto-28",
+    "timestamp": "2026-06-23T09:16:56Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "ご提示いただいたファイルは、平本宗大氏による**「動物の心拍を非接触で計測する手法（rPPG）の研究」**に関する研究提案書（プレゼンテーション資料）です。"
+  },
+  {
+    "id": "auto-27",
+    "timestamp": "2026-06-23T09:06:14Z",
+    "status": "error",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "Error: models/gemini-1.5-flash is not found for API version v1beta"
+  },
+  {
+    "id": "auto-26",
+    "timestamp": "2026-06-23T09:06:14Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemini-2.5-flash-lite",
+    "details": "この画像には、青い革製の手帳またはケースの開いた内側に、包装された2錠の錠剤が置かれている様子が写っています。錠剤の包装は黄色で、日本語の文字が印刷されています。「プレミアム」という単語が確認でき、また「大人 1回3錠 1日2回まで」という使用方法らしき記載も読み取れます。錠剤の個包装には、リサイクルのマークと「プラ」という文字が見えます。"
+  },
+  {
+    "id": "auto-25",
+    "timestamp": "2026-06-23T09:04:20Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "ご提示いただいたファイル内容は、情報セキュリティに関する講義資料（第9回「電子署名」）のスライド構成案です。主な内容は、**電子署名の原理、具体的なアルゴリズム（RSAおよびDSA）、現代的な署名方式、および公開鍵基盤（PKI）の概念**についてです。"
+  },
+  {
+    "id": "auto-24",
+    "timestamp": "2026-06-23T09:02:12Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemma-4-31b-it",
+    "details": "ご提示いただいたファイルは、**「情報セキュリティ 第9回 電子署名」**という講義資料の内容です。"
+  },
+  {
+    "id": "auto-23",
+    "timestamp": "2026-06-23T09:00:24Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-flash-latest",
+    "details": "提供されたファイルは、YouTubeで「いいね（高評価）」された動画のリスト（タイトル、概要、ビデオID、公開日時など）を含むスプレッドシートのデータです。"
+  },
+  {
+    "id": "auto-22",
+    "timestamp": "2026-06-23T08:57:43Z",
+    "status": "error",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemini-2.5-flash-lite-preview-09-2025",
+    "details": "Error: models/gemini-2.5-flash-lite-preview-09-2025 is not found for API version v1beta"
+  },
+  {
+    "id": "auto-21",
+    "timestamp": "2026-06-23T08:57:43Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemini-2.5-flash-lite",
+    "details": "このExcelファイル「CustomerCoworkEstimator.xlsx」は、組織がCoworkでCopilotクレジットをどのように利用するかを評価するためのスプレッドシートです。"
+  },
+  {
+    "id": "auto-20",
+    "timestamp": "2026-06-23T08:57:43Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-2.5-flash",
+    "details": "このレポートは、「Google Compute Engine Free Tierにおいて、利用可能なリソースがリージョンによってどのように異なるか」という質問に対する詳細な分析です。"
+  },
+  {
+    "id": "auto-19",
+    "timestamp": "2026-06-23T08:51:35Z",
+    "status": "error",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.5-pro",
+    "details": "Error: models/gemini-3.5-pro is not found for API version v1"
+  },
+  {
+    "id": "auto-18",
+    "timestamp": "2026-06-23T08:50:30Z",
+    "status": "success",
+    "fileName": "09-20260622",
+    "mimeType": "application/vnd.google-apps.presentation",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいた講義資料「情報セキュリティ 第9回 電子署名」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-17",
+    "timestamp": "2026-06-23T08:50:30Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいたファイルには、主にYouTubeチャンネルの動画タイトル、概要欄（説明文）、動画ID、投稿日時が含まれています。これらを分析した主な内容は以下の通りです。"
+  },
+  {
+    "id": "auto-16",
+    "timestamp": "2026-06-23T08:47:47Z",
+    "status": "success",
+    "fileName": "YouTube Likes",
+    "mimeType": "application/vnd.google-apps.spreadsheet",
+    "model": "gemini-3.1-flash-lite",
+    "details": "提供されたファイル内容は、主にYouTubeチャンネルの動画タイトル、概要欄（ディスクリプション）、動画ID、公開日時をまとめたリストです。"
+  },
+  {
+    "id": "auto-15",
+    "timestamp": "2026-06-23T08:46:30Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいたファイル「Gce Free Tier Toc.docx」の要約は以下の通りです。"
+  },
+  {
+    "id": "auto-14",
+    "timestamp": "2026-06-23T08:46:30Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいたファイル『applet_access_history.json』は、ユーザーが利用した複数の「アプレット（アプリケーションやツール）」に関するアクセス履歴を記録したものです。"
+  },
+  {
+    "id": "auto-13",
+    "timestamp": "2026-06-23T08:45:00Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-3.1-flash-lite",
+    "details": "ご提示いただいたPDFファイルは、「奥熊野 川湯温泉」にある宿泊施設（山水館 川湯みどりや、まつや、きのくに）の請求書および領収書です。"
+  },
+  {
+    "id": "auto-12",
+    "timestamp": "2026-06-23T08:45:00Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemini-3-flash-preview",
+    "details": "提供された画像は、和歌山県にある宿泊施設「奥熊野 川湯温泉 山水館 川湯 みどりや・まつや・きのくに」の**請求・明細書および領収書**です。"
+  },
+  {
+    "id": "auto-11",
+    "timestamp": "2026-06-23T08:45:00Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemini-3-flash-preview",
+    "details": "ご提示いただいたファイル「personal_context_text_nodes.txt」は、GoogleのAIサービス「**Gemini**」における**「Personal context（個別のコンテキスト）」設定画面**から抽出されたテキストデータです。"
+  },
+  {
+    "id": "auto-10",
+    "timestamp": "2026-06-23T08:45:00Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemma-4-31b-it",
+    "details": "`applet_access_history.json`"
+  },
+  {
+    "id": "auto-9",
+    "timestamp": "2026-06-23T08:38:17Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemma-4-31b-it",
+    "details": "I need to analyze the image and summarize its contents in Japanese."
+  },
+  {
+    "id": "auto-8",
+    "timestamp": "2026-06-23T08:36:11Z",
+    "status": "success",
+    "fileName": "Gce Free Tier Toc.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "model": "gemma-4-31b-it",
+    "details": "*   File Name: `Gce Free Tier Toc.docx`"
+  },
+  {
+    "id": "auto-7",
+    "timestamp": "2026-06-23T08:34:36Z",
+    "status": "success",
+    "fileName": "スキャン_20260427-1105.pdf",
+    "mimeType": "application/pdf",
+    "model": "gemma-4-31b-it",
+    "details": "A scanned document (PDF) which is a combination of a bill (請求・明細書) and a receipt (領収書)."
+  },
+  {
+    "id": "auto-6",
+    "timestamp": "2026-06-23T08:33:02Z",
+    "status": "success",
+    "fileName": "personal_context_text_nodes.txt",
+    "mimeType": "text/plain",
+    "model": "gemma-4-31b-it",
+    "details": "`personal_context_text_nodes.txt`"
+  },
+  {
+    "id": "auto-5",
+    "timestamp": "2026-06-23T08:31:41Z",
+    "status": "success",
+    "fileName": "applet_access_history.json",
+    "mimeType": "application/json",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "*   File Name: `applet_access_history.json`"
+  },
+  {
+    "id": "auto-4",
+    "timestamp": "2026-06-23T08:29:20Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "*   File Name: `CustomerCoworkEstimator.xlsx`"
+  },
+  {
+    "id": "auto-3",
+    "timestamp": "2026-06-23T08:24:37Z",
+    "status": "success",
+    "fileName": "image-1780218190345.jpg",
+    "mimeType": "image/jpeg",
+    "model": "gemma-4-26b-a4b-it",
+    "details": "An image showing a blue leather case (possibly for an electronic device like an iPad), a yellow blister pack of pills/tablets resting on it, and some other miscellaneous items in the background."
+  },
+  {
+    "id": "auto-1",
+    "timestamp": "2026-06-23T08:21:56Z",
+    "status": "success",
+    "fileName": "研究提案書 (1).pptx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "model": "gemma-4-31b-it",
+    "details": "Research Proposal Presentation (pptx)."
+  },
+  {
+    "id": "auto-2",
+    "timestamp": "2026-06-23T08:03:55Z",
+    "status": "success",
+    "fileName": "CustomerCoworkEstimator.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "model": "gemma-4-31b-it",
+    "details": "*   File Name: `CustomerCoworkEstimator.xlsx`"
+  }
+]

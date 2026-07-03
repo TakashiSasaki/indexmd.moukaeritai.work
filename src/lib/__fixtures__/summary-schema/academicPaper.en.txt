@@ -1,0 +1,6 @@
+Title: A Novel Approach to Schema Validation in Large Language Models
+Authors: John Doe (University of Technology), Jane Smith (AI Research Institute)
+Abstract:
+Large Language Models (LLMs) have demonstrated remarkable capabilities in generating structured data from unstructured text. However, ensuring strict adherence to predefined JSON schemas remains a challenge. In this paper, we introduce a hybrid prompt-engineering and post-generation validation framework that significantly improves the reliability of structured outputs. Our evaluation on a dataset of 10,000 corporate documents shows a 35% reduction in schema violations compared to baseline methods. We also present a novel technique for recovering from partial schema matches without requiring additional LLM API calls.
+Keywords: Large Language Models, JSON Schema, Structured Data Extraction, Validation
+DOI: 10.1234/llm.schema.2026

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="100%">
+  <rect width="600" height="400" fill="#f8fafc" rx="8"/>
+  
+  <!-- Title -->
+  <text x="30" y="45" font-family="sans-serif" font-size="20" font-weight="bold" fill="#0f172a">Project Milestones</text>
+  
+  <!-- Table Structure -->
+  <rect x="30" y="70" width="540" height="280" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" rx="6"/>
+  
+  <!-- Header Row Background -->
+  <path d="M 31 71 L 569 71 L 569 110 L 31 110 Z" fill="#f1f5f9"/>
+  
+  <!-- Headers -->
+  <text x="50" y="95" font-family="sans-serif" font-size="14" font-weight="bold" fill="#334155">Task ID</text>
+  <text x="150" y="95" font-family="sans-serif" font-size="14" font-weight="bold" fill="#334155">Description</text>
+  <text x="380" y="95" font-family="sans-serif" font-size="14" font-weight="bold" fill="#334155">Status</text>
+  <text x="480" y="95" font-family="sans-serif" font-size="14" font-weight="bold" fill="#334155">Budget</text>
+  
+  <!-- Separators -->
+  <line x1="30" y1="110" x2="570" y2="110" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="30" y1="170" x2="570" y2="170" stroke="#e2e8f0" stroke-width="1"/>
+  <line x1="30" y1="230" x2="570" y2="230" stroke="#e2e8f0" stroke-width="1"/>
+  <line x1="30" y1="290" x2="570" y2="290" stroke="#e2e8f0" stroke-width="1"/>
+  
+  <!-- Row 1 -->
+  <text x="50" y="140" font-family="sans-serif" font-size="14" fill="#475569">TSK-01</text>
+  <text x="150" y="140" font-family="sans-serif" font-size="14" fill="#0f172a">Setup Environment</text>
+  <text x="380" y="140" font-family="sans-serif" font-size="14" fill="#16a34a" font-weight="bold">Completed</text>
+  <text x="480" y="140" font-family="sans-serif" font-size="14" fill="#475569" text-anchor="start">$1,200</text>
+  
+  <!-- Row 2 -->
+  <text x="50" y="200" font-family="sans-serif" font-size="14" fill="#475569">TSK-02</text>
+  <text x="150" y="200" font-family="sans-serif" font-size="14" fill="#0f172a">Develop Core API</text>
+  <text x="380" y="200" font-family="sans-serif" font-size="14" fill="#2563eb" font-weight="bold">In Progress</text>
+  <text x="480" y="200" font-family="sans-serif" font-size="14" fill="#475569" text-anchor="start">$4,500</text>
+  
+  <!-- Row 3 -->
+  <text x="50" y="260" font-family="sans-serif" font-size="14" fill="#475569">TSK-03</text>
+  <text x="150" y="260" font-family="sans-serif" font-size="14" fill="#0f172a">Write Unit Tests</text>
+  <text x="380" y="260" font-family="sans-serif" font-size="14" fill="#94a3b8" font-weight="bold">Pending</text>
+  <text x="480" y="260" font-family="sans-serif" font-size="14" fill="#475569" text-anchor="start">$800</text>
+  
+  <!-- Row 4 (Total) -->
+  <text x="380" y="320" font-family="sans-serif" font-size="14" font-weight="bold" fill="#0f172a" text-anchor="end">TOTAL BUDGET:</text>
+  <text x="480" y="320" font-family="sans-serif" font-size="14" font-weight="bold" fill="#4f46e5">$6,500</text>
+</svg>

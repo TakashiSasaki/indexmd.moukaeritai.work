@@ -1,0 +1,9 @@
+Bookmark: Reactivity in UI Frameworks
+
+I found a great paper discussing how reactivity works in modern frontend frameworks like React, Vue, and SolidJS.
+
+Link: http://dx.doi.org/10.1145/3428204
+Author: Michael Johnson
+Year: 2024
+
+Need to read this over the weekend to understand fine-grained reactivity better.
