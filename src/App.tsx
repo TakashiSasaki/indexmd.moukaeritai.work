@@ -35,6 +35,7 @@ import DriveDashboard from "./components/DriveDashboard";
 import DriveLogs from "./components/DriveLogs";
 
 
+import DeveloperDocs from "./components/DeveloperDocs";
 import { 
   BookOpen, 
   Compass, 
@@ -45,7 +46,8 @@ import {
   ExternalLink,
   Github,
   FolderOpen,
-  ChevronDown
+  ChevronDown,
+  Code
 } from "lucide-react";
 
 const ACTIVE_TAB_KEY = "indexmd_active_tab";
@@ -282,6 +284,10 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            <a href="/docs" className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors bg-slate-100 hover:bg-indigo-50 px-2 py-1 rounded-md border border-slate-200">
+              <Code className="w-3 h-3" />
+              <span>開発者Docs</span>
+            </a>
             {user ? (
               <div className="relative">
                 <button 
@@ -471,6 +477,7 @@ export default function App() {
 
             {/* Double section layout: Configuration Tuning and Real-Time Log Auditor */}
             <Routes>
+              <Route path="/docs" element={<DeveloperDocs />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300" />

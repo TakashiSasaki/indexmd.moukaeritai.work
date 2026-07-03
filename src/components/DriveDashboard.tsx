@@ -1134,13 +1134,13 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
   };
 
   return (
-    <div className="space-y-6">
+    <div className="bg-yellow-50 p-[1px] mt-[1px] ml-[1px] mr-[1px] mb-4">
       {/* Bento Grid Stats - Removed as requested */}
       {/* (Next item in list follows) */}
 
       {/* View Mode Tabs */}
       {/* Mobile Tab Selector */}
-      <div className="sm:hidden sticky top-14 bg-white/95 backdrop-blur-md z-40 py-2.5 px-4 border-b border-slate-200/80 shadow-xs" id="tabs-navigation-mobile">
+      <div className="sm:hidden sticky top-14 bg-white/95 backdrop-blur-md z-40 pt-[1px] pb-[1px] px-4 border-b border-slate-200/80 shadow-xs mb-0" id="tabs-navigation-mobile">
         <select
           id="mobile-tab-select"
           value={activeTab}
@@ -1177,12 +1177,12 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         })}
       </div>
 
-      <div className="mt-6" id="tabs-content">
+      <div className="mt-[1px]" id="tabs-content">
         {activeTab === "dashboard" && (
-          <div className="space-y-6" id="dashboard-container">
+          <div className="p-[1px] mt-[1px]">
             {/* Action Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-yellow-50 pt-[1px] pl-[1px] pr-[1px] rounded-lg border border-slate-200 shadow-sm mt-[1px]">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 w-full sm:w-auto p-[1px]">
                 <button
                   onClick={() => startScanJob(false)}
                   disabled={isCrawlActive || isIndexActive}
