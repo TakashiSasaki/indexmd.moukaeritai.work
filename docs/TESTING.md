@@ -25,7 +25,7 @@ npm run test:coverage
 ```
 This uses Node's native `--experimental-test-coverage` flag. Note: we do not enforce strict coverage thresholds, but you should strive to cover new helpers and logic.
 
-## Adding Tests
+## Adding Tests and Schema Changes
 
 ### Where to Put Tests
 Tests should be placed alongside the module they test, ending in `.test.ts`. For example:
@@ -34,6 +34,7 @@ Tests should be placed alongside the module they test, ending in `.test.ts`. For
 
 ### Testing Schema and Prompts
 When modifying `summaryAnalysisSchema.ts` or `promptSpecs.ts`, ensure that all edge cases (e.g., malformed objects, unexpected missing fields, or empty strings) are verified. Use synthetic objects for schema validation tests.
+When you add or update properties in schema validators (e.g., in `src/lib/summaryAnalysisSchema.ts`), add explicit test cases passing and failing those new constraints in `src/lib/summaryAnalysisSchema.test.ts`. Always verify normalization functions and missing required fields edge cases.
 
 ### Test Fixtures
 If complex fixtures are needed (e.g., for `summaryAnalysisSchema`), place them inside `src/lib/__fixtures__/` as TypeScript exports. This ensures compatibility with the `tsx` loader and avoids the need for special JSON/raw loaders that might break Node's native runner.
