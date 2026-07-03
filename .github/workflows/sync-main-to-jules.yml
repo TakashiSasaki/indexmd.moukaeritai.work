@@ -1,4 +1,4 @@
-name: Sync main to Jules integration
+name: Sync main to Jules
 
 on:
   push:
@@ -11,17 +11,17 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: sync-main-to-jules-integration
+  group: sync-main-to-jules
   cancel-in-progress: false
 
 env:
   MAIN_BRANCH: main
-  INTEGRATION_BRANCH: jules/integration
-  SYNC_BRANCH: automation/sync-main-to-jules-integration
+  INTEGRATION_BRANCH: jules
+  SYNC_BRANCH: automation/sync-main-to-jules
 
 jobs:
-  sync-main-to-jules-integration:
-    name: Sync main to jules/integration
+  sync-main-to-jules:
+    name: Sync main to jules
     runs-on: ubuntu-latest
 
     steps:
@@ -36,7 +36,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge main into jules/integration or open conflict PR
+      - name: Merge main into jules or open conflict PR
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
           REPO: ${{ github.repository }}
@@ -55,7 +55,7 @@ jobs:
             "+refs/heads/${MAIN_BRANCH}:refs/remotes/origin/${MAIN_BRANCH}" \
             --prune
 
-          # Create jules/integration from main if it does not exist yet.
+          # Create jules from main if it does not exist yet.
           if ! git ls-remote --exit-code --heads origin "${INTEGRATION_BRANCH}" >/dev/null 2>&1; then
             echo "Integration branch ${INTEGRATION_BRANCH} does not exist. Creating it from ${MAIN_BRANCH}."
             git switch -C "${INTEGRATION_BRANCH}" "origin/${MAIN_BRANCH}"
@@ -109,7 +109,7 @@ jobs:
           git merge --abort || true
 
           # Create/update a branch that represents the current main state.
-          # This branch is used only to create a PR into jules/integration.
+          # This branch is used only to create a PR into jules.
           git switch -C "${SYNC_BRANCH}" "origin/${MAIN_BRANCH}"
           git push --force origin "HEAD:refs/heads/${SYNC_BRANCH}"
 
@@ -127,7 +127,7 @@ jobs:
 
           Important notes:
 
-          - \`${INTEGRATION_BRANCH}\` is the Jules working/integration branch.
+          - \`${INTEGRATION_BRANCH}\` is the Jules working branch.
           - This workflow never resets \`${INTEGRATION_BRANCH}\`.
           - On a clean merge, it merges \`${MAIN_BRANCH}\` into \`${INTEGRATION_BRANCH}\` and pushes the result.
           - On conflict, it updates \`${SYNC_BRANCH}\` to the latest \`${MAIN_BRANCH}\` and opens or updates this PR.
