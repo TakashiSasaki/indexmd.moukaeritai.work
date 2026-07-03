@@ -1,0 +1,59 @@
+name: Deploy documentation to GitHub Pages
+
+on:
+  # main ブランチへの push 時に実行
+  push:
+    branches: ["main"]
+  # 手動での実行も可能にする
+  workflow_dispatch:
+
+# GitHub Pagesへのデプロイに必要な権限を設定
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 複数回pushされた場合に古いデプロイをキャンセルし、最新のものだけを反映する
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare site content
+        run: |
+          # 公開用のルートディレクトリを作成
+          mkdir -p _site
+          
+          # アプリケーションの説明（docs）とデータスキーマ（schemas）をコピー
+          if [ -d "docs" ]; then cp -r docs _site/; fi
+          if [ -d "schemas" ]; then cp -r schemas _site/; fi
+          
+          # トップページとして README.md などを index.md として配置
+          if [ -f "README.md" ]; then 
+            cp README.md _site/index.md
+          else
+            echo "# IndexMD Documentation" > _site/index.md
+            echo "Welcome to the documentation." >> _site/index.md
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # _site ディレクトリの中身をアップロード
+          path: '_site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
