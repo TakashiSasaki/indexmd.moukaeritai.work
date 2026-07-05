@@ -1060,8 +1060,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     }
   };
 
-  // Find oldest and newest traversed folders
-  const traversalQueue = useMemo(() => {
+  // Find oldest and newest traversed folders using an O(N) single pass instead of O(N log N) sort
+  const { unvisited, oldest } = useMemo(() => {
     const allFoldersForStats = [
       ...filteredDirs,
       {
@@ -1075,25 +1075,37 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
       }
     ];
 
-    // Calculate the queue FIRST with deterministic tie-breaking (Oldest first)
-    if (allFoldersForStats.length === 0) return [];
+    if (allFoldersForStats.length === 0) return { unvisited: null, oldest: null };
 
-    return [...allFoldersForStats].sort((a, b) => {
-      // Null/undefined last_traversed_at comes first (highest priority)
-      if (!a.last_traversed_at && !b.last_traversed_at) {
-        return (a.path || "").localeCompare(b.path || "");
+    let bestUnvisited = null;
+    let bestOldest = null;
+
+    for (const f of allFoldersForStats) {
+      if (!f.last_traversed_at) {
+        // Find the first unvisited folder alphabetically
+        if (!bestUnvisited || (f.path || "").localeCompare(bestUnvisited.path || "") < 0) {
+          bestUnvisited = f;
+        }
+      } else {
+        // Find the oldest traversed folder
+        if (!bestOldest) {
+          bestOldest = f;
+        } else {
+          const timeF = new Date(f.last_traversed_at).getTime();
+          const timeOldest = new Date(bestOldest.last_traversed_at).getTime();
+
+          if (timeF < timeOldest) {
+            bestOldest = f;
+          } else if (timeF === timeOldest) {
+            if ((f.path || "").localeCompare(bestOldest.path || "") < 0) {
+              bestOldest = f;
+            }
+          }
+        }
       }
-      if (!a.last_traversed_at) return -1;
-      if (!b.last_traversed_at) return 1;
+    }
 
-      const timeA = new Date(a.last_traversed_at).getTime();
-      const timeB = new Date(b.last_traversed_at).getTime();
-
-      if (timeA === timeB) {
-        return (a.path || "").localeCompare(b.path || "");
-      }
-      return timeA - timeB;
-    });
+    return { unvisited: bestUnvisited, oldest: bestOldest };
   }, [filteredDirs, rootLastTraversedAt, rootNextPageToken]);
 
   const buildBreadcrumbPath = (dirId: string): { id: string, name: string }[] => {
@@ -1521,7 +1533,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
                 {/* Priority 2: Unvisited */}
                 {(() => {
-                  const unvisited = traversalQueue.find(f => !f.last_traversed_at);
                   const isActive = !nextPageToken && unvisited;
                   return (
                     <div className={`p-3 rounded-lg border transition-all ${isActive ? 'bg-indigo-50 border-indigo-200 ring-2 ring-indigo-500/20' : 'bg-white border-slate-200 opacity-50'}`}>
@@ -1548,8 +1559,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
                 {/* Priority 3: Oldest */}
                 {(() => {
-                  const oldest = traversalQueue.find(f => f.last_traversed_at);
-                  const isActive = !nextPageToken && !traversalQueue.find(f => !f.last_traversed_at) && oldest;
+                  const isActive = !nextPageToken && !unvisited && oldest;
                   return (
                     <div className={`p-3 rounded-lg border transition-all ${isActive ? 'bg-slate-100 border-slate-300 ring-2 ring-slate-500/20' : 'bg-white border-slate-200 opacity-50'}`}>
                       <div className="flex items-center justify-between mb-2">
