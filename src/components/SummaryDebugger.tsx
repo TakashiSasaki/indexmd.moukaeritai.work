@@ -856,8 +856,9 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
           const data = docSnap.data();
           setSavedMetadata(data);
           setFirestorePersisted("persisted");
-          if (data.parentId) {
-            setSelectedParentId(data.parentId);
+          const parentIdVal = data.parent_id || data.parentId;
+          if (parentIdVal) {
+            setSelectedParentId(parentIdVal);
           }
         } else {
           setSavedMetadata(null);
@@ -1625,7 +1626,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                         <p className="text-slate-400">
                           ファイル名:{" "}
                           <span className="font-semibold text-slate-700">
-                            {savedMetadata.fileName || "不明"}
+                            {savedMetadata.file_name || savedMetadata.fileName || "不明"}
                           </span>
                         </p>
                         <p className="text-slate-400">
@@ -1637,9 +1638,9 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                         <p className="text-slate-400">
                           生成日時:{" "}
                           <span className="text-slate-700">
-                            {savedMetadata.generatedAt
+                            {savedMetadata.generated_at || savedMetadata.generatedAt
                               ? new Date(
-                                  savedMetadata.generatedAt,
+                                  savedMetadata.generated_at || savedMetadata.generatedAt,
                                 ).toLocaleString()
                               : "不明"}
                           </span>
@@ -1647,9 +1648,9 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                         <p className="text-slate-400">
                           更新日時(保存時):{" "}
                           <span className="text-slate-700">
-                            {savedMetadata.modifiedTime
+                            {savedMetadata.modified_time || savedMetadata.modifiedTime
                               ? new Date(
-                                  savedMetadata.modifiedTime,
+                                  savedMetadata.modified_time || savedMetadata.modifiedTime,
                                 ).toLocaleString()
                               : "不明"}
                           </span>
@@ -1660,26 +1661,26 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                         <p className="text-slate-400">
                           スキーマVer:{" "}
                           <span className="font-mono text-slate-700">
-                            {savedMetadata.schemaVersion || "不明"}
+                            {savedMetadata.schema_version || savedMetadata.schemaVersion || "不明"}
                           </span>
                         </p>
                         <p className="text-slate-400">
                           プロンプトVer:{" "}
                           <span className="font-mono text-slate-700">
-                            {savedMetadata.promptVersion || "不明"}
+                            {savedMetadata.prompt_version || savedMetadata.promptVersion || "不明"}
                           </span>
                         </p>
                         <p className="text-slate-400">
                           システム指示Ver:{" "}
                           <span className="font-mono text-slate-700">
-                            {savedMetadata.systemInstructionVersion || "不明"}
+                            {savedMetadata.system_instruction_version || savedMetadata.systemInstructionVersion || "不明"}
                           </span>
                         </p>
-                        {savedMetadata.parentId && (
+                        {(savedMetadata.parent_id || savedMetadata.parentId) && (
                           <p className="text-slate-400">
                             関連付け親ID:{" "}
                             <span className="font-mono text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-100">
-                              {savedMetadata.parentId}
+                              {savedMetadata.parent_id || savedMetadata.parentId}
                             </span>
                           </p>
                         )}
@@ -1717,11 +1718,11 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                             summary: savedMetadata.summary,
                             success: true,
                             validationErrors:
-                              savedMetadata.validationErrors || [],
+                              savedMetadata.validation_errors || savedMetadata.validationErrors || [],
                             metadata: {
-                              name: savedMetadata.fileName,
-                              mimeType: savedMetadata.mimeType,
-                              modifiedTime: savedMetadata.modifiedTime,
+                              name: savedMetadata.file_name || savedMetadata.fileName,
+                              mimeType: savedMetadata.mime_type || savedMetadata.mimeType,
+                              modifiedTime: savedMetadata.modified_time || savedMetadata.modifiedTime,
                             },
                           });
                           setUsedModel(savedMetadata.model);

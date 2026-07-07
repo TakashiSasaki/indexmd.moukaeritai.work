@@ -4,8 +4,10 @@
 
 export function sortSavedSummariesByGeneratedAt(summaries: any[]): any[] {
   return [...summaries].sort((a, b) => {
-    const dateA = a.generatedAt ? new Date(a.generatedAt).getTime() : 0;
-    const dateB = b.generatedAt ? new Date(b.generatedAt).getTime() : 0;
+    const genA = a.generated_at || a.generatedAt;
+    const genB = b.generated_at || b.generatedAt;
+    const dateA = genA ? new Date(genA).getTime() : 0;
+    const dateB = genB ? new Date(genB).getTime() : 0;
     
     // Fallback if Date parsing fails (NaN check)
     const timeA = isNaN(dateA) ? 0 : dateA;
@@ -26,7 +28,8 @@ export function filterSavedSummaries(
     // 1. Text Search Filter (fileName, summary, model)
     if (searchTerm && searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
-      const name = (item.fileName || "").toLowerCase();
+      const nameVal = item.file_name || item.fileName;
+      const name = (nameVal || "").toLowerCase();
       const sum = (item.summary || "").toLowerCase();
       const mdl = (item.model || "").toLowerCase();
       

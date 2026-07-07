@@ -77,23 +77,23 @@ describe("summaryMetadata", () => {
 
     const metadata = buildFileSummaryMetadata(input);
 
-    assert.strictEqual(metadata.fileId, "file-123");
-    assert.strictEqual(metadata.fileName, "test_doc.pdf");
-    assert.strictEqual(metadata.mimeType, "application/pdf");
-    assert.strictEqual(metadata.modifiedTime, "2026-06-24T12:00:00Z");
-    assert.strictEqual(metadata.schemaVersion, SCHEMA_VERSION_V12);
-    assert.strictEqual(metadata.promptVersion, SUMMARY_ANALYSIS_PROMPT_VERSION);
-    assert.strictEqual(metadata.systemInstructionVersion, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION);
+    assert.strictEqual(metadata.file_id, "file-123");
+    assert.strictEqual(metadata.file_name, "test_doc.pdf");
+    assert.strictEqual(metadata.mime_type, "application/pdf");
+    assert.strictEqual(metadata.modified_time, "2026-06-24T12:00:00Z");
+    assert.strictEqual(metadata.schema_version, SCHEMA_VERSION_V12);
+    assert.strictEqual(metadata.prompt_version, SUMMARY_ANALYSIS_PROMPT_VERSION);
+    assert.strictEqual(metadata.system_instruction_version, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION);
     assert.strictEqual(metadata.model, "gemini-2.5-pro");
-    assert.strictEqual(metadata.outputMode, "structured");
+    assert.strictEqual(metadata.output_mode, "structured");
     assert.strictEqual(metadata.summary, "This is a one-line summary.");
     assert.deepStrictEqual(metadata.structured, validStructured);
-    assert.deepStrictEqual(metadata.validationErrors, []);
-    assert.strictEqual(metadata.parseSuccess, true);
-    assert.strictEqual(metadata.validationSuccess, true);
-    assert.ok(metadata.generatedAt);
+    assert.deepStrictEqual(metadata.validation_errors, []);
+    assert.strictEqual(metadata.parse_success, true);
+    assert.strictEqual(metadata.validation_success, true);
+    assert.ok(metadata.generated_at);
     assert.strictEqual(metadata.source, "ai-summary-test");
-    assert.strictEqual(metadata.cacheKey, "cache-key-abc");
+    assert.strictEqual(metadata.cache_key, "cache-key-abc");
   });
 
   test("handles missing fileName/mimeType safely", () => {
@@ -108,11 +108,11 @@ describe("summaryMetadata", () => {
     };
 
     const metadata = buildFileSummaryMetadata(input);
-    assert.strictEqual(metadata.fileId, "file-456");
-    assert.strictEqual(metadata.fileName, undefined);
-    assert.strictEqual(metadata.mimeType, undefined);
-    assert.strictEqual(metadata.modifiedTime, undefined);
-    assert.strictEqual(metadata.cacheKey, undefined);
+    assert.strictEqual(metadata.file_id, "file-456");
+    assert.strictEqual(metadata.file_name, undefined);
+    assert.strictEqual(metadata.mime_type, undefined);
+    assert.strictEqual(metadata.modified_time, undefined);
+    assert.strictEqual(metadata.cache_key, undefined);
   });
 
   test("getFileSummaryDocPath creates stable Firestore path under user scoped uid", () => {

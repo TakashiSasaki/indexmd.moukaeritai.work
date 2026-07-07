@@ -93,7 +93,8 @@ export const SavedSummariesBrowser: React.FC<SavedSummariesBrowserProps> = ({
   const handleFetchIndexMdPreflight = async () => {
     if (!selectedSummaryId || !token) return;
     const summary = processedSummaries.find(s => s.id === selectedSummaryId);
-    if (!summary || !summary.parentId) {
+    const parentIdVal = summary ? (summary.parent_id || summary.parentId) : null;
+    if (!summary || !parentIdVal) {
       setPreflightError("選択されたサマリーに親フォルダ情報（parentId）がありません。");
       return;
     }
@@ -104,7 +105,7 @@ export const SavedSummariesBrowser: React.FC<SavedSummariesBrowserProps> = ({
 
     try {
       // 1. Lookup index.md candidates
-      const lookupRes = await fetch(`/api/drive/index-preflight/lookup?folderId=${summary.parentId}`, {
+      const lookupRes = await fetch(`/api/drive/index-preflight/lookup?folderId=${parentIdVal}`, {
         headers: {
           'x-google-drive-token': token
         }
@@ -200,7 +201,7 @@ These notes must also be completely preserved intact!`);
         currentSchemaVersion: SCHEMA_VERSION_V12,
         currentPromptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
         currentSystemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
-        currentFileModifiedTime: item.modifiedTime // Assume no modification drift by default
+        currentFileModifiedTime: item.modified_time || item.modifiedTime // Assume no modification drift by default
       });
       return {
         ...item,
@@ -239,7 +240,7 @@ These notes must also be completely preserved intact!`);
       currentSchemaVersion: SCHEMA_VERSION_V12,
       currentPromptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION,
       currentSystemInstructionVersion: SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSION,
-      currentFileModifiedTime: selectedSummary.modifiedTime
+      currentFileModifiedTime: selectedSummary.modified_time || selectedSummary.modifiedTime
     });
   }, [selectedSummary]);
 
@@ -247,8 +248,9 @@ These notes must also be completely preserved intact!`);
   const fileCountsByDir = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const item of processedSummaries) {
-      if (item.parentId) {
-        counts[item.parentId] = (counts[item.parentId] || 0) + 1;
+      const parentIdVal = item.parent_id || item.parentId;
+      if (parentIdVal) {
+        counts[parentIdVal] = (counts[parentIdVal] || 0) + 1;
       }
     }
     return counts;
@@ -261,7 +263,7 @@ These notes must also be completely preserved intact!`);
     const folderName = folder ? (folder.path || folder.name) : 'Selected Directory';
 
     // Filter file summaries belonging to this directory
-    const filesInFolder = processedSummaries.filter(item => item.parentId === selectedDirId);
+    const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
 
     // Render index.md via our pure deterministic preview helper
     return buildReadOnlyIndexMdPreview({
@@ -308,12 +310,14 @@ These notes must also be completely preserved intact!`);
 
   const handleSelectToTest = (item: any) => {
     try {
-      localStorage.setItem('gemini_selected_file_id', item.fileId);
+      const fId = item.file_id || item.fileId;
+      localStorage.setItem('gemini_selected_file_id', fId);
     } catch (e) {
       // Silent
     }
+    const fId = item.file_id || item.fileId;
     if (onSelectToTest) {
-      onSelectToTest(item.fileId);
+      onSelectToTest(fId);
     }
     if (setActiveTab) {
       setActiveTab("summary-debugger");
@@ -467,7 +471,7 @@ These notes must also be completely preserved intact!`);
                 </div>
                 
                 {(() => {
-                  const filesInFolder = processedSummaries.filter(item => item.parentId === selectedDirId);
+                  const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
                   return (
                     <div className="space-y-4">
                       <div>
@@ -505,9 +509,9 @@ These notes must also be completely preserved intact!`);
                               }
 
                               return (
-                                <li key={file.fileId} className="border-l-2 border-indigo-400 pl-3 py-1 bg-slate-50 rounded-r">
+                                <li key={file.file_id || file.fileId} className="border-l-2 border-indigo-400 pl-3 py-1 bg-slate-50 rounded-r">
                                   <span className="font-semibold text-xs text-indigo-950 block">
-                                    {file.fileName || "名称未設定"}
+                                    {file.file_name || file.fileName || "名称未設定"}
                                     {badgeText && (
                                       <span className={`ml-2 text-[9px] px-1.5 py-0.2 rounded font-bold ${badgeColor}`}>
                                         {badgeText}
@@ -909,15 +913,15 @@ These notes must also be completely preserved intact!`);
                       >
                         <td className="px-4 py-3 max-w-xs">
                           <div className="flex flex-col gap-0.5">
-                            <span className="font-semibold text-slate-800 truncate" title={item.fileName}>
-                              {item.fileName || "不明なファイル"}
+                            <span className="font-semibold text-slate-800 truncate" title={item.file_name || item.fileName}>
+                              {item.file_name || item.fileName || "不明なファイル"}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono truncate select-all" title={item.fileId}>
-                              ID: {item.fileId}
+                            <span className="text-[10px] text-slate-400 font-mono truncate select-all" title={item.file_id || item.fileId}>
+                              ID: {item.file_id || item.fileId}
                             </span>
-                            {item.parentId && (
+                            {(item.parent_id || item.parentId) && (
                               <span className="text-[9px] text-indigo-600 font-bold bg-indigo-50 border border-indigo-100/50 px-1 py-0.2 rounded self-start mt-0.5">
-                                📁 親: {item.parentId.slice(0, 8)}...
+                                📁 親: {(item.parent_id || item.parentId).slice(0, 8)}...
                               </span>
                             )}
                           </div>
@@ -1004,10 +1008,10 @@ These notes must also be completely preserved intact!`);
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
                     <h5 className="font-bold text-slate-900 text-xs leading-tight">
-                      {selectedSummary.fileName || "名称未設定ファイル"}
+                      {selectedSummary.file_name || selectedSummary.fileName || "名称未設定ファイル"}
                     </h5>
                     <p className="text-[10px] text-slate-400 font-mono select-all">
-                      File ID: {selectedSummary.fileId}
+                      File ID: {selectedSummary.file_id || selectedSummary.fileId}
                     </p>
                   </div>
                   {/* Status Badge */}
@@ -1095,19 +1099,19 @@ These notes must also be completely preserved intact!`);
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
                   <div>
                     <span className="text-slate-400 block">親フォルダID (parentId)</span>
-                    <span className="text-slate-800 font-mono break-all">{selectedSummary.parentId || "なし (ルート等)"}</span>
+                    <span className="text-slate-800 font-mono break-all">{selectedSummary.parent_id || selectedSummary.parentId || "なし (ルート等)"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block">MimeType</span>
-                    <span className="text-slate-800 font-mono">{selectedSummary.mimeType || "不明"}</span>
+                    <span className="text-slate-800 font-mono">{selectedSummary.mime_type || selectedSummary.mimeType || "不明"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block">Drive更新日時 (modifiedTime)</span>
-                    <span className="text-slate-800 font-mono">{selectedSummary.modifiedTime ? new Date(selectedSummary.modifiedTime).toLocaleString() : "不明"}</span>
+                    <span className="text-slate-800 font-mono">{(selectedSummary.modified_time || selectedSummary.modifiedTime) ? new Date(selectedSummary.modified_time || selectedSummary.modifiedTime).toLocaleString() : "不明"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block">要約生成日時 (generatedAt)</span>
-                    <span className="text-slate-800 font-mono">{selectedSummary.generatedAt ? new Date(selectedSummary.generatedAt).toLocaleString() : "不明"}</span>
+                    <span className="text-slate-800 font-mono">{(selectedSummary.generated_at || selectedSummary.generatedAt) ? new Date(selectedSummary.generated_at || selectedSummary.generatedAt).toLocaleString() : "不明"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block">使用AIモデル</span>
@@ -1115,15 +1119,15 @@ These notes must also be completely preserved intact!`);
                   </div>
                   <div>
                     <span className="text-slate-400 block">スキーマバージョン</span>
-                    <span className="text-slate-800 font-mono">{selectedSummary.schemaVersion || "不明"}</span>
+                    <span className="text-slate-800 font-mono">{selectedSummary.schema_version || selectedSummary.schemaVersion || "不明"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block">プロンプトバージョン</span>
-                    <span className="text-slate-800 font-mono">{selectedSummary.promptVersion || "不明"}</span>
+                    <span className="text-slate-800 font-mono">{selectedSummary.prompt_version || selectedSummary.promptVersion || "不明"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block">システム指示バージョン</span>
-                    <span className="text-slate-800 font-mono">{selectedSummary.systemInstructionVersion || "不明"}</span>
+                    <span className="text-slate-800 font-mono">{selectedSummary.system_instruction_version || selectedSummary.systemInstructionVersion || "不明"}</span>
                   </div>
                 </div>
               </div>

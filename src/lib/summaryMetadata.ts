@@ -3,25 +3,25 @@ import { SUMMARY_ANALYSIS_PROMPT_VERSION, SUMMARY_DEBUG_SYSTEM_INSTRUCTION_VERSI
 import { SummaryAnalysisResultV12 } from "./summaryAnalysis/types";
 
 export interface FileSummaryMetadata {
-  fileId: string;
-  fileName?: string;
-  mimeType?: string;
-  modifiedTime?: string;
-  parentId?: string;
-  schemaVersion: string;
-  promptVersion: string;
-  systemInstructionVersion: string;
+  file_id: string;
+  file_name?: string;
+  mime_type?: string;
+  modified_time?: string;
+  parent_id?: string;
+  schema_version: string;
+  prompt_version: string;
+  system_instruction_version: string;
   model: string;
-  outputMode: "structured";
+  output_mode: "structured";
   summary: string;
   structured: SummaryAnalysisResultV12;
-  validationErrors: string[];
-  parseSuccess: boolean;
-  validationSuccess: boolean;
-  generatedAt: string;
+  validation_errors: string[];
+  parse_success: boolean;
+  validation_success: boolean;
+  generated_at: string;
   source: "ai-summary-test" | "drive-debugger" | "future-indexing";
-  cacheKey?: string;
-  normalizedPayloadHash?: string;
+  cache_key?: string;
+  normalized_payload_hash?: string;
 }
 
 export interface BuildFileSummaryMetadataInput {
@@ -89,8 +89,8 @@ export function buildNormalizedPayloadHash(value: unknown): string {
 
 export function shouldSkipFirestoreSummaryWrite(existingMetadata: any, nextMetadata: any): boolean {
   if (!existingMetadata || !nextMetadata) return false;
-  const hash1 = existingMetadata.normalizedPayloadHash;
-  const hash2 = nextMetadata.normalizedPayloadHash;
+  const hash1 = existingMetadata.normalized_payload_hash || existingMetadata.normalizedPayloadHash;
+  const hash2 = nextMetadata.normalized_payload_hash || nextMetadata.normalizedPayloadHash;
   if (!hash1 || !hash2) return false;
   return hash1 === hash2;
 }
@@ -104,29 +104,29 @@ export function buildFileSummaryMetadata(input: BuildFileSummaryMetadataInput): 
   const summaryText = struct.summary?.oneLine || struct.summary?.detailed || struct.titleInfo?.displayTitle?.value || "";
 
   const metadata: FileSummaryMetadata = {
-    fileId: input.fileId,
-    fileName: input.fileName || undefined,
-    mimeType: input.mimeType || undefined,
-    modifiedTime: input.modifiedTime || undefined,
-    parentId: input.parentId || undefined,
-    schemaVersion,
-    promptVersion,
-    systemInstructionVersion,
+    file_id: input.fileId,
+    file_name: input.fileName || undefined,
+    mime_type: input.mimeType || undefined,
+    modified_time: input.modifiedTime || undefined,
+    parent_id: input.parentId || undefined,
+    schema_version: schemaVersion,
+    prompt_version: promptVersion,
+    system_instruction_version: systemInstructionVersion,
     model: input.model,
-    outputMode: "structured",
+    output_mode: "structured",
     summary: summaryText,
     structured: input.structured,
-    validationErrors: input.validationErrors || [],
-    parseSuccess: !!input.parseSuccess,
-    validationSuccess: !!input.validationSuccess,
-    generatedAt: input.generatedAt || new Date().toISOString(),
+    validation_errors: input.validationErrors || [],
+    parse_success: !!input.parseSuccess,
+    validation_success: !!input.validationSuccess,
+    generated_at: input.generatedAt || new Date().toISOString(),
     source: input.source,
-    cacheKey: input.cacheKey || undefined,
+    cache_key: input.cacheKey || undefined,
   };
 
   const hash = buildNormalizedPayloadHash(input.structured);
   if (hash) {
-    metadata.normalizedPayloadHash = hash;
+    metadata.normalized_payload_hash = hash;
   }
 
   return metadata;
@@ -142,11 +142,14 @@ export function getFileSummaryDocPath(userId: string, fileId: string): string {
 
 export function isPersistableStructuredSummary(metadata: any): boolean {
   if (!metadata || typeof metadata !== "object") return false;
+  const fileIdVal = metadata.file_id || metadata.fileId;
+  const parseSuccessVal = metadata.parse_success !== undefined ? metadata.parse_success : metadata.parseSuccess;
+  const validationSuccessVal = metadata.validation_success !== undefined ? metadata.validation_success : metadata.validationSuccess;
   return !!(
-    typeof metadata.fileId === "string" &&
-    metadata.fileId.trim() !== "" &&
-    !!metadata.parseSuccess &&
-    !!metadata.validationSuccess &&
+    typeof fileIdVal === "string" &&
+    fileIdVal.trim() !== "" &&
+    !!parseSuccessVal &&
+    !!validationSuccessVal &&
     metadata.structured &&
     typeof metadata.structured === "object"
   );
@@ -201,43 +204,53 @@ export function getSummaryMetadataStatus(
     return "missing";
   }
 
+  const fileIdVal = savedMetadata.file_id || savedMetadata.fileId;
+  const schemaVersionVal = savedMetadata.schema_version || savedMetadata.schemaVersion;
+  const promptVersionVal = savedMetadata.prompt_version || savedMetadata.promptVersion;
+  const systemInstructionVersionVal = savedMetadata.system_instruction_version || savedMetadata.systemInstructionVersion;
+  const outputModeVal = savedMetadata.output_mode || savedMetadata.outputMode;
+  const generatedAtVal = savedMetadata.generated_at || savedMetadata.generatedAt;
+  const parseSuccessVal = savedMetadata.parse_success !== undefined ? savedMetadata.parse_success : savedMetadata.parseSuccess;
+  const validationSuccessVal = savedMetadata.validation_success !== undefined ? savedMetadata.validation_success : savedMetadata.validationSuccess;
+  const modifiedTimeVal = savedMetadata.modified_time || savedMetadata.modifiedTime;
+
   // Check required fields existence and basic types
   if (
-    !savedMetadata.fileId ||
-    typeof savedMetadata.fileId !== "string" ||
-    savedMetadata.fileId.trim() === "" ||
-    !savedMetadata.schemaVersion ||
-    typeof savedMetadata.schemaVersion !== "string" ||
-    !savedMetadata.promptVersion ||
-    typeof savedMetadata.promptVersion !== "string" ||
-    !savedMetadata.systemInstructionVersion ||
-    typeof savedMetadata.systemInstructionVersion !== "string" ||
+    !fileIdVal ||
+    typeof fileIdVal !== "string" ||
+    fileIdVal.trim() === "" ||
+    !schemaVersionVal ||
+    typeof schemaVersionVal !== "string" ||
+    !promptVersionVal ||
+    typeof promptVersionVal !== "string" ||
+    !systemInstructionVersionVal ||
+    typeof systemInstructionVersionVal !== "string" ||
     !savedMetadata.model ||
     typeof savedMetadata.model !== "string" ||
-    savedMetadata.outputMode !== "structured" ||
+    outputModeVal !== "structured" ||
     savedMetadata.summary === undefined ||
     !savedMetadata.structured ||
     typeof savedMetadata.structured !== "object" ||
-    !savedMetadata.generatedAt ||
+    !generatedAtVal ||
     !savedMetadata.source
   ) {
     return "invalid";
   }
 
   // Check validation status
-  if (!savedMetadata.parseSuccess || !savedMetadata.validationSuccess) {
+  if (!parseSuccessVal || !validationSuccessVal) {
     return "invalid";
   }
 
   // Schema version mismatch
-  if (savedMetadata.schemaVersion !== currentSchemaVersion) {
+  if (schemaVersionVal !== currentSchemaVersion) {
     return "stale-schema";
   }
 
   // Prompt or system instruction mismatch
   if (
-    savedMetadata.promptVersion !== currentPromptVersion ||
-    savedMetadata.systemInstructionVersion !== currentSystemInstructionVersion
+    promptVersionVal !== currentPromptVersion ||
+    systemInstructionVersionVal !== currentSystemInstructionVersion
   ) {
     return "stale-prompt";
   }
@@ -245,8 +258,8 @@ export function getSummaryMetadataStatus(
   // File modifiedTime mismatch (when available on both sides)
   if (
     currentFileModifiedTime &&
-    savedMetadata.modifiedTime &&
-    savedMetadata.modifiedTime !== currentFileModifiedTime
+    modifiedTimeVal &&
+    modifiedTimeVal !== currentFileModifiedTime
   ) {
     return "stale-file";
   }
@@ -271,24 +284,34 @@ export function getSummaryMetadataStatusReasons(
 
   const reasons: string[] = [];
 
+  const fileIdVal = savedMetadata.file_id || savedMetadata.fileId;
+  const schemaVersionVal = savedMetadata.schema_version || savedMetadata.schemaVersion;
+  const promptVersionVal = savedMetadata.prompt_version || savedMetadata.promptVersion;
+  const systemInstructionVersionVal = savedMetadata.system_instruction_version || savedMetadata.systemInstructionVersion;
+  const outputModeVal = savedMetadata.output_mode || savedMetadata.outputMode;
+  const generatedAtVal = savedMetadata.generated_at || savedMetadata.generatedAt;
+  const parseSuccessVal = savedMetadata.parse_success !== undefined ? savedMetadata.parse_success : savedMetadata.parseSuccess;
+  const validationSuccessVal = savedMetadata.validation_success !== undefined ? savedMetadata.validation_success : savedMetadata.validationSuccess;
+  const modifiedTimeVal = savedMetadata.modified_time || savedMetadata.modifiedTime;
+
   // Check required fields existence and basic types
   if (
-    !savedMetadata.fileId ||
-    typeof savedMetadata.fileId !== "string" ||
-    savedMetadata.fileId.trim() === "" ||
-    !savedMetadata.schemaVersion ||
-    typeof savedMetadata.schemaVersion !== "string" ||
-    !savedMetadata.promptVersion ||
-    typeof savedMetadata.promptVersion !== "string" ||
-    !savedMetadata.systemInstructionVersion ||
-    typeof savedMetadata.systemInstructionVersion !== "string" ||
+    !fileIdVal ||
+    typeof fileIdVal !== "string" ||
+    fileIdVal.trim() === "" ||
+    !schemaVersionVal ||
+    typeof schemaVersionVal !== "string" ||
+    !promptVersionVal ||
+    typeof promptVersionVal !== "string" ||
+    !systemInstructionVersionVal ||
+    typeof systemInstructionVersionVal !== "string" ||
     !savedMetadata.model ||
     typeof savedMetadata.model !== "string" ||
-    savedMetadata.outputMode !== "structured" ||
+    outputModeVal !== "structured" ||
     savedMetadata.summary === undefined ||
     !savedMetadata.structured ||
     typeof savedMetadata.structured !== "object" ||
-    !savedMetadata.generatedAt ||
+    !generatedAtVal ||
     !savedMetadata.source
   ) {
     reasons.push("必須フィールドが不足しているか、無効なデータ形式です。");
@@ -296,33 +319,33 @@ export function getSummaryMetadataStatusReasons(
   }
 
   // Check validation status
-  if (!savedMetadata.parseSuccess) {
+  if (!parseSuccessVal) {
     reasons.push("JSON構造のパース処理に失敗しています。");
   }
-  if (!savedMetadata.validationSuccess) {
+  if (!validationSuccessVal) {
     reasons.push("スキーマのバリデーションに失敗しています。");
   }
 
   // Schema version mismatch
-  if (savedMetadata.schemaVersion !== currentSchemaVersion) {
-    reasons.push(`スキーマバージョン不一致 (保存: ${savedMetadata.schemaVersion} / 現在: ${currentSchemaVersion})`);
+  if (schemaVersionVal !== currentSchemaVersion) {
+    reasons.push(`スキーマバージョン不一致 (保存: ${schemaVersionVal} / 現在: ${currentSchemaVersion})`);
   }
 
   // Prompt or system instruction mismatch
-  if (savedMetadata.promptVersion !== currentPromptVersion) {
-    reasons.push(`分析プロンプトバージョン不一致 (保存: ${savedMetadata.promptVersion} / 現在: ${currentPromptVersion})`);
+  if (promptVersionVal !== currentPromptVersion) {
+    reasons.push(`分析プロンプトバージョン不一致 (保存: ${promptVersionVal} / 現在: ${currentPromptVersion})`);
   }
-  if (savedMetadata.systemInstructionVersion !== currentSystemInstructionVersion) {
-    reasons.push(`システム指示バージョン不一致 (保存: ${savedMetadata.systemInstructionVersion} / 現在: ${currentSystemInstructionVersion})`);
+  if (systemInstructionVersionVal !== currentSystemInstructionVersion) {
+    reasons.push(`システム指示バージョン不一致 (保存: ${systemInstructionVersionVal} / 現在: ${currentSystemInstructionVersion})`);
   }
 
   // File modifiedTime mismatch
   if (
     currentFileModifiedTime &&
-    savedMetadata.modifiedTime &&
-    savedMetadata.modifiedTime !== currentFileModifiedTime
+    modifiedTimeVal &&
+    modifiedTimeVal !== currentFileModifiedTime
   ) {
-    reasons.push(`Driveファイル更新検知 (保存された更新日時: ${new Date(savedMetadata.modifiedTime).toLocaleString()} / 最新の更新日時: ${new Date(currentFileModifiedTime).toLocaleString()})`);
+    reasons.push(`Driveファイル更新検知 (保存された更新日時: ${new Date(modifiedTimeVal).toLocaleString()} / 最新の更新日時: ${new Date(currentFileModifiedTime).toLocaleString()})`);
   }
 
   return reasons;
