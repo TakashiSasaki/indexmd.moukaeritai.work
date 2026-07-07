@@ -157,6 +157,7 @@ export interface VisualBatchJob {
   jsonMode: string;
   customInstructionHash?: string;
   customInstructionPreview?: string;
+  customInstruction?: string;
 
   targetSampleIds: string[];
   completedSampleIds: string[];

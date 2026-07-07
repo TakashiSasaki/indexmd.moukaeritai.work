@@ -306,7 +306,13 @@ Dispatches a visual analysis on a public sample to extract visual features, elem
               },
               "confidence": "number (0.0 to 1.0)",
               "evidence": "string (optional)",
-              "locationHint": "string (optional)"
+              "locationHint": "string (optional)",
+              "boundingBox": {
+                "ymin": "number",
+                "xmin": "number",
+                "ymax": "number",
+                "xmax": "number"
+              } // optional
             }
           ],
           "visibleText": [
@@ -314,6 +320,12 @@ Dispatches a visual analysis on a public sample to extract visual features, elem
               "text": "string",
               "confidence": "number (0.0 to 1.0)",
               "locationHint": "string (optional)",
+              "boundingBox": {
+                "ymin": "number",
+                "xmin": "number",
+                "ymax": "number",
+                "xmax": "number"
+              } // optional,
               "language": "string (optional)"
             }
           ],
@@ -487,11 +499,11 @@ To ensure the resumed batch does not enter a broken or inconsistent state, the f
 
 ---
 
-## 🛠 Future Server-Side Job API Contract (Proposed)
+## 🛠 Experimental Server-Side Job API Contract (Implemented)
 
-In preparation for migrating visual analysis batches from client-side `localStorage` to a server-side robust job system, the following API endpoints and structures are proposed. The data models (`VisualBatchJob`, `VisualBatchJobItem`, `VisualBatchJobEvent`) have been introduced into the codebase as the first stride.
+As the second stride toward migrating visual analysis batches from client-side `localStorage` to a server-side robust job system, the following experimental API endpoints and structures have been implemented. The job models (`VisualBatchJob`, `VisualBatchJobItem`, `VisualBatchJobEvent`) track state in a disk-backed JSON store (`cache/visual-batch-jobs/*.json`).
 
-### Proposed Endpoints
+### Endpoints
 
 #### `POST /api/visual/batch-jobs`
 Creates a new batch job on the server.
@@ -514,7 +526,7 @@ Retrieves a list of recent batch jobs.
 Retrieves the current state and status of a specific batch job, including its items and diagnostic details.
 *   **Response**: `200 OK` with `VisualBatchJob` object.
 
-#### `POST /api/visual/batch-jobs/:jobId/actions:resume`
+#### `GET /api/visual/batch-jobs/:jobId/items`\nRetrieves the job items. Supports `?view=compact` (default) and `?view=full`.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/summary`\nRetrieves the text summary report.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/diagnostic`\nRetrieves the diagnostic text report.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/failures`\nRetrieves a JSON report of failed items.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/full`\nRetrieves the full batch JSON report.\n\n#### `POST /api/visual/batch-jobs/:jobId/actions:resume`
 Instructs the server to resume a paused or interrupted batch job.
 *   **Request Body**:
     ```json
@@ -524,7 +536,7 @@ Instructs the server to resume a paused or interrupted batch job.
     }
     ```
 
-#### `POST /api/visual/batch-jobs/:jobId/actions:cancel`
+#### `POST /api/visual/batch-jobs/:jobId/cancel`
 Instructs the server to cancel a running batch job.
 
 ### Model Definitions
@@ -534,3 +546,11 @@ The `VisualBatchJobEvent` tracks lifecycle events such as `jobQueued`, `jobStart
 
 Currently, `batchCheckpoint.ts` uses the `VisualBatchJobEvent` schema to standardize local event tracking and includes `lastHeartbeatAt` and `lastCheckpointSavedAt` to enable heartbeat monitoring in the UI.
 
+
+### Architecture and Limitations
+- **Job Store**: Currently uses a disk-backed JSON store in `cache/visual-batch-jobs/`.
+- **Heartbeat**: 
+  - *Client-side checkpoint heartbeat*: indicates the browser tab is alive.
+  - *Server-side heartbeat*: indicates the server job runner last updated the state.
+- **Data Persistence**: In Google Cloud Run or AI Studio preview, local disk may be wiped upon instance restart.
+- **Future TODOs**: Migrate to Firestore for durable job state and Cloud Tasks / Pub/Sub for distributed workers.

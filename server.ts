@@ -1,3 +1,9 @@
+
+import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
+import { startVisualBatchJob } from './server_jobs';
+import { VisualBatchJob } from './src/lib/visualAnalysis/publicSamples/batchTypes';
+import crypto from 'crypto';
+import { fnv1a32 } from './src/lib/visualAnalysis/publicSamples/artifactUtils';
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -1516,14 +1522,21 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
   }
 });
 
-app.post("/api/visual/public-samples/analyze", async (req, res) => {
-  try {
-    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction } = req.body;
 
-    if (!sampleId) return res.status(400).json({ error: "sampleId is required" });
+export async function analyzePublicSample(options: {
+  sampleId: string;
+  modelName?: string;
+  includeRequestPreview?: boolean;
+  jsonMode?: string;
+  customInstruction?: string;
+}): Promise<{status: number, body: any}> {
+  try {
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction } = options;
+
+    if (!sampleId) return { status: 400, body: { error: "sampleId is required" } };
 
     const sample = getPublicSampleById(sampleId);
-    if (!sample) return res.status(404).json({ error: "Sample not found" });
+    if (!sample) return { status: 404, body: { error: "Sample not found" } };
 
     // Fetch Image Bytes
     const fetchResult = await fetchPublicSampleImage(sampleId, "analysis");
@@ -1543,7 +1556,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     // Prepare Prompt & Options
     const visualCap = getVisualModelCapability(modelName);
     if (visualCap.recommendation === "unsupported") {
-      return res.status(400).json({ error: `Model ${modelName} is not supported for visual analysis.` });
+      return { status: 400, body: { error: `Model ${modelName} is not supported for visual analysis.` } };
     }
 
     const targetModel = modelName;
@@ -1728,7 +1741,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
             cacheSharedInFlight: fetchResult.cacheSharedInFlight
           }
         });
-        return res.status(200).json(failRes);
+        return { status: 200, body: failRes };
       }
     }
 
@@ -1865,7 +1878,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     };
 
     if (!parseRes.ok) {
-      return res.status(200).json({
+      return { status: 200, body: {
         record: {
           schemaVersion: "image-analysis-record.v0.1.0",
           status: { success: false, failureKind: "jsonParseError", error: "Model returned invalid JSON" },
@@ -1963,7 +1976,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
           cacheSharedInFlight: fetchResult.cacheSharedInFlight
         },
         ...(requestPreview ? { requestPreview } : {})
-      });
+      } };
     }
 
     const parsed = parseRes.parsed;
@@ -2091,7 +2104,7 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
         result.requestPreview = requestPreview;
       }
 
-      return res.json(result);
+      return { status: 200, body: result };
     }
 
     let canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
@@ -2324,10 +2337,20 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       result.requestPreview = requestPreview;
     }
 
-    res.json(result);
+    return { status: 200, body: result };
   } catch (err: any) {
     console.error("Public sample analysis error:", err.message);
-    res.status(500).json({ error: err.message || "Failed to analyze public sample" });
+    return { status: 500, body: { error: err.message || "Failed to analyze public sample" } };
+  }
+}
+
+app.post("/api/visual/public-samples/analyze", async (req, res) => {
+  try {
+    const result = await analyzePublicSample(req.body);
+    return res.status(result.status).json(result.body);
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ error: e.message || "Internal server error" });
   }
 });
 
@@ -2756,3 +2779,239 @@ async function startServer() {
 if (process.env.NODE_ENV !== "test") {
   startServer();
 }
+
+
+// --- Server-Side Batch Jobs API ---
+
+app.post("/api/visual/batch-jobs", async (req, res) => {
+  try {
+    const { modelName = "gemini-3.5-flash", jsonMode = "json_object", customInstruction, targetSampleIds } = req.body;
+    if (!targetSampleIds || !Array.isArray(targetSampleIds) || targetSampleIds.length === 0) {
+      return res.status(400).json({ error: "targetSampleIds array is required and must not be empty" });
+    }
+
+    const jobId = crypto.randomUUID();
+    const job: VisualBatchJob = {
+      jobId,
+      status: 'queued',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      modelName,
+      jsonMode,
+      customInstruction,
+      customInstructionPreview: customInstruction ? customInstruction.substring(0, 100) : undefined,
+      customInstructionHash: customInstruction ? String(fnv1a32(customInstruction.trim())) : undefined,
+      targetSampleIds,
+      completedSampleIds: [],
+      pendingSampleIds: [...targetSampleIds],
+      failedSampleIds: [],
+      counters: {
+        total: targetSampleIds.length,
+        successCount: 0,
+        failureCount: 0,
+        validCount: 0,
+        validLowQualityCount: 0,
+        invalidJsonCount: 0,
+        expectedComparisonPassCount: 0,
+        expectedComparisonWarningCount: 0,
+        expectedComparisonFailCount: 0,
+        reviewPassCount: 0,
+        reviewNeedsReviewCount: 0,
+        reviewFailCount: 0,
+      },
+      items: [],
+      lastEvent: {
+        type: 'jobQueued',
+        timestamp: new Date().toISOString(),
+        message: `Job ${jobId} queued`
+      }
+    };
+
+    jobStore.createJob(job);
+    
+    // Start async execution
+    startVisualBatchJob(jobId, analyzePublicSample).catch(err => {
+      console.error("Batch job runner failed:", err);
+    });
+
+    return res.status(201).json({ success: true, job });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs", async (req, res) => {
+  try {
+    const jobs = jobStore.listJobs().map(j => {
+      const { items, ...summary } = j;
+      return summary;
+    });
+    return res.status(200).json({ success: true, jobs });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    // avoid sending items by default or send them if needed? The task says GET /:jobId is for polling.
+    // "status", "currentSampleId", "currentSampleTitle", "lastEvent", "lastHeartbeatAt", counters, item statuses that can be extracted from items.
+    // Let's strip full heavy payloads from items.
+    const lightweightItems = job.items.map(item => ({
+      sampleId: item.sampleId,
+      status: item.status,
+      startedAt: item.startedAt,
+      completedAt: item.completedAt,
+      error: item.error,
+      failureKind: item.failureKind,
+      qualityStatus: item.qualityStatus,
+    }));
+    
+    const summary = { ...job, items: lightweightItems };
+    return res.status(200).json({ success: true, job: summary });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    const view = req.query.view || 'compact';
+    
+    let items = job.items;
+    if (view === 'compact') {
+      items = items.map(item => {
+        const { responseRaw, ...rest } = item;
+        return rest;
+      }) as any;
+    }
+    
+    return res.status(200).json({ success: true, items });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    
+    if (job.status === 'running' || job.status === 'queued') {
+      jobStore.updateJob(job.jobId, { 
+        status: 'canceled',
+        canceledAt: new Date().toISOString(),
+        lastEvent: {
+          type: 'jobCanceled',
+          timestamp: new Date().toISOString(),
+          message: 'Job canceled by user request'
+        }
+      });
+    }
+    return res.status(200).json({ success: true, job: jobStore.getJob(job.jobId) });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+
+
+import { 
+  buildBatchSummaryReportForChat, 
+  buildBatchDiagnosticReportForChat, 
+  buildFailuresOnlyReport 
+} from './src/lib/visualAnalysis/publicSamples/reportBuilder';
+
+function jobToSummary(job: VisualBatchJob) {
+  // convert job items to PublicSampleBatchRunItem
+  const items = job.items.map(item => ({
+    sampleId: item.sampleId,
+    title: item.title || item.sampleId,
+    success: item.status === 'succeeded',
+    qualityStatus: item.qualityStatus,
+    qualityScore: item.qualityScore,
+    qualityIssues: item.qualityIssues,
+    analysisRun: item.responseRaw?.analysisRun,
+    parseDiagnostics: item.parseDiagnostics,
+    generationDiagnostics: item.generationDiagnostics,
+    inputDiagnostics: item.inputDiagnostics,
+    normalizationDiagnostics: item.normalizationDiagnostics,
+    responseRaw: item.responseRaw,
+    responseDiagnostics: item.responseDiagnostics,
+    retryDiagnostics: item.retryDiagnostics,
+    comparison: item.comparison,
+    error: item.error,
+    failureKind: item.failureKind,
+  })) as any[];
+
+  return {
+    runId: job.jobId,
+    timestamp: job.createdAt,
+    modelName: job.modelName,
+    jsonMode: job.jsonMode,
+    total: job.counters.total,
+    successCount: job.counters.successCount,
+    failureCount: job.counters.failureCount,
+    validCount: job.counters.validCount,
+    validLowQualityCount: job.counters.validLowQualityCount,
+    invalidJsonCount: job.counters.invalidJsonCount,
+    expectedComparisonPassCount: job.counters.expectedComparisonPassCount,
+    expectedComparisonWarningCount: job.counters.expectedComparisonWarningCount,
+    expectedComparisonFailCount: job.counters.expectedComparisonFailCount,
+    reviewPassCount: job.counters.reviewPassCount,
+    reviewNeedsReviewCount: job.counters.reviewNeedsReviewCount,
+    reviewFailCount: job.counters.reviewFailCount,
+    items
+  };
+}
+
+app.get("/api/visual/batch-jobs/:jobId/reports/summary", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    const summary = jobToSummary(job);
+    const report = buildBatchSummaryReportForChat(summary);
+    return res.status(200).send(report);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs/:jobId/reports/diagnostic", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    const summary = jobToSummary(job);
+    const report = buildBatchDiagnosticReportForChat(summary);
+    return res.status(200).send(report);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs/:jobId/reports/failures", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    const summary = jobToSummary(job);
+    const report = buildFailuresOnlyReport(summary);
+    return res.status(200).json(report);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs/:jobId/reports/full", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    const summary = jobToSummary(job);
+    return res.status(200).json(summary);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
