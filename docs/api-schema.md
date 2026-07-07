@@ -458,3 +458,29 @@ Exposes the server runtime cache metrics and filesystem metadata. No raw file co
       }
     }
     ```
+
+---
+
+## 🔄 Batch Checkpoint & Resumption Policy
+
+To manage and resume multi-sample visual analysis batches reliably in the front-end (avoiding memory limits and data inconsistency), the system follows a strict state coordination protocol.
+
+### 1. Checkpoint to Batch Result Relationship
+*   **The Checkpoint (`PublicSampleBatchCheckpoint`)** acts as a durable, transaction-safe snapshot in `localStorage` tracking current execution progress, API logs, and partial/failed item diagnostics.
+*   **The Batch Result / Summary (`PublicSampleBatchRunSummary`)** is only generated upon complete execution or clean termination of all target samples, forming the final persistent report of the batch.
+*   **Failures-Only Reports** are subset summaries focused strictly on elements that did not achieve positive verification. Their generation relies directly on the failed sample references cataloged in the checkpoint.
+
+### 2. Consistency & In-App Inconsistency Prevention Policies
+To ensure the resumed batch does not enter a broken or inconsistent state, the following rules are enforced:
+
+*   **Fingerprint Matching Validation**: 
+    Before resuming any batch, the system computes and validates a cryptographic/hash-based `runFingerprint` consisting of `modelName`, `jsonMode`, `customInstructionHash`, and `targetSampleIdsHash`. If any configuration changes (e.g., the user selects a different model or changes instructions), the checkpoint is marked as incompatible, prompting the user to either discard it or proceed under original constraints.
+*   **Isolated Redos**:
+    *   **Resume Pending Only**: Skips already completed samples (both success and fail) and strictly executes remaining `pendingSampleIds`.
+    *   **Resume Failed Only**: Preserves successfully evaluated items in the checkpoint, resets `failedSampleIds` and items with `success: false`, and places them back into the execution queue to attempt re-generation/re-evaluation under identical model parameters.
+    *   **Resume Failed + Pending**: Combines remaining pendings and resets failed items, allowing a fully comprehensive recovery.
+*   **Capacity Strategic Shrunk (Local Storage Guard)**:
+    Before storing to browser `localStorage`, raw large prompt payloads and full server responses are stripped or compressed using `shrinkCheckpointForLocalStorage` to stay safely below the 5MB browser quota.
+*   **Write Atomicity**:
+    Checkpoint state is saved atomically immediately *after* each sample API response is received, ensuring a browser crash or network loss never causes progress loss of previous elements.
+

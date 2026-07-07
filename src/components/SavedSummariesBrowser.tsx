@@ -509,7 +509,7 @@ These notes must also be completely preserved intact!`);
                               }
 
                               return (
-                                <li key={file.file_id || file.fileId} className="border-l-2 border-indigo-400 pl-3 py-1 bg-slate-50 rounded-r">
+                                <li key={file.id || file.file_id || file.fileId} className="border-l-2 border-indigo-400 pl-3 py-1 bg-slate-50 rounded-r">
                                   <span className="font-semibold text-xs text-indigo-950 block">
                                     {file.file_name || file.fileName || "名称未設定"}
                                     {badgeText && (

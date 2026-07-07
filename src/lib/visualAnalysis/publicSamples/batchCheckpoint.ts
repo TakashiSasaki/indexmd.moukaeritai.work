@@ -1,5 +1,6 @@
 import { PublicSampleBatchRunItem, PublicSampleBatchRunSummary } from './batchTypes';
 import { fnv1a32 } from './artifactUtils';
+import { ResponseDiagnostics, SafeFetchRetryDiagnostics } from '../safeFetch';
 
 export interface PublicSampleBatchCheckpoint {
   checkpointVersion: "public-sample-batch-checkpoint.v0.1.0";
@@ -39,6 +40,32 @@ export interface PublicSampleBatchCheckpoint {
     providerSchemaVersion?: string;
     analysisImagePolicyVersion?: string;
   };
+  lastEvent?: {
+    type:
+      | "batchStarted"
+      | "healthCheckPassed"
+      | "sampleStarted"
+      | "apiRequestStarted"
+      | "apiResponseReceived"
+      | "sampleCompleted"
+      | "sampleFailed"
+      | "checkpointSaveFailed"
+      | "batchInterrupted"
+      | "batchFailed"
+      | "batchCompleted";
+    timestamp: string;
+    sampleId?: string;
+    sampleTitle?: string;
+    message?: string;
+    failureKind?: string;
+    error?: string;
+  };
+  currentSampleId?: string;
+  currentSampleTitle?: string;
+  lastError?: string;
+  lastFailureKind?: string;
+  lastResponseDiagnostics?: ResponseDiagnostics;
+  lastRetryDiagnostics?: SafeFetchRetryDiagnostics;
 }
 
 export const CHECKPOINT_LOCAL_STORAGE_KEY = 'image_experiment_active_batch_checkpoint';

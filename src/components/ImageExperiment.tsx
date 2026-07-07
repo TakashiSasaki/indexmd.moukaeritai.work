@@ -524,7 +524,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
-  const handleRunBatch = async (resumeMode: boolean = false, includeFailed: boolean = false) => {
+  const handleRunBatch = async (resumeMode: boolean = false, includeFailed: boolean = false, onlyFailed: boolean = false) => {
     let targetSamples = samples.filter(s => selectedSampleIds[s.id]);
     
     let isResuming = false;
@@ -533,9 +533,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     if (resumeMode && activeCheckpoint) {
       isResuming = true;
       initialCheckpoint = activeCheckpoint;
-      const idsToRun = includeFailed
-        ? [...activeCheckpoint.pendingSampleIds, ...activeCheckpoint.failedSampleIds]
-        : [...activeCheckpoint.pendingSampleIds];
+      let idsToRun: string[] = [];
+      if (onlyFailed) {
+        idsToRun = [...activeCheckpoint.failedSampleIds];
+      } else if (includeFailed) {
+        idsToRun = [...activeCheckpoint.pendingSampleIds, ...activeCheckpoint.failedSampleIds];
+      } else {
+        idsToRun = [...activeCheckpoint.pendingSampleIds];
+      }
       targetSamples = samples.filter(s => idsToRun.includes(s.id));
     } else {
       if (targetSamples.length === 0) {
@@ -555,33 +560,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       setResult(null); // Clear single result
     }
 
-    // Pre-batch health check
-    onAddLog("info", "バッチ開始前にヘルスチェックを実行しています...");
-    const hcResult = await safeFetchWithRetry<any>("/api/visual/health", undefined, {
-      maxAttempts: 3,
-      retryHttpStatuses: [502, 503, 504],
-      onRetry: (event: SafeFetchRetryEvent) => {
-        onAddLog("warn", `[Health Check] サーバーウォームアップまたは一時的エラーを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
-      }
-    });
-    
-    if (!hcResult.success || !hcResult.data?.ok) {
-      setIsBatchRunning(false);
-      setHealthCheckFailed(true);
-      setHealthCheckDiagnostics(hcResult.responseDiagnostics || null);
-      setHealthCheckError(hcResult.error || "ヘルスチェック応答が不正です。");
-      onAddLog("error", `ヘルスチェックに失敗しました。バッチ処理は開始されません。: ${hcResult.error}`);
-      return;
-    }
-
-    onAddLog("success", "ヘルスチェックに成功しました。バッチ解析を開始します。");
-
     // Initialize or restore state
     let total = isResuming && initialCheckpoint ? initialCheckpoint.targetSampleIds.length : targetSamples.length;
     let currentProgress = isResuming && initialCheckpoint 
-      ? (includeFailed 
-          ? initialCheckpoint.targetSampleIds.length - (initialCheckpoint.pendingSampleIds.length + initialCheckpoint.failedSampleIds.length)
-          : initialCheckpoint.completedSampleIds.length)
+      ? (onlyFailed
+          ? initialCheckpoint.targetSampleIds.length - initialCheckpoint.failedSampleIds.length
+          : includeFailed 
+            ? initialCheckpoint.targetSampleIds.length - (initialCheckpoint.pendingSampleIds.length + initialCheckpoint.failedSampleIds.length)
+            : initialCheckpoint.completedSampleIds.length)
       : 0;
     setBatchProgress({ current: currentProgress, total });
 
@@ -600,7 +586,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     let reviewFailCount = 0;
 
     if (isResuming && initialCheckpoint) {
-      if (includeFailed) {
+      if (onlyFailed) {
+        // Exclude failed items so they run again, but keep successful items
+        items = initialCheckpoint.items.filter(it => !initialCheckpoint!.failedSampleIds.includes(it.sampleId));
+      } else if (includeFailed) {
         // Exclude failed items from items list to re-run them
         items = initialCheckpoint.items.filter(it => !initialCheckpoint!.failedSampleIds.includes(it.sampleId));
       } else {
@@ -642,10 +631,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
        currentCheckpoint = { 
          ...initialCheckpoint, 
          status: 'running',
-         ...(includeFailed ? {
-           pendingSampleIds: [...initialCheckpoint.pendingSampleIds, ...initialCheckpoint.failedSampleIds],
+         lastEvent: {
+           type: 'batchStarted',
+           timestamp: new Date().toISOString(),
+           message: `Batch resumed (includeFailed: ${includeFailed}, onlyFailed: ${onlyFailed})`
+         },
+         ...(includeFailed || onlyFailed ? {
+           pendingSampleIds: onlyFailed 
+             ? [...initialCheckpoint.failedSampleIds]
+             : [...initialCheckpoint.pendingSampleIds, ...initialCheckpoint.failedSampleIds],
            failedSampleIds: [],
-           completedSampleIds: initialCheckpoint.completedSampleIds.filter(id => !initialCheckpoint!.failedSampleIds.includes(id)),
+           completedSampleIds: initialCheckpoint.completedSampleIds.filter(id => {
+             return !initialCheckpoint!.failedSampleIds.includes(id);
+           }),
            items: [...items],
            counters: {
              successCount,
@@ -664,7 +662,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
        };
        try {
          saveActiveBatchCheckpoint(currentCheckpoint);
-       } catch (err) {
+       } catch (err: any) {
          console.warn("Failed to save initial checkpoint to localStorage", err);
        }
        setActiveCheckpoint(currentCheckpoint);
@@ -702,22 +700,120 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
            jsonMode: jsonModeOption,
            customInstructionHash: fnv1a32(customInstruction.trim()),
            targetSampleIdsHash: buildTargetSampleIdsHash(initialTargetIds)
+         },
+         lastEvent: {
+           type: 'batchStarted',
+           timestamp: new Date().toISOString(),
+           message: `Batch started with ${initialTargetIds.length} target samples`
          }
        };
        try {
          saveActiveBatchCheckpoint(currentCheckpoint);
-       } catch (err) {
+       } catch (err: any) {
          console.warn("Failed to save initial checkpoint to localStorage", err);
          onAddLog("warn", "警告: ローカルストレージへのチェックポイント保存に失敗しました。解析は続行されます。");
        }
        setActiveCheckpoint(currentCheckpoint);
     }
 
+    // Pre-batch health check
+    onAddLog("info", "バッチ開始前にヘルスチェックを実行しています...");
+    const hcResult = await safeFetchWithRetry<any>("/api/visual/health", undefined, {
+      maxAttempts: 3,
+      retryHttpStatuses: [502, 503, 504],
+      onRetry: (event: SafeFetchRetryEvent) => {
+        onAddLog("warn", `[Health Check] サーバーウォームアップまたは一時的エラーを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
+      }
+    });
+    
+    if (!hcResult.success || !hcResult.data?.ok) {
+      setIsBatchRunning(false);
+      setHealthCheckFailed(true);
+      setHealthCheckDiagnostics(hcResult.responseDiagnostics || null);
+      setHealthCheckError(hcResult.error || "ヘルスチェック応答が不正です。");
+      onAddLog("error", `ヘルスチェックに失敗しました。バッチ処理は開始されません。: ${hcResult.error}`);
+      
+      currentCheckpoint = {
+        ...currentCheckpoint,
+        status: 'failed',
+        lastError: hcResult.error || "Health check failed",
+        lastFailureKind: hcResult.failureKind || "healthCheckFailed",
+        lastResponseDiagnostics: hcResult.responseDiagnostics,
+        lastEvent: {
+          type: 'batchFailed',
+          timestamp: new Date().toISOString(),
+          error: hcResult.error || "Health check failed",
+          failureKind: hcResult.failureKind || "healthCheckFailed",
+          message: `Health check failed: ${hcResult.error}`
+        }
+      };
+      try {
+        saveActiveBatchCheckpoint(currentCheckpoint);
+      } catch (err: any) {
+        console.warn("Failed to save checkpoint progress to localStorage", err);
+      }
+      setActiveCheckpoint(currentCheckpoint);
+      return;
+    }
+
+    onAddLog("success", "ヘルスチェックに成功しました。バッチ解析を開始します。");
+
+    currentCheckpoint = {
+      ...currentCheckpoint,
+      lastEvent: {
+        type: 'healthCheckPassed',
+        timestamp: new Date().toISOString(),
+        message: "Health check passed successfully"
+      }
+    };
+    try {
+      saveActiveBatchCheckpoint(currentCheckpoint);
+    } catch (err: any) {
+      console.warn("Failed to save checkpoint progress to localStorage", err);
+    }
+    setActiveCheckpoint(currentCheckpoint);
+
     for (let i = 0; i < targetSamples.length; i++) {
         const sample = targetSamples[i];
         currentProgress++;
         setBatchProgress({ current: currentProgress, total });
         
+        currentCheckpoint = {
+          ...currentCheckpoint,
+          currentSampleId: sample.id,
+          currentSampleTitle: sample.title,
+          lastEvent: {
+            type: 'sampleStarted',
+            timestamp: new Date().toISOString(),
+            sampleId: sample.id,
+            sampleTitle: sample.title,
+            message: `Started processing sample: ${sample.title} (${sample.id})`
+          }
+        };
+        try {
+          saveActiveBatchCheckpoint(currentCheckpoint);
+        } catch (err: any) {
+          console.warn("Failed to save checkpoint at sampleStarted", err);
+        }
+        setActiveCheckpoint(currentCheckpoint);
+        
+        currentCheckpoint = {
+          ...currentCheckpoint,
+          lastEvent: {
+            type: 'apiRequestStarted',
+            timestamp: new Date().toISOString(),
+            sampleId: sample.id,
+            sampleTitle: sample.title,
+            message: `Sending API request for ${sample.title}`
+          }
+        };
+        try {
+          saveActiveBatchCheckpoint(currentCheckpoint);
+        } catch (err: any) {
+          console.warn("Failed to save checkpoint at apiRequestStarted", err);
+        }
+        setActiveCheckpoint(currentCheckpoint);
+
         let item: PublicSampleBatchRunItem | null = null;
         try {
             const sfResult = await safeFetchWithRetry<any>('/api/visual/public-samples/analyze', {
@@ -746,6 +842,27 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               }
             });
             
+            currentCheckpoint = {
+              ...currentCheckpoint,
+              lastResponseDiagnostics: sfResult.responseDiagnostics,
+              lastRetryDiagnostics: sfResult.retryDiagnostics,
+              lastError: sfResult.error,
+              lastFailureKind: sfResult.failureKind,
+              lastEvent: {
+                type: 'apiResponseReceived',
+                timestamp: new Date().toISOString(),
+                sampleId: sample.id,
+                sampleTitle: sample.title,
+                message: `Received API response for ${sample.title} (status: ${sfResult.responseDiagnostics?.status || 'N/A'})`
+              }
+            };
+            try {
+              saveActiveBatchCheckpoint(currentCheckpoint);
+            } catch (err: any) {
+              console.warn("Failed to save checkpoint at apiResponseReceived", err);
+            }
+            setActiveCheckpoint(currentCheckpoint);
+
             if (sfResult.responseDiagnostics?.status === 401) {
               onSessionExpiry();
               throw new Error("Session expired (401)");
@@ -815,7 +932,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                sampleId: sample.id,
                title: sample.title,
                success: false,
-               error: e.message
+               error: e.message,
+               failureKind: "executionError"
             };
             items.push(item);
         }
@@ -829,6 +947,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           pendingSampleIds: currentCheckpoint.pendingSampleIds.filter(id => id !== sample.id),
           failedSampleIds: item.success ? currentCheckpoint.failedSampleIds : [...currentCheckpoint.failedSampleIds, sample.id],
           items: [...items], // copy to trigger updates if used directly
+          lastError: item.success ? currentCheckpoint.lastError : item.error,
+          lastFailureKind: item.success ? currentCheckpoint.lastFailureKind : item.failureKind,
+          lastEvent: {
+            type: item.success ? 'sampleCompleted' : 'sampleFailed',
+            timestamp: new Date().toISOString(),
+            sampleId: sample.id,
+            sampleTitle: sample.title,
+            failureKind: item.success ? undefined : item.failureKind,
+            error: item.success ? undefined : item.error,
+            message: item.success 
+              ? `Completed sample: ${sample.title} (${sample.id}) successfully`
+              : `Failed sample: ${sample.title} (${sample.id}) - ${item.error || 'Unknown error'}`
+          },
           counters: {
             successCount,
             failureCount,
@@ -845,8 +976,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         };
         try {
           saveActiveBatchCheckpoint(currentCheckpoint);
-        } catch (err) {
+        } catch (err: any) {
           console.warn("Failed to save checkpoint progress to localStorage", err);
+          currentCheckpoint.lastEvent = {
+            type: 'checkpointSaveFailed',
+            timestamp: new Date().toISOString(),
+            message: `Failed to save progress checkpoint to localStorage: ${err.message}`
+          };
         }
         setActiveCheckpoint(currentCheckpoint);
     }
@@ -957,50 +1093,262 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-5">
           {activeCheckpoint && !isBatchRunning && (
-            <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50">
-              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="mb-6 p-5 rounded-xl border border-amber-200 bg-amber-50/70 backdrop-blur-sm shadow-sm space-y-4">
+              <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between border-b border-amber-200/60 pb-3">
                 <div className="space-y-1">
                   <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-amber-600" />
-                    未完了のバッチ解析があります
+                    <Activity className="w-4 h-4 text-amber-600 animate-pulse" />
+                    未完了のバッチ解析があります (チェックポイント検出)
                   </h3>
                   <p className="text-xs text-amber-700">
-                    前回の実行が途中で中断されました。続きから再開できます。<br/>
-                    <span className="font-semibold text-amber-800">※ チェックボックスの選択に関わらず、保存されたチェックポイントの対象サンプルで実行されます。</span><br/>
-                    モデル: <span className="font-semibold">{activeCheckpoint.modelName}</span> ({activeCheckpoint.jsonMode})<br/>
-                    進捗: {activeCheckpoint.completedSampleIds.length} / {activeCheckpoint.targetSampleIds.length} 完了
-                    {activeCheckpoint.failedSampleIds.length > 0 && <span className="ml-2 text-red-600">({activeCheckpoint.failedSampleIds.length} エラー)</span>}
+                    前回のバッチ実行が途中で中断されました。以下から現在の診断情報と、再開・破棄アクションを選択できます。<br/>
+                    <span className="font-semibold text-amber-800">※ チェックボックスの選択に関わらず、保存されたチェックポイントの対象サンプルで実行されます。</span>
                   </p>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto shrink-0">
+                <div className="flex flex-wrap gap-2 w-full lg:w-auto shrink-0">
                   <button
                     onClick={() => {
-                      clearActiveBatchCheckpoint();
-                      setActiveCheckpoint(null);
+                      if (confirm("本当にこのチェックポイントを破棄しますか？")) {
+                        clearActiveBatchCheckpoint();
+                        setActiveCheckpoint(null);
+                      }
                     }}
                     disabled={isBatchRunning}
-                    className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 bg-amber-100/50 hover:bg-amber-200/50 rounded-md transition-colors disabled:opacity-50"
+                    className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 bg-amber-100/80 hover:bg-amber-200 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1"
                   >
-                    破棄する
+                    <Trash2 className="w-3.5 h-3.5" /> 破棄する
                   </button>
-                   <button
+                  <button
                     onClick={() => handleRunBatch(true, false)}
                     disabled={isBatchRunning}
                     className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 shadow-sm"
                   >
-                    <Play className="w-3.5 h-3.5" /> 続きから再開
+                    <Play className="w-3.5 h-3.5" /> 未完了のみ再開
                   </button>
                   {activeCheckpoint.failedSampleIds.length > 0 && (
-                    <button
-                      onClick={() => handleRunBatch(true, true)}
-                      disabled={isBatchRunning}
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 shadow-sm"
-                    >
-                      <RotateCw className="w-3.5 h-3.5" /> 失敗分も含めて再開
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleRunBatch(true, false, true)}
+                        disabled={isBatchRunning}
+                        className="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> 失敗のみ再開
+                      </button>
+                      <button
+                        onClick={() => handleRunBatch(true, true)}
+                        disabled={isBatchRunning}
+                        className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" /> 失敗＋未完了も再開
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
+
+              {/* Advanced Controls: Copy / Download JSON */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(activeCheckpoint, null, 2));
+                    alert("チェックポイントJSONをクリップボードにコピーしました！");
+                  }}
+                  className="px-2.5 py-1 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded shadow-sm flex items-center gap-1 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" /> チェックポイントJSONをコピー
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(activeCheckpoint, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `batch-checkpoint-${activeCheckpoint.runId}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-2.5 py-1 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded shadow-sm flex items-center gap-1 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" /> 診断JSONをダウンロード
+                </button>
+              </div>
+
+              {/* Progress & Setup Status */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="bg-white p-3 rounded-lg border border-amber-100">
+                  <div className="text-slate-400 font-medium">基本情報</div>
+                  <div className="mt-1 font-semibold text-slate-800">
+                    モデル: <span className="text-slate-900">{activeCheckpoint.modelName}</span>
+                  </div>
+                  <div className="text-slate-600">
+                    モード: {activeCheckpoint.jsonMode === 'json_object' ? 'JSON Mode' : 'Plain Text'}
+                  </div>
+                  <div className="text-slate-500 text-[10px] mt-1">
+                    開始時刻: {new Date(activeCheckpoint.createdAt).toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border border-amber-100">
+                  <div className="text-slate-400 font-medium">進捗状況</div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-amber-500 h-full transition-all duration-300" 
+                        style={{ width: `${(activeCheckpoint.completedSampleIds.length / activeCheckpoint.targetSampleIds.length) * 100}%` }}
+                      />
+                    </div>
+                    <span className="font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {activeCheckpoint.completedSampleIds.length} / {activeCheckpoint.targetSampleIds.length}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex gap-3 text-slate-600 text-[11px]">
+                    <span className="text-emerald-700 font-semibold">成功: {activeCheckpoint.counters.successCount}</span>
+                    <span className="text-rose-700 font-semibold">失敗: {activeCheckpoint.counters.failureCount}</span>
+                    <span className="text-slate-500 font-semibold">未着手: {activeCheckpoint.pendingSampleIds.length}</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border border-amber-100">
+                  <div className="text-slate-400 font-medium">直近のバッチイベント</div>
+                  {activeCheckpoint.lastEvent ? (
+                    <div className="mt-1 space-y-0.5">
+                      <div className="font-semibold text-amber-900 flex items-center gap-1">
+                        <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded font-mono text-[9px]">
+                          {activeCheckpoint.lastEvent.type}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        {new Date(activeCheckpoint.lastEvent.timestamp).toLocaleTimeString()}
+                      </div>
+                      {activeCheckpoint.lastEvent.message && (
+                        <div className="text-slate-700 text-[11px] line-clamp-2" title={activeCheckpoint.lastEvent.message}>
+                          {activeCheckpoint.lastEvent.message}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-slate-500 italic">イベント記録なし</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Status & Diagnostic Details */}
+              {(activeCheckpoint.currentSampleId || activeCheckpoint.lastError || activeCheckpoint.lastFailureKind) && (
+                <div className="bg-white p-4 rounded-lg border border-amber-100 space-y-2 text-xs">
+                  <h4 className="font-bold text-slate-800 border-b pb-1">直近の実行中サンプル & エラー診断</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                    {activeCheckpoint.currentSampleId && (
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">実行中だったサンプル:</span>
+                        <span className="font-semibold text-slate-800">
+                          {activeCheckpoint.currentSampleTitle || '名称未設定'} 
+                          <span className="text-[10px] text-slate-500 font-mono ml-1">({activeCheckpoint.currentSampleId})</span>
+                        </span>
+                      </div>
+                    )}
+                    {activeCheckpoint.lastFailureKind && (
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">失敗種別 (Failure Kind):</span>
+                        <span className="font-mono text-rose-700 font-semibold bg-rose-50 px-1 py-0.5 rounded">
+                          {activeCheckpoint.lastFailureKind}
+                        </span>
+                      </div>
+                    )}
+                    {activeCheckpoint.lastError && (
+                      <div className="col-span-1 md:col-span-2">
+                        <span className="text-slate-400 block text-[10px]">直近のエラー詳細 (Last Error):</span>
+                        <span className="text-rose-900 font-mono bg-rose-50/50 p-1 rounded block mt-0.5 whitespace-pre-wrap break-all text-[11px]">
+                          {activeCheckpoint.lastError}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* HTTP / Retry Diagnostics detail */}
+                  {activeCheckpoint.lastResponseDiagnostics && (
+                    <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <div>
+                        <span className="text-slate-400">HTTP Status:</span>{' '}
+                        <span className="font-mono font-semibold text-slate-700">
+                          {activeCheckpoint.lastResponseDiagnostics.status} {activeCheckpoint.lastResponseDiagnostics.statusText}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Content-Type:</span>{' '}
+                        <span className="font-mono text-slate-700">{activeCheckpoint.lastResponseDiagnostics.contentType || 'N/A'}</span>
+                      </div>
+                      {activeCheckpoint.lastResponseDiagnostics.htmlTitle && (
+                        <div>
+                          <span className="text-slate-400">HTML Title:</span>{' '}
+                          <span className="font-semibold text-amber-800">"{activeCheckpoint.lastResponseDiagnostics.htmlTitle}"</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeCheckpoint.lastRetryDiagnostics && activeCheckpoint.lastRetryDiagnostics.attempts > 1 && (
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      リトライ実績: {activeCheckpoint.lastRetryDiagnostics.attempts} 回の試行を実施
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Special message if first sample interrupted */}
+              {activeCheckpoint.items.length === 0 && activeCheckpoint.completedSampleIds.length === 0 && (
+                <div className="p-3 bg-blue-50 text-blue-800 rounded-lg text-xs border border-blue-100 flex items-center gap-1.5">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>最初のサンプル処理中に中断したため、サンプル単位の失敗詳細はまだ保存されていません。</span>
+                </div>
+              )}
+
+              {/* Failed Items List if any */}
+              {activeCheckpoint.items.filter(it => !it.success).length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                    これまでに失敗したサンプル一覧 ({activeCheckpoint.items.filter(it => !it.success).length}件)
+                  </h4>
+                  <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 shadow-inner">
+                    {activeCheckpoint.items.filter(it => !it.success).map((item, idx) => (
+                      <div key={item.sampleId || idx} className="p-3 hover:bg-slate-50 text-xs transition-colors flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <span>{item.title}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">({item.sampleId})</span>
+                          </div>
+                          {item.error && (
+                            <div className="text-rose-800 font-mono text-[11px] bg-rose-50/50 px-1.5 py-1 rounded break-all mt-1">
+                              {item.error}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1 items-start sm:justify-end text-[10px] shrink-0">
+                          {item.failureKind && (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-mono border border-rose-100">
+                              Kind: {item.failureKind}
+                            </span>
+                          )}
+                          {item.generationDiagnostics?.providerStatus && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono border border-amber-100">
+                              Provider Status: {item.generationDiagnostics.providerStatus}
+                            </span>
+                          )}
+                          {item.responseDiagnostics?.status && (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono border border-slate-200">
+                              HTTP: {item.responseDiagnostics.status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
