@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 250" width="100%" height="100%">
+  <rect width="600" height="250" fill="#f8fafc" rx="8"/>
+  <rect x="20" y="20" width="560" height="210" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" rx="6"/>
+  
+  <!-- Left accent bar -->
+  <path d="M 20 26 L 30 26 L 30 224 L 20 224 Z" fill="#6366f1"/>
+  
+  <!-- Ticket Title / Header -->
+  <text x="50" y="60" font-family="sans-serif" font-size="24" font-weight="bold" fill="#0f172a">ANNUAL BUILD SUMMIT 2026</text>
+  <text x="50" y="85" font-family="sans-serif" font-size="14" fill="#4f46e5" font-weight="bold">ADMIT ONE - VIP ALL ACCESS</text>
+  
+  <!-- Details -->
+  <g transform="translate(50, 120)">
+    <text x="0" y="20" font-family="sans-serif" font-size="11" fill="#64748b" font-weight="bold">DATE</text>
+    <text x="0" y="40" font-family="sans-serif" font-size="14" fill="#0f172a" font-weight="bold">July 7, 2026</text>
+    
+    <text x="150" y="20" font-family="sans-serif" font-size="11" fill="#64748b" font-weight="bold">TIME</text>
+    <text x="150" y="40" font-family="sans-serif" font-size="14" fill="#0f172a" font-weight="bold">9:00 AM JST</text>
+    
+    <text x="300" y="20" font-family="sans-serif" font-size="11" fill="#64748b" font-weight="bold">SEAT</text>
+    <text x="300" y="40" font-family="sans-serif" font-size="14" fill="#0f172a" font-weight="bold">Row A, Seat 16</text>
+  </g>
+  
+  <!-- Divider -->
+  <line x1="460" y1="20" x2="460" y2="230" stroke="#cbd5e1" stroke-dasharray="4"/>
+  
+  <!-- Barcode on the right side -->
+  <g transform="translate(485, 40)">
+    <!-- Simulated Barcode lines -->
+    <rect x="0" y="0" width="4" height="120" fill="#0f172a"/>
+    <rect x="8" y="0" width="2" height="120" fill="#0f172a"/>
+    <rect x="14" y="0" width="8" height="120" fill="#0f172a"/>
+    <rect x="26" y="0" width="2" height="120" fill="#0f172a"/>
+    <rect x="32" y="0" width="4" height="120" fill="#0f172a"/>
+    <rect x="40" y="0" width="6" height="120" fill="#0f172a"/>
+    <rect x="50" y="0" width="2" height="120" fill="#0f172a"/>
+    <rect x="56" y="0" width="8" height="120" fill="#0f172a"/>
+    <rect x="68" y="0" width="4" height="120" fill="#0f172a"/>
+    
+    <text x="37" y="145" font-family="monospace" font-size="10" fill="#475569" text-anchor="middle">*BUILD2026*</text>
+  </g>
+</svg>

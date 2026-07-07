@@ -2,6 +2,7 @@ import { getPublicSampleById } from './registry';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
+import sharp from 'sharp';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { ImageProcessingDiagnostics, optimizeImageForAnalysis, AnalysisSizingPolicy } from '../imagePayloadSizing';
 import { recordCacheHit, recordCacheMiss, recordCacheWrite, recordCacheError, recordCacheSharedInFlight } from '../../cacheMetrics';
@@ -128,6 +129,54 @@ function determineSizingPolicy(sample: any): AnalysisSizingPolicy {
   return "default";
 }
 
+async function fetchExternalImageWithWikimediaFallback(
+  url: string,
+  variant: "preview" | "thumbnail" | "full" | "analysis"
+): Promise<FetchSampleResult> {
+  // If not a wikimedia thumbnail, just fetch directly
+  const isWikimediaThumb = url.includes('upload.wikimedia.org') && url.includes('/thumb/') && /\/\d+px-/.test(url);
+  if (!isWikimediaThumb) {
+    return fetchExternalImage(url, 0);
+  }
+
+  // Get current size in the URL
+  const match = url.match(/\/(\d+)px-/);
+  const currentSize = match ? parseInt(match[1], 10) : 0;
+
+  // Sizes to try in order based on variant
+  let sizesToTry: number[] = [];
+  if (variant === "thumbnail") {
+    sizesToTry = [120, 220, 320, 440];
+  } else if (variant === "preview") {
+    sizesToTry = [500, 640, 800];
+  } else if (variant === "analysis") {
+    sizesToTry = [1024, 1280, 800, 500];
+  } else {
+    sizesToTry = [1280, 1024, 800];
+  }
+
+  // Ensure currentSize is in the list, tried in the order
+  sizesToTry = sizesToTry.filter(s => s !== currentSize);
+  sizesToTry.unshift(currentSize);
+
+  let lastErr: any = null;
+  for (const size of sizesToTry) {
+    const testUrl = url.replace(/\/(\d+)px-/, `/${size}px-`);
+    try {
+      const res = await fetchExternalImage(testUrl, 0);
+      return {
+        ...res,
+        sourceUrlKind: "thumbnailRewrite"
+      };
+    } catch (err: any) {
+      lastErr = err;
+      console.warn(`[serverFetch] Wikimedia fetch failed for size ${size}px with error: ${err.message}. Trying next fallback size.`);
+    }
+  }
+
+  throw lastErr || new Error('All Wikimedia thumbnail fallbacks failed');
+}
+
 export async function fetchPublicSampleImage(sampleId: string, variant: "preview" | "thumbnail" | "full" | "analysis"): Promise<FetchSampleResult> {
   const cacheKey = getCacheKey(sampleId, variant);
 
@@ -213,24 +262,50 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
 
     // Handle local synthetic fixtures
     if (urlToFetch.startsWith('/visual-samples/')) {
-      // Read from public directory
-      const publicPath = path.join(process.cwd(), 'public', urlToFetch);
-      const resolvedPath = path.resolve(publicPath);
-      const publicDir = path.resolve(path.join(process.cwd(), 'public', 'visual-samples'));
+      // Determine if SVG version exists
+      const baseFilename = path.basename(urlToFetch, path.extname(urlToFetch));
+      const svgPath = path.join(process.cwd(), 'public', 'visual-samples', `${baseFilename}.svg`);
+      const resolvedSvgPath = path.resolve(svgPath);
 
-      // Prevent directory traversal
-      if (!resolvedPath.startsWith(publicDir)) {
-         throw new Error('Access denied to local file');
+      let buffer: Buffer;
+      let mimeType: string;
+      let isSvgSource = false;
+
+      if (fs.existsSync(resolvedSvgPath)) {
+        buffer = fs.readFileSync(resolvedSvgPath);
+        mimeType = 'image/svg+xml';
+        isSvgSource = true;
+      } else {
+        // Read from public directory
+        const publicPath = path.join(process.cwd(), 'public', urlToFetch);
+        const resolvedPath = path.resolve(publicPath);
+        const publicDir = path.resolve(path.join(process.cwd(), 'public', 'visual-samples'));
+
+        // Prevent directory traversal
+        if (!resolvedPath.startsWith(publicDir)) {
+           throw new Error('Access denied to local file');
+        }
+
+        if (!fs.existsSync(resolvedPath)) {
+          throw new Error('Local fixture not found');
+        }
+        buffer = fs.readFileSync(resolvedPath);
+        const ext = path.extname(resolvedPath).toLowerCase();
+        mimeType = 'image/svg+xml';
+        if (ext === '.png') mimeType = 'image/png';
+        else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
       }
 
-      if (!fs.existsSync(resolvedPath)) {
-        throw new Error('Local fixture not found');
+      // If we loaded SVG and the variant is not analysis, rasterize it on-the-fly to PNG
+      if (isSvgSource && variant !== "analysis") {
+        try {
+          const rasterized = await sharp(buffer).png().toBuffer();
+          buffer = rasterized;
+          mimeType = 'image/png';
+        } catch (rasterizeErr) {
+          console.error(`[serverFetch] Failed to rasterize SVG to PNG for ${urlToFetch}:`, rasterizeErr);
+        }
       }
-      const buffer = fs.readFileSync(resolvedPath);
-      const ext = path.extname(resolvedPath).toLowerCase();
-      let mimeType = 'image/svg+xml';
-      if (ext === '.png') mimeType = 'image/png';
-      else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
 
       let result: FetchSampleResult = { buffer, mimeType, sourceUrlKind: "localFixture" };
       
@@ -282,13 +357,13 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     }
 
     try {
-      result = await fetchExternalImage(urlToFetch, 0);
+      result = await fetchExternalImageWithWikimediaFallback(urlToFetch, variant);
       result.sourceUrlKind = finalSourceUrlKind;
     } catch (err: any) {
       if (variant === "analysis" && urlToFetch.includes('/1024px-') && sample.source.thumbnailUrl) {
         console.warn(`[serverFetch] Failed to fetch 1024px variant from ${urlToFetch}. Falling back to 640px thumbnailUrl: ${sample.source.thumbnailUrl}`);
         try {
-          result = await fetchExternalImage(sample.source.thumbnailUrl, 0);
+          result = await fetchExternalImageWithWikimediaFallback(sample.source.thumbnailUrl, "thumbnail");
           result.sourceUrlKind = "thumbnailUrl";
         } catch (fallbackErr: any) {
           console.warn(`[serverFetch] Failed to fetch 640px fallback. Falling back to original imageUrl: ${sample.source.imageUrl}`);

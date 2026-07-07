@@ -83,6 +83,9 @@ async function diagnose() {
       
       results.push(reportItem);
       console.log(`[${isOk ? 'OK' : 'FAIL'}] ${sample.id} (${variant}) - ${isOk ? 'Success (' + byteLength + ' bytes)' : cause + ': ' + errorStr}`);
+      
+      // Sleep to avoid Wikimedia rate limits
+      await new Promise(resolve => setTimeout(resolve, 80));
     }
   }
 
