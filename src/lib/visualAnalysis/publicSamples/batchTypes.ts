@@ -1,3 +1,4 @@
+import { ImageAnalysisRecord } from '../types';
 import { PublicSampleComparisonSummary } from './compare';
 import { ResponseDiagnostics, SafeFetchRetryDiagnostics } from '../safeFetch';
 import { ImageProcessingDiagnostics } from '../imagePayloadSizing';
@@ -24,6 +25,7 @@ export interface PublicSampleBatchRunItem {
   sampleId: string;
   title: string;
   success: boolean;
+  record?: ImageAnalysisRecord;
   qualityStatus?: string;
   qualityScore?: number;
   qualityIssues?: any[];

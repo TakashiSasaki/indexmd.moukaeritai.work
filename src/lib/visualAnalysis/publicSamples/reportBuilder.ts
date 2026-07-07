@@ -713,6 +713,14 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     success: item.success
   };
 
+
+  if (item.record) {
+    compact.record = {
+      ...item.record,
+      visualAnalysis: undefined // Omit for compact view
+    };
+  }
+
   if (item.error) compact.error = item.error;
   if (item.failureKind) compact.failureKind = item.failureKind;
   if (item.qualityStatus) compact.qualityStatus = item.qualityStatus;

@@ -55,7 +55,71 @@ export function buildGenerationFailureResponse(args: {
     }
   }
 
+
+  const record = {
+    schemaVersion: "image-analysis-record.v0.1.0",
+    status: {
+      success: false,
+      error: err?.message || "Generate content failed",
+      failureKind
+    },
+    assetMetadata: sampleMetadata ? {
+      assetId: sampleMetadata.id,
+      title: sampleMetadata.title,
+      category: sampleMetadata.category,
+      sourceKind: runMetadata.input?.sourceKind || "publicSample",
+      sampleId: sampleMetadata.id,
+      sourceProvider: "publicSamples",
+      sourcePageUrl: sampleMetadata.sourcePageUrl,
+      licenseKind: sampleMetadata.licenseKind,
+      licenseName: sampleMetadata.licenseName,
+      attributionText: sampleMetadata.attributionText
+    } : {
+      sourceKind: runMetadata.input?.sourceKind
+    },
+    technicalMetadata: {
+      mimeType: runMetadata.input?.mimeType,
+      originalByteLength: inputDiagnostics?.originalByteLength,
+      processedByteLength: runMetadata.input?.byteLength,
+      base64Length: runMetadata.input?.base64Length,
+      inputFormat: inputDiagnostics?.inputFormat,
+      outputFormat: inputDiagnostics?.outputFormat,
+      resized: inputDiagnostics?.resized,
+      recompressed: inputDiagnostics?.recompressed,
+      reencoded: inputDiagnostics?.reencoded,
+      quality: inputDiagnostics?.quality,
+      analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
+      analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
+      analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
+      analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
+      analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
+      targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
+      hardCapExceeded: inputDiagnostics?.hardCapExceeded,
+      minQualityReached: inputDiagnostics?.minQualityReached,
+      providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
+      originalDimensions: inputDiagnostics?.originalDimensions,
+      processedDimensions: inputDiagnostics?.dimensions
+    },
+    analysisRun: runMetadata,
+    evaluation: expectedMetadata ? {
+      expectedMetadata
+    } : undefined,
+    diagnostics: {
+      input: {
+        sourceKind: runMetadata.input?.sourceKind,
+        sampleId: runMetadata.input?.sampleId,
+        fileId: runMetadata.input?.fileId,
+        mimeType: runMetadata.input?.mimeType,
+        byteLength: runMetadata.input?.byteLength,
+        base64Length: runMetadata.input?.base64Length,
+        ...(inputDiagnostics || {})
+      },
+      generation: diagnostics
+    }
+  };
+
   const response: any = {
+    record,
     success: false,
     error: err?.message || "Generate content failed",
     failureKind,

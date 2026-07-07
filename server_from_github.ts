@@ -1845,82 +1845,8 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
       schemaValidationRetryValidationErrors: []
     };
 
-    const fullInputDiagnostics = {
-        sourceKind: runMetadata.input.sourceKind,
-        sampleId: runMetadata.input.sampleId,
-        mimeType: runMetadata.input.mimeType,
-        byteLength: runMetadata.input.byteLength,
-        base64Length: runMetadata.input.base64Length,
-        imageVariant: "analysis",
-        analysisSourceUrlKind: sourceUrlKind,
-        inputSizeWarning,
-        ...inputDiagnostics,
-        cacheLayer: fetchResult.cacheLayer,
-        cacheKey: fetchResult.cacheKey,
-        cachePolicyVersion: fetchResult.cachePolicyVersion,
-        cacheStored: fetchResult.cacheStored,
-        cacheReadError: fetchResult.cacheReadError,
-        cacheWriteError: fetchResult.cacheWriteError,
-        cacheSharedInFlight: fetchResult.cacheSharedInFlight
-    };
-
     if (!parseRes.ok) {
       return res.status(200).json({
-        record: {
-          schemaVersion: "image-analysis-record.v0.1.0",
-          status: { success: false, failureKind: "jsonParseError", error: "Model returned invalid JSON" },
-          assetMetadata: {
-            assetId: sample.id,
-            title: sample.title,
-            category: sample.category,
-            sourceKind: "publicSample",
-            sampleId: sample.id,
-            sourceProvider: "publicSamples",
-            sourcePageUrl: sample.source.pageUrl,
-            licenseKind: sample.source.licenseKind,
-            licenseName: sample.source.licenseName,
-            attributionText: sample.source.attributionText
-          },
-          technicalMetadata: {
-            mimeType: runMetadata.input.mimeType,
-            originalByteLength: inputDiagnostics?.originalByteLength,
-            processedByteLength: runMetadata.input.byteLength,
-            base64Length: runMetadata.input.base64Length,
-            inputFormat: inputDiagnostics?.inputFormat,
-            outputFormat: inputDiagnostics?.outputFormat,
-            resized: inputDiagnostics?.resized,
-            recompressed: inputDiagnostics?.recompressed,
-            reencoded: inputDiagnostics?.reencoded,
-            quality: inputDiagnostics?.quality,
-            analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
-            analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
-            analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
-            analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
-            analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
-            targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
-            hardCapExceeded: inputDiagnostics?.hardCapExceeded,
-            minQualityReached: inputDiagnostics?.minQualityReached,
-            providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
-            originalDimensions: inputDiagnostics?.originalDimensions,
-            processedDimensions: inputDiagnostics?.dimensions
-          },
-          analysisRun: runMetadata,
-          evaluation: {
-            expectedMetadata: {
-              imageKind: sample.expectedImageKind,
-              elementCategories: sample.expectedElementCategories,
-              elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-              visibleElementLabels: sample.expectedVisibleElementLabels,
-              visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-              visibleText: sample.expectedVisibleText,
-              notes: sample.expectedNotes
-            }
-          },
-          diagnostics: {
-            input: fullInputDiagnostics,
-            parse: parseRes.diagnostics
-          }
-        },
         success: false,
         error: "Model returned invalid JSON",
         failureKind: "jsonParseError",
@@ -1976,65 +1902,6 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
 
     if (extractedCustomSchema) {
       const result: any = {
-        record: {
-          schemaVersion: "image-analysis-record.v0.1.0",
-          status: { success: true },
-          assetMetadata: {
-            assetId: sample.id,
-            title: sample.title,
-            category: sample.category,
-            sourceKind: "publicSample",
-            sampleId: sample.id,
-            sourceProvider: "publicSamples",
-            sourcePageUrl: sample.source.pageUrl,
-            licenseKind: sample.source.licenseKind,
-            licenseName: sample.source.licenseName,
-            attributionText: sample.source.attributionText
-          },
-          technicalMetadata: {
-            mimeType: runMetadata.input.mimeType,
-            originalByteLength: inputDiagnostics?.originalByteLength,
-            processedByteLength: runMetadata.input.byteLength,
-            base64Length: runMetadata.input.base64Length,
-            inputFormat: inputDiagnostics?.inputFormat,
-            outputFormat: inputDiagnostics?.outputFormat,
-            resized: inputDiagnostics?.resized,
-            recompressed: inputDiagnostics?.recompressed,
-            reencoded: inputDiagnostics?.reencoded,
-            quality: inputDiagnostics?.quality,
-            analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
-            analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
-            analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
-            analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
-            analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
-            targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
-            hardCapExceeded: inputDiagnostics?.hardCapExceeded,
-            minQualityReached: inputDiagnostics?.minQualityReached,
-            providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
-            originalDimensions: inputDiagnostics?.originalDimensions,
-            processedDimensions: inputDiagnostics?.dimensions
-          },
-          visualAnalysis: parsed,
-          analysisRun: runMetadata,
-          evaluation: {
-            expectedMetadata: {
-              imageKind: sample.expectedImageKind,
-              elementCategories: sample.expectedElementCategories,
-              elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-              visibleElementLabels: sample.expectedVisibleElementLabels,
-              visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-              visibleText: sample.expectedVisibleText,
-              notes: sample.expectedNotes
-            },
-            qualityStatus: "excellent",
-            qualityScore: 100,
-            qualityIssues: []
-          },
-          diagnostics: {
-            input: fullInputDiagnostics,
-            parse: parseDiagnosticsLight
-          }
-        },
         success: true,
         sampleMetadata: {
           id: sample.id,
@@ -2206,69 +2073,6 @@ app.post("/api/visual/public-samples/analyze", async (req, res) => {
     }
 
     const result: any = {
-      record: {
-        schemaVersion: "image-analysis-record.v0.1.0",
-        status: {
-          success: validation.isValid,
-          failureKind: validation.isValid ? undefined : "schemaValidationError"
-        },
-        assetMetadata: {
-          assetId: sample.id,
-          title: sample.title,
-          category: sample.category,
-          sourceKind: "publicSample",
-          sampleId: sample.id,
-          sourceProvider: "publicSamples",
-          sourcePageUrl: sample.source.pageUrl,
-          licenseKind: sample.source.licenseKind,
-          licenseName: sample.source.licenseName,
-          attributionText: sample.source.attributionText
-        },
-        technicalMetadata: {
-          mimeType: runMetadata.input.mimeType,
-          originalByteLength: inputDiagnostics?.originalByteLength,
-          processedByteLength: runMetadata.input.byteLength,
-          base64Length: runMetadata.input.base64Length,
-          inputFormat: inputDiagnostics?.inputFormat,
-          outputFormat: inputDiagnostics?.outputFormat,
-          resized: inputDiagnostics?.resized,
-          recompressed: inputDiagnostics?.recompressed,
-          reencoded: inputDiagnostics?.reencoded,
-          quality: inputDiagnostics?.quality,
-          analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
-          analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
-          analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
-          analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
-          analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
-          targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
-          hardCapExceeded: inputDiagnostics?.hardCapExceeded,
-          minQualityReached: inputDiagnostics?.minQualityReached,
-          providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
-          originalDimensions: inputDiagnostics?.originalDimensions,
-          processedDimensions: inputDiagnostics?.dimensions
-        },
-        visualAnalysis: normalized,
-        analysisRun: runMetadata,
-        evaluation: {
-          expectedMetadata: {
-            imageKind: sample.expectedImageKind,
-            elementCategories: sample.expectedElementCategories,
-            elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-            visibleElementLabels: sample.expectedVisibleElementLabels,
-            visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-            visibleText: sample.expectedVisibleText,
-            notes: sample.expectedNotes
-          },
-          qualityStatus,
-          qualityScore,
-          qualityIssues
-        },
-        diagnostics: {
-          input: fullInputDiagnostics,
-          parse: parseDiagnosticsLight,
-          normalization: canonicalization.diagnostics
-        }
-      },
       success: validation.isValid,
       ...(validation.isValid ? {} : { failureKind: "schemaValidationError" }),
       sampleMetadata: {

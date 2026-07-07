@@ -39,6 +39,16 @@ export interface ElementStateContext {
   confidence?: number;
 }
 
+
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  coordinateSystem: "normalized";
+  confidence?: number;
+}
+
 export interface VisibleElement {
   label: string;
   category: VisibleElementCategory;
@@ -49,6 +59,7 @@ export interface VisibleElement {
   confidence: number;
   evidence?: string;
   locationHint?: string;
+  boundingBox?: BoundingBox;
 }
 
 export interface VisibleText {
@@ -56,6 +67,7 @@ export interface VisibleText {
   confidence: number;
   locationHint?: string;
   language?: string;
+  boundingBox?: BoundingBox;
 }
 
 export interface VisualAnalysisResultV1 {
@@ -111,4 +123,85 @@ export interface VisualAnalysisResultV2 {
     confidence: number;
     issues: string[];
   };
+}
+
+export interface ImageAnalysisStatus {
+  success: boolean;
+  error?: string;
+  failureKind?: string;
+}
+
+export interface ImageAssetMetadata {
+  assetId?: string;
+  title?: string;
+  category?: string;
+  sourceKind?: "publicSample" | "driveFile" | "manualUpload" | string;
+  fileId?: string;
+  sampleId?: string;
+  sourceProvider?: string;
+  sourcePageUrl?: string;
+  licenseKind?: string;
+  licenseName?: string;
+  attributionText?: string;
+}
+
+export interface ImageTechnicalMetadata {
+  mimeType?: string;
+  originalDimensions?: {
+    width: number;
+    height: number;
+  };
+  processedDimensions?: {
+    width: number;
+    height: number;
+  };
+  originalByteLength?: number;
+  processedByteLength?: number;
+  base64Length?: number;
+  inputFormat?: string;
+  outputFormat?: string;
+  resized?: boolean;
+  recompressed?: boolean;
+  reencoded?: boolean;
+  quality?: number;
+  analysisSizingPolicy?: string;
+  analysisTargetLongEdge?: number;
+  analysisTargetBytes?: number;
+  analysisHardCapBytes?: number;
+  analysisSizeReductionRatio?: number;
+  targetExceededButAccepted?: boolean;
+  hardCapExceeded?: boolean;
+  minQualityReached?: boolean;
+  providerSafeMimeType?: boolean;
+}
+
+export interface ImageAnalysisDiagnostics {
+  input?: any;
+  parse?: any;
+  normalization?: any;
+  generation?: any;
+  response?: any;
+  retry?: any;
+}
+
+export interface VisualAnalysisEvaluation {
+  expectedMetadata?: any;
+  comparison?: any;
+  qualityStatus?: string;
+  qualityScore?: number;
+  qualityIssues?: string[];
+  reviewStatus?: string;
+  reviewReasons?: string[];
+  reviewNotes?: string[];
+}
+
+export interface ImageAnalysisRecord {
+  schemaVersion: "image-analysis-record.v0.1.0";
+  status: ImageAnalysisStatus;
+  assetMetadata: ImageAssetMetadata;
+  technicalMetadata?: ImageTechnicalMetadata;
+  visualAnalysis?: VisualAnalysisResultV2;
+  analysisRun?: any; // VisualAnalysisRunMetadata
+  evaluation?: VisualAnalysisEvaluation;
+  diagnostics?: ImageAnalysisDiagnostics;
 }
