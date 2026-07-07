@@ -1,4 +1,4 @@
-import { PublicSampleBatchRunItem, PublicSampleBatchRunSummary } from './batchTypes';
+import { PublicSampleBatchRunItem, PublicSampleBatchRunSummary, VisualBatchJobEvent } from './batchTypes';
 import { fnv1a32 } from './artifactUtils';
 import { ResponseDiagnostics, SafeFetchRetryDiagnostics } from '../safeFetch';
 
@@ -40,26 +40,9 @@ export interface PublicSampleBatchCheckpoint {
     providerSchemaVersion?: string;
     analysisImagePolicyVersion?: string;
   };
-  lastEvent?: {
-    type:
-      | "batchStarted"
-      | "healthCheckPassed"
-      | "sampleStarted"
-      | "apiRequestStarted"
-      | "apiResponseReceived"
-      | "sampleCompleted"
-      | "sampleFailed"
-      | "checkpointSaveFailed"
-      | "batchInterrupted"
-      | "batchFailed"
-      | "batchCompleted";
-    timestamp: string;
-    sampleId?: string;
-    sampleTitle?: string;
-    message?: string;
-    failureKind?: string;
-    error?: string;
-  };
+  lastEvent?: VisualBatchJobEvent;
+  lastHeartbeatAt?: string;
+  lastCheckpointSavedAt?: string;
   currentSampleId?: string;
   currentSampleTitle?: string;
   lastError?: string;

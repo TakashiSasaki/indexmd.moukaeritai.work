@@ -66,3 +66,126 @@ export interface PublicSampleBatchRunSummary {
   rateLimitSummary?: any;
   items: PublicSampleBatchRunItem[];
 }
+
+export type VisualBatchJobStatus =
+  | "queued"
+  | "running"
+  | "paused"
+  | "interrupted"
+  | "failed"
+  | "completed"
+  | "canceled";
+
+export type VisualBatchJobItemStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "skipped"
+  | "canceled";
+
+export interface VisualBatchJobEvent {
+  type:
+    | "jobCreated"
+    | "jobQueued"
+    | "jobStarted"
+    | "healthCheckStarted"
+    | "healthCheckPassed"
+    | "healthCheckFailed"
+    | "sampleStarted"
+    | "apiRequestStarted"
+    | "apiResponseReceived"
+    | "sampleSucceeded"
+    | "sampleFailed"
+    | "checkpointSaved"
+    | "checkpointSaveFailed"
+    | "jobPaused"
+    | "jobInterrupted"
+    | "jobFailed"
+    | "jobCompleted"
+    | "jobCanceled"
+    // 既存のイベント名との互換性
+    | "batchStarted"
+    | "sampleCompleted"
+    | "batchInterrupted"
+    | "batchFailed"
+    | "batchCompleted";
+
+  timestamp: string;
+  sampleId?: string;
+  sampleTitle?: string;
+  message?: string;
+  failureKind?: string;
+  error?: string;
+}
+
+export interface VisualBatchJobItem {
+  sampleId: string;
+  title?: string;
+  status: VisualBatchJobItemStatus;
+  startedAt?: string;
+  completedAt?: string;
+  error?: string;
+  failureKind?: string;
+
+  qualityStatus?: string;
+  qualityScore?: number;
+  qualityIssues?: any[];
+
+  responseRaw?: any;
+  responseDiagnostics?: any;
+  retryDiagnostics?: any;
+  generationDiagnostics?: any;
+  parseDiagnostics?: any;
+  normalizationDiagnostics?: any;
+  inputDiagnostics?: any;
+  comparison?: any;
+}
+
+export interface VisualBatchJob {
+  jobId: string;
+  runId?: string;
+  status: VisualBatchJobStatus;
+
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  canceledAt?: string;
+
+  modelName: string;
+  jsonMode: string;
+  customInstructionHash?: string;
+  customInstructionPreview?: string;
+
+  targetSampleIds: string[];
+  completedSampleIds: string[];
+  pendingSampleIds: string[];
+  failedSampleIds: string[];
+
+  currentSampleId?: string;
+  currentSampleTitle?: string;
+
+  counters: {
+    total: number;
+    successCount: number;
+    failureCount: number;
+    validCount: number;
+    validLowQualityCount: number;
+    invalidJsonCount: number;
+    expectedComparisonPassCount: number;
+    expectedComparisonWarningCount: number;
+    expectedComparisonFailCount: number;
+    reviewPassCount: number;
+    reviewNeedsReviewCount: number;
+    reviewFailCount: number;
+  };
+
+  lastEvent?: VisualBatchJobEvent;
+  lastHeartbeatAt?: string;
+  lastCheckpointSavedAt?: string;
+  lastError?: string;
+  lastFailureKind?: string;
+
+  items: VisualBatchJobItem[];
+}

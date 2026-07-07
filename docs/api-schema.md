@@ -484,3 +484,53 @@ To ensure the resumed batch does not enter a broken or inconsistent state, the f
 *   **Write Atomicity**:
     Checkpoint state is saved atomically immediately *after* each sample API response is received, ensuring a browser crash or network loss never causes progress loss of previous elements.
 
+
+---
+
+## 🛠 Future Server-Side Job API Contract (Proposed)
+
+In preparation for migrating visual analysis batches from client-side `localStorage` to a server-side robust job system, the following API endpoints and structures are proposed. The data models (`VisualBatchJob`, `VisualBatchJobItem`, `VisualBatchJobEvent`) have been introduced into the codebase as the first stride.
+
+### Proposed Endpoints
+
+#### `POST /api/visual/batch-jobs`
+Creates a new batch job on the server.
+*   **Request Body**:
+    ```json
+    {
+      "modelName": "gemini-2.5-pro",
+      "jsonMode": "json_object",
+      "customInstruction": "string (optional)",
+      "targetSampleIds": ["string"]
+    }
+    ```
+*   **Response**: `201 Created` with the newly generated `VisualBatchJob`.
+
+#### `GET /api/visual/batch-jobs`
+Retrieves a list of recent batch jobs.
+*   **Response**: `200 OK` with an array of `VisualBatchJob` summaries (excluding full `items` payload for size).
+
+#### `GET /api/visual/batch-jobs/:jobId`
+Retrieves the current state and status of a specific batch job, including its items and diagnostic details.
+*   **Response**: `200 OK` with `VisualBatchJob` object.
+
+#### `POST /api/visual/batch-jobs/:jobId/actions:resume`
+Instructs the server to resume a paused or interrupted batch job.
+*   **Request Body**:
+    ```json
+    {
+      "includeFailed": "boolean",
+      "onlyFailed": "boolean"
+    }
+    ```
+
+#### `POST /api/visual/batch-jobs/:jobId/actions:cancel`
+Instructs the server to cancel a running batch job.
+
+### Model Definitions
+
+The `VisualBatchJob` defines the durable state of a batch run, which will be eventually persisted to Firestore or another database.
+The `VisualBatchJobEvent` tracks lifecycle events such as `jobQueued`, `jobStarted`, `sampleStarted`, and `jobCompleted` for audit logs and progress tracking. `VisualBatchJobItem` holds the specific outcomes of individual sample processing, including parsed outputs and diagnostic metrics. 
+
+Currently, `batchCheckpoint.ts` uses the `VisualBatchJobEvent` schema to standardize local event tracking and includes `lastHeartbeatAt` and `lastCheckpointSavedAt` to enable heartbeat monitoring in the UI.
+

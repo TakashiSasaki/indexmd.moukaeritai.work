@@ -11,7 +11,7 @@ import {
   PublicSampleComparisonSummary
 } from '../lib/visualAnalysis/publicSamples/compare';
 import { PUBLIC_VISUAL_SAMPLES } from '../lib/visualAnalysis/publicSamples/registry';
-import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from '../lib/visualAnalysis/publicSamples/batchTypes';
+import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem, VisualBatchJobEvent } from '../lib/visualAnalysis/publicSamples/batchTypes';
 import {
   PublicSampleBatchCheckpoint,
   loadActiveBatchCheckpoint,
@@ -172,6 +172,45 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number } | null>(null);
   const [activeCheckpoint, setActiveCheckpoint] = useState<PublicSampleBatchCheckpoint | null>(null);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (activeCheckpoint && activeCheckpoint.status === 'running') {
+        try {
+          const updated = {
+            ...activeCheckpoint,
+            lastEvent: {
+              type: 'batchInterrupted' as const,
+              timestamp: new Date().toISOString(),
+              message: 'Page is unloading/closing'
+            }
+          };
+          saveActiveBatchCheckpoint(updated);
+        } catch (e) {}
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && activeCheckpoint && activeCheckpoint.status === 'running') {
+        try {
+          const updated = {
+            ...activeCheckpoint,
+            lastEvent: {
+              type: 'batchInterrupted' as const,
+              timestamp: new Date().toISOString(),
+              message: 'Page became hidden'
+            }
+          };
+          saveActiveBatchCheckpoint(updated);
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeCheckpoint]);
   const [hasIncompatibleCheckpoint, setHasIncompatibleCheckpoint] = useState<boolean>(false);
   const [batchSummary, setBatchSummary] = useState<PublicSampleBatchRunSummary | null>(() => {
     try {
@@ -525,6 +564,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   };
 
   const handleRunBatch = async (resumeMode: boolean = false, includeFailed: boolean = false, onlyFailed: boolean = false) => {
+    const checkpointRef = { current: null as any };
+    const heartbeatTimer = setInterval(() => {
+       if (checkpointRef.current && checkpointRef.current.status === 'running') {
+          checkpointRef.current = {
+             ...checkpointRef.current,
+             lastHeartbeatAt: new Date().toISOString(),
+             lastCheckpointSavedAt: new Date().toISOString()
+          };
+          try { saveActiveBatchCheckpoint(checkpointRef.current); } catch(e){}
+          setActiveCheckpoint(checkpointRef.current);
+       }
+    }, 10000);
+    try {
     let targetSamples = samples.filter(s => selectedSampleIds[s.id]);
     
     let isResuming = false;
@@ -625,10 +677,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
     const newStatuses = { ...sampleStatuses };
     
-    let currentCheckpoint: PublicSampleBatchCheckpoint;
+    let currentCheckpoint: PublicSampleBatchCheckpoint; // replaced by checkpointRef.current // replaced by checkpointRef.current
     
     if (isResuming && initialCheckpoint) {
-       currentCheckpoint = { 
+       checkpointRef.current = { 
          ...initialCheckpoint, 
          status: 'running',
          lastEvent: {
@@ -661,14 +713,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
          } : {})
        };
        try {
-         saveActiveBatchCheckpoint(currentCheckpoint);
+         saveActiveBatchCheckpoint(checkpointRef.current);
        } catch (err: any) {
          console.warn("Failed to save initial checkpoint to localStorage", err);
        }
-       setActiveCheckpoint(currentCheckpoint);
+       setActiveCheckpoint(checkpointRef.current);
     } else {
        const initialTargetIds = targetSamples.map(s => s.id);
-       currentCheckpoint = {
+       checkpointRef.current = {
          checkpointVersion: "public-sample-batch-checkpoint.v0.1.0",
          runId: crypto.randomUUID(),
          createdAt: new Date().toISOString(),
@@ -708,12 +760,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
          }
        };
        try {
-         saveActiveBatchCheckpoint(currentCheckpoint);
+         saveActiveBatchCheckpoint(checkpointRef.current);
        } catch (err: any) {
          console.warn("Failed to save initial checkpoint to localStorage", err);
          onAddLog("warn", "警告: ローカルストレージへのチェックポイント保存に失敗しました。解析は続行されます。");
        }
-       setActiveCheckpoint(currentCheckpoint);
+       setActiveCheckpoint(checkpointRef.current);
     }
 
     // Pre-batch health check
@@ -733,8 +785,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       setHealthCheckError(hcResult.error || "ヘルスチェック応答が不正です。");
       onAddLog("error", `ヘルスチェックに失敗しました。バッチ処理は開始されません。: ${hcResult.error}`);
       
-      currentCheckpoint = {
-        ...currentCheckpoint,
+      checkpointRef.current = {
+        ...checkpointRef.current,
         status: 'failed',
         lastError: hcResult.error || "Health check failed",
         lastFailureKind: hcResult.failureKind || "healthCheckFailed",
@@ -748,18 +800,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         }
       };
       try {
-        saveActiveBatchCheckpoint(currentCheckpoint);
+        saveActiveBatchCheckpoint(checkpointRef.current);
       } catch (err: any) {
         console.warn("Failed to save checkpoint progress to localStorage", err);
       }
-      setActiveCheckpoint(currentCheckpoint);
+      setActiveCheckpoint(checkpointRef.current);
       return;
     }
 
     onAddLog("success", "ヘルスチェックに成功しました。バッチ解析を開始します。");
 
-    currentCheckpoint = {
-      ...currentCheckpoint,
+    checkpointRef.current = {
+      ...checkpointRef.current,
       lastEvent: {
         type: 'healthCheckPassed',
         timestamp: new Date().toISOString(),
@@ -767,19 +819,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       }
     };
     try {
-      saveActiveBatchCheckpoint(currentCheckpoint);
+      saveActiveBatchCheckpoint(checkpointRef.current);
     } catch (err: any) {
       console.warn("Failed to save checkpoint progress to localStorage", err);
     }
-    setActiveCheckpoint(currentCheckpoint);
+    setActiveCheckpoint(checkpointRef.current);
 
     for (let i = 0; i < targetSamples.length; i++) {
         const sample = targetSamples[i];
         currentProgress++;
         setBatchProgress({ current: currentProgress, total });
         
-        currentCheckpoint = {
-          ...currentCheckpoint,
+        checkpointRef.current = {
+          ...checkpointRef.current,
           currentSampleId: sample.id,
           currentSampleTitle: sample.title,
           lastEvent: {
@@ -791,14 +843,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           }
         };
         try {
-          saveActiveBatchCheckpoint(currentCheckpoint);
+          saveActiveBatchCheckpoint(checkpointRef.current);
         } catch (err: any) {
           console.warn("Failed to save checkpoint at sampleStarted", err);
         }
-        setActiveCheckpoint(currentCheckpoint);
+        setActiveCheckpoint(checkpointRef.current);
         
-        currentCheckpoint = {
-          ...currentCheckpoint,
+        checkpointRef.current = {
+          ...checkpointRef.current,
           lastEvent: {
             type: 'apiRequestStarted',
             timestamp: new Date().toISOString(),
@@ -808,11 +860,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           }
         };
         try {
-          saveActiveBatchCheckpoint(currentCheckpoint);
+          saveActiveBatchCheckpoint(checkpointRef.current);
         } catch (err: any) {
           console.warn("Failed to save checkpoint at apiRequestStarted", err);
         }
-        setActiveCheckpoint(currentCheckpoint);
+        setActiveCheckpoint(checkpointRef.current);
 
         let item: PublicSampleBatchRunItem | null = null;
         try {
@@ -842,8 +894,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               }
             });
             
-            currentCheckpoint = {
-              ...currentCheckpoint,
+            checkpointRef.current = {
+              ...checkpointRef.current,
               lastResponseDiagnostics: sfResult.responseDiagnostics,
               lastRetryDiagnostics: sfResult.retryDiagnostics,
               lastError: sfResult.error,
@@ -857,11 +909,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               }
             };
             try {
-              saveActiveBatchCheckpoint(currentCheckpoint);
+              saveActiveBatchCheckpoint(checkpointRef.current);
             } catch (err: any) {
               console.warn("Failed to save checkpoint at apiResponseReceived", err);
             }
-            setActiveCheckpoint(currentCheckpoint);
+            setActiveCheckpoint(checkpointRef.current);
 
             if (sfResult.responseDiagnostics?.status === 401) {
               onSessionExpiry();
@@ -940,15 +992,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         setSampleStatuses({ ...newStatuses });
         
         // Update and save checkpoint after each sample
-        currentCheckpoint = {
-          ...currentCheckpoint,
+        checkpointRef.current = {
+          ...checkpointRef.current,
           updatedAt: new Date().toISOString(),
-          completedSampleIds: [...currentCheckpoint.completedSampleIds, sample.id],
-          pendingSampleIds: currentCheckpoint.pendingSampleIds.filter(id => id !== sample.id),
-          failedSampleIds: item.success ? currentCheckpoint.failedSampleIds : [...currentCheckpoint.failedSampleIds, sample.id],
+          completedSampleIds: [...checkpointRef.current.completedSampleIds, sample.id],
+          pendingSampleIds: checkpointRef.current.pendingSampleIds.filter(id => id !== sample.id),
+          failedSampleIds: item.success ? checkpointRef.current.failedSampleIds : [...checkpointRef.current.failedSampleIds, sample.id],
           items: [...items], // copy to trigger updates if used directly
-          lastError: item.success ? currentCheckpoint.lastError : item.error,
-          lastFailureKind: item.success ? currentCheckpoint.lastFailureKind : item.failureKind,
+          lastError: item.success ? checkpointRef.current.lastError : item.error,
+          lastFailureKind: item.success ? checkpointRef.current.lastFailureKind : item.failureKind,
           lastEvent: {
             type: item.success ? 'sampleCompleted' : 'sampleFailed',
             timestamp: new Date().toISOString(),
@@ -975,20 +1027,20 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           }
         };
         try {
-          saveActiveBatchCheckpoint(currentCheckpoint);
+          saveActiveBatchCheckpoint(checkpointRef.current);
         } catch (err: any) {
           console.warn("Failed to save checkpoint progress to localStorage", err);
-          currentCheckpoint.lastEvent = {
+          checkpointRef.current.lastEvent = {
             type: 'checkpointSaveFailed',
             timestamp: new Date().toISOString(),
             message: `Failed to save progress checkpoint to localStorage: ${err.message}`
           };
         }
-        setActiveCheckpoint(currentCheckpoint);
+        setActiveCheckpoint(checkpointRef.current);
     }
 
     const summary: PublicSampleBatchRunSummary = {
-        runId: currentCheckpoint.runId,
+        runId: checkpointRef.current.runId,
         timestamp: new Date().toISOString(),
         modelName,
         jsonMode: jsonModeOption,
@@ -1086,22 +1138,43 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     if (total === 1 && items[0].responseRaw) {
       setResult(items[0].responseRaw);
     }
+    } finally {
+      clearInterval(heartbeatTimer);
+    }
   };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-5">
-          {activeCheckpoint && !isBatchRunning && (
+          {activeCheckpoint && (
             <div className="mb-6 p-5 rounded-xl border border-amber-200 bg-amber-50/70 backdrop-blur-sm shadow-sm space-y-4">
               <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between border-b border-amber-200/60 pb-3">
                 <div className="space-y-1">
                   <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2">
                     <Activity className="w-4 h-4 text-amber-600 animate-pulse" />
-                    未完了のバッチ解析があります (チェックポイント検出)
+                    {isBatchRunning ? 'バッチ解析実行中' : '未完了のバッチ解析があります (チェックポイント検出)'}
+                    {(() => {
+                       const now = new Date().getTime();
+                       const lastHb = activeCheckpoint.lastHeartbeatAt ? new Date(activeCheckpoint.lastHeartbeatAt).getTime() : 0;
+                       const isStale = activeCheckpoint.status === 'running' && (now - lastHb > 60000);
+                       if (isBatchRunning) {
+                          if (activeCheckpoint.lastEvent?.type === 'apiRequestStarted') return <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] rounded">API応答待ち</span>;
+                          return <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-[10px] rounded">実行中</span>;
+                       }
+                       if (activeCheckpoint.status === 'running') {
+                          if (isStale) return <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-800 text-[10px] rounded">中断の可能性 (Stale)</span>;
+                          return <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-[10px] rounded">実行中 (BG)</span>;
+                       }
+                       if (activeCheckpoint.status === 'failed') return <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-800 text-[10px] rounded">失敗</span>;
+                       return null;
+                    })()}
                   </h3>
                   <p className="text-xs text-amber-700">
-                    前回のバッチ実行が途中で中断されました。以下から現在の診断情報と、再開・破棄アクションを選択できます。<br/>
+                    {isBatchRunning 
+                      ? "バッチ処理を実行しています。以下の診断情報がリアルタイムに更新されます。"
+                      : "前回のバッチ実行が途中で中断されました。以下から現在の診断情報と、再開・破棄アクションを選択できます。"}
+                    <br/>
                     <span className="font-semibold text-amber-800">※ チェックボックスの選択に関わらず、保存されたチェックポイントの対象サンプルで実行されます。</span>
                   </p>
                 </div>
@@ -1187,8 +1260,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   <div className="text-slate-600">
                     モード: {activeCheckpoint.jsonMode === 'json_object' ? 'JSON Mode' : 'Plain Text'}
                   </div>
-                  <div className="text-slate-500 text-[10px] mt-1">
-                    開始時刻: {new Date(activeCheckpoint.createdAt).toLocaleString()}
+                  <div className="text-slate-500 text-[10px] mt-1 space-y-0.5">
+                    <div>開始時刻: {new Date(activeCheckpoint.createdAt).toLocaleString()}</div>
+                    {activeCheckpoint.lastHeartbeatAt && <div>最終Heartbeat: {new Date(activeCheckpoint.lastHeartbeatAt).toLocaleTimeString()}</div>}
+                    {activeCheckpoint.lastCheckpointSavedAt && <div>最終保存: {new Date(activeCheckpoint.lastCheckpointSavedAt).toLocaleTimeString()}</div>}
                   </div>
                 </div>
 
@@ -1237,6 +1312,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
 
               {/* Status & Diagnostic Details */}
+              {activeCheckpoint.items.length === 0 && activeCheckpoint.completedSampleIds.length === 0 && (
+                <div className="bg-amber-100 text-amber-800 text-xs p-3 rounded-lg">
+                  最初のサンプル処理中に中断したため、サンプル単位の失敗詳細はまだ保存されていません。ただし、以下の直近のイベントやエラーが記録されている場合があります。
+                </div>
+              )}
               {(activeCheckpoint.currentSampleId || activeCheckpoint.lastError || activeCheckpoint.lastFailureKind) && (
                 <div className="bg-white p-4 rounded-lg border border-amber-100 space-y-2 text-xs">
                   <h4 className="font-bold text-slate-800 border-b pb-1">直近の実行中サンプル & エラー診断</h4>
