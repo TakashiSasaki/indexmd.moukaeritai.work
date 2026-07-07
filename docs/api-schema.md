@@ -528,6 +528,8 @@ Retrieves the current state and status of a specific batch job, including its it
 
 #### `GET /api/visual/batch-jobs/:jobId/items`
 Retrieves the job items. Supports `?view=compact` (default) and `?view=full`.
+- `view=compact`: Omits heavy payload fields like `record`, `responseRaw`, and diagnostics.
+- `view=full`: Includes `record`, `responseRaw`, `diagnostics`, and `comparison`.
 
 #### `GET /api/visual/batch-jobs/:jobId/reports/summary`
 Retrieves the text summary report.
@@ -539,7 +541,7 @@ Retrieves the diagnostic text report.
 Retrieves a JSON report of failed items.
 
 #### `GET /api/visual/batch-jobs/:jobId/reports/full`
-Retrieves the full batch JSON report.
+Retrieves the full batch JSON report. This report includes `item.record` for all successful samples. `executionPrivate` and `customInstruction` are stripped out for safety.
 
 #### `POST /api/visual/batch-jobs/:jobId/actions:resume`
 Instructs the server to resume a paused or interrupted batch job.

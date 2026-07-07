@@ -189,7 +189,7 @@ export interface VisualAnalysisEvaluation {
   comparison?: any;
   qualityStatus?: string;
   qualityScore?: number;
-  qualityIssues?: string[];
+  qualityIssues?: any[]; // To allow both strings and detailed objects as per JSON schema
   reviewStatus?: string;
   reviewReasons?: string[];
   reviewNotes?: string[];

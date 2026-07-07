@@ -167,6 +167,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [customInstruction, setCustomInstruction] = useState<string>("");
   const [showPreviewHelp, setShowPreviewHelp] = useState(false);
   const [showBatchArtifactHelp, setShowBatchArtifactHelp] = useState(false);
+  const [showServerSideJob, setShowServerSideJob] = useState(false);
+  const [serverJobId, setServerJobId] = useState("");
+  const [serverJobStatus, setServerJobStatus] = useState<any>(null);
 
   // Batch evaluation state
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
@@ -560,6 +563,60 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartServerJob = async () => {
+    if (samples.length === 0) return;
+    try {
+      const activeIds = samples.filter(s => selectedSampleIds[s.id]).map(s => s.id);
+      if (activeIds.length === 0) {
+        onAddLog("error", "No samples selected for server-side job");
+        return;
+      }
+      onAddLog("info", `Starting server-side job for ${activeIds.length} samples...`);
+      const res = await fetch("/api/visual/batch-jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modelName: modelName,
+          jsonMode: jsonModeOption,
+          customInstruction: customInstruction,
+          targetSampleIds: activeIds
+        })
+      });
+      if (!res.ok) throw new Error(`Failed to start job: ${res.status}`);
+      const data = await res.json();
+      setServerJobId(data.job.jobId);
+      setServerJobStatus(data.job);
+      onAddLog("success", `Server-side job started: ${data.job.jobId}`);
+    } catch (e: any) {
+      onAddLog("error", `Server-side job failed: ${e.message}`);
+    }
+  };
+
+  const handleRefreshServerJob = async () => {
+    if (!serverJobId) return;
+    try {
+      const res = await fetch(`/api/visual/batch-jobs/${serverJobId}`);
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const data = await res.json();
+      setServerJobStatus(data.job);
+    } catch (e: any) {
+      onAddLog("error", `Refresh failed: ${e.message}`);
+    }
+  };
+  
+  const handleCancelServerJob = async () => {
+    if (!serverJobId) return;
+    try {
+      const res = await fetch(`/api/visual/batch-jobs/${serverJobId}/cancel`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Cancel failed: ${res.status}`);
+      const data = await res.json();
+      setServerJobStatus(data.job);
+      onAddLog("info", "Requested server-side job cancellation");
+    } catch (e: any) {
+      onAddLog("error", `Cancel failed: ${e.message}`);
     }
   };
 
@@ -1730,10 +1787,80 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     )}
                   </button>
                 </div>
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
+
+
+      {/* Server-Side Job (Experimental) */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+        <button 
+          onClick={() => setShowServerSideJob(!showServerSideJob)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-800">Server-Side Batch Job (Experimental)</span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-800 uppercase">Beta</span>
+          </div>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showServerSideJob ? 'rotate-180' : ''}`} />
+        </button>
+        
+        {showServerSideJob && (
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+            <p className="text-xs text-slate-500">
+              Starts a resilient batch job on the Node.js server. Unlike the client-side <strong>Run Selected</strong> button, 
+              this job will continue running even if you close the browser tab. The UI does not auto-refresh yet; use the Refresh button.
+            </p>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleStartServerJob}
+                className="px-4 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition-colors"
+              >
+                Start Server-Side Job
+              </button>
+              
+              <div className="flex-1 max-w-xs flex items-center gap-2 ml-4">
+                <input 
+                  type="text" 
+                  value={serverJobId}
+                  onChange={(e) => setServerJobId(e.target.value)}
+                  placeholder="Enter Job ID"
+                  className="w-full text-xs p-1.5 border rounded"
+                />
+                <button
+                  onClick={handleRefreshServerJob}
+                  disabled={!serverJobId}
+                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
+                >
+                  Refresh
+                </button>
               </div>
             </div>
+            
+            {serverJobStatus && (
+              <div className="bg-slate-50 border rounded p-3 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <div><strong>Status:</strong> {serverJobStatus.status}</div>
+                  {serverJobStatus.status === 'running' && (
+                    <button onClick={handleCancelServerJob} className="text-red-600 hover:text-red-800 font-bold px-2 py-1 bg-red-50 rounded">Cancel Job</button>
+                  )}
+                </div>
+                <div><strong>Progress:</strong> {serverJobStatus.counters?.successCount + serverJobStatus.counters?.failureCount} / {serverJobStatus.counters?.total}</div>
+                <div><strong>Current Sample:</strong> {serverJobStatus.currentSampleTitle || serverJobStatus.currentSampleId || '-'}</div>
+                <div><strong>Last Event:</strong> {serverJobStatus.lastEvent?.message || '-'}</div>
+                
+                <div className="flex gap-2 pt-2 mt-2 border-t border-slate-200">
+                  <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/full`} target="_blank" className="text-indigo-600 hover:underline">Full JSON</a>
+                  <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/summary`} target="_blank" className="text-indigo-600 hover:underline">Summary</a>
+                  <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/diagnostic`} target="_blank" className="text-indigo-600 hover:underline">Diagnostic</a>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {healthCheckFailed && healthCheckDiagnostics && (

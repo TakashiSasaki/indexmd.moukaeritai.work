@@ -49,6 +49,12 @@ import { GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA } from "./src/lib/visualAnalysis
 import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } from "./src/lib/visualAnalysis/runMetadata";
 import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
 import { generateContentWithRetry } from "./src/lib/gemini";
+import { 
+  buildBatchSummaryReportForChat, 
+  buildBatchDiagnosticReportForChat, 
+  buildFailuresOnlyReport 
+} from './src/lib/visualAnalysis/publicSamples/reportBuilder';
+import { jobToSummary } from './src/lib/visualAnalysis/serverJobs/jobAdapters';
 
 dotenv.config();
 
@@ -2754,32 +2760,6 @@ app.post("/api/cache/stats/reset", (req, res) => {
 });
 
 // 5. Mount Vite middleware for serving frontend SPA assets or dev server
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    // SPA fallback handling
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Drive Indexer Backend] Running on http://localhost:${PORT}`);
-  });
-}
-
-if (process.env.NODE_ENV !== "test") {
-  startServer();
-}
-
-
 // --- Server-Side Batch Jobs API ---
 
 app.post("/api/visual/batch-jobs", async (req, res) => {
@@ -2829,7 +2809,7 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
     jobStore.createJob(job);
     
     // Start async execution
-    startVisualBatchJob(jobId, analyzePublicSample).catch(err => {
+    startVisualBatchJob(jobId, { analyzeFn: analyzePublicSample, getSampleMetadata: async (id) => getPublicSampleById(id) }).catch(err => {
       console.error("Batch job runner failed:", err);
     });
 
@@ -2884,10 +2864,18 @@ app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
     
     let items = job.items;
     if (view === 'compact') {
-      items = items.map(item => {
-        const { responseRaw, ...rest } = item;
-        return rest;
-      }) as any;
+      items = items.map(item => ({
+        sampleId: item.sampleId,
+        title: item.title,
+        status: item.status,
+        startedAt: item.startedAt,
+        completedAt: item.completedAt,
+        qualityStatus: item.qualityStatus,
+        qualityScore: item.qualityScore,
+        error: item.error,
+        failureKind: item.failureKind,
+        recordStatus: item.record?.status
+      })) as any;
     }
     
     return res.status(200).json({ success: true, items });
@@ -2920,54 +2908,9 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
 
 
 
-import { 
-  buildBatchSummaryReportForChat, 
-  buildBatchDiagnosticReportForChat, 
-  buildFailuresOnlyReport 
-} from './src/lib/visualAnalysis/publicSamples/reportBuilder';
 
-function jobToSummary(job: VisualBatchJob) {
-  // convert job items to PublicSampleBatchRunItem
-  const items = job.items.map(item => ({
-    sampleId: item.sampleId,
-    title: item.title || item.sampleId,
-    success: item.status === 'succeeded',
-    qualityStatus: item.qualityStatus,
-    qualityScore: item.qualityScore,
-    qualityIssues: item.qualityIssues,
-    analysisRun: item.responseRaw?.analysisRun,
-    parseDiagnostics: item.parseDiagnostics,
-    generationDiagnostics: item.generationDiagnostics,
-    inputDiagnostics: item.inputDiagnostics,
-    normalizationDiagnostics: item.normalizationDiagnostics,
-    responseRaw: item.responseRaw,
-    responseDiagnostics: item.responseDiagnostics,
-    retryDiagnostics: item.retryDiagnostics,
-    comparison: item.comparison,
-    error: item.error,
-    failureKind: item.failureKind,
-  })) as any[];
 
-  return {
-    runId: job.jobId,
-    timestamp: job.createdAt,
-    modelName: job.modelName,
-    jsonMode: job.jsonMode,
-    total: job.counters.total,
-    successCount: job.counters.successCount,
-    failureCount: job.counters.failureCount,
-    validCount: job.counters.validCount,
-    validLowQualityCount: job.counters.validLowQualityCount,
-    invalidJsonCount: job.counters.invalidJsonCount,
-    expectedComparisonPassCount: job.counters.expectedComparisonPassCount,
-    expectedComparisonWarningCount: job.counters.expectedComparisonWarningCount,
-    expectedComparisonFailCount: job.counters.expectedComparisonFailCount,
-    reviewPassCount: job.counters.reviewPassCount,
-    reviewNeedsReviewCount: job.counters.reviewNeedsReviewCount,
-    reviewFailCount: job.counters.reviewFailCount,
-    items
-  };
-}
+
 
 app.get("/api/visual/batch-jobs/:jobId/reports/summary", async (req, res) => {
   try {
@@ -3016,3 +2959,30 @@ app.get("/api/visual/batch-jobs/:jobId/reports/full", async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 });
+
+async function startServer() {
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    // SPA fallback handling
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[Drive Indexer Backend] Running on http://localhost:${PORT}`);
+  });
+}
+
+if (process.env.NODE_ENV !== "test") {
+  startServer();
+}
+
+
