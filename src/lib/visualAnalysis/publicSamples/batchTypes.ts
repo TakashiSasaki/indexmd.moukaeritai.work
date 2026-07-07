@@ -37,6 +37,7 @@ export interface PublicSampleBatchRunItem {
   generationDiagnostics?: any;
   inputDiagnostics?: PublicSampleInputDiagnostics;
   normalizationDiagnostics?: any;
+  
   responseRaw?: any;
   responseDiagnostics?: ResponseDiagnostics;
   retryDiagnostics?: SafeFetchRetryDiagnostics;
@@ -132,6 +133,8 @@ export interface VisualBatchJobItem {
   qualityScore?: number;
   qualityIssues?: any[];
 
+  
+  record?: ImageAnalysisRecord;
   responseRaw?: any;
   responseDiagnostics?: any;
   retryDiagnostics?: any;
@@ -157,7 +160,7 @@ export interface VisualBatchJob {
   jsonMode: string;
   customInstructionHash?: string;
   customInstructionPreview?: string;
-  customInstruction?: string;
+  executionPrivate?: { customInstruction?: string; };
 
   targetSampleIds: string[];
   completedSampleIds: string[];

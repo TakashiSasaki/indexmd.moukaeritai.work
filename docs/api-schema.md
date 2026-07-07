@@ -526,7 +526,22 @@ Retrieves a list of recent batch jobs.
 Retrieves the current state and status of a specific batch job, including its items and diagnostic details.
 *   **Response**: `200 OK` with `VisualBatchJob` object.
 
-#### `GET /api/visual/batch-jobs/:jobId/items`\nRetrieves the job items. Supports `?view=compact` (default) and `?view=full`.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/summary`\nRetrieves the text summary report.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/diagnostic`\nRetrieves the diagnostic text report.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/failures`\nRetrieves a JSON report of failed items.\n\n#### `GET /api/visual/batch-jobs/:jobId/reports/full`\nRetrieves the full batch JSON report.\n\n#### `POST /api/visual/batch-jobs/:jobId/actions:resume`
+#### `GET /api/visual/batch-jobs/:jobId/items`
+Retrieves the job items. Supports `?view=compact` (default) and `?view=full`.
+
+#### `GET /api/visual/batch-jobs/:jobId/reports/summary`
+Retrieves the text summary report.
+
+#### `GET /api/visual/batch-jobs/:jobId/reports/diagnostic`
+Retrieves the diagnostic text report.
+
+#### `GET /api/visual/batch-jobs/:jobId/reports/failures`
+Retrieves a JSON report of failed items.
+
+#### `GET /api/visual/batch-jobs/:jobId/reports/full`
+Retrieves the full batch JSON report.
+
+#### `POST /api/visual/batch-jobs/:jobId/actions:resume`
 Instructs the server to resume a paused or interrupted batch job.
 *   **Request Body**:
     ```json

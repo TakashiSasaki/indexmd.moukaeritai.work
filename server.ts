@@ -1,8 +1,7 @@
 
 import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
-import { startVisualBatchJob } from './server_jobs';
+import { startVisualBatchJob } from './src/lib/visualAnalysis/serverJobs/jobRunner';
 import { VisualBatchJob } from './src/lib/visualAnalysis/publicSamples/batchTypes';
-import crypto from 'crypto';
 import { fnv1a32 } from './src/lib/visualAnalysis/publicSamples/artifactUtils';
 import express from "express";
 import path from "path";
@@ -2798,7 +2797,7 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
       updatedAt: new Date().toISOString(),
       modelName,
       jsonMode,
-      customInstruction,
+      executionPrivate: { customInstruction: customInstruction || undefined },
       customInstructionPreview: customInstruction ? customInstruction.substring(0, 100) : undefined,
       customInstructionHash: customInstruction ? String(fnv1a32(customInstruction.trim())) : undefined,
       targetSampleIds,
@@ -2843,7 +2842,7 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
 app.get("/api/visual/batch-jobs", async (req, res) => {
   try {
     const jobs = jobStore.listJobs().map(j => {
-      const { items, ...summary } = j;
+      const { items, executionPrivate, ...summary } = j;
       return summary;
     });
     return res.status(200).json({ success: true, jobs });
@@ -2869,7 +2868,8 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
       qualityStatus: item.qualityStatus,
     }));
     
-    const summary = { ...job, items: lightweightItems };
+    const { executionPrivate, ...restJob } = job;
+    const summary = { ...restJob, items: lightweightItems };
     return res.status(200).json({ success: true, job: summary });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
@@ -3010,7 +3010,8 @@ app.get("/api/visual/batch-jobs/:jobId/reports/full", async (req, res) => {
     const job = jobStore.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
     const summary = jobToSummary(job);
-    return res.status(200).json(summary);
+    const { executionPrivate, ...safeSummary } = summary as any;
+    return res.status(200).json(safeSummary);
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }

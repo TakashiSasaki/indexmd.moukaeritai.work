@@ -21,10 +21,14 @@ export class JobStore {
       if (file.endsWith('.json')) {
         try {
           const content = fs.readFileSync(path.join(JOBS_DIR, file), 'utf-8');
+          if (content.trim() === '') continue;
           const job = JSON.parse(content) as VisualBatchJob;
-          this.jobs.set(job.jobId, job);
+          if (job && job.jobId) {
+            this.jobs.set(job.jobId, job);
+          }
         } catch (e) {
           console.error(`Failed to load job from ${file}`, e);
+          // Don't crash server on bad JSON
         }
       }
     }
@@ -35,7 +39,9 @@ export class JobStore {
     this.ensureDir();
     try {
       const filePath = path.join(JOBS_DIR, `${job.jobId}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(job, null, 2), 'utf-8');
+      const tempPath = filePath + '.tmp';
+      fs.writeFileSync(tempPath, JSON.stringify(job, null, 2), 'utf-8');
+      fs.renameSync(tempPath, filePath);
     } catch (e) {
       console.error(`Failed to persist job ${job.jobId}`, e);
     }
@@ -73,7 +79,6 @@ export class JobStore {
     const job = this.jobs.get(jobId);
     if (!job) return;
     
-    // We update the item if it exists, or append it
     const index = job.items.findIndex(i => i.sampleId === item.sampleId);
     if (index >= 0) {
       job.items[index] = item;
@@ -83,6 +88,21 @@ export class JobStore {
     
     job.updatedAt = new Date().toISOString();
     this.persistJob(job);
+  }
+
+  public cancelJob(jobId: string) {
+    const job = this.getJob(jobId);
+    if (job && (job.status === 'running' || job.status === 'queued')) {
+      this.updateJob(jobId, { 
+        status: 'canceled',
+        canceledAt: new Date().toISOString(),
+        lastEvent: {
+          type: 'jobCanceled',
+          timestamp: new Date().toISOString(),
+          message: 'Job canceled by user request'
+        }
+      });
+    }
   }
 }
 
