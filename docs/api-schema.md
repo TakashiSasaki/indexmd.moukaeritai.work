@@ -233,13 +233,17 @@ Returns a list of public images and synthetic documents registered in the system
         "category": "string (e.g. 'landscape', 'document')",
         "expectedMetadata": {
           "imageKind": "string",
-            "elementCategories": ["string"],
+          "acceptableImageKinds": ["string"],
+          "elementCategories": ["string"],
           "elementCategoryAlternatives": { "string": ["string"] },
           "visibleElementLabels": ["string"],
           "visibleElementLabelAliases": { "string": ["string"] },
           "visibleText": ["string"],
           "notes": ["string"],
-                "optionalVisibleText": ["string"]
+          "optionalElementCategories": ["string"],
+          "optionalVisibleElementLabels": ["string"],
+          "optionalVisibleElementLabelAliases": { "string": ["string"] },
+          "optionalVisibleText": ["string"]
         },
         "source": {
           "provider": "string",
