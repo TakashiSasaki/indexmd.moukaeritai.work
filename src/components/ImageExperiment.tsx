@@ -170,6 +170,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [showServerSideJob, setShowServerSideJob] = useState(false);
   const [serverJobId, setServerJobId] = useState("");
   const [serverJobStatus, setServerJobStatus] = useState<any>(null);
+  const [serverJobList, setServerJobList] = useState<any[]>([]);
 
   // Batch evaluation state
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
@@ -607,6 +608,51 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
   
+  
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (showServerSideJob && serverJobId && serverJobStatus && (serverJobStatus.status === 'running' || serverJobStatus.status === 'queued')) {
+      interval = setInterval(() => {
+        handleRefreshServerJob();
+      }, 5000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showServerSideJob, serverJobId, serverJobStatus]);
+
+  const loadServerJobs = async () => {
+    try {
+      const res = await fetch("/api/visual/batch-jobs");
+      if (res.ok) {
+        const data = await res.json();
+        setServerJobList(data.jobs || []);
+      }
+    } catch (e) {
+      console.warn("Failed to load server jobs", e);
+    }
+  };
+
+  useEffect(() => {
+    if (showServerSideJob) {
+      loadServerJobs();
+    }
+  }, [showServerSideJob]);
+
+  const handleImportServerJob = async () => {
+    if (!serverJobStatus || serverJobStatus.status !== 'completed') return;
+    try {
+      onAddLog("info", `Importing server job ${serverJobStatus.jobId} into batch summary...`);
+      const res = await fetch(`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/summary`);
+      if (!res.ok) throw new Error(`Failed to fetch summary: ${res.status}`);
+      const summary = await res.json();
+      setBatchSummary(summary);
+      onAddLog("success", `Imported server job summary ${serverJobStatus.jobId}`);
+    } catch (e: any) {
+      onAddLog("error", `Failed to import server job: ${e.message}`);
+    }
+  };
+
   const handleCancelServerJob = async () => {
     if (!serverJobId) return;
     try {
@@ -1811,7 +1857,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
             <p className="text-xs text-slate-500">
               Starts a resilient batch job on the Node.js server. Unlike the client-side <strong>Run Selected</strong> button, 
-              this job will continue running even if you close the browser tab. The UI does not auto-refresh yet; use the Refresh button.
+              this job will continue running even if you close the browser tab. 
             </p>
             
             <div className="flex items-center gap-2">
@@ -1843,19 +1889,47 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             {serverJobStatus && (
               <div className="bg-slate-50 border rounded p-3 text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <div><strong>Status:</strong> {serverJobStatus.status}</div>
+                  <div><strong>Status:</strong> <span className={serverJobStatus.status === 'running' ? 'text-indigo-600 font-bold' : ''}>{serverJobStatus.status}</span></div>
                   {serverJobStatus.status === 'running' && (
                     <button onClick={handleCancelServerJob} className="text-red-600 hover:text-red-800 font-bold px-2 py-1 bg-red-50 rounded">Cancel Job</button>
                   )}
                 </div>
-                <div><strong>Progress:</strong> {serverJobStatus.counters?.successCount + serverJobStatus.counters?.failureCount} / {serverJobStatus.counters?.total}</div>
+                <div><strong>Progress:</strong> {(serverJobStatus.counters?.successCount || 0) + (serverJobStatus.counters?.failureCount || 0)} / {serverJobStatus.counters?.total || 0}</div>
                 <div><strong>Current Sample:</strong> {serverJobStatus.currentSampleTitle || serverJobStatus.currentSampleId || '-'}</div>
                 <div><strong>Last Event:</strong> {serverJobStatus.lastEvent?.message || '-'}</div>
+                <div><strong>Last Heartbeat:</strong> {serverJobStatus.lastHeartbeatAt ? new Date(serverJobStatus.lastHeartbeatAt).toLocaleTimeString() : '-'}</div>
                 
                 <div className="flex gap-2 pt-2 mt-2 border-t border-slate-200">
                   <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/full`} target="_blank" className="text-indigo-600 hover:underline">Full JSON</a>
                   <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/summary`} target="_blank" className="text-indigo-600 hover:underline">Summary</a>
                   <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/diagnostic`} target="_blank" className="text-indigo-600 hover:underline">Diagnostic</a>
+                  <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/failures`} target="_blank" className="text-indigo-600 hover:underline">Failures</a>
+                  {serverJobStatus.status === 'completed' && (
+                    <button onClick={handleImportServerJob} className="ml-auto px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-bold hover:bg-emerald-200">
+                      Import to Batch Summary
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {serverJobList.length > 0 && !serverJobStatus && (
+              <div className="pt-2 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-700 mb-2">Recent Server Jobs</h4>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {serverJobList.slice().reverse().map(job => (
+                    <button 
+                      key={job.jobId}
+                      onClick={() => {
+                        setServerJobId(job.jobId);
+                        setServerJobStatus(job);
+                      }}
+                      className="w-full text-left text-xs p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 flex justify-between"
+                    >
+                      <span>{new Date(job.createdAt).toLocaleString()}</span>
+                      <span className="text-slate-500">{job.status} ({job.counters?.successCount}/{job.counters?.total})</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -1895,11 +1969,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               )}
               
               <div className="mt-4 space-y-3">
+                <div className="p-3 bg-red-100/50 rounded-lg">
+                  <span className="block text-[10px] text-red-500 font-bold uppercase mb-1">Raw Error</span>
+                  <span className="font-mono text-xs text-red-900 break-all">{(healthCheckDiagnostics as any).error || String(healthCheckDiagnostics)}</span>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                   <div className="p-2 bg-white rounded border border-red-100">
-                      <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">HTTP Status</span>
-                      <span className="font-bold text-xs text-red-800">{healthCheckDiagnostics.status} ({healthCheckDiagnostics.statusText || "N/A"})</span>
-                   </div>
                    <div className="p-2 bg-white rounded border border-red-100">
                       <span className="block text-[10px] text-red-400 mb-0.5 font-bold uppercase">Content Type</span>
                       <span className="font-bold text-xs text-red-800 truncate block" title={healthCheckDiagnostics.contentType}>{healthCheckDiagnostics.contentType || "N/A"}</span>

@@ -308,10 +308,12 @@ Dispatches a visual analysis on a public sample to extract visual features, elem
               "evidence": "string (optional)",
               "locationHint": "string (optional)",
               "boundingBox": {
-                "ymin": "number",
-                "xmin": "number",
-                "ymax": "number",
-                "xmax": "number"
+                "x": "number",
+                "y": "number",
+                "width": "number",
+                "height": "number",
+                "coordinateSystem": "string (e.g. 'normalized')",
+                "confidence": "number (0.0 to 1.0) (optional)"
               } // optional
             }
           ],
@@ -321,10 +323,12 @@ Dispatches a visual analysis on a public sample to extract visual features, elem
               "confidence": "number (0.0 to 1.0)",
               "locationHint": "string (optional)",
               "boundingBox": {
-                "ymin": "number",
-                "xmin": "number",
-                "ymax": "number",
-                "xmax": "number"
+                "x": "number",
+                "y": "number",
+                "width": "number",
+                "height": "number",
+                "coordinateSystem": "string (e.g. 'normalized')",
+                "confidence": "number (0.0 to 1.0) (optional)"
               } // optional,
               "language": "string (optional)"
             }
