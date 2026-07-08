@@ -1,3 +1,5 @@
+import { ProviderGenerationRetryPolicy } from "../gemini";
+
 export interface GenerationAttemptDiagnostic {
   attempt: number;
   modelName: string;
@@ -28,4 +30,5 @@ export interface GenerationDiagnostics {
   rateLimited?: boolean;
   retryAfterMs?: number;
   retryAfterReason?: string;
+  retryPolicy?: ProviderGenerationRetryPolicy;
 }

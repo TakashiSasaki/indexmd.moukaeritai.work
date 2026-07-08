@@ -560,6 +560,14 @@ Retrieves the full batch JSON report. This report includes `item.record` for all
 
 ## Retry Logic & Duration Tracking
 
+*   **Provider-Level Generation Retry Policy**: To avoid excessive API overhead and latency on non-transient failures, model generation calls support a customizable `ProviderGenerationRetryPolicy`.
+    *   **Batch Jobs Policy**: Server-side batch jobs utilize a highly conservative policy:
+        *   `maxAttempts`: Capped at `2` (1 initial attempt + 1 retry).
+        *   `retryInternalErrors`: Disabled (`false`) to fail fast on HTTP 500 / "INTERNAL" server errors, avoiding hammering the API.
+        *   `retryQuotaOrRateLimit`: Enabled (`true`), allowing standard backoff and retry for rate limits or quota issues.
+        *   `retryUnavailable`: Enabled (`true`), allowing retry for transient model unavailability.
+        *   `retryInvalidArgument`: Disabled (`false`).
+    *   **Diagnostics**: Generation diagnostics capture the actual `retryPolicy` used, `apiRetryCount`, and detailed `attempts` histories (including model name, statusCode, providerStatus, errorMessageSummary, and delayMs) to ensure full observability.
 *   **Quota-Aware Retry**: The server-side job runner observes \`providerRateLimited\` and \`providerQuotaExceeded\` events and implements a backoff wait (\`quotaBackoffWaiting\`) before retrying. If \`Retry-After\` headers are present, they are respected.
 *   **maxAttemptsPerSample**: The runner attempts each sample up to \`2\` times before marking it as failed.
 *   **Duration Fields**: Both the job summary and individual sample items contain \`startedAt\`, \`completedAt\`, and \`durationMs\` tracking.

@@ -123,6 +123,13 @@ export async function startVisualBatchJob(
           modelName: job.modelName,
           jsonMode: job.jsonMode,
           customInstruction: job.executionPrivate?.customInstruction || job.customInstructionPreview,
+          providerRetryPolicy: {
+            maxAttempts: 2,
+            retryInternalErrors: false,
+            retryQuotaOrRateLimit: true,
+            retryUnavailable: true,
+            retryInvalidArgument: false,
+          }
         });
 
         jobStore.updateJob(jobId, {

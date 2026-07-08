@@ -6,6 +6,17 @@ export function getGeminiClient(modelName: string) {
   return ai;
 }
 
+export interface ProviderGenerationRetryPolicy {
+  maxAttempts?: number;
+  retryInternalErrors?: boolean;
+  retryQuotaOrRateLimit?: boolean;
+  retryUnavailable?: boolean;
+  retryInvalidArgument?: boolean;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  respectRetryAfter?: boolean;
+}
+
 export class ProviderError extends Error {
   statusCode?: number;
   providerStatus?: string;
@@ -19,6 +30,7 @@ export class ProviderError extends Error {
   rateLimited?: boolean;
   retryAfterMs?: number;
   retryAfterReason?: string;
+  retryPolicy?: ProviderGenerationRetryPolicy;
 
   constructor(message: string, statusCode?: number, providerStatus?: string, rawMessageSummary?: string) {
     super(message);
@@ -215,6 +227,7 @@ export async function generateContentWithRetry(
     responseMimeType?: string; 
     responseSchema?: any; 
     mediaResolution?: string;
+    retryPolicy?: ProviderGenerationRetryPolicy;
   }
 ) {
   let currentModel = modelName;
@@ -223,7 +236,16 @@ export async function generateContentWithRetry(
   const attemptedModels = new Set<string>([currentModel]);
   const attempts: any[] = [];
   
-  for (let i = 0; i <= maxRetries; i++) {
+  const policy = configOption?.retryPolicy;
+  let resolvedMaxAttempts = maxRetries + 1;
+  if (policy && typeof policy.maxAttempts === "number") {
+    resolvedMaxAttempts = policy.maxAttempts;
+  }
+  if (resolvedMaxAttempts < 1) {
+    resolvedMaxAttempts = 1;
+  }
+  
+  for (let i = 0; i < resolvedMaxAttempts; i++) {
     try {
       const callParams: any = {
         model: currentModel,
@@ -272,13 +294,46 @@ export async function generateContentWithRetry(
       const { providerFailureKind, quotaExceeded, rateLimited } = classifyProviderFailureKind(statusCode, providerStatus, rawMessage);
       const { retryAfterMs, retryAfterReason } = extractRetryDelay(err, rawMessage);
 
-      const isQuotaExceeded = statusCode === 429 || quotaExceeded;
+      const isQuotaExceeded = statusCode === 429 || quotaExceeded || rateLimited;
       const isNotFound = statusCode === 404;
-      const isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || quotaExceeded;
 
-      let delayMs = Math.pow(2, i + 1) * 1500 + Math.random() * 1000;
-      if (isRetryable && retryAfterMs !== undefined && retryAfterMs > 0) {
+      // Determine retry eligibility based on policy
+      let isRetryable = false;
+      const isQuota = statusCode === 429 || quotaExceeded || rateLimited || providerFailureKind === "providerRateLimited" || providerFailureKind === "providerQuotaExceeded";
+      const isInternal = statusCode === 500 || providerStatus === "INTERNAL" || providerFailureKind === "providerGenerationError";
+      const isUnavailable = statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || providerFailureKind === "providerUnavailable";
+      const isInvalidArgument = statusCode === 400 || providerStatus === "INVALID_ARGUMENT" || providerFailureKind === "providerInvalidArgument";
+
+      if (policy) {
+        if (isQuota) {
+          isRetryable = policy.retryQuotaOrRateLimit !== false;
+        } else if (isInternal) {
+          isRetryable = policy.retryInternalErrors === true;
+        } else if (isUnavailable) {
+          isRetryable = policy.retryUnavailable !== false;
+        } else if (isInvalidArgument) {
+          isRetryable = policy.retryInvalidArgument === true;
+        } else {
+          // generic fallback under policy
+          isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || quotaExceeded;
+        }
+      } else {
+        isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || quotaExceeded;
+      }
+
+      let delayMs;
+      const baseDelay = policy?.baseDelayMs ?? 1500;
+      const maxDelay = policy?.maxDelayMs ?? 300000;
+
+      delayMs = Math.pow(2, i + 1) * baseDelay + Math.random() * 1000;
+      
+      const respectAfter = policy ? (policy.respectRetryAfter !== false) : true;
+      if (isRetryable && respectAfter && retryAfterMs !== undefined && retryAfterMs > 0) {
         delayMs = retryAfterMs;
+      }
+
+      if (delayMs > maxDelay) {
+        delayMs = maxDelay;
       }
 
       attempts.push({
@@ -309,9 +364,10 @@ export async function generateContentWithRetry(
       lastError.rateLimited = rateLimited;
       lastError.retryAfterMs = retryAfterMs;
       lastError.retryAfterReason = retryAfterReason;
+      lastError.retryPolicy = policy;
       
       // Fallback logic for 500 errors with native schema
-      if (statusCode === 500 && configOption?.responseSchema) {
+      if (isRetryable && statusCode === 500 && configOption?.responseSchema) {
         configOption = { ...configOption };
         delete configOption.responseSchema;
         delete configOption.responseMimeType;
@@ -337,7 +393,7 @@ export async function generateContentWithRetry(
         continue;
       }
       
-      if (isRetryable && i < maxRetries) {
+      if (isRetryable && i < resolvedMaxAttempts - 1) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }

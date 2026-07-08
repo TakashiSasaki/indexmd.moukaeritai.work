@@ -49,7 +49,7 @@ import { VISUAL_ANALYSIS_SCHEMA, VISUAL_ANALYSIS_SCHEMA_VERSION } from "./src/li
 import { GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA } from "./src/lib/visualAnalysis/providerSchema";
 import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } from "./src/lib/visualAnalysis/runMetadata";
 import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
-import { generateContentWithRetry } from "./src/lib/gemini";
+import { generateContentWithRetry, ProviderGenerationRetryPolicy } from "./src/lib/gemini";
 import { 
   buildBatchSummaryReportForChat, 
   buildBatchDiagnosticReportForChat, 
@@ -1535,9 +1535,10 @@ export async function analyzePublicSample(options: {
   includeRequestPreview?: boolean;
   jsonMode?: string;
   customInstruction?: string;
+  providerRetryPolicy?: ProviderGenerationRetryPolicy;
 }): Promise<{status: number, body: any}> {
   try {
-    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction } = options;
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction, providerRetryPolicy } = options;
 
     if (!sampleId) return { status: 400, body: { error: "sampleId is required" } };
 
@@ -1631,7 +1632,8 @@ export async function analyzePublicSample(options: {
     let configOption: any = {
       ...VISUAL_ANALYSIS_GENERATION_CONFIG,
       systemInstruction,
-      ...(mediaResolutionRequested ? { mediaResolution: mediaResolutionRequested } : {})
+      ...(mediaResolutionRequested ? { mediaResolution: mediaResolutionRequested } : {}),
+      ...(providerRetryPolicy ? { retryPolicy: providerRetryPolicy } : {})
     };
 
     if (mode === "nativeSchema") {
@@ -2780,18 +2782,27 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
       targetSampleIdsHash
     };
 
-    // Check for existing active job
-    const activeJob = jobStore.listJobs().find(j => 
-      (j.status === 'queued' || j.status === 'running' || j.status === 'canceling') &&
-      j.runFingerprint &&
-      j.runFingerprint.modelName === runFingerprint.modelName &&
-      j.runFingerprint.jsonMode === runFingerprint.jsonMode &&
-      j.runFingerprint.customInstructionHash === runFingerprint.customInstructionHash &&
-      j.runFingerprint.targetSampleIdsHash === runFingerprint.targetSampleIdsHash
+    // Cancel any existing active jobs to ensure a fresh start
+    const activeJobs = jobStore.listJobs().filter(j => 
+      j.status === 'queued' || j.status === 'running' || j.status === 'canceling'
     );
-
-    if (activeJob) {
-      return res.status(200).json({ success: true, reusedExistingJob: true, job: activeJob });
+    for (const activeJob of activeJobs) {
+      const nowStr = new Date().toISOString();
+      const startMs = activeJob.startedAt ? new Date(activeJob.startedAt).getTime() : new Date(activeJob.createdAt).getTime();
+      jobStore.updateJob(activeJob.jobId, {
+        status: 'canceled',
+        canceledAt: nowStr,
+        durationMs: Math.max(0, new Date().getTime() - startMs),
+        lastEvent: {
+          type: 'jobForceCanceled',
+          timestamp: nowStr,
+          message: 'Job was force-canceled because a new job was started'
+        }
+      });
+      try {
+        activeRunners.get(activeJob.jobId)?.abortController?.abort();
+        activeRunners.delete(activeJob.jobId);
+      } catch(e){}
     }
 
     const jobId = crypto.randomUUID();

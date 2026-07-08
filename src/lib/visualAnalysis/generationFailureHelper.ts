@@ -45,6 +45,7 @@ export function buildGenerationFailureResponse(args: {
     diagnostics.rateLimited = err.rateLimited;
     diagnostics.retryAfterMs = err.retryAfterMs;
     diagnostics.retryAfterReason = err.retryAfterReason;
+    diagnostics.retryPolicy = err.retryPolicy;
   } else if (err instanceof Error) {
     diagnostics.rawMessageSummary = err.message.substring(0, 1000);
   } else {

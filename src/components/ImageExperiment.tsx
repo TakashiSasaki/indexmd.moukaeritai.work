@@ -594,11 +594,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       const data = await res.json();
       setServerJobId(data.job.jobId);
       setServerJobStatus(data.job);
-      if (data.reusedExistingJob) {
-        onAddLog("success", `同じ設定の server-side job が既に実行中です。新規 job は作成せず、既存 job を監視します: ${data.job.jobId}`);
-      } else {
-        onAddLog("success", `Server-side job started: ${data.job.jobId}`);
-      }
+      onAddLog("success", `Server-side job started: ${data.job.jobId}`);
     } catch (e: any) {
       onAddLog("error", `Server-side job failed: ${e.message}`);
     } finally {
@@ -623,7 +619,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (showServerSideJob && serverJobId && serverJobStatus && (serverJobStatus.status === 'running' || serverJobStatus.status === 'queued')) {
+    if (showServerSideJob && serverJobId && serverJobStatus && (serverJobStatus.status === 'running' || serverJobStatus.status === 'queued' || serverJobStatus.status === 'canceling')) {
       interval = setInterval(() => {
         handleRefreshServerJob();
       }, 5000);
@@ -638,7 +634,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       const res = await fetch("/api/visual/batch-jobs");
       if (res.ok) {
         const data = await res.json();
-        setServerJobList(data.jobs || []);
+        const jobs = data.jobs || [];
+        setServerJobList(jobs);
+        
+        // Auto-select the active job if one exists and we don't have one selected
+        if (!serverJobId) {
+          const activeJob = jobs.find((j: any) => j.status === 'queued' || j.status === 'running' || j.status === 'canceling');
+          if (activeJob) {
+            setServerJobId(activeJob.jobId);
+            setServerJobStatus(activeJob);
+          }
+        }
       }
     } catch (e) {
       console.warn("Failed to load server jobs", e);
@@ -1978,9 +1984,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             <div className="flex items-center gap-2">
               <button
                 onClick={handleStartServerJob}
-                className="px-4 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition-colors"
+                disabled={isStartingServerJob || (serverJobStatus && ['queued', 'running', 'canceling'].includes(serverJobStatus.status))}
+                className="px-4 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Start Server-Side Job
+                {serverJobStatus && ['queued', 'running', 'canceling'].includes(serverJobStatus.status)
+                  ? '既存のジョブを実行中...'
+                  : isStartingServerJob
+                  ? 'Starting...'
+                  : 'Start Server-Side Job'}
               </button>
               
               <div className="flex-1 max-w-xs flex items-center gap-2 ml-4">
@@ -2006,7 +2017,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="flex items-center justify-between">
                   <div>
                     <strong>Status:</strong> <span className={serverJobStatus.status === 'running' ? 'text-indigo-600 font-bold' : serverJobStatus.status === 'canceling' ? 'text-amber-600 font-bold' : serverJobStatus.status === 'canceled' ? 'text-slate-500 font-bold' : ''}>
-                      {serverJobComputedState?.displayStatus === 'cancelStuck' ? 'cancelStuck (canceling)' : serverJobStatus.status}
+                      {serverJobComputedState?.displayStatus === 'interrupted' ? 'interrupted (server restarted)' : serverJobComputedState?.displayStatus === 'cancelStuck' ? 'cancelStuck (canceling)' : serverJobStatus.status}
                     </span>
                   </div>
                   {['queued', 'running'].includes(serverJobStatus.status) && (
@@ -2017,7 +2028,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </div>
                     </div>
                   )}
-                  {serverJobComputedState?.displayStatus === 'cancelStuck' && (
+                  {(serverJobComputedState?.displayStatus === 'cancelStuck' || serverJobComputedState?.displayStatus === 'interrupted') && (
                     <div className="text-right">
                       <button onClick={handleForceCancelServerJob} className="text-red-700 hover:text-white hover:bg-red-700 font-bold px-2 py-1 bg-red-100 rounded border border-red-300 shadow-sm transition-colors">Force Cancel</button>
                     </div>
@@ -2030,12 +2041,33 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       この job は次の sample には進まないはずですが、必要なら強制的に canceled としてマークできます。
                     </div>
                 )}
+                {serverJobComputedState?.displayStatus === 'interrupted' && (
+                    <div className="p-2 bg-rose-50 text-rose-800 text-[10px] rounded border border-rose-200">
+                      サーバーが再起動されたため、このジョブを実行していたバックグラウンドプロセスは既に失われています。(interrupted)
+                      Force Cancel を押してジョブを終了させてください。
+                    </div>
+                )}
                 <div><strong>Progress:</strong> {(serverJobStatus.counters?.successCount || 0) + (serverJobStatus.counters?.failureCount || 0)} / {serverJobStatus.counters?.total || 0}</div>
                 <div><strong>Current Sample:</strong> {serverJobStatus.currentSampleTitle || serverJobStatus.currentSampleId || '-'}</div>
                 {serverJobStatus.startedAt && <div><strong>Elapsed Time:</strong> {serverJobStatus.durationMs ? `${(serverJobStatus.durationMs / 1000).toFixed(1)}s` : `${((new Date().getTime() - new Date(serverJobStatus.startedAt).getTime()) / 1000).toFixed(1)}s`}</div>}
                 <div><strong>Last Event:</strong> {serverJobStatus.lastEvent?.message || '-'}</div>
                 <div><strong>Last Heartbeat:</strong> {serverJobStatus.lastHeartbeatAt ? new Date(serverJobStatus.lastHeartbeatAt).toLocaleTimeString() : '-'}</div>
                 
+                {serverJobItemsPreview && serverJobItemsPreview.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-slate-200">
+                    <strong className="text-[10px] text-slate-500 uppercase">Recent Items:</strong>
+                    <div className="flex flex-col gap-1 mt-1">
+                      {serverJobItemsPreview.map((item: any, idx: number) => (
+                        <div key={item.sampleId || idx} className="flex items-center justify-between bg-white p-1 rounded border border-slate-100">
+                          <span className="truncate max-w-[200px]" title={item.title}>{item.title}</span>
+                          <span className={`text-[9px] font-bold px-1.5 rounded ${item.status === 'success' ? 'bg-emerald-100 text-emerald-800' : item.status === 'failure' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'}`}>
+                            {item.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2 pt-2 mt-2 border-t border-slate-200">
                   <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/full`} target="_blank" className="text-indigo-600 hover:underline">Full JSON</a>
                   <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/summary`} target="_blank" className="text-indigo-600 hover:underline">Summary</a>
