@@ -252,7 +252,7 @@ Returns a list of public images and synthetic documents registered in the system
           "licenseName": "string",
           "attributionText": "string",
           "pageUrl": "string",
-          "isSynthetic": true
+          "isSynthetic": "boolean"
         },
         "thumbnailRoute": "string (URL to fetch image thumbnail)"
       }
