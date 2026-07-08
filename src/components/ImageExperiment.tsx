@@ -819,29 +819,29 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
           let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
-          if (data.expectedMetadata) {
-            const comparisonSample = {
-              id: selectedSampleId,
-              title: selectedSample?.title || selectedSampleId,
-              category: (selectedSample?.category || "other") as any,
-              source: (selectedSample?.source || "unknown") as any,
-              expectedImageKind: data.expectedMetadata.imageKind,
-              acceptableImageKinds: data.expectedMetadata.acceptableImageKinds || [],
-              expectedElementCategories: data.expectedMetadata.elementCategories || [],
-              expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels || [],
-              expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases || {},
-              expectedVisibleText: data.expectedMetadata.visibleText || [],
-              optionalElementCategories: data.expectedMetadata.optionalElementCategories || [],
-              optionalVisibleElementLabels: data.expectedMetadata.optionalVisibleElementLabels || [],
-              optionalVisibleElementLabelAliases: data.expectedMetadata.optionalVisibleElementLabelAliases || {},
-              optionalVisibleText: data.expectedMetadata.optionalVisibleText || []
-            };
-            try {
-              const comp = evaluateSampleComparison(comparisonSample, data);
-              overallStatus = comp.overallStatus;
-              reviewStatus = comp.reviewStatus;
-            } catch (e) {}
-          }
+          const expectedMetadata = data.expectedMetadata;
+          const comparisonSample = {
+            id: selectedSampleId,
+            title: selectedSample?.title || selectedSampleId,
+            category: (selectedSample?.category || "other") as any,
+            source: (selectedSample?.source || "unknown") as any,
+            expectedImageKind: expectedMetadata?.imageKind ?? selectedSample?.expectedImageKind,
+            acceptableImageKinds: expectedMetadata?.acceptableImageKinds ?? selectedSample?.acceptableImageKinds ?? [],
+            expectedElementCategories: expectedMetadata?.elementCategories ?? selectedSample?.expectedElementCategories ?? [],
+            expectedElementCategoryAlternatives: expectedMetadata?.elementCategoryAlternatives ?? selectedSample?.expectedElementCategoryAlternatives ?? {},
+            expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? selectedSample?.expectedVisibleElementLabels ?? [],
+            expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? selectedSample?.expectedVisibleElementLabelAliases ?? {},
+            expectedVisibleText: expectedMetadata?.visibleText ?? selectedSample?.expectedVisibleText ?? [],
+            optionalElementCategories: expectedMetadata?.optionalElementCategories ?? selectedSample?.optionalElementCategories ?? [],
+            optionalVisibleElementLabels: expectedMetadata?.optionalVisibleElementLabels ?? selectedSample?.optionalVisibleElementLabels ?? [],
+            optionalVisibleElementLabelAliases: expectedMetadata?.optionalVisibleElementLabelAliases ?? selectedSample?.optionalVisibleElementLabelAliases ?? {},
+            optionalVisibleText: expectedMetadata?.optionalVisibleText ?? selectedSample?.optionalVisibleText ?? []
+          };
+          try {
+            const comp = evaluateSampleComparison(comparisonSample, data);
+            overallStatus = comp.overallStatus;
+            reviewStatus = comp.reviewStatus;
+          } catch (e) {}
 
           handleUpdateMatrixResult({
             sampleId: selectedSampleId,
@@ -1463,6 +1463,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind,
                   acceptableImageKinds: expectedMetadata?.acceptableImageKinds ?? sample.acceptableImageKinds,
                   expectedElementCategories: expectedMetadata?.elementCategories ?? sample.expectedElementCategories,
+                  expectedElementCategoryAlternatives: expectedMetadata?.elementCategoryAlternatives ?? sample.expectedElementCategoryAlternatives,
                   expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels,
                   expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases,
                   expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText,

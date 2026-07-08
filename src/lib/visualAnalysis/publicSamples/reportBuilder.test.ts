@@ -1,13 +1,13 @@
-import { test, describe } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { buildBatchSummaryReportForChat } from './reportBuilder';
-import { describe, it } from "node:test";
 import { 
+  buildBatchSummaryReportForChat, 
+  buildBatchDiagnosticReportForChat,
+  buildTextHeavyEvaluationSummary,
   isProviderRateLimitFailure, 
   isProviderQuotaFailure,
   isProviderGenerationFailure
-} from "./reportBuilder";
-import { PublicSampleBatchRunItem } from "./batchTypes";
+} from './reportBuilder';
 
 describe("Visual Analysis Report Classification Helpers", () => {
   it("should classify legacy rate limit failures correctly", () => {
@@ -89,7 +89,7 @@ describe("Visual Analysis Report Classification Helpers", () => {
 });
 
 describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
-  test('buildBatchSummaryReportForChat includes counterConsistency and textHeavyEvaluation', () => {
+  it('buildBatchSummaryReportForChat includes counterConsistency and textHeavyEvaluation', () => {
     const dummyBatchSummary = {
       modelName: "gemini-3.5-flash",
       jsonMode: "native_schema",
@@ -122,7 +122,8 @@ describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
     } as any;
 
     const report = buildBatchSummaryReportForChat(dummyBatchSummary);
-    assert.strictEqual(report.counterConsistency, true);
+    assert.strictEqual(report.counterConsistency.expectedComparison.consistent, true);
+    assert.strictEqual(report.counterConsistency.review.consistent, true);
     assert.ok(report.textHeavyEvaluation);
     assert.strictEqual(report.textHeavyEvaluation.itemsWithTextExpectation, 1);
     assert.strictEqual(report.textHeavyEvaluation.visibleTextCovered, 5);
@@ -130,7 +131,7 @@ describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
     assert.strictEqual(report.textHeavyEvaluation.mediaResolution.mediumRequested, 1);
   });
 
-  test('counterConsistency detects mismatch in review status counts', () => {
+  it('counterConsistency detects mismatch in review status counts', () => {
     const dummyBatchSummary = {
       total: 1,
       reviewPassCount: 0, // Declared 0 pass
@@ -148,6 +149,174 @@ describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
     } as any;
 
     const report = buildBatchSummaryReportForChat(dummyBatchSummary);
-    assert.strictEqual(report.counterConsistency, false);
+    assert.strictEqual(report.counterConsistency.review.consistent, false);
+    assert.deepStrictEqual(report.counterConsistency.review.declared, {
+      pass: 0,
+      needsReview: 0,
+      fail: 0
+    });
+    assert.deepStrictEqual(report.counterConsistency.review.recomputed, {
+      pass: 1,
+      needsReview: 0,
+      fail: 0
+    });
+  });
+
+  it('buildBatchDiagnosticReportForChat includes counterConsistency.expectedComparison and review', () => {
+    const dummyBatchSummary = {
+      modelName: "gemini-3.5-flash",
+      jsonMode: "native_schema",
+      total: 1,
+      successCount: 1,
+      failureCount: 0,
+      validCount: 1,
+      validLowQualityCount: 0,
+      invalidJsonCount: 0,
+      expectedComparisonPassCount: 1,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 0,
+      reviewPassCount: 1,
+      reviewNeedsReviewCount: 0,
+      reviewFailCount: 0,
+      items: [
+        {
+          sampleId: "test-1",
+          success: true,
+          comparison: {
+            overallStatus: "pass",
+            reviewStatus: "pass"
+          }
+        }
+      ]
+    } as any;
+
+    const report = buildBatchDiagnosticReportForChat(dummyBatchSummary);
+    assert.ok(report.counterConsistency.expectedComparison);
+    assert.ok(report.counterConsistency.review);
+    assert.strictEqual(report.counterConsistency.expectedComparison.consistent, true);
+    assert.strictEqual(report.counterConsistency.review.consistent, true);
+  });
+
+  it('reviewNeedsReviewCount is recomputed from comparison.reviewStatus === "needsReview"', () => {
+    const dummyBatchSummary = {
+      total: 1,
+      reviewPassCount: 0,
+      reviewNeedsReviewCount: 1,
+      reviewFailCount: 0,
+      items: [
+        {
+          sampleId: "test-1",
+          success: true,
+          comparison: {
+            reviewStatus: "needsReview"
+          }
+        }
+      ]
+    } as any;
+
+    const report = buildBatchSummaryReportForChat(dummyBatchSummary);
+    assert.strictEqual(report.counterConsistency.review.consistent, true);
+    assert.strictEqual(report.counterConsistency.review.recomputed.needsReview, 1);
+  });
+
+  it('reviewStatus === "needs_review" is not counted as current needsReview', () => {
+    const dummyBatchSummary = {
+      total: 1,
+      reviewPassCount: 0,
+      reviewNeedsReviewCount: 0,
+      reviewFailCount: 0,
+      items: [
+        {
+          sampleId: "test-1",
+          success: true,
+          comparison: {
+            reviewStatus: "needs_review" // Old typo
+          }
+        }
+      ]
+    } as any;
+
+    const report = buildBatchSummaryReportForChat(dummyBatchSummary);
+    // It shouldn't be counted as needsReview since we only match "needsReview"
+    assert.strictEqual(report.counterConsistency.review.recomputed.needsReview, 0);
+  });
+
+  it('textHeavyEvaluation aggregates visibleText coverage', () => {
+    const items = [
+      {
+        sampleId: "s1",
+        comparison: {
+          coverage: {
+            visibleText: { expectedTotal: 5, covered: 4, missing: 1, ratio: 0.8 }
+          }
+        },
+        analysisRun: { metadata: { generationConfig: { mediaResolutionRequested: "HIGH" } } }
+      },
+      {
+        sampleId: "s2",
+        comparison: {
+          coverage: {
+            visibleText: { expectedTotal: 5, covered: 2, missing: 3, ratio: 0.4 }
+          }
+        },
+        analysisRun: { metadata: { generationConfig: { mediaResolutionRequested: "MEDIUM" } } }
+      }
+    ];
+
+    const evaluation = buildTextHeavyEvaluationSummary(items);
+    assert.strictEqual(evaluation.itemsWithTextExpectation, 2);
+    assert.strictEqual(evaluation.expectedVisibleTextTotal, 10);
+    assert.strictEqual(evaluation.visibleTextCovered, 6);
+    assert.strictEqual(evaluation.textMissing, 4);
+    assert.strictEqual(evaluation.ratio, 0.6);
+  });
+
+  it('textHeavyEvaluation reads mediaResolutionRequested from alternative structures in analysisRun', () => {
+    const items = [
+      {
+        sampleId: "s1",
+        comparison: {
+          coverage: {
+            visibleText: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1 }
+          }
+        },
+        // Alt path 1: item.analysisRun.generationConfig
+        analysisRun: { generationConfig: { mediaResolutionRequested: "HIGH" } }
+      },
+      {
+        sampleId: "s2",
+        comparison: {
+          coverage: {
+            visibleText: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1 }
+          }
+        },
+        // Alt path 2: item.responseRaw.analysisRun.metadata.generationConfig
+        responseRaw: {
+          analysisRun: { metadata: { generationConfig: { mediaResolutionRequested: "MEDIUM" } } }
+        }
+      }
+    ];
+
+    const evaluation = buildTextHeavyEvaluationSummary(items);
+    assert.strictEqual(evaluation.mediaResolution.highRequested, 1);
+    assert.strictEqual(evaluation.mediaResolution.mediumRequested, 1);
+  });
+
+  it('textHeavyEvaluation marks possibleResolutionLimited when visibleText missing and mediaResolutionRequested is not HIGH', () => {
+    const items = [
+      {
+        sampleId: "s1",
+        comparison: {
+          coverage: {
+            visibleText: { expectedTotal: 5, covered: 2, missing: 3, ratio: 0.4 }
+          }
+        },
+        analysisRun: { generationConfig: { mediaResolutionRequested: "MEDIUM" } } // Not HIGH
+      }
+    ];
+
+    const evaluation = buildTextHeavyEvaluationSummary(items);
+    assert.strictEqual(evaluation.possibleResolutionLimitedCount, 1);
+    assert.strictEqual(evaluation.samples[0].possibleResolutionLimited, true);
   });
 });

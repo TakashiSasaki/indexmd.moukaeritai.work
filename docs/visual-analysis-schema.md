@@ -107,3 +107,34 @@ Visual Analysis differentiates between structural failures and quality warnings:
     - `PROMPTED_JSON_MODE`: The execution relied on raw text generation with JSON instructions instead of native structured outputs.
     - `VISIBLE_TEXT_NOT_INDEXED`: Important visible text does not appear in the indexing keywords.
     - `VISIBLE_TEXT_PRESENT_BUT_NOT_KEYWORD`: Visible text is present but not in keywords (likely noise, info-only).
+
+---
+
+## 📈 Calibration & Evaluation Metrics
+
+To enable rich evaluation and comparison reporting of model runs against expected visual metadata, the system implements the following additional fields and concepts:
+
+### 1. `reviewStatus`
+A calibrated evaluation metric calculated by comparing the model's detected elements against expected metadata. It provides an operational judgment of the run:
+- **`pass`**: The detected image kind, element categories, labels, and visible text perfectly match the expected criteria.
+- **`needsReview`**: The image kind is acceptable but diverged from the exact expected kind, or some expected element categories or labels are missing but crucial text is extracted.
+- **`fail`**: Crucial expected visible text is missing entirely.
+
+### 2. `counterConsistency`
+A diagnostic metric built into reports to double-check that summarized metrics (like pass/warning/fail tallies) are mathematically consistent with the individual sample outcomes. It returns a nested object:
+- **`expectedComparison`**: Compares declared comparison statuses against recomputed individual item statuses, verifying consistency.
+- **`review`**: Compares declared review statuses against recomputed individual item review statuses, verifying consistency.
+
+### 3. `acceptableImageKinds`
+An array of alternative, acceptable image kind classifications defined in the expected metadata. If the model classifies the image as one of these acceptable alternatives, the image kind check is graded as `acceptable` rather than `diverged`, allowing `reviewStatus` to pass if all other criteria are met.
+
+### 4. `Optional Expectations`
+Additional metadata fields (e.g., `optionalVisibleText`, `optionalVisibleElementLabels`) representing visual components that may or may not be visible depending on lighting, focus, or resolution. Matching optional expectations generates matching notes but does not penalize the model if they are missed.
+
+### 5. `textHeavyEvaluation`
+An aggregation block used in batch summary reports to measure OCR extraction performance on text-heavy public samples. It tracks:
+- **`itemsWithTextExpectation`**: Count of samples requiring visible text extraction.
+- **`visibleTextCovered` & `textMissing`**: Total characters or tokens successfully matched vs missed.
+- **`ratio`**: Overall visible text matching ratio across the batch.
+- **`possibleResolutionLimitedCount`**: Count of items where visible text was missed and the model requested a low/medium resolution instead of `HIGH`, helping diagnose resolution bottlenecks.
+

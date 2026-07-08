@@ -1709,7 +1709,24 @@ app.get("/api/visual/public-samples", (req, res) => {
       id: s.id,
       title: s.title,
       category: s.category,
-      ...expectedMetadata,
+
+      // Existing compatibility fields. Do not remove.
+      expectedImageKind: s.expectedImageKind,
+      acceptableImageKinds: s.acceptableImageKinds,
+      expectedElementCategories: s.expectedElementCategories,
+      expectedElementCategoryAlternatives: s.expectedElementCategoryAlternatives,
+      expectedVisibleElementLabels: s.expectedVisibleElementLabels,
+      expectedVisibleElementLabelAliases: s.expectedVisibleElementLabelAliases,
+      expectedVisibleText: s.expectedVisibleText,
+      expectedNotes: s.expectedNotes,
+      optionalElementCategories: s.optionalElementCategories,
+      optionalVisibleElementLabels: s.optionalVisibleElementLabels,
+      optionalVisibleElementLabelAliases: s.optionalVisibleElementLabelAliases,
+      optionalVisibleText: s.optionalVisibleText,
+
+      // New canonical expected metadata object.
+      expectedMetadata,
+
       thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`,
       licenseKind: s.source.licenseKind,
       licenseName: s.source.licenseName,

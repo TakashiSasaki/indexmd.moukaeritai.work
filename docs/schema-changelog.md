@@ -80,3 +80,13 @@
 - Client-side `ImageExperiment`'s `Run Selected` correctly honors `acceptableImageKinds` and optional expectations to align strictly with server-side batch evaluations.
 - `textHeavyEvaluation` in `reportBuilder.ts` now produces a detailed `samples` array structure, mapping `visibleTextCovered` and `mediaResolutionRequested`.
 - Separated `EXPERIMENTAL_MODEL` and `PROMPTED_JSON_MODE` explicitly in quality diagnostics.
+
+## `visual-analysis-record.v0.2.1-rc.1` (API Compatibility and Testing)
+
+**Date**: 2026-07-08
+
+**Changes**:
+- Restored legacy compatibility fields (`expectedImageKind`, `acceptableImageKinds`, etc.) in the `GET /api/visual/public-samples` response while preserving the new `expectedMetadata` object.
+- Integrated `expectedMetadata` mapping directly on the backend to provide clean, robust structure matching client-side analysis run requirements.
+- Strengthened unit test coverage across `compare.test.ts` (for metrics summarization and optional expectations), `qualityGate.test.ts` (for model-specific logic and text-heavy diagnostics), and added `expectedMetadata.test.ts` to validate helper mappings.
+
