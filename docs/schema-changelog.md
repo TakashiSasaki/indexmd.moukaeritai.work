@@ -67,3 +67,6 @@
   - Aligned with `ImageAnalysisRecord` architecture (assetMetadata, technicalMetadata, analysisRun, evaluation, diagnostics).
   - Maintained `summary-analysis.v1.2.0-draft.2` unmodified as the inner `summaryAnalysis` payload.
   - Added strict JSON validation and TypeScript types.
+  - Enforced `"additionalProperties": false` across root and nested schema blocks to harden telemetry consistency.
+  - Integrated full failure coverage inside catch handlers for `/api/drive/debug/generate-file-summary` and `/api/drive/debug/generate-manual-summary`, ensuring `buildFailedTextAnalysisRecord` constructs standard-compliant envelopes for provider/generation failures.
+  - Completed rich `technicalMetadata` reporting, tracking exact extraction variables (`originalTextLength`, `extractedTextLength`, `contentSampleLength`, `textExtractionMethod`, `truncated`, `truncationLimit`, `ocrUsed`).

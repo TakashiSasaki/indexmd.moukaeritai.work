@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileSearch, Sparkles, Database, Terminal, Zap, LucideIcon, History as HistoryIcon, Image as ImageIcon } from 'lucide-react';
+import { LayoutDashboard, FileSearch, Sparkles, Database, Terminal, Zap, LucideIcon, History as HistoryIcon, Image as ImageIcon, Activity, CheckCircle } from 'lucide-react';
 
 export type AppTabId =
   | "dashboard"
@@ -9,7 +9,9 @@ export type AppTabId =
   | "logs"
   | "cache-stats"
   | "icon-test"
-  | "image-experiment";
+  | "image-experiment-client"
+  | "image-experiment-server"
+  | "image-experiment-matrix";
 
 export interface AppTab {
   id: AppTabId;
@@ -27,7 +29,9 @@ export const APP_TABS: readonly AppTab[] = [
   { id: "logs", label: "システムログ", shortLabel: "ログ", icon: Terminal },
   { id: "cache-stats", label: "キャッシュ統計", shortLabel: "キャッシュ", icon: Zap },
   { id: "icon-test", label: "アイコンテスト", shortLabel: "アイコン", icon: ImageIcon },
-  { id: "image-experiment", label: "画像解析実験", shortLabel: "画像解析", icon: ImageIcon },
+  { id: "image-experiment-client", label: "画像解析クライアント実験", shortLabel: "クライアント実験", icon: Activity },
+  { id: "image-experiment-server", label: "画像解析サーバー実験", shortLabel: "サーバー実験", icon: Terminal },
+  { id: "image-experiment-matrix", label: "画像解析実験結果マトリクス", shortLabel: "結果マトリクス", icon: CheckCircle },
 ];
 
 export const VALID_TAB_IDS = APP_TABS.map(tab => tab.id);

@@ -98,5 +98,13 @@ This milestone hardens the Summary Analysis Schema v1.2.0-draft.2 as a repositor
 ## 📦 Envelope Schema
 
 This schema represents the **document-derived semantic payload** (what the document is about).
+When processed by the platform, this payload is wrapped inside a `TextAnalysisRecord` envelope which contains:
+- `assetMetadata`: File ID, name, source kind.
+- `technicalMetadata`: MIME type, original vs extracted length, truncation limits.
+- `analysisRun`: Telemetry (model, timestamp, schema versions).
+- `evaluation`: Quality status and scoring.
+- `diagnostics`: Debugging inputs, parse statuses, validation errors.
+
+See `docs/text-analysis-record.md` for details on the envelope structure and how `TextAnalysisRecord` handles provider-level failures.
 
 For asset metadata (file path, bytes), analysis execution telemetry (model used, token count), and validation evaluations, `SummaryAnalysisResultV12` is embedded within the `TextAnalysisRecord` envelope. See [Text Analysis Record](./text-analysis-record.md) for details.

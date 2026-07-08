@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION_V12 } from "./schema";
-import { getSummaryAnalysisV12ValidationErrors } from "./validate";
+import { getSummaryAnalysisV12ValidationErrors, isControlledVocabularyValidationErrorMessage } from "./validate";
 import { normalizeAndRepairSummaryAnalysisV12 } from "./repair";
 import { SummaryAnalysisResultV12 } from "./types";
 import { generateContentWithRetry } from "../gemini";
@@ -146,7 +146,10 @@ export async function processStructuredSummaryOutput(
     let repairFallbackUsed = false;
 
     if (validationErrors.length > 0) {
-      const hasVocabError = validationErrors.some((err: any) => typeof err === "string" ? err.includes("controlledVocabulary") : err.path?.includes("controlledVocabulary"));
+      const hasVocabError = validationErrors.some((err: any) => {
+        const msg = typeof err === "string" ? err : (err.message || "");
+        return isControlledVocabularyValidationErrorMessage(msg);
+      });
       result.failureKind = hasVocabError ? "controlledVocabularyValidationError" : "schemaValidationError";
 
       const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);

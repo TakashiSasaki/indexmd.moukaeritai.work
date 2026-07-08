@@ -289,60 +289,57 @@ export default function App() {
               <span>開発者Docs</span>
             </Link>
             {user ? (
-              <div className="relative">
-                <button 
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-3 bg-slate-50 pl-3 pr-2 py-1 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  {!googleAccessToken && (
-                    <div className="hidden sm:flex items-center gap-1.5 mr-2 text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 uppercase tracking-widest">
-                      <ShieldAlert className="w-3 h-3" />
-                      Drive Auth Required
-                    </div>
-                  )}
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName || "Profile"}
-                      className="w-7 h-7 rounded-full border border-slate-300 shadow-sm"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs border border-indigo-200 uppercase">
-                      {(user.displayName || user.email || "U")[0]}
-                    </div>
-                  )}
-                  <div className="text-right hidden sm:block">
-                    <p className="text-xs font-bold text-slate-800">{user.displayName || user.email?.split("@")[0] || "user"}</p>
-                    <p className="text-[9px] text-slate-400 uppercase tracking-wider">Google Authenticated</p>
+              <div className="flex items-center gap-3 relative">
+                {!googleAccessToken && (
+                  <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 uppercase tracking-widest">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Drive Auth Required</span>
                   </div>
-                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${showProfileMenu ? 'rotate-180' : ''}`} />
-                </button>
-
-                {showProfileMenu && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setShowProfileMenu(false)}
-                    />
-                    <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right">
-                      <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 sm:hidden">
-                        <p className="text-xs font-bold text-slate-800 truncate">{user.displayName || user.email || "user"}</p>
-                        <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          handleLogout();
-                          setShowProfileMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors text-left"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>ログアウト</span>
-                      </button>
-                    </div>
-                  </>
                 )}
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                    className="w-8 h-8 rounded-full overflow-hidden hover:ring-2 hover:ring-indigo-500/30 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm border border-slate-200 flex items-center justify-center bg-white"
+                  >
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName || "Profile"}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs uppercase">
+                        {(user.displayName || user.email || "U")[0]}
+                      </div>
+                    )}
+                  </button>
+
+                  {showProfileMenu && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setShowProfileMenu(false)}
+                      />
+                      <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                        <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50">
+                          <p className="text-xs font-bold text-slate-800 truncate">{user.displayName || user.email || "user"}</p>
+                          <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            handleLogout();
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors text-left"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>ログアウト</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
@@ -496,7 +493,9 @@ export default function App() {
               <Route path="/logs" element={null} />
               <Route path="/cache-stats" element={null} />
               <Route path="/icon-test" element={null} />
-              <Route path="/image-experiment" element={null} />
+              <Route path="/image-experiment-client" element={null} />
+              <Route path="/image-experiment-server" element={null} />
+              <Route path="/image-experiment-matrix" element={null} />
             </Routes>
           </div>
             )

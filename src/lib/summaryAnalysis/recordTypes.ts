@@ -1,9 +1,20 @@
 import { SummaryAnalysisResultV12 } from "./types";
 
+export type TextAnalysisFailureKind =
+  | "providerError"
+  | "emptyStructuredOutput"
+  | "underGeneratedStructuredOutput"
+  | "jsonParseError"
+  | "schemaValidationError"
+  | "controlledVocabularyValidationError"
+  | "repairFallbackFailed"
+  | "qualityGateFailed"
+  | "unknown";
+
 export interface TextAnalysisStatus {
   success: boolean;
   error?: string;
-  failureKind?: string;
+  failureKind?: TextAnalysisFailureKind;
 }
 
 export interface TextAssetMetadata {

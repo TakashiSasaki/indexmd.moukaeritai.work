@@ -31,6 +31,7 @@ interface ImageExperimentProps {
   config: AppConfig;
   onAddLog: (level: "info"|"success"|"warn"|"error", msg: string, details?: string) => void;
   onSessionExpiry: () => void;
+  activeSubTab?: "client" | "server" | "matrix";
 }
 
 function PublicSamplePreview({ sampleId }: { sampleId: string }) {
@@ -82,7 +83,7 @@ function ImagePreview({ fileId, token }: { fileId: string; token: string }) {
   );
 }
 
-export default function ImageExperiment({ token, config, onAddLog, onSessionExpiry }: ImageExperimentProps) {
+export default function ImageExperiment({ token, config, onAddLog, onSessionExpiry, activeSubTab }: ImageExperimentProps) {
   // Drive mode is retired, always use public sample mode
   const mode = "public";
 
@@ -167,6 +168,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [customInstruction, setCustomInstruction] = useState<string>("");
   const [showPreviewHelp, setShowPreviewHelp] = useState(false);
   const [showBatchArtifactHelp, setShowBatchArtifactHelp] = useState(false);
+  const [showMatrixHelp, setShowMatrixHelp] = useState(false);
   const [showServerSideJob, setShowServerSideJob] = useState(false);
   const [serverJobId, setServerJobId] = useState("");
   const [serverJobStatus, setServerJobStatus] = useState<any>(null);
@@ -237,13 +239,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   });
 
-  const [experimentViewTab, setExperimentViewTab] = useState<"client" | "server" | "matrix">(() => {
+  const [internalExperimentViewTab, setExperimentViewTab] = useState<"client" | "server" | "matrix">(() => {
     return (localStorage.getItem("image_experiment_view_tab") as any) || "client";
   });
 
+  const experimentViewTab = activeSubTab || internalExperimentViewTab;
+
   useEffect(() => {
-    localStorage.setItem("image_experiment_view_tab", experimentViewTab);
-  }, [experimentViewTab]);
+    localStorage.setItem("image_experiment_view_tab", internalExperimentViewTab);
+  }, [internalExperimentViewTab]);
 
   interface MatrixCellResult {
     sampleId: string;
@@ -596,9 +600,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   // Privacy options
   const [storeRawOutputPreviewInDrive, setStoreRawOutputPreviewInDrive] = useState<boolean>(false);
   
-  // Public sample filtering state
-  const [sampleFilter, setSampleFilter] = useState<"all" | "external" | "synthetic">("all");
-
   const selectedSample = samples.find(s => s.id === selectedSampleId) || null;
   const isPublicResult = !!result?.sampleMetadata;
   const isDriveResult = !!result?.metadata;
@@ -710,30 +711,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   }, [samples.length, onAddLog, selectedSampleId]);
 
-  const filteredSamples = useMemo(() => {
-    if (sampleFilter === "all") return samples;
-    return samples.filter(s => {
-      const isSynthetic = s.isSynthetic ?? (s.source?.provider === "localFixture");
-      if (sampleFilter === "synthetic") return isSynthetic;
-      if (sampleFilter === "external") return !isSynthetic;
-      return true;
-    });
-  }, [samples, sampleFilter]);
-
   useEffect(() => {
     if (samples.length > 0) {
-      if (filteredSamples.length === 0) {
-        setSelectedSampleId("");
-      } else if (!selectedSampleId || !filteredSamples.find(s => s.id === selectedSampleId)) {
+      if (!selectedSampleId || !samples.find(s => s.id === selectedSampleId)) {
         const savedId = localStorage.getItem("image_experiment_selected_sample_id");
-        if (savedId && filteredSamples.find(s => s.id === savedId)) {
+        if (savedId && samples.find(s => s.id === savedId)) {
           setSelectedSampleId(savedId);
         } else {
-          setSelectedSampleId(filteredSamples[0].id);
+          setSelectedSampleId(samples[0].id);
         }
       }
     }
-  }, [filteredSamples, samples.length, selectedSampleId]);
+  }, [samples, selectedSampleId]);
 
   const handleAnalyzePublic = async () => {
     if (!selectedSampleId) {
@@ -1690,51 +1679,53 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
+    <div className="space-y-6 max-w-6xl mx-auto p-[1px] md:p-6">
       {/* 🚀 タブナビゲーション */}
-      <div className="flex border-b border-slate-200 bg-slate-100/50 p-1 rounded-xl gap-1 mb-2 shadow-sm">
-        <button
-          onClick={() => setExperimentViewTab("client")}
-          className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-            experimentViewTab === "client"
-              ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
-              : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
-          }`}
-        >
-          <Activity className="w-4 h-4 text-indigo-500" />
-          クライアント実験 (Client Experiment)
-        </button>
-        <button
-          onClick={() => {
-            setExperimentViewTab("server");
-            setShowServerSideJob(true); // サーバー実験タブ選択時に自動展開
-          }}
-          className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-            experimentViewTab === "server"
-              ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
-              : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
-          }`}
-        >
-          <Terminal className="w-4 h-4 text-purple-500" />
-          サーバー実験 (Server Job)
-        </button>
-        <button
-          onClick={() => setExperimentViewTab("matrix")}
-          className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-            experimentViewTab === "matrix"
-              ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
-              : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
-          }`}
-        >
-          <CheckCircle className="w-4 h-4 text-emerald-500" />
-          実験結果マトリクス (Matrix Results)
-        </button>
-      </div>
+      {!activeSubTab && (
+        <div className="flex border-b border-slate-200 bg-slate-100/50 p-1 rounded-xl gap-1 mb-2 shadow-sm">
+          <button
+            onClick={() => setExperimentViewTab("client")}
+            className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              experimentViewTab === "client"
+                ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
+            }`}
+          >
+            <Activity className="w-4 h-4 text-indigo-500" />
+            クライアント実験 (Client Experiment)
+          </button>
+          <button
+            onClick={() => {
+              setExperimentViewTab("server");
+              setShowServerSideJob(true); // サーバー実験タブ選択時に自動展開
+            }}
+            className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              experimentViewTab === "server"
+                ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
+            }`}
+          >
+            <Terminal className="w-4 h-4 text-purple-500" />
+            サーバー実験 (Server Job)
+          </button>
+          <button
+            onClick={() => setExperimentViewTab("matrix")}
+            className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              experimentViewTab === "matrix"
+                ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
+            }`}
+          >
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+            実験結果マトリクス (Matrix Results)
+          </button>
+        </div>
+      )}
 
       {experimentViewTab !== "matrix" ? (
         <>
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-5">
+            <div className="p-[1px] sm:p-5">
               {experimentViewTab === "client" && activeCheckpoint && (
             <div className="mb-6 p-5 rounded-xl border border-amber-200 bg-amber-50/70 backdrop-blur-sm shadow-sm space-y-4">
               <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between border-b border-amber-200/60 pb-3">
@@ -2054,58 +2045,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               <div className="space-y-4">
                   {/* Quick Selection Actions & Thumbnail Grid Panel */}
                   <div className="flex flex-col gap-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                      {/* Top Batch Button (Mobile-friendly duplication) */}
-                      <div className="flex-1 w-full sm:w-auto">
-                        {experimentViewTab === "client" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleRunBatch()}
-                            disabled={isBatchRunning || samples.length === 0 || loading}
-                            className="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors h-[32px] justify-center whitespace-nowrap shadow-sm"
-                          >
-                            {isBatchRunning ? (
-                              <>
-                                <Activity className="w-3.5 h-3.5 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
-                              </>
-                            ) : (
-                              <>
-                                <Activity className="w-3.5 h-3.5" /> 選択サンプルの解析実行 (Run Selected)
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleStartServerJob}
-                            disabled={isStartingServerJob || (serverJobStatus && ['queued', 'running', 'canceling'].includes(serverJobStatus.status))}
-                            className="w-full sm:w-auto px-4 py-1.5 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors h-[32px] justify-center whitespace-nowrap shadow-sm"
-                          >
-                            {isStartingServerJob ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting...
-                              </>
-                            ) : serverJobStatus && ['queued', 'running', 'canceling'].includes(serverJobStatus.status) ? (
-                              "サーバー側の既存ジョブ実行中"
-                            ) : (
-                              <>
-                                <Terminal className="w-3.5 h-3.5" /> サーバー側ジョブ開始 (Start Server Job)
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3 border-b border-slate-100 pb-3">
 
                       <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                        <select
-                          value={sampleFilter}
-                          onChange={(e) => setSampleFilter(e.target.value as any)}
-                          className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold shadow-sm text-slate-700 outline-none"
-                        >
-                          <option value="all">All Samples</option>
-                          <option value="external">External Only</option>
-                          <option value="synthetic">Synthetic Only</option>
-                        </select>
                         <button
                           type="button"
                           onClick={handleSelectAllSamples}
@@ -2140,9 +2082,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </div>
                     </div>
 
-                    {filteredSamples.length > 0 ? (
+                    {samples.length > 0 ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-1.5 max-h-none overflow-visible pr-0">
-                        {filteredSamples.map((s) => {
+                        {samples.map((s) => {
                           const isChecked = !!selectedSampleIds[s.id];
                           const isHighlighted = selectedSampleId === s.id;
                           const runStatus = sampleStatuses[s.id];
@@ -3714,14 +3656,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-emerald-500" />
-                  共通実験結果マトリクス (Merged Experiment Matrix)
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  クライアント主導（単一・バッチ）およびサーバー主導ですべてのモデル、モード、サンプルの組み合わせ結果をマージした結果表です。
-                </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowMatrixHelp(true)}
+                  className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="マトリクスの詳細説明を表示"
+                  id="btn-matrix-help"
+                >
+                  <Info className="w-4 h-4 text-indigo-500 animate-pulse" />
+                  マトリクスの詳細説明・使い方
+                </button>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
@@ -3973,6 +3918,145 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       {showBatchArtifactHelp && (
         <BatchArtifactHelpDialog onClose={() => setShowBatchArtifactHelp(false)} />
       )}
+
+      {showMatrixHelp && (
+        <MatrixHelpDialog onClose={() => setShowMatrixHelp(false)} />
+      )}
+    </div>
+  );
+}
+
+function MatrixHelpDialog({ onClose }: { onClose: () => void }) {
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="matrix-help-title"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Info className="w-5 h-5 text-indigo-600 animate-pulse" />
+            <h3 id="matrix-help-title" className="text-base font-bold text-slate-800">
+              共通実験結果マトリクス (Merged Experiment Matrix) の詳細説明
+            </h3>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+            aria-label="閉じる"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6 overflow-y-auto text-sm leading-relaxed text-slate-600">
+          {/* Section 1: Overview */}
+          <div className="space-y-2">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
+              1. 共通実験結果マトリクスの目的と役割
+            </h4>
+            <p className="text-xs text-slate-600 pl-4">
+              本マトリクスは、画像解析・レグレッション検証のすべての実行履歴をマージした横断的な品質比較ダッシュボードです。
+              クライアント側のブラウザ上で実行された<strong>手動検証（単一実行・バッチ実行）</strong>の結果と、Node.jsバックグラウンドで処理される<strong>サーバーサイドの一括ジョブ実行</strong>の結果がすべて統合され、モデルごと・検証用サンプル（ファイル形式）ごとの検証結果を同一画面上で横並びに比較できます。
+            </p>
+          </div>
+
+          {/* Section 2: Merging Behavior */}
+          <div className="space-y-2">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0" />
+              2. 検証結果の自動マージ・上書きロジック
+            </h4>
+            <div className="text-xs text-slate-600 pl-4 space-y-1">
+              <p>検証結果は「サンプルID ✕ モデル名 ✕ 出力モード（JSON ModeまたはPlain Text）」の組み合わせを一意のキーとして管理されます：</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li><strong>最新の実行結果が自動適用:</strong> 同一の条件で再検証が行われた場合、過去の古いステータスや判定結果は自動的に最新の実行結果へアップデートされます。</li>
+                <li><strong>持続的なローカルストレージ保存:</strong> マージされた統計情報はブラウザのlocalStorageをベースに自動永続化されるため、タブを閉じたりリロードしたりしても検証の蓄積データが消えることはありません。</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Section 3: Cell Statuses */}
+          <div className="space-y-2">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+              3. マトリクスセルのステータスとカラー判定基準
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-4 pt-1">
+              <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 space-y-1">
+                <span className="text-xs font-bold text-emerald-800 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  成功 (Success)
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  AIモデルの出力したレスポンスが、定義されたJSONスキーマに100%適合し、画像の分類判定、カテゴリタグ、抽出ラベル、および可視テキストがすべて期待基準（適合カバレッジ）をクリアしてパスした状態です。
+                </p>
+              </div>
+              <div className="p-3 bg-rose-50/50 rounded-lg border border-rose-100 space-y-1">
+                <span className="text-xs font-bold text-rose-800 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  失敗 (Failure)
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  以下のいずれかの不適合を検出した状態を示します。詳細な失敗理由はセルをクリックすることで即時トレースが可能です：
+                </p>
+                <ul className="list-disc pl-4 text-[10px] text-slate-500 space-y-0.5">
+                  <li><strong>Model Generation Failed:</strong> API接続エラーや画像フォーマット非互換。</li>
+                  <li><strong>Invalid JSON:</strong> モデルが正しいJSONスキーマを出力できなかった。</li>
+                  <li><strong>Comparison Mismatch:</strong> 人間の定義した期待値とAIの検出値に著しいズレや欠損がある場合。</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Key Operations */}
+          <div className="space-y-2">
+            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+              4. 効率的なデバッグ機能と対応アクション
+            </h4>
+            <ul className="text-xs text-slate-600 pl-8 list-decimal space-y-1.5">
+              <li><strong>セルをクリックしてその場で再テスト実行:</strong> 表内の気になるセルを直接クリックすると、モーダル上で詳細な検証ログや生のJSON出力をトレース可能です。さらに「今すぐテスト実行」をクリックすることで、個別のサンプル・モデルの組み合わせだけをピンポイントで再テストし、判定を最新化できます。</li>
+              <li><strong>CSVデータエクスポートによる定量評価:</strong> 画面右上の「CSVをダウンロード」機能を使うと、マトリクス内のすべての適合ステータス、カバレッジパーセンテージ、エラー原因などの一覧をCSV出力できます。スプレッドシートやExcel、BIツール等にインポートして、モデルごとの定量比較や精度推移グラフを簡単に生成できます。</li>
+              <li><strong>履歴のリセット:</strong> 表内のすべての実行済みデータをクリーンアップし、空の状態に戻します（テストサンプル自体は削除されません）。</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end bg-slate-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

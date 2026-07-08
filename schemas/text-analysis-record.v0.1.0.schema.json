@@ -5,6 +5,7 @@
   "description": "Envelope schema for text analysis results including asset metadata, execution details, semantic analysis, evaluation, and diagnostics.",
   "type": "object",
   "required": ["schemaVersion", "status", "assetMetadata"],
+  "additionalProperties": false,
   "properties": {
     "schemaVersion": {
       "type": "string",
@@ -13,14 +14,29 @@
     "status": {
       "type": "object",
       "required": ["success"],
+      "additionalProperties": false,
       "properties": {
         "success": { "type": "boolean" },
         "error": { "type": "string" },
-        "failureKind": { "type": "string" }
+        "failureKind": { 
+          "type": "string",
+          "enum": [
+            "providerError",
+            "emptyStructuredOutput",
+            "underGeneratedStructuredOutput",
+            "jsonParseError",
+            "schemaValidationError",
+            "controlledVocabularyValidationError",
+            "repairFallbackFailed",
+            "qualityGateFailed",
+            "unknown"
+          ]
+        }
       }
     },
     "assetMetadata": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "assetId": { "type": "string" },
         "fileId": { "type": "string" },
@@ -38,6 +54,7 @@
     },
     "technicalMetadata": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "mimeType": { "type": ["string", "null"] },
         "extension": { "type": ["string", "null"] },
@@ -62,12 +79,14 @@
     "analysisRun": {
       "type": "object",
       "required": ["runId", "timestamp", "model", "execution", "schema", "prompt"],
+      "additionalProperties": false,
       "properties": {
         "runId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
         "model": {
           "type": "object",
           "required": ["name"],
+          "additionalProperties": false,
           "properties": {
             "name": { "type": "string" },
             "providerFamily": { "type": "string" },
@@ -76,6 +95,7 @@
         },
         "execution": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "outputMode": { "type": "string" },
             "structuredExecutionMode": { "type": "string" },
@@ -89,6 +109,7 @@
         "schema": {
           "type": "object",
           "required": ["resultSchemaVersion", "recordSchemaVersion"],
+          "additionalProperties": false,
           "properties": {
             "resultSchemaVersion": { "type": "string" },
             "recordSchemaVersion": { "type": "string" }
@@ -96,6 +117,7 @@
         },
         "prompt": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "summaryPromptVersion": { "type": "string" },
             "systemInstructionVersion": { "type": "string" },
@@ -104,6 +126,7 @@
         },
         "input": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "sourceKind": { "type": "string" },
             "fileId": { "type": "string" },
@@ -116,6 +139,7 @@
     },
     "evaluation": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "qualityStatus": { "type": "string", "enum": ["valid", "validWithRepair", "validLowQuality", "invalid"] },
         "qualityScore": { "type": "number" },
@@ -124,6 +148,7 @@
           "items": {
             "type": "object",
             "required": ["code", "message", "severity"],
+            "additionalProperties": false,
             "properties": {
               "code": { "type": "string" },
               "message": { "type": "string" },
@@ -141,6 +166,7 @@
     },
     "diagnostics": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "input": {},
         "extraction": {},

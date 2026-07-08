@@ -1140,20 +1140,18 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
 
       {/* View Mode Tabs */}
       {/* Mobile Tab Selector */}
-      <div className="sm:hidden sticky top-14 bg-white/95 backdrop-blur-md z-40 pt-[1px] pb-[1px] px-4 border-b border-slate-200/80 shadow-xs mb-0" id="tabs-navigation-mobile">
-        <select
-          id="mobile-tab-select"
-          value={activeTab}
-          onChange={(e) => setActiveTab(e.target.value as AppTabId)}
-          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 shadow-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 cursor-pointer"
-        >
-          {APP_TABS.map((tab) => (
-            <option key={tab.id} value={tab.id}>
-              {tab.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <select
+        id="tabs-navigation-mobile"
+        value={activeTab}
+        onChange={(e) => setActiveTab(e.target.value as AppTabId)}
+        className="sm:hidden sticky top-14 bg-white/95 backdrop-blur-md z-40 w-full border-b border-slate-200/80 px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 cursor-pointer mb-0"
+      >
+        {APP_TABS.map((tab) => (
+          <option key={tab.id} value={tab.id}>
+            {tab.label}
+          </option>
+        ))}
+      </select>
 
       {/* Desktop Tab Buttons */}
       <div className="hidden sm:flex border-b border-slate-200" id="tabs-navigation">
@@ -1181,8 +1179,8 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         {activeTab === "dashboard" && (
           <div className="p-[1px] mt-[1px]">
             {/* Action Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-yellow-50 pt-[1px] pl-[1px] pr-[1px] rounded-lg border border-slate-200 shadow-sm mt-[1px]">
-              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 w-full sm:w-auto p-[1px]">
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 bg-yellow-50 p-[1px] sm:p-[1px] rounded-lg border border-slate-200 shadow-sm mt-[1px]">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-3 w-full sm:w-auto p-0 sm:p-[1px]">
                 <button
                   onClick={() => startScanJob(false)}
                   disabled={isCrawlActive || isIndexActive}
@@ -1226,35 +1224,6 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   className="p-4 pt-0 border-t border-slate-100 bg-slate-50/30 overflow-hidden"
                 >
                   <div className="mt-4 space-y-4">
-                  {/* Scan Limit */}
-                  <div className="bg-white border border-slate-200 rounded p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-700">スキャン上限数</h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5">1回の操作で処理するフォルダの最大数</p>
-                      </div>
-                      <select 
-                        value={scanLimit} 
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setScanLimit(val);
-                          try {
-                            localStorage.setItem(`indexmd_scan_limit_${userId}`, val.toString());
-                          } catch {}
-                        }}
-                        disabled={isCrawlActive || isIndexActive}
-                        className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none cursor-pointer disabled:opacity-50"
-                      >
-                        <option value={1}>1件</option>
-                        <option value={5}>5件</option>
-                        <option value={100}>100件</option>
-                        <option value={500}>500件</option>
-                        <option value={1000}>1000件</option>
-                        <option value={0}>無制限</option>
-                      </select>
-                    </div>
-                  </div>
-
                   {/* Skip existing folders option */}
                   <div className="flex items-center gap-3 bg-white border border-slate-200 rounded p-3">
                     <input 
@@ -1287,6 +1256,34 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                       onChange={(e) => onUpdateConfig({ ...config, rate_limit_delay_ms: parseInt(e.target.value) })}
                       className="w-full h-1 bg-slate-200 rounded-full appearance-none cursor-pointer"
                     />
+                  </div>
+
+                  {/* Scan Limit Selection */}
+                  <div className="bg-white border border-slate-200 rounded p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-slate-700">
+                        <ListFilter className="w-3.5 h-3.5 text-slate-500" />
+                        <h4 className="text-xs font-bold">スキャン上限数 (Scan Limit)</h4>
+                      </div>
+                      <select
+                        value={scanLimit}
+                        onChange={(e) => setScanLimit(Number(e.target.value))}
+                        className="bg-white border border-slate-300 text-slate-800 text-[10px] font-bold rounded px-2 py-1 outline-none cursor-pointer"
+                        disabled={isCrawlActive}
+                      >
+                        <option value={5}>5件 (最小)</option>
+                        <option value={10}>10件</option>
+                        <option value={20}>20件</option>
+                        <option value={50}>50件</option>
+                        <option value={100}>100件</option>
+                        <option value={200}>200件</option>
+                        <option value={500}>500件</option>
+                        <option value={1000}>1000件 (最大)</option>
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
+                      1回のリクエストで取得する最大フォルダ数を制限します。開発時の検証や小規模な同期に適しています。
+                    </p>
                   </div>
 
                   {/* Ignore folders */}
@@ -1590,7 +1587,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                 
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <p className="text-xs text-slate-600 leading-relaxed sm:max-w-[75%]">
-                    下のボタンをクリックすると、Google Driveから現在の同期位置（Page Token）に続く <strong>次の{debugPageSize}つのフォルダ</strong> を取得し、パス・深度を再帰算出（BFS風にメモリマッピング構築）して、リアルタイムにFirestoreへ登録します。
+                    Page Tokenに続くフォルダ情報を取得し、パス・深度を再帰算出（BFS風にメモリマッピング構築）して、リアルタイムにFirestoreへ登録する診断テストです。
                   </p>
                   <button
                     onClick={() => setShowDebugSettings(!showDebugSettings)}
@@ -1606,57 +1603,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
                   </button>
                 </div>
 
-                {showDebugSettings && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    className="bg-slate-100 border border-slate-200 rounded-lg p-3 mb-2 overflow-hidden"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-slate-700">
-                        <ListFilter className="w-3.5 h-3.5 text-slate-500" />
-                        <h3 className="text-[10px] font-bold uppercase tracking-wider">最大取得件数</h3>
-                      </div>
-                      <select
-                        value={debugPageSize}
-                        onChange={(e) => setDebugPageSize(Number(e.target.value))}
-                        className="bg-white border border-slate-300 text-slate-800 text-[10px] font-bold rounded px-2 py-1 outline-none cursor-pointer"
-                        disabled={debugLoading}
-                      >
-                        <option value={1}>1件 (ステップ)</option>
-                        <option value={5}>5件</option>
-                        <option value={10}>10件</option>
-                        <option value={50}>50件</option>
-                        <option value={100}>100件</option>
-                        <option value={250}>250件</option>
-                        <option value={500}>500件</option>
-                        <option value={1000}>1000件 (最大)</option>
-                      </select>
-                    </div>
-                  </motion.div>
-                )}
-
                 <div className="space-y-2 pt-2">
-                  <button
-                    onClick={fetchSingleFolderDebug}
-                    disabled={debugLoading || isCrawlActive || isIndexActive}
-                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg text-xs cursor-pointer shadow-sm transition-all animate-pulse"
-                    id="btn-single-fetch-debug"
-                    style={debugLoading ? { animationDuration: '1.5s' } : { animation: 'none' }}
-                  >
-                    {debugLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        APIリクエスト中...
-                      </>
-                    ) : (
-                      <>
-                        <Bug className="w-4 h-4" />
-                        フォルダを{debugPageSize}件取得・検証
-                      </>
-                    )}
-                  </button>
-
                   {debugLoading && (
                     <button
                       onClick={cancelDebugScan}
@@ -2066,13 +2013,38 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
         </div>
       )}
 
-      {activeTab === "image-experiment" && (
+      {activeTab === "image-experiment-client" && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
           <ImageExperiment 
             token={token}
             config={config}
             onAddLog={onAddLog}
             onSessionExpiry={onSessionExpiry}
+            activeSubTab="client"
+          />
+        </div>
+      )}
+
+      {activeTab === "image-experiment-server" && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <ImageExperiment 
+            token={token}
+            config={config}
+            onAddLog={onAddLog}
+            onSessionExpiry={onSessionExpiry}
+            activeSubTab="server"
+          />
+        </div>
+      )}
+
+      {activeTab === "image-experiment-matrix" && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <ImageExperiment 
+            token={token}
+            config={config}
+            onAddLog={onAddLog}
+            onSessionExpiry={onSessionExpiry}
+            activeSubTab="matrix"
           />
         </div>
       )}

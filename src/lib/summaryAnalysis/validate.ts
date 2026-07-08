@@ -441,18 +441,22 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
  * Validates a Summary Analysis v1.2 result against JSON Schema and custom rules.
  * Returns true if valid, false otherwise.
  */
+export function isControlledVocabularyValidationErrorMessage(message: string): boolean {
+  return message.includes("Invalid document kind value") ||
+         message.includes("Invalid subject domain value") ||
+         message.includes("Invalid subject label kind") ||
+         message.includes("Invalid keyword source") ||
+         message.includes("Invalid temporal roleCategory") ||
+         message.includes("Invalid party kind value") ||
+         message.includes("Invalid party roleCategory") ||
+         message.includes("Invalid monetary roleCategory") ||
+         message.includes("Invalid search variant relation") ||
+         message.includes("Invalid subject label source") ||
+         message.includes("vocabularyVersion must be exactly");
+}
+
 export function isControlledVocabularyError(errorMsg: string): boolean {
-  return errorMsg.includes("Invalid document kind value") ||
-         errorMsg.includes("Invalid subject domain value") ||
-         errorMsg.includes("Invalid subject label kind") ||
-         errorMsg.includes("Invalid keyword source") ||
-         errorMsg.includes("Invalid temporal roleCategory") ||
-         errorMsg.includes("Invalid party kind value") ||
-         errorMsg.includes("Invalid party roleCategory") ||
-         errorMsg.includes("Invalid monetary roleCategory") ||
-         errorMsg.includes("Invalid search variant relation") ||
-         errorMsg.includes("Invalid subject label source") ||
-         errorMsg.includes("vocabularyVersion must be exactly");
+  return isControlledVocabularyValidationErrorMessage(errorMsg);
 }
 
 export function validateSummaryAnalysisV12(value: any): boolean {
