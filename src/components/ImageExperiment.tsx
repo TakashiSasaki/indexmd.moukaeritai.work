@@ -594,9 +594,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       const data = await res.json();
       setServerJobId(data.job.jobId);
       setServerJobStatus(data.job);
-      onAddLog("success", `Server-side job started: ${data.job.jobId}`);
+      if (data.reusedExistingJob) {
+        onAddLog("success", `同じ設定の server-side job が既に実行中です。新規 job は作成せず、既存 job を監視します: ${data.job.jobId}`);
+      } else {
+        onAddLog("success", `Server-side job started: ${data.job.jobId}`);
+      }
     } catch (e: any) {
       onAddLog("error", `Server-side job failed: ${e.message}`);
+    } finally {
+      setIsStartingServerJob(false);
     }
   };
 
@@ -607,6 +613,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const data = await res.json();
       setServerJobStatus(data.job);
+      setServerJobComputedState(data.computedState ?? null);
+      setServerJobItemsPreview(data.itemsPreview ?? []);
     } catch (e: any) {
       onAddLog("error", `Refresh failed: ${e.message}`);
     }
@@ -655,36 +663,65 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       
       // Save to past runs
       try {
-        const stored = localStorage.getItem('visual-batch-runs');
-        let pastRuns = [];
-        if (stored) {
-          pastRuns = JSON.parse(stored);
-        }
+        const BATCH_RUNS_KEY = "image_experiment_batch_runs";
+        const MAX_STORED_RUNS = 5;
+        const storedStr = localStorage.getItem(BATCH_RUNS_KEY);
+        let runs: PublicSampleBatchRunSummary[] = storedStr ? JSON.parse(storedStr) : [];
         
-        // Use compact representation for past runs
-        const compactSummary = {
+        const fullRun: PublicSampleBatchRunSummary = {
           runId: summary.runId,
           timestamp: summary.timestamp,
+          startedAt: summary.startedAt,
+          completedAt: summary.completedAt,
+          durationMs: summary.durationMs,
           modelName: summary.modelName,
           jsonMode: summary.jsonMode,
           total: summary.total,
           successCount: summary.successCount,
           failureCount: summary.failureCount,
-          expectedComparisonFailCount: summary.expectedComparisonFailCount,
+          validCount: summary.validCount || 0,
+          validLowQualityCount: summary.validLowQualityCount || 0,
+          invalidJsonCount: summary.invalidJsonCount || 0,
+          expectedComparisonPassCount: summary.expectedComparisonPassCount || 0,
+          expectedComparisonWarningCount: summary.expectedComparisonWarningCount || 0,
+          expectedComparisonFailCount: summary.expectedComparisonFailCount || 0,
+          reviewPassCount: summary.reviewPassCount,
+          reviewNeedsReviewCount: summary.reviewNeedsReviewCount,
           reviewFailCount: summary.reviewFailCount,
-          items: summary.items.map((i: any) => ({
-            sampleId: i.sampleId,
-            success: i.success,
-            qualityStatus: i.qualityStatus,
-            comparison: i.comparison,
-            error: i.error
-          }))
+          providerQuotaSummary: summary.providerQuotaSummary,
+          rateLimitSummary: summary.rateLimitSummary,
+          items: summary.items
         };
         
-        pastRuns.unshift(compactSummary);
-        localStorage.setItem('visual-batch-runs', JSON.stringify(pastRuns));
+        runs.unshift(fullRun);
+        if (runs.length > MAX_STORED_RUNS) {
+           runs = runs.slice(0, MAX_STORED_RUNS);
+        }
+        
+        // Strip heavy things to avoid quota errors
+        const lightweightRuns = runs.map(run => ({
+          ...run,
+          items: run.items.map(item => {
+            if ((item.record?.visualAnalysis as any)?.requestPreview) {
+              const lightweightRecord = {
+                 ...item.record,
+                 visualAnalysis: {
+                    ...item.record.visualAnalysis,
+                    requestPreview: undefined as any
+                 }
+              };
+              return { ...item, record: lightweightRecord };
+            }
+            return item;
+          })
+        }));
+
+        localStorage.setItem(BATCH_RUNS_KEY, JSON.stringify(lightweightRuns));
+        setPastBatchRuns(lightweightRuns);
+        
       } catch (e) {
         console.warn("Could not save imported run to localStorage:", e);
+        onAddLog("warn", "Could not save imported run to localStorage (Quota exceeded?).");
       }
       
       onAddLog("success", `Imported server job summary ${serverJobStatus.jobId}`);
@@ -703,6 +740,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       onAddLog("info", "Requested server-side job cancellation");
     } catch (e: any) {
       onAddLog("error", `Cancel failed: ${e.message}`);
+    }
+  };
+
+  const handleForceCancelServerJob = async () => {
+    if (!serverJobId) return;
+    try {
+      const res = await fetch(`/api/visual/batch-jobs/${serverJobId}/force-cancel`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Force cancel failed: ${res.status}`);
+      const data = await res.json();
+      setServerJobStatus(data.job);
+      onAddLog("warn", "Force-canceled server-side job");
+    } catch (e: any) {
+      onAddLog("error", `Force cancel failed: ${e.message}`);
     }
   };
 
@@ -868,6 +918,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
          runId: crypto.randomUUID(),
          createdAt: new Date().toISOString(),
          updatedAt: new Date().toISOString(),
+         startedAt: new Date().toISOString(),
          status: 'running',
          modelName,
          jsonMode: jsonModeOption,
@@ -973,6 +1024,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         currentProgress++;
         setBatchProgress({ current: currentProgress, total });
         
+        const sampleStartedAt = new Date();
+        
         checkpointRef.current = {
           ...checkpointRef.current,
           currentSampleId: sample.id,
@@ -1065,9 +1118,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
             const data = sfResult.data || {};
             
+            const sampleCompletedAt = new Date();
             item = {
               sampleId: sample.id,
               title: sample.title,
+              startedAt: sampleStartedAt.toISOString(),
+              completedAt: sampleCompletedAt.toISOString(),
+              durationMs: sampleCompletedAt.getTime() - sampleStartedAt.getTime(),
               success: sfResult.success && data.success,
               qualityStatus: data.qualityStatus,
               qualityScore: data.qualityScore,
@@ -1181,10 +1238,24 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         }
         setActiveCheckpoint(checkpointRef.current);
     }
+    
+    const batchCompletedAt = new Date();
+    checkpointRef.current = {
+      ...checkpointRef.current,
+      status: 'completed',
+      updatedAt: batchCompletedAt.toISOString(),
+      completedAt: batchCompletedAt.toISOString(),
+      durationMs: checkpointRef.current.startedAt ? batchCompletedAt.getTime() - new Date(checkpointRef.current.startedAt).getTime() : undefined,
+      currentSampleId: undefined,
+      currentSampleTitle: undefined
+    };
 
     const summary: PublicSampleBatchRunSummary = {
         runId: checkpointRef.current.runId,
         timestamp: new Date().toISOString(),
+        startedAt: checkpointRef.current.startedAt,
+        completedAt: checkpointRef.current.completedAt,
+        durationMs: checkpointRef.current.durationMs,
         modelName,
         jsonMode: jsonModeOption,
         total,
@@ -1538,7 +1609,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </h4>
                   <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 shadow-inner">
                     {activeCheckpoint.items.filter(it => !it.success).map((item, idx) => (
-                      <div key={item.sampleId || idx} className="p-3 hover:bg-slate-50 text-xs transition-colors flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div key={(item.sampleId || "sample") + "-" + idx} className="p-3 hover:bg-slate-50 text-xs transition-colors flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                         <div className="space-y-1">
                           <div className="font-semibold text-slate-800 flex items-center gap-1.5">
                             <span>{item.title}</span>
@@ -1933,7 +2004,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             {serverJobStatus && (
               <div className="bg-slate-50 border rounded p-3 text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <div><strong>Status:</strong> <span className={serverJobStatus.status === 'running' ? 'text-indigo-600 font-bold' : serverJobStatus.status === 'canceling' ? 'text-amber-600 font-bold' : serverJobStatus.status === 'canceled' ? 'text-slate-500 font-bold' : ''}>{serverJobStatus.status}</span></div>
+                  <div>
+                    <strong>Status:</strong> <span className={serverJobStatus.status === 'running' ? 'text-indigo-600 font-bold' : serverJobStatus.status === 'canceling' ? 'text-amber-600 font-bold' : serverJobStatus.status === 'canceled' ? 'text-slate-500 font-bold' : ''}>
+                      {serverJobComputedState?.displayStatus === 'cancelStuck' ? 'cancelStuck (canceling)' : serverJobStatus.status}
+                    </span>
+                  </div>
                   {['queued', 'running'].includes(serverJobStatus.status) && (
                     <div>
                       <button onClick={handleCancelServerJob} className="text-red-600 hover:text-red-800 font-bold px-2 py-1 bg-red-50 rounded border border-red-200 shadow-sm">Cancel Job</button>
@@ -1942,7 +2017,19 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </div>
                     </div>
                   )}
+                  {serverJobComputedState?.displayStatus === 'cancelStuck' && (
+                    <div className="text-right">
+                      <button onClick={handleForceCancelServerJob} className="text-red-700 hover:text-white hover:bg-red-700 font-bold px-2 py-1 bg-red-100 rounded border border-red-300 shadow-sm transition-colors">Force Cancel</button>
+                    </div>
+                  )}
                 </div>
+                {serverJobComputedState?.displayStatus === 'cancelStuck' && (
+                    <div className="p-2 bg-amber-50 text-amber-800 text-[10px] rounded border border-amber-200">
+                      キャンセル要求後、現在処理中の sample が長時間終了していません。
+                      provider API 呼び出し待ち、ネットワーク停止、または runner 停止の可能性があります。
+                      この job は次の sample には進まないはずですが、必要なら強制的に canceled としてマークできます。
+                    </div>
+                )}
                 <div><strong>Progress:</strong> {(serverJobStatus.counters?.successCount || 0) + (serverJobStatus.counters?.failureCount || 0)} / {serverJobStatus.counters?.total || 0}</div>
                 <div><strong>Current Sample:</strong> {serverJobStatus.currentSampleTitle || serverJobStatus.currentSampleId || '-'}</div>
                 {serverJobStatus.startedAt && <div><strong>Elapsed Time:</strong> {serverJobStatus.durationMs ? `${(serverJobStatus.durationMs / 1000).toFixed(1)}s` : `${((new Date().getTime() - new Date(serverJobStatus.startedAt).getTime()) / 1000).toFixed(1)}s`}</div>}
@@ -1967,9 +2054,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               <div className="pt-2 border-t border-slate-100">
                 <h4 className="text-xs font-bold text-slate-700 mb-2">Recent Server Jobs</h4>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {serverJobList.slice().reverse().map(job => (
+                  {serverJobList.slice().reverse().map((job, i) => (
                     <button 
-                      key={job.jobId}
+                      key={job.jobId + "-" + i}
                       onClick={() => {
                         setServerJobId(job.jobId);
                         setServerJobStatus(job);
@@ -2303,7 +2390,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   >
                     <option value="">Select Baseline Run A</option>
                     {pastBatchRuns.map((r, i) => (
-                      <option key={r.runId || i} value={r.runId}>
+                      <option key={r.runId ? r.runId + "-" + i : i} value={r.runId}>
                         #{i + 1} - {r.modelName} ({r.jsonMode}) - {r.successCount}/{r.total} - {new Date(r.timestamp).toLocaleTimeString()}
                       </option>
                     ))}
@@ -2319,7 +2406,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   >
                     <option value="">None (Single Run Inspection)</option>
                     {pastBatchRuns.map((r, i) => (
-                      <option key={r.runId || i} value={r.runId}>
+                      <option key={r.runId ? r.runId + "-" + i : i} value={r.runId}>
                         #{i + 1} - {r.modelName} ({r.jsonMode}) - {r.successCount}/{r.total} - {new Date(r.timestamp).toLocaleTimeString()}
                       </option>
                     ))}

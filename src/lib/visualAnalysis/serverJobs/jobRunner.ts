@@ -377,6 +377,21 @@ export async function startVisualBatchJob(
     }
   }
   } finally {
+    const latest = jobStore.getJob(jobId);
+    if (latest && latest.status === 'canceling') {
+       const now = new Date();
+       const startMs = latest.startedAt ? new Date(latest.startedAt).getTime() : new Date(latest.createdAt).getTime();
+       jobStore.updateJob(jobId, {
+         status: 'canceled',
+         canceledAt: now.toISOString(),
+         durationMs: Math.max(0, now.getTime() - startMs),
+         lastEvent: {
+           type: 'jobCanceled',
+           timestamp: now.toISOString(),
+           message: 'Job canceled after runner cleanup'
+         }
+       });
+    }
     activeRunners.delete(jobId);
   }
 }

@@ -130,7 +130,7 @@ export interface VisualBatchJobEvent {
     | "sampleRetryExhausted"
     | "jobFailed"
     | "jobCompleted"
-    | "jobCanceled"
+    | "jobForceCanceled"
     // 既存のイベント名との互換性
     | "batchStarted"
     | "sampleCompleted"

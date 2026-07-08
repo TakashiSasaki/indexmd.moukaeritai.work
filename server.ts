@@ -1,7 +1,7 @@
 import { isRunnerActive } from './src/lib/visualAnalysis/serverJobs/jobRunner';
 
 import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
-import { startVisualBatchJob } from './src/lib/visualAnalysis/serverJobs/jobRunner';
+import { startVisualBatchJob, activeRunners } from './src/lib/visualAnalysis/serverJobs/jobRunner';
 import { VisualBatchJob } from './src/lib/visualAnalysis/publicSamples/batchTypes';
 import { fnv1a32 } from './src/lib/visualAnalysis/publicSamples/artifactUtils';
 import express from "express";
@@ -2865,14 +2865,30 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
     // computedState
     const isActiveRunnerKnown = isRunnerActive(job.jobId);
     const isStale = (job.status === 'running' || job.status === 'canceling') && !isActiveRunnerKnown;
-    let displayStatus = job.status;
+    
+    const CANCELING_STALE_AFTER_MS = 120_000;
+    let isCancelingStale = false;
+    let cancelElapsedMs = 0;
+    
+    if (job.status === 'canceling' && job.cancelRequestedAt) {
+       cancelElapsedMs = Date.now() - new Date(job.cancelRequestedAt).getTime();
+       if (cancelElapsedMs > CANCELING_STALE_AFTER_MS) {
+          isCancelingStale = true;
+       }
+    }
+    
+    let displayStatus: string = job.status;
     if (isStale) {
       displayStatus = 'interrupted';
+    } else if (isCancelingStale) {
+      displayStatus = 'cancelStuck';
     }
 
     const computedState = {
       isActiveRunnerKnown,
       isStale,
+      isCancelingStale,
+      cancelElapsedMs,
       displayStatus
     };
 
@@ -2973,6 +2989,10 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
           message: 'Job cancellation requested. Waiting for current sample to finish.'
         }
       });
+      // Best effort abort
+      try {
+        activeRunners.get(job.jobId)?.abortController?.abort();
+      } catch(e){}
     }
     return res.status(200).json({ success: true, job: jobStore.getJob(job.jobId) });
   } catch (e: any) {
@@ -3017,6 +3037,37 @@ app.get("/api/visual/batch-jobs/:jobId/reports/diagnostic", async (req, res) => 
     const summary = jobToSummary(job);
     const report = buildBatchDiagnosticReportForChat(summary);
     return res.status(200).send(report);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/visual/batch-jobs/:jobId/force-cancel", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    
+    if (['queued', 'running', 'canceling', 'interrupted'].includes(job.status)) {
+       const nowStr = new Date().toISOString();
+       const startMs = job.startedAt ? new Date(job.startedAt).getTime() : new Date(job.createdAt).getTime();
+       jobStore.updateJob(job.jobId, {
+         status: 'canceled',
+         canceledAt: nowStr,
+         durationMs: Math.max(0, new Date().getTime() - startMs),
+         lastEvent: {
+           type: 'jobForceCanceled',
+           timestamp: nowStr,
+           message: 'Job was force-marked as canceled by user request'
+         }
+       });
+       
+       try {
+         activeRunners.get(job.jobId)?.abortController?.abort();
+         activeRunners.delete(job.jobId);
+       } catch(e){}
+    }
+    
+    return res.status(200).json({ success: true, job: jobStore.getJob(job.jobId) });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }

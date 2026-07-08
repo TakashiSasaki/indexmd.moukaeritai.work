@@ -544,37 +544,24 @@ Retrieves the text summary report.
 #### `GET /api/visual/batch-jobs/:jobId/reports/diagnostic`
 Retrieves the diagnostic text report.
 
+#### `POST /api/visual/batch-jobs/:jobId/force-cancel`
+Force-marks a stuck job as `canceled` in the job store. 
+**Note**: This is not guaranteed to abort in-flight provider requests, but it will forcefully update the job status so that the UI can be unblocked when a job enters the `cancelStuck` state.
+
+#### `POST /api/visual/batch-jobs/:jobId/cancel`
+Requests cooperative cancellation of a running server-side job. The currently running sample may finish, but the job will not proceed to the next sample. If a job remains in the `canceling` state for too long (e.g., >2 minutes), it is considered `cancelStuck`.
+
 #### `GET /api/visual/batch-jobs/:jobId/reports/failures`
 Retrieves a JSON report of failed items.
 
 #### `GET /api/visual/batch-jobs/:jobId/reports/full`
 Retrieves the full batch JSON report. This report includes `item.record` for all successful samples. `executionPrivate` and `customInstruction` are stripped out for safety.
 
-#### `POST /api/visual/batch-jobs/:jobId/actions:resume`
-Instructs the server to resume a paused or interrupted batch job.
-*   **Request Body**:
-    ```json
-    {
-      "includeFailed": "boolean",
-      "onlyFailed": "boolean"
-    }
-    ```
 
-#### `POST /api/visual/batch-jobs/:jobId/cancel`
-Instructs the server to cancel a running batch job.
+## Retry Logic & Duration Tracking
 
-### Model Definitions
+*   **Quota-Aware Retry**: The server-side job runner observes \`providerRateLimited\` and \`providerQuotaExceeded\` events and implements a backoff wait (\`quotaBackoffWaiting\`) before retrying. If \`Retry-After\` headers are present, they are respected.
+*   **maxAttemptsPerSample**: The runner attempts each sample up to \`2\` times before marking it as failed.
+*   **Duration Fields**: Both the job summary and individual sample items contain \`startedAt\`, \`completedAt\`, and \`durationMs\` tracking.
+*   **Cancel Stuck**: Jobs in the \`canceling\` state that have not completed within 120 seconds are marked as \`cancelStuck\` in the \`computedState\` to warn the user, allowing them to use \`force-cancel\`.
 
-The `VisualBatchJob` defines the durable state of a batch run, which will be eventually persisted to Firestore or another database.
-The `VisualBatchJobEvent` tracks lifecycle events such as `jobQueued`, `jobStarted`, `sampleStarted`, and `jobCompleted` for audit logs and progress tracking. `VisualBatchJobItem` holds the specific outcomes of individual sample processing, including parsed outputs and diagnostic metrics. 
-
-Currently, `batchCheckpoint.ts` uses the `VisualBatchJobEvent` schema to standardize local event tracking and includes `lastHeartbeatAt` and `lastCheckpointSavedAt` to enable heartbeat monitoring in the UI.
-
-
-### Architecture and Limitations
-- **Job Store**: Currently uses a disk-backed JSON store in `cache/visual-batch-jobs/`.
-- **Heartbeat**: 
-  - *Client-side checkpoint heartbeat*: indicates the browser tab is alive.
-  - *Server-side heartbeat*: indicates the server job runner last updated the state.
-- **Data Persistence**: In Google Cloud Run or AI Studio preview, local disk may be wiped upon instance restart.
-- **Future TODOs**: Migrate to Firestore for durable job state and Cloud Tasks / Pub/Sub for distributed workers.
