@@ -1,3 +1,4 @@
+import { isRunnerActive } from './src/lib/visualAnalysis/serverJobs/jobRunner';
 
 import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
 import { startVisualBatchJob } from './src/lib/visualAnalysis/serverJobs/jobRunner';
@@ -2769,6 +2770,30 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
       return res.status(400).json({ error: "targetSampleIds array is required and must not be empty" });
     }
 
+    const targetSampleIdsHash = String(fnv1a32(targetSampleIds.slice().sort().join(',')));
+    const customInstructionHash = customInstruction ? String(fnv1a32(customInstruction.trim())) : undefined;
+
+    const runFingerprint = {
+      modelName,
+      jsonMode,
+      customInstructionHash,
+      targetSampleIdsHash
+    };
+
+    // Check for existing active job
+    const activeJob = jobStore.listJobs().find(j => 
+      (j.status === 'queued' || j.status === 'running' || j.status === 'canceling') &&
+      j.runFingerprint &&
+      j.runFingerprint.modelName === runFingerprint.modelName &&
+      j.runFingerprint.jsonMode === runFingerprint.jsonMode &&
+      j.runFingerprint.customInstructionHash === runFingerprint.customInstructionHash &&
+      j.runFingerprint.targetSampleIdsHash === runFingerprint.targetSampleIdsHash
+    );
+
+    if (activeJob) {
+      return res.status(200).json({ success: true, reusedExistingJob: true, job: activeJob });
+    }
+
     const jobId = crypto.randomUUID();
     const job: VisualBatchJob = {
       jobId,
@@ -2779,7 +2804,8 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
       jsonMode,
       executionPrivate: { customInstruction: customInstruction || undefined },
       customInstructionPreview: customInstruction ? customInstruction.substring(0, 100) : undefined,
-      customInstructionHash: customInstruction ? String(fnv1a32(customInstruction.trim())) : undefined,
+      customInstructionHash,
+      runFingerprint,
       targetSampleIds,
       completedSampleIds: [],
       pendingSampleIds: [...targetSampleIds],
@@ -2835,9 +2861,34 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
   try {
     const job = jobStore.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
-    // avoid sending items by default or send them if needed? The task says GET /:jobId is for polling.
-    // "status", "currentSampleId", "currentSampleTitle", "lastEvent", "lastHeartbeatAt", counters, item statuses that can be extracted from items.
-    // Let's strip full heavy payloads from items.
+
+    // computedState
+    const isActiveRunnerKnown = isRunnerActive(job.jobId);
+    const isStale = (job.status === 'running' || job.status === 'canceling') && !isActiveRunnerKnown;
+    let displayStatus = job.status;
+    if (isStale) {
+      displayStatus = 'interrupted';
+    }
+
+    const computedState = {
+      isActiveRunnerKnown,
+      isStale,
+      displayStatus
+    };
+
+    // itemsPreview
+    const itemsPreview = job.items.slice(-5).map(item => ({
+      sampleId: item.sampleId,
+      title: item.title || item.sampleId,
+      status: item.status,
+      qualityStatus: item.qualityStatus,
+      error: item.error,
+      failureKind: item.failureKind,
+      hasRecord: !!item.record,
+      hasVisualAnalysis: !!item.record?.visualAnalysis,
+      hasDiagnostics: !!item.record?.diagnostics
+    }));
+
     const lightweightItems = job.items.map(item => ({
       sampleId: item.sampleId,
       status: item.status,
@@ -2847,10 +2898,46 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
       failureKind: item.failureKind,
       qualityStatus: item.qualityStatus,
     }));
-    
+
     const { executionPrivate, ...restJob } = job;
     const summary = { ...restJob, items: lightweightItems };
-    return res.status(200).json({ success: true, job: summary });
+
+    return res.status(200).json({ 
+      success: true, 
+      job: summary,
+      computedState,
+      itemsPreview
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    const view = req.query.view;
+    if (view === 'compact') {
+      const itemsCompact = job.items.map(item => ({
+        sampleId: item.sampleId,
+        title: item.title || item.sampleId,
+        status: item.status,
+        startedAt: item.startedAt,
+        completedAt: item.completedAt,
+        qualityStatus: item.qualityStatus,
+        qualityScore: item.qualityScore,
+        error: item.error,
+        failureKind: item.failureKind,
+        hasRecord: !!item.record,
+        hasVisualAnalysis: !!item.record?.visualAnalysis,
+        hasDiagnostics: !!item.record?.diagnostics
+      }));
+      return res.status(200).json({ success: true, items: itemsCompact });
+    }
+
+    return res.status(200).json({ success: true, items: job.items });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }
@@ -2889,7 +2976,7 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
     const job = jobStore.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
     
-    if (job.status === 'running' || job.status === 'queued') {
+    if (job.status === 'queued') {
       jobStore.updateJob(job.jobId, { 
         status: 'canceled',
         canceledAt: new Date().toISOString(),
@@ -2897,6 +2984,16 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
           type: 'jobCanceled',
           timestamp: new Date().toISOString(),
           message: 'Job canceled by user request'
+        }
+      });
+    } else if (job.status === 'running') {
+      jobStore.updateJob(job.jobId, {
+        status: 'canceling',
+        cancelRequestedAt: new Date().toISOString(),
+        lastEvent: {
+          type: 'jobCancelRequested',
+          timestamp: new Date().toISOString(),
+          message: 'Job cancellation requested. Waiting for current sample to finish.'
         }
       });
     }

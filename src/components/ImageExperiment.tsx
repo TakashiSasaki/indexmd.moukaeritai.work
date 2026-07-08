@@ -170,6 +170,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [showServerSideJob, setShowServerSideJob] = useState(false);
   const [serverJobId, setServerJobId] = useState("");
   const [serverJobStatus, setServerJobStatus] = useState<any>(null);
+  const [serverJobComputedState, setServerJobComputedState] = useState<any>(null);
+  const [serverJobItemsPreview, setServerJobItemsPreview] = useState<any[]>([]);
+  const [isStartingServerJob, setIsStartingServerJob] = useState(false);
   const [serverJobList, setServerJobList] = useState<any[]>([]);
 
   // Batch evaluation state
@@ -568,7 +571,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   };
 
   const handleStartServerJob = async () => {
-    if (samples.length === 0) return;
+    if (isStartingServerJob) return;
+    setIsStartingServerJob(true);
     try {
       const activeIds = samples.filter(s => selectedSampleIds[s.id]).map(s => s.id);
       if (activeIds.length === 0) {
@@ -1929,9 +1933,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             {serverJobStatus && (
               <div className="bg-slate-50 border rounded p-3 text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <div><strong>Status:</strong> <span className={serverJobStatus.status === 'running' ? 'text-indigo-600 font-bold' : ''}>{serverJobStatus.status}</span></div>
-                  {serverJobStatus.status === 'running' && (
-                    <button onClick={handleCancelServerJob} className="text-red-600 hover:text-red-800 font-bold px-2 py-1 bg-red-50 rounded">Cancel Job</button>
+                  <div><strong>Status:</strong> <span className={serverJobStatus.status === 'running' ? 'text-indigo-600 font-bold' : serverJobStatus.status === 'canceling' ? 'text-amber-600 font-bold' : serverJobStatus.status === 'canceled' ? 'text-slate-500 font-bold' : ''}>{serverJobStatus.status}</span></div>
+                  {['queued', 'running'].includes(serverJobStatus.status) && (
+                    <div>
+                      <button onClick={handleCancelServerJob} className="text-red-600 hover:text-red-800 font-bold px-2 py-1 bg-red-50 rounded border border-red-200 shadow-sm">Cancel Job</button>
+                      <div className="text-[10px] text-slate-400 mt-1 max-w-[200px]">
+                        Cancel は cooperative cancel です。現在処理中の1件はすぐには止まらない場合がありますが、次の sample には進みません。
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div><strong>Progress:</strong> {(serverJobStatus.counters?.successCount || 0) + (serverJobStatus.counters?.failureCount || 0)} / {serverJobStatus.counters?.total || 0}</div>

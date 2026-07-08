@@ -71,6 +71,7 @@ export interface PublicSampleBatchRunSummary {
 export type VisualBatchJobStatus =
   | "queued"
   | "running"
+  | "canceling"
   | "paused"
   | "interrupted"
   | "failed"
@@ -102,6 +103,8 @@ export interface VisualBatchJobEvent {
     | "checkpointSaveFailed"
     | "jobPaused"
     | "jobInterrupted"
+    | "jobCancelRequested"
+    | "jobCanceled"
     | "jobFailed"
     | "jobCompleted"
     | "jobCanceled"
@@ -161,6 +164,16 @@ export interface VisualBatchJob {
   customInstructionHash?: string;
   customInstructionPreview?: string;
   executionPrivate?: { customInstruction?: string; };
+
+  runFingerprint?: {
+    modelName: string;
+    jsonMode: string;
+    customInstructionHash?: string;
+    targetSampleIdsHash: string;
+  };
+
+  cancelRequestedAt?: string;
+  cancelReason?: string;
 
   targetSampleIds: string[];
   completedSampleIds: string[];

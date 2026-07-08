@@ -2,6 +2,12 @@ import { jobStore } from './jobStore';
 import { VisualBatchJob, VisualBatchJobItem } from '../publicSamples/batchTypes';
 import { evaluateSampleComparison } from '../publicSamples/compare';
 
+export const activeRunners = new Map<string, { startedAt: string; abortController?: AbortController }>();
+
+export function isRunnerActive(jobId: string) {
+  return activeRunners.has(jobId);
+}
+
 export async function startVisualBatchJob(
   jobId: string, 
   deps: {
@@ -10,10 +16,19 @@ export async function startVisualBatchJob(
   }
 ) {
   const { analyzeFn, getSampleMetadata } = deps;
+  if (activeRunners.has(jobId)) {
+    console.warn(`Runner for job ${jobId} is already active.`);
+    return;
+  }
+
   const job = jobStore.getJob(jobId);
   if (!job) return;
 
-  jobStore.updateJob(jobId, { 
+  const abortController = new AbortController();
+  activeRunners.set(jobId, { startedAt: new Date().toISOString(), abortController });
+
+  try {
+    jobStore.updateJob(jobId, { 
     status: 'running', 
     startedAt: new Date().toISOString(),
     lastEvent: {
@@ -26,6 +41,18 @@ export async function startVisualBatchJob(
   for (const sampleId of job.targetSampleIds) {
     // Check if canceled
     const currentJob = jobStore.getJob(jobId);
+    if (currentJob?.status === 'canceling' || currentJob?.cancelRequestedAt) {
+      jobStore.updateJob(jobId, {
+        status: 'canceled',
+        canceledAt: new Date().toISOString(),
+        lastEvent: {
+          type: 'jobCanceled',
+          timestamp: new Date().toISOString(),
+          message: 'Job canceled before starting next sample'
+        }
+      });
+      break;
+    }
     if (currentJob?.status === 'canceled' || currentJob?.status === 'paused') {
       break;
     }
@@ -199,5 +226,8 @@ export async function startVisualBatchJob(
         message: `Job ${jobId} completed`
       }
     });
+  }
+  } finally {
+    activeRunners.delete(jobId);
   }
 }
