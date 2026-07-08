@@ -255,34 +255,31 @@ export async function startVisualBatchJob(
         status: 'succeeded',
         completedAt: itemCompletedAtDate.toISOString(),
         durationMs: itemDurationMs,
-        error: finalData.error,
-        failureKind: finalData.failureKind,
-        qualityStatus: finalData.qualityStatus,
-        qualityScore: finalData.qualityScore,
-        qualityIssues: finalData.qualityIssues,
+        error: finalData.record?.status?.error || finalData.error,
+        failureKind: finalData.record?.status?.failureKind || finalData.failureKind,
         record: finalData.record || finalData,
-        responseRaw: finalData, 
         responseDiagnostics: finalData.responseDiagnostics,
         retryDiagnostics: finalData.retryDiagnostics,
-        generationDiagnostics: finalData.generationDiagnostics,
-        parseDiagnostics: finalData.parseDiagnostics,
-        normalizationDiagnostics: finalData.normalizationDiagnostics,
-        inputDiagnostics: finalData.inputDiagnostics,
-        comparison: comparison
       };
       
       const counters = { ...(jobStore.getJob(jobId)?.counters || job.counters) };
       counters.total = job.targetSampleIds.length;
       counters.successCount++;
-      if (finalData.qualityStatus === 'valid') counters.validCount++;
-      if (finalData.qualityStatus === 'validLowQuality') counters.validLowQualityCount++;
-      if (comparison) {
-        if (comparison.overallStatus === 'pass') counters.expectedComparisonPassCount++;
-        if (comparison.overallStatus === 'warning') counters.expectedComparisonWarningCount++;
-        if (comparison.overallStatus === 'fail') counters.expectedComparisonFailCount++;
-        if (comparison.reviewStatus === 'pass') counters.reviewPassCount++;
-        if (comparison.reviewStatus === 'needsReview') counters.reviewNeedsReviewCount++;
-        if (comparison.reviewStatus === 'fail') counters.reviewFailCount++;
+      
+      const record = item.record;
+      const evaluation = record?.evaluation;
+      const qualityStatus = evaluation?.qualityStatus;
+      const comp = evaluation?.comparison;
+
+      if (qualityStatus === 'valid') counters.validCount++;
+      if (qualityStatus === 'validLowQuality') counters.validLowQualityCount++;
+      if (comp) {
+        if (comp.overallStatus === 'pass') counters.expectedComparisonPassCount++;
+        if (comp.overallStatus === 'warning') counters.expectedComparisonWarningCount++;
+        if (comp.overallStatus === 'fail') counters.expectedComparisonFailCount++;
+        if (comp.reviewStatus === 'pass') counters.reviewPassCount++;
+        if (comp.reviewStatus === 'needsReview') counters.reviewNeedsReviewCount++;
+        if (comp.reviewStatus === 'fail') counters.reviewFailCount++;
       }
       
       const completedSampleIds = [...(jobStore.getJob(jobId)?.completedSampleIds || []), sampleId];
@@ -313,17 +310,11 @@ export async function startVisualBatchJob(
       };
 
       if (finalData) {
-        item.qualityStatus = finalData.qualityStatus;
-        item.qualityScore = finalData.qualityScore;
-        item.qualityIssues = finalData.qualityIssues;
         item.record = finalData.record || finalData;
-        item.responseRaw = finalData;
+        item.error = item.record?.status?.error || item.error;
+        item.failureKind = item.record?.status?.failureKind || item.failureKind;
         item.responseDiagnostics = finalData.responseDiagnostics;
         item.retryDiagnostics = finalData.retryDiagnostics;
-        item.generationDiagnostics = finalData.generationDiagnostics;
-        item.parseDiagnostics = finalData.parseDiagnostics;
-        item.normalizationDiagnostics = finalData.normalizationDiagnostics;
-        item.inputDiagnostics = finalData.inputDiagnostics;
       }
       
       const counters = { ...(jobStore.getJob(jobId)?.counters || job.counters) };

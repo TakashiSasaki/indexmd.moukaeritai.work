@@ -1,0 +1,14 @@
+From 46aa8511219a79a3e1c816370a615f20d165ea3b Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 8 Jul 2026 14:16:33 +0000
+Subject: [PATCH] refactor: canonicalize visual analysis API responses
+
+- Moved GET /api/visual/public-samples strictly to canonical structure with `expectedMetadata`.
+- Refactored POST /api/visual/public-samples/analyze to return only a core `record` object, discarding top-level duplicate objects.
+- Removed legacy properties (responseRaw, qualityStatus, etc) from `PublicSampleBatchRunItem` and backend interfaces.
+- Standardized `expectedNotes` globally to `string[]`.
+- Updated test suites, ensuring proper structural mapping.
+- Enhanced API schema and changelog documentation.
+
+Co-authored-by: TakashiSasaki <556958+TakashiSasaki@users.noreply.github.com>
