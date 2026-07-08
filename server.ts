@@ -1715,14 +1715,16 @@ app.get("/api/visual/public-samples", (req, res) => {
       // New canonical expected metadata object.
       expectedMetadata,
 
-      thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`,
-      licenseKind: s.source.licenseKind,
-      licenseName: s.source.licenseName,
-      attributionText: s.source.attributionText,
-      sourcePageUrl: s.source.pageUrl,
-      sourceProvider: s.source.provider,
-      sourceKind: s.source.provider === "localFixture" ? "synthetic" : "external",
-      isSynthetic: s.source.provider === "localFixture"
+      source: {
+        provider: s.source.provider,
+        kind: s.source.provider === "localFixture" ? "synthetic" : "external",
+        licenseKind: s.source.licenseKind,
+        licenseName: s.source.licenseName,
+        attributionText: s.source.attributionText,
+        pageUrl: s.source.pageUrl,
+        isSynthetic: s.source.provider === "localFixture"
+      },
+      thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`
     };
   });
   res.json(samples);
