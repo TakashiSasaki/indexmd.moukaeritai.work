@@ -643,10 +643,46 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     if (!serverJobStatus || serverJobStatus.status !== 'completed') return;
     try {
       onAddLog("info", `Importing server job ${serverJobStatus.jobId} into batch summary...`);
-      const res = await fetch(`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/summary`);
-      if (!res.ok) throw new Error(`Failed to fetch summary: ${res.status}`);
+      const res = await fetch(`/api/visual/batch-jobs/${serverJobStatus.jobId}/summary-data`);
+      if (!res.ok) throw new Error(`Failed to fetch summary data: ${res.status}`);
       const summary = await res.json();
+      
       setBatchSummary(summary);
+      
+      // Save to past runs
+      try {
+        const stored = localStorage.getItem('visual-batch-runs');
+        let pastRuns = [];
+        if (stored) {
+          pastRuns = JSON.parse(stored);
+        }
+        
+        // Use compact representation for past runs
+        const compactSummary = {
+          runId: summary.runId,
+          timestamp: summary.timestamp,
+          modelName: summary.modelName,
+          jsonMode: summary.jsonMode,
+          total: summary.total,
+          successCount: summary.successCount,
+          failureCount: summary.failureCount,
+          expectedComparisonFailCount: summary.expectedComparisonFailCount,
+          reviewFailCount: summary.reviewFailCount,
+          items: summary.items.map((i: any) => ({
+            sampleId: i.sampleId,
+            success: i.success,
+            qualityStatus: i.qualityStatus,
+            comparison: i.comparison,
+            error: i.error
+          }))
+        };
+        
+        pastRuns.unshift(compactSummary);
+        localStorage.setItem('visual-batch-runs', JSON.stringify(pastRuns));
+      } catch (e) {
+        console.warn("Could not save imported run to localStorage:", e);
+      }
+      
       onAddLog("success", `Imported server job summary ${serverJobStatus.jobId}`);
     } catch (e: any) {
       onAddLog("error", `Failed to import server job: ${e.message}`);
@@ -1817,6 +1853,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
+                  <div className="text-[10px] text-slate-500 flex items-center mr-3 mt-1 md:mt-0">
+                    <strong>Run Selected (Stable)</strong>: Browser-driven, uses localStorage checkpoint
+                  </div>
                   <button
                     onClick={() => handleRunBatch()}
                     disabled={isBatchRunning || samples.length === 0 || loading}
@@ -1856,8 +1895,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         {showServerSideJob && (
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
             <p className="text-xs text-slate-500">
-              Starts a resilient batch job on the Node.js server. Unlike the client-side <strong>Run Selected</strong> button, 
+              Starts an experimental batch job on the Node.js server. Unlike the client-side <strong>Run Selected</strong> button (stable), 
               this job will continue running even if you close the browser tab. 
+              Currently, jobs are stored in local disk cache and are not guaranteed to be durable in production.
             </p>
             
             <div className="flex items-center gap-2">
@@ -1927,7 +1967,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       className="w-full text-left text-xs p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 flex justify-between"
                     >
                       <span>{new Date(job.createdAt).toLocaleString()}</span>
-                      <span className="text-slate-500">{job.status} ({job.counters?.successCount}/{job.counters?.total})</span>
+                      <span className={`font-medium ${job.status === 'completed' ? 'text-emerald-600' : job.status === 'failed' ? 'text-red-600' : job.status === 'running' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
+                        {job.status} ({job.counters?.successCount}/{job.counters?.total})
+                      </span>
                     </button>
                   ))}
                 </div>

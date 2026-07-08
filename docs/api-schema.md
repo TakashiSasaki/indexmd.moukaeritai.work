@@ -535,6 +535,9 @@ Retrieves the job items. Supports `?view=compact` (default) and `?view=full`.
 - `view=compact`: Omits heavy payload fields like `record`, `responseRaw`, and diagnostics.
 - `view=full`: Includes `record`, `responseRaw`, `diagnostics`, and `comparison`.
 
+#### `GET /api/visual/batch-jobs/:jobId/summary-data`
+Returns a machine-readable `PublicSampleBatchRunSummary` object suitable for UI importing. Does NOT contain `executionPrivate` information.
+
 #### `GET /api/visual/batch-jobs/:jobId/reports/summary`
 Retrieves the text summary report.
 

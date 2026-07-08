@@ -2912,6 +2912,18 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
 
 
 
+app.get("/api/visual/batch-jobs/:jobId/summary-data", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    const summary = jobToSummary(job);
+    const { executionPrivate, ...safeSummary } = summary as any;
+    return res.status(200).json(safeSummary);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/api/visual/batch-jobs/:jobId/reports/summary", async (req, res) => {
   try {
     const job = jobStore.getJob(req.params.jobId);
