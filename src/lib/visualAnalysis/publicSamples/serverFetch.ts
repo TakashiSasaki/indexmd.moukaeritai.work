@@ -143,16 +143,16 @@ async function fetchExternalImageWithWikimediaFallback(
   const match = url.match(/\/(\d+)px-/);
   const currentSize = match ? parseInt(match[1], 10) : 0;
 
-  // Sizes to try in order based on variant
+  // Sizes to try in order based on variant (aligned with Wikimedia $wgThumbnailSteps whitelist: 20, 40, 60, 120, 250, 330, 500, 960, 1280, 1920, 3840)
   let sizesToTry: number[] = [];
   if (variant === "thumbnail") {
-    sizesToTry = [120, 220, 320, 440];
+    sizesToTry = [120, 250, 330];
   } else if (variant === "preview") {
-    sizesToTry = [500, 640, 800];
+    sizesToTry = [500, 960];
   } else if (variant === "analysis") {
-    sizesToTry = [1024, 1280, 800, 500];
+    sizesToTry = [960, 1280, 500];
   } else {
-    sizesToTry = [1280, 1024, 800];
+    sizesToTry = [1280, 960];
   }
 
   // Ensure currentSize is in the list, tried in the order
@@ -249,14 +249,14 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
       throw new Error(`No image URL available for variant: ${variant}`);
     }
 
-    // Rewrite Wikimedia 640px restricted thumbnails to standard sizes (120px for thumbnail, 500px for preview, 1024px for analysis)
+    // Rewrite Wikimedia 640px restricted thumbnails to standard sizes (120px for thumbnail, 500px for preview, 960px for analysis)
     if (urlToFetch.includes('upload.wikimedia.org') && urlToFetch.includes('/640px-')) {
       if (variant === "thumbnail") {
         urlToFetch = urlToFetch.replace('/640px-', '/120px-');
       } else if (variant === "preview") {
         urlToFetch = urlToFetch.replace('/640px-', '/500px-');
       } else if (variant === "analysis") {
-        urlToFetch = urlToFetch.replace('/640px-', '/1024px-');
+        urlToFetch = urlToFetch.replace('/640px-', '/960px-');
       }
     }
 
@@ -352,7 +352,7 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
     let finalSourceUrlKind: FetchSampleResult["sourceUrlKind"] = "imageUrlFallback";
     if (variant === "analysis") {
       if (sample.source.analysisUrl && urlToFetch === sample.source.analysisUrl) finalSourceUrlKind = "analysisUrl";
-      else if (urlToFetch.includes('/1024px-')) finalSourceUrlKind = "thumbnailRewrite";
+      else if (urlToFetch.includes('/1024px-') || urlToFetch.includes('/960px-')) finalSourceUrlKind = "thumbnailRewrite";
       else if (sample.source.thumbnailUrl && urlToFetch === sample.source.thumbnailUrl) finalSourceUrlKind = "thumbnailUrl";
     }
 
@@ -360,8 +360,8 @@ export async function fetchPublicSampleImage(sampleId: string, variant: "preview
       result = await fetchExternalImageWithWikimediaFallback(urlToFetch, variant);
       result.sourceUrlKind = finalSourceUrlKind;
     } catch (err: any) {
-      if (variant === "analysis" && urlToFetch.includes('/1024px-') && sample.source.thumbnailUrl) {
-        console.warn(`[serverFetch] Failed to fetch 1024px variant from ${urlToFetch}. Falling back to 640px thumbnailUrl: ${sample.source.thumbnailUrl}`);
+      if (variant === "analysis" && (urlToFetch.includes('/1024px-') || urlToFetch.includes('/960px-')) && sample.source.thumbnailUrl) {
+        console.warn(`[serverFetch] Failed to fetch 960px variant from ${urlToFetch}. Falling back to 640px thumbnailUrl: ${sample.source.thumbnailUrl}`);
         try {
           result = await fetchExternalImageWithWikimediaFallback(sample.source.thumbnailUrl, "thumbnail");
           result.sourceUrlKind = "thumbnailUrl";

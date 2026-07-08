@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Image as ImageIcon, AlertCircle, AlertTriangle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play, RotateCw } from 'lucide-react';
+import { Search, Image as ImageIcon, AlertCircle, AlertTriangle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play, RotateCw, XCircle, Loader2 } from 'lucide-react';
 import { AppConfig } from '../types';
 import { getVisualModelCapability } from '../lib/modelCapabilities';
 import { 
@@ -236,6 +236,247 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       return [];
     }
   });
+
+  const [experimentViewTab, setExperimentViewTab] = useState<"client" | "server" | "matrix">(() => {
+    return (localStorage.getItem("image_experiment_view_tab") as any) || "client";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("image_experiment_view_tab", experimentViewTab);
+  }, [experimentViewTab]);
+
+  interface MatrixCellResult {
+    sampleId: string;
+    modelName: string;
+    jsonMode: string;
+    success: boolean;
+    timestamp: string;
+    runId?: string;
+    overallStatus?: 'pass' | 'warning' | 'fail';
+    reviewStatus?: 'pass' | 'needsReview' | 'fail';
+    error?: string;
+    source: 'client-single' | 'client-batch' | 'server-job';
+  }
+
+  const [matrixResults, setMatrixResults] = useState<Record<string, MatrixCellResult>>(() => {
+    try {
+      const saved = localStorage.getItem("image_experiment_matrix_results");
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const handleUpdateMatrixResult = (cell: MatrixCellResult) => {
+    setMatrixResults(prev => {
+      const key = `${cell.sampleId}|${cell.modelName}|${cell.jsonMode}`;
+      const updated = {
+        ...prev,
+        [key]: {
+          ...cell,
+          timestamp: cell.timestamp || new Date().toISOString()
+        }
+      };
+      try {
+        localStorage.setItem("image_experiment_matrix_results", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Failed to save matrix results to localStorage", e);
+      }
+      return updated;
+    });
+  };
+
+  // Merge batch past runs on mount and whenever pastBatchRuns updates
+  useEffect(() => {
+    try {
+      const matrixSaved = localStorage.getItem("image_experiment_matrix_results");
+      let matrix: Record<string, MatrixCellResult> = matrixSaved ? JSON.parse(matrixSaved) : {};
+      let changed = false;
+
+      const savedRuns = localStorage.getItem("image_experiment_batch_runs");
+      const runs: any[] = savedRuns ? JSON.parse(savedRuns) : [];
+      runs.forEach(run => {
+        if (run && Array.isArray(run.items)) {
+          run.items.forEach((it: any) => {
+            const key = `${it.sampleId}|${run.modelName}|${run.jsonMode}`;
+            if (!matrix[key]) {
+              let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
+              let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
+              if (it.comparison) {
+                overallStatus = it.comparison.overallStatus;
+                reviewStatus = it.comparison.reviewStatus;
+              }
+              matrix[key] = {
+                sampleId: it.sampleId,
+                modelName: run.modelName,
+                jsonMode: run.jsonMode,
+                success: it.success,
+                timestamp: run.timestamp || new Date().toISOString(),
+                runId: run.runId,
+                overallStatus,
+                reviewStatus,
+                error: it.error,
+                source: 'client-batch'
+              };
+              changed = true;
+            }
+          });
+        }
+      });
+
+      if (changed) {
+        localStorage.setItem("image_experiment_matrix_results", JSON.stringify(matrix));
+        setMatrixResults(matrix);
+      }
+    } catch (e) {
+      console.warn("Failed to merge matrix results:", e);
+    }
+  }, [pastBatchRuns]);
+
+  const MATRIX_COLUMNS = [
+    { model: "gemini-3.5-flash", mode: "native_schema", label: "G3.5 Flash (Native)" },
+    { model: "gemini-3.5-flash", mode: "prompt_only", label: "G3.5 Flash (Prompt)" },
+    { model: "gemini-flash-latest", mode: "native_schema", label: "G Flash Lat (Native)" },
+    { model: "gemini-flash-latest", mode: "prompt_only", label: "G Flash Lat (Prompt)" },
+    { model: "gemini-3.1-flash-lite", mode: "native_schema", label: "G3.1 Lite (Native)" },
+    { model: "gemini-3.1-flash-lite", mode: "prompt_only", label: "G3.1 Lite (Prompt)" },
+    { model: "gemini-1.5-pro", mode: "native_schema", label: "G1.5 Pro (Native)" },
+    { model: "gemini-1.5-pro", mode: "prompt_only", label: "G1.5 Pro (Prompt)" },
+    { model: "gemma-4-31b-it", mode: "prompt_only", label: "Gemma4 31B (Prompt)" },
+    { model: "gemma-4-26b-a4b-it", mode: "prompt_only", label: "Gemma4 26B (Prompt)" },
+  ];
+
+  const [selectedMatrixCell, setSelectedMatrixCell] = useState<{
+    sampleId: string;
+    model: string;
+    mode: string;
+    result?: MatrixCellResult;
+  } | null>(null);
+
+  const [runningCellKey, setRunningCellKey] = useState<string | null>(null);
+
+  const handleRunSingleCell = async (sampleId: string, modelName: string, jsonMode: string) => {
+    const key = `${sampleId}|${modelName}|${jsonMode}`;
+    if (runningCellKey) return;
+    setRunningCellKey(key);
+    onAddLog("info", `[Matrix Run] Running single cell test: ${sampleId} with ${modelName} (${jsonMode})...`);
+    
+    try {
+      const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === sampleId);
+      const sfResult = await safeFetchWithRetry<any>('/api/visual/public-samples/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sampleId,
+          modelName,
+          jsonMode,
+          includeRequestPreview: false,
+          customInstruction: ""
+        })
+      });
+
+      const data = sfResult.data || {};
+      const success = sfResult.success && data.success;
+      
+      let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
+      let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
+
+      if (success && data.expectedMetadata) {
+        const comparisonSample = {
+          id: sampleId,
+          title: matchedSample?.title || sampleId,
+          category: (matchedSample?.category || "other") as any,
+          source: (matchedSample?.source || "unknown") as any,
+          expectedImageKind: data.expectedMetadata.imageKind,
+          expectedElementCategories: data.expectedMetadata.elementCategories,
+          expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels,
+          expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases,
+          expectedVisibleText: data.expectedMetadata.visibleText
+        };
+        try {
+          const comp = evaluateSampleComparison(comparisonSample, data);
+          overallStatus = comp.overallStatus;
+          reviewStatus = comp.reviewStatus;
+        } catch (e) {}
+      }
+
+      const cellResult: MatrixCellResult = {
+        sampleId,
+        modelName,
+        jsonMode,
+        success,
+        timestamp: new Date().toISOString(),
+        overallStatus,
+        reviewStatus,
+        error: sfResult.error || data.error,
+        source: 'client-single'
+      };
+
+      handleUpdateMatrixResult(cellResult);
+      
+      // Update selectedMatrixCell detail view if open for this cell
+      setSelectedMatrixCell(prev => {
+        if (prev && prev.sampleId === sampleId && prev.model === modelName && prev.mode === jsonMode) {
+          return {
+            ...prev,
+            result: cellResult
+          };
+        }
+        return prev;
+      });
+
+      if (success) {
+        onAddLog("success", `[Matrix Run] Successfully updated cell for ${sampleId}`);
+      } else {
+        onAddLog("error", `[Matrix Run] Failed cell run: ${sfResult.error || data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      onAddLog("error", `[Matrix Run] Error: ${err.message}`);
+    } finally {
+      setRunningCellKey(null);
+    }
+  };
+
+  const handleExportMatrixCSV = () => {
+    try {
+      let csv = "Sample ID,Sample Title,";
+      csv += MATRIX_COLUMNS.map(col => `"${col.label}"`).join(",") + "\n";
+      
+      PUBLIC_VISUAL_SAMPLES.forEach(sample => {
+        let row = `"${sample.id}","${sample.title}",`;
+        const colResults = MATRIX_COLUMNS.map(col => {
+          const key = `${sample.id}|${col.model}|${col.mode}`;
+          const res = matrixResults[key];
+          if (!res) return "Not Run";
+          if (!res.success) return `Fail: ${res.error?.replace(/"/g, '""') || 'Unknown'}`;
+          return res.overallStatus ? `Pass (${res.overallStatus})` : "Success";
+        });
+        row += colResults.map(r => `"${r}"`).join(",") + "\n";
+      });
+
+      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' }); // Add UTF-8 BOM
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `experiment-matrix-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      onAddLog("success", "マトリクス結果CSVをエクスポートしました。");
+    } catch (e: any) {
+      onAddLog("error", `CSVエクスポートに失敗しました: ${e.message}`);
+    }
+  };
+
+  const handleClearMatrixResults = () => {
+    if (confirm("本当にすべてのマトリクス結果履歴をリセットしますか？この操作は取り消せません。")) {
+      localStorage.removeItem("image_experiment_matrix_results");
+      setMatrixResults({});
+      setSelectedMatrixCell(null);
+      onAddLog("success", "マトリクス結果履歴をリセットしました。");
+    }
+  };
 
   useEffect(() => {
     if (result) {
@@ -552,19 +793,82 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         setResult(errorResult);
         onAddLog("error", `[Image Analysis] Error: ${errMsg}`);
         setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
+
+        handleUpdateMatrixResult({
+          sampleId: selectedSampleId,
+          modelName,
+          jsonMode: jsonModeOption,
+          success: false,
+          timestamp: new Date().toISOString(),
+          error: errMsg,
+          source: 'client-single'
+        });
       } else {
         setResult(data);
         if (!data.success) {
           onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
           setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
+
+          handleUpdateMatrixResult({
+            sampleId: selectedSampleId,
+            modelName,
+            jsonMode: jsonModeOption,
+            success: false,
+            timestamp: new Date().toISOString(),
+            error: data.error || "Failed to analyze public sample",
+            source: 'client-single'
+          });
         } else {
           onAddLog("success", `[Image Analysis] Complete for sample ${selectedSampleId}`);
           setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "success" }));
+
+          let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
+          let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
+
+          if (data.expectedMetadata) {
+            const comparisonSample = {
+              id: selectedSampleId,
+              title: selectedSample?.title || selectedSampleId,
+              category: (selectedSample?.category || "other") as any,
+              source: (selectedSample?.source || "unknown") as any,
+              expectedImageKind: data.expectedMetadata.imageKind,
+              expectedElementCategories: data.expectedMetadata.elementCategories,
+              expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels,
+              expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases,
+              expectedVisibleText: data.expectedMetadata.visibleText
+            };
+            try {
+              const comp = evaluateSampleComparison(comparisonSample, data);
+              overallStatus = comp.overallStatus;
+              reviewStatus = comp.reviewStatus;
+            } catch (e) {}
+          }
+
+          handleUpdateMatrixResult({
+            sampleId: selectedSampleId,
+            modelName,
+            jsonMode: jsonModeOption,
+            success: true,
+            timestamp: new Date().toISOString(),
+            overallStatus,
+            reviewStatus,
+            source: 'client-single'
+          });
         }
       }
     } catch (err: any) {
       onAddLog("error", `[Image Analysis] Error: ${err.message}`);
       setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
+
+      handleUpdateMatrixResult({
+        sampleId: selectedSampleId,
+        modelName,
+        jsonMode: jsonModeOption,
+        success: false,
+        timestamp: new Date().toISOString(),
+        error: err.message,
+        source: 'client-single'
+      });
     } finally {
       setLoading(false);
     }
@@ -1196,6 +1500,28 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             items.push(item);
         }
         setSampleStatuses({ ...newStatuses });
+
+        // Update matrix results in real-time
+        if (item) {
+          let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
+          let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
+          if (item.comparison) {
+            overallStatus = item.comparison.overallStatus;
+            reviewStatus = item.comparison.reviewStatus;
+          }
+          handleUpdateMatrixResult({
+            sampleId: item.sampleId,
+            modelName,
+            jsonMode: jsonModeOption,
+            success: item.success,
+            timestamp: new Date().toISOString(),
+            runId: checkpointRef.current?.runId,
+            overallStatus,
+            reviewStatus,
+            error: item.error,
+            source: 'client-batch'
+          });
+        }
         
         // Update and save checkpoint after each sample
         checkpointRef.current = {
@@ -1365,9 +1691,51 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-5">
-          {activeCheckpoint && (
+      {/* 🚀 タブナビゲーション */}
+      <div className="flex border-b border-slate-200 bg-slate-100/50 p-1 rounded-xl gap-1 mb-2 shadow-sm">
+        <button
+          onClick={() => setExperimentViewTab("client")}
+          className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            experimentViewTab === "client"
+              ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+              : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
+          }`}
+        >
+          <Activity className="w-4 h-4 text-indigo-500" />
+          クライアント実験 (Client Experiment)
+        </button>
+        <button
+          onClick={() => {
+            setExperimentViewTab("server");
+            setShowServerSideJob(true); // サーバー実験タブ選択時に自動展開
+          }}
+          className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            experimentViewTab === "server"
+              ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+              : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
+          }`}
+        >
+          <Terminal className="w-4 h-4 text-purple-500" />
+          サーバー実験 (Server Job)
+        </button>
+        <button
+          onClick={() => setExperimentViewTab("matrix")}
+          className={`flex-1 py-3 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            experimentViewTab === "matrix"
+              ? "bg-white text-indigo-600 shadow-sm border border-slate-200/50"
+              : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/30"
+          }`}
+        >
+          <CheckCircle className="w-4 h-4 text-emerald-500" />
+          実験結果マトリクス (Matrix Results)
+        </button>
+      </div>
+
+      {experimentViewTab !== "matrix" ? (
+        <>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-5">
+              {experimentViewTab === "client" && activeCheckpoint && (
             <div className="mb-6 p-5 rounded-xl border border-amber-200 bg-amber-50/70 backdrop-blur-sm shadow-sm space-y-4">
               <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between border-b border-amber-200/60 pb-3">
                 <div className="space-y-1">
@@ -1652,7 +2020,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             </div>
           )}
 
-          {hasIncompatibleCheckpoint && !isBatchRunning && (
+          {experimentViewTab === "client" && hasIncompatibleCheckpoint && !isBatchRunning && (
             <div className="mb-6 p-4 rounded-lg border border-slate-200 bg-slate-50">
               <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
                 <div className="space-y-1">
@@ -1689,22 +2057,43 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                       {/* Top Batch Button (Mobile-friendly duplication) */}
                       <div className="flex-1 w-full sm:w-auto">
-                        <button
-                          type="button"
-                          onClick={() => handleRunBatch()}
-                          disabled={isBatchRunning || samples.length === 0 || loading}
-                          className="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors h-[32px] justify-center whitespace-nowrap shadow-sm"
-                        >
-                          {isBatchRunning ? (
-                            <>
-                              <Activity className="w-3.5 h-3.5 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
-                            </>
-                          ) : (
-                            <>
-                              <Activity className="w-3.5 h-3.5" /> 選択サンプルの解析実行 (Run Selected)
-                            </>
-                          )}
-                        </button>
+                        {experimentViewTab === "client" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleRunBatch()}
+                            disabled={isBatchRunning || samples.length === 0 || loading}
+                            className="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors h-[32px] justify-center whitespace-nowrap shadow-sm"
+                          >
+                            {isBatchRunning ? (
+                              <>
+                                <Activity className="w-3.5 h-3.5 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
+                              </>
+                            ) : (
+                              <>
+                                <Activity className="w-3.5 h-3.5" /> 選択サンプルの解析実行 (Run Selected)
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleStartServerJob}
+                            disabled={isStartingServerJob || (serverJobStatus && ['queued', 'running', 'canceling'].includes(serverJobStatus.status))}
+                            className="w-full sm:w-auto px-4 py-1.5 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors h-[32px] justify-center whitespace-nowrap shadow-sm"
+                          >
+                            {isStartingServerJob ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Starting...
+                              </>
+                            ) : serverJobStatus && ['queued', 'running', 'canceling'].includes(serverJobStatus.status) ? (
+                              "サーバー側の既存ジョブ実行中"
+                            ) : (
+                              <>
+                                <Terminal className="w-3.5 h-3.5" /> サーバー側ジョブ開始 (Start Server Job)
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5 shrink-0">
@@ -1933,26 +2322,28 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
-                  <div className="text-[10px] text-slate-500 flex items-center mr-3 mt-1 md:mt-0">
-                    <strong>Run Selected (Stable)</strong>: Browser-driven, uses localStorage checkpoint
+                {experimentViewTab === "client" && (
+                  <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
+                    <div className="text-[10px] text-slate-500 flex items-center mr-3 mt-1 md:mt-0">
+                      <strong>Run Selected (Stable)</strong>: Browser-driven, uses localStorage checkpoint
+                    </div>
+                    <button
+                      onClick={() => handleRunBatch()}
+                      disabled={isBatchRunning || samples.length === 0 || loading}
+                      className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
+                    >
+                      {isBatchRunning ? (
+                        <>
+                          <Activity className="w-4 h-4 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
+                        </>
+                      ) : (
+                        <>
+                          <Activity className="w-4 h-4" /> 選択サンプルの解析実行 (Run Selected)
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleRunBatch()}
-                    disabled={isBatchRunning || samples.length === 0 || loading}
-                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors h-[38px] flex-1 md:flex-none justify-center whitespace-nowrap shadow-sm animate-in fade-in zoom-in-95 duration-150"
-                  >
-                    {isBatchRunning ? (
-                      <>
-                        <Activity className="w-4 h-4 animate-pulse" /> 解析中 ({batchProgress?.current}/{batchProgress?.total})
-                      </>
-                    ) : (
-                      <>
-                        <Activity className="w-4 h-4" /> 選択サンプルの解析実行 (Run Selected)
-                      </>
-                    )}
-                  </button>
-                </div>
+                )}
       </div>
       </div>
       </div>
@@ -1960,21 +2351,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       </div>
 
 
-      {/* Server-Side Job (Experimental) */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-        <button 
-          onClick={() => setShowServerSideJob(!showServerSideJob)}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800">Server-Side Batch Job (Experimental)</span>
+      {/* Server-Side Job */}
+      {experimentViewTab === "server" && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+            <Terminal className="w-5 h-5 text-purple-500" />
+            <span className="font-bold text-slate-800 text-base">Server-Side Batch Job (Experimental)</span>
             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-800 uppercase">Beta</span>
           </div>
-          <ChevronDown className={`w-4 h-4 transition-transform ${showServerSideJob ? 'rotate-180' : ''}`} />
-        </button>
-        
-        {showServerSideJob && (
-          <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+          
+          <div className="space-y-4">
             <p className="text-xs text-slate-500">
               Starts an experimental batch job on the Node.js server. Unlike the client-side <strong>Run Selected</strong> button (stable), 
               this job will continue running even if you close the browser tab. 
@@ -2105,8 +2491,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {healthCheckFailed && healthCheckDiagnostics && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 space-y-4 mb-6">
@@ -3318,6 +3704,269 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
             </details>
           </div>
+        </div>
+      )}
+      </>
+      ) : null}
+
+      {/* 📊 実験結果マトリクス (Matrix Results) */}
+      {experimentViewTab === "matrix" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  共通実験結果マトリクス (Merged Experiment Matrix)
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  クライアント主導（単一・バッチ）およびサーバー主導ですべてのモデル、モード、サンプルの組み合わせ結果をマージした結果表です。
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  onClick={handleExportMatrixCSV}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <Download className="w-4 h-4 text-slate-500" />
+                  CSVをダウンロード
+                </button>
+                <button
+                  onClick={handleClearMatrixResults}
+                  className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 hover:border-rose-200 rounded text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                  履歴をリセット
+                </button>
+              </div>
+            </div>
+
+            {/* Matrix Table */}
+            <div className="overflow-x-auto border border-slate-200 rounded-lg shadow-inner">
+              <table className="w-full text-xs text-left border-collapse min-w-[1000px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold divide-x divide-slate-200">
+                    <th className="p-3 sticky left-0 bg-slate-50 z-10 w-[240px] max-w-[30vw] overflow-hidden truncate">サンプル (Sample)</th>
+                    {MATRIX_COLUMNS.map((col, idx) => (
+                      <th key={idx} className="p-3 text-center min-w-[110px]" title={`${col.model} (${col.mode})`}>
+                        <div className="font-bold text-slate-800 text-[10.5px] leading-tight">{col.label}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {PUBLIC_VISUAL_SAMPLES.map((sample) => (
+                    <tr key={sample.id} className="hover:bg-slate-50/50 transition-colors divide-x divide-slate-100">
+                      <td className="p-3 font-medium text-slate-900 sticky left-0 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] w-[240px] max-w-[30vw] overflow-hidden">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {(sample as any).thumbnailRoute && (
+                            <img
+                              src={(sample as any).thumbnailRoute}
+                              alt={sample.title}
+                              referrerPolicy="no-referrer"
+                              className="w-7 h-7 rounded object-cover border border-slate-200 shrink-0"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-800 truncate text-[11px]" title={sample.title}>
+                              {sample.title}
+                            </div>
+                            <div className="text-[9px] text-slate-400 font-mono truncate">{sample.id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      {MATRIX_COLUMNS.map((col, colIdx) => {
+                        const key = `${sample.id}|${col.model}|${col.mode}`;
+                        const cell = matrixResults[key];
+                        const isRunning = runningCellKey === key;
+                        
+                        let cellBg = "bg-white";
+                        let cellIcon = null;
+                        let cellTooltip = "未実行 (クリックしてクイックテスト)";
+
+                        if (cell) {
+                          if (cell.success) {
+                            if (cell.overallStatus === 'pass') {
+                              cellBg = "bg-emerald-50/60 hover:bg-emerald-100/70";
+                              cellIcon = <CheckCircle className="w-4 h-4 text-emerald-600" />;
+                              cellTooltip = `Pass (比較クリア) - クリックして詳細を表示`;
+                            } else if (cell.overallStatus === 'warning') {
+                              cellBg = "bg-amber-50/60 hover:bg-amber-100/70";
+                              cellIcon = <AlertTriangle className="w-4 h-4 text-amber-600" />;
+                              cellTooltip = `Warning (一部差分あり) - クリックして詳細を表示`;
+                            } else if (cell.overallStatus === 'fail') {
+                              cellBg = "bg-rose-50/60 hover:bg-rose-100/70";
+                              cellIcon = <XCircle className="w-4 h-4 text-rose-600" />;
+                              cellTooltip = `Fail (不合格) - クリックして詳細を表示`;
+                            } else {
+                              cellBg = "bg-emerald-50/30 hover:bg-emerald-50/60";
+                              cellIcon = <Check className="w-4 h-4 text-emerald-500" />;
+                              cellTooltip = `成功 - クリックして詳細を表示`;
+                            }
+                          } else {
+                            cellBg = "bg-rose-50/40 hover:bg-rose-100/50";
+                            cellIcon = <XCircle className="w-4 h-4 text-rose-500" />;
+                            cellTooltip = `解析失敗: ${cell.error || 'Unknown Error'} - クリックして詳細表示`;
+                          }
+                        }
+
+                        return (
+                          <td
+                            key={colIdx}
+                            onClick={() => {
+                              setSelectedMatrixCell({
+                                sampleId: sample.id,
+                                model: col.model,
+                                mode: col.mode,
+                                result: cell
+                              });
+                            }}
+                            className={`p-3 text-center cursor-pointer transition-colors relative group h-12 ${cellBg}`}
+                            title={cellTooltip}
+                          >
+                            <div className="flex items-center justify-center h-full">
+                              {isRunning ? (
+                                <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
+                              ) : cellIcon ? (
+                                cellIcon
+                              ) : (
+                                <span className="text-slate-300 group-hover:text-slate-400 font-mono text-[10px]">+</span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Detailed Card for Selected Cell */}
+          {selectedMatrixCell && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">
+                    セル詳細診断: {PUBLIC_VISUAL_SAMPLES.find(s => s.id === selectedMatrixCell.sampleId)?.title || selectedMatrixCell.sampleId}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    モデル: <span className="font-mono text-slate-600">{selectedMatrixCell.model}</span> ({selectedMatrixCell.mode === 'json_object' ? 'JSON' : 'Prompt'})
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedMatrixCell(null)}
+                  className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
+                >
+                  閉じる
+                </button>
+              </div>
+
+              {selectedMatrixCell.result ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-3">
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-1.5">
+                      <div className="text-slate-400 font-medium">基本メタデータ</div>
+                      <div>
+                        <strong>ステータス:</strong>{" "}
+                        <span className={`font-bold ${selectedMatrixCell.result.success ? "text-emerald-600" : "text-rose-600"}`}>
+                          {selectedMatrixCell.result.success ? "成功" : "失敗"}
+                        </span>
+                      </div>
+                      {selectedMatrixCell.result.overallStatus && (
+                        <div>
+                          <strong>評価:</strong>{" "}
+                          <span className={`font-bold uppercase ${
+                            selectedMatrixCell.result.overallStatus === 'pass' ? "text-emerald-600" : 
+                            selectedMatrixCell.result.overallStatus === 'warning' ? "text-amber-600" : "text-rose-600"
+                          }`}>
+                            {selectedMatrixCell.result.overallStatus}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <strong>実行手段 (Source):</strong>{" "}
+                        <span className="font-mono text-slate-600">{selectedMatrixCell.result.source}</span>
+                      </div>
+                      <div>
+                        <strong>日時:</strong>{" "}
+                        <span className="text-slate-500">{new Date(selectedMatrixCell.result.timestamp).toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    {selectedMatrixCell.result.error && (
+                      <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg text-rose-900 space-y-1">
+                        <div className="font-bold flex items-center gap-1">
+                          <AlertCircle className="w-4 h-4 text-rose-500" />
+                          エラーメッセージ
+                        </div>
+                        <div className="font-mono text-[11px] break-all whitespace-pre-wrap">
+                          {selectedMatrixCell.result.error}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 flex flex-col justify-between">
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex-1 space-y-1.5">
+                      <div className="text-slate-400 font-medium">クイックアクション (Quick Actions)</div>
+                      <p className="text-[11px] text-slate-500">
+                        この特定のセル（モデルとサンプルの組み合わせ）に対して、今すぐクライアント（ブラウザ）経由で解析テストを実行し、マトリクスの結果をその場で更新できます。
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
+                        disabled={!!runningCellKey}
+                        className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                      >
+                        {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" /> 実行中...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4" /> 今すぐテスト実行 (Run Test)
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(selectedMatrixCell.result, null, 2));
+                          alert("セルの詳細JSONをコピーしました！");
+                        }}
+                        className="py-2 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-1 shadow-sm"
+                        title="JSONをコピー"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 p-6 rounded-lg text-center border border-dashed text-xs text-slate-500 space-y-3">
+                  <p>このセルの組み合わせ結果はまだ記録されていません。</p>
+                  <button
+                    onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
+                    disabled={!!runningCellKey}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 text-xs"
+                  >
+                    {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> 実行中...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5" /> 今すぐテスト実行
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
