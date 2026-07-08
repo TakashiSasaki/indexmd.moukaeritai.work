@@ -1710,19 +1710,7 @@ app.get("/api/visual/public-samples", (req, res) => {
       title: s.title,
       category: s.category,
 
-      // Existing compatibility fields. Do not remove.
-      expectedImageKind: s.expectedImageKind,
-      acceptableImageKinds: s.acceptableImageKinds,
-      expectedElementCategories: s.expectedElementCategories,
-      expectedElementCategoryAlternatives: s.expectedElementCategoryAlternatives,
-      expectedVisibleElementLabels: s.expectedVisibleElementLabels,
-      expectedVisibleElementLabelAliases: s.expectedVisibleElementLabelAliases,
-      expectedVisibleText: s.expectedVisibleText,
-      expectedNotes: s.expectedNotes,
-      optionalElementCategories: s.optionalElementCategories,
-      optionalVisibleElementLabels: s.optionalVisibleElementLabels,
-      optionalVisibleElementLabelAliases: s.optionalVisibleElementLabelAliases,
-      optionalVisibleText: s.optionalVisibleText,
+
 
       // New canonical expected metadata object.
       expectedMetadata,
