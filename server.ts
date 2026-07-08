@@ -2918,7 +2918,7 @@ app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
     const job = jobStore.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    const view = req.query.view;
+    const view = req.query.view || 'compact';
     if (view === 'compact') {
       const itemsCompact = job.items.map(item => ({
         sampleId: item.sampleId,
@@ -2926,10 +2926,14 @@ app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
         status: item.status,
         startedAt: item.startedAt,
         completedAt: item.completedAt,
+        durationMs: item.durationMs,
+        attempts: item.attempts,
         qualityStatus: item.qualityStatus,
         qualityScore: item.qualityScore,
         error: item.error,
         failureKind: item.failureKind,
+        retryExhausted: item.retryExhausted,
+        nextRetryAt: item.nextRetryAt,
         hasRecord: !!item.record,
         hasVisualAnalysis: !!item.record?.visualAnalysis,
         hasDiagnostics: !!item.record?.diagnostics
@@ -2937,35 +2941,8 @@ app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
       return res.status(200).json({ success: true, items: itemsCompact });
     }
 
+    // view === 'full'
     return res.status(200).json({ success: true, items: job.items });
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
-app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
-  try {
-    const job = jobStore.getJob(req.params.jobId);
-    if (!job) return res.status(404).json({ error: "Job not found" });
-    const view = req.query.view || 'compact';
-    
-    let items = job.items;
-    if (view === 'compact') {
-      items = items.map(item => ({
-        sampleId: item.sampleId,
-        title: item.title,
-        status: item.status,
-        startedAt: item.startedAt,
-        completedAt: item.completedAt,
-        qualityStatus: item.qualityStatus,
-        qualityScore: item.qualityScore,
-        error: item.error,
-        failureKind: item.failureKind,
-        recordStatus: item.record?.status
-      })) as any;
-    }
-    
-    return res.status(200).json({ success: true, items });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }

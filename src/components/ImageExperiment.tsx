@@ -1023,8 +1023,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               })
             }, {
               retryHttpStatuses: [429, 502, 503, 504],
-              maxAttempts: 5,
-              delaysMs: [10000, 30000, 60000, 120000],
+              maxAttempts: 2,
+              delaysMs: [60000],
               onRetry: (event: SafeFetchRetryEvent) => {
                 const reason = event.status === 429 
                   ? "レート制限 (429)" 
@@ -1945,6 +1945,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </div>
                 <div><strong>Progress:</strong> {(serverJobStatus.counters?.successCount || 0) + (serverJobStatus.counters?.failureCount || 0)} / {serverJobStatus.counters?.total || 0}</div>
                 <div><strong>Current Sample:</strong> {serverJobStatus.currentSampleTitle || serverJobStatus.currentSampleId || '-'}</div>
+                {serverJobStatus.startedAt && <div><strong>Elapsed Time:</strong> {serverJobStatus.durationMs ? `${(serverJobStatus.durationMs / 1000).toFixed(1)}s` : `${((new Date().getTime() - new Date(serverJobStatus.startedAt).getTime()) / 1000).toFixed(1)}s`}</div>}
                 <div><strong>Last Event:</strong> {serverJobStatus.lastEvent?.message || '-'}</div>
                 <div><strong>Last Heartbeat:</strong> {serverJobStatus.lastHeartbeatAt ? new Date(serverJobStatus.lastHeartbeatAt).toLocaleTimeString() : '-'}</div>
                 

@@ -22,6 +22,8 @@ export interface PublicSampleInputDiagnostics extends Partial<ImageProcessingDia
 }
 
 export interface PublicSampleBatchRunItem {
+  startedAt?: string;
+  completedAt?: string;
   sampleId: string;
   title: string;
   success: boolean;
@@ -32,6 +34,20 @@ export interface PublicSampleBatchRunItem {
   analysisRun?: any;
   parseDiagnostics?: any;
   comparison?: PublicSampleComparisonSummary;
+  durationMs?: number;
+  attempts?: number;
+  retryHistory?: Array<{
+    attempt: number;
+    startedAt: string;
+    completedAt?: string;
+    durationMs?: number;
+    failureKind?: string;
+    error?: string;
+    delayBeforeNextAttemptMs?: number;
+    nextRetryAt?: string;
+  }>;
+  nextRetryAt?: string;
+  retryExhausted?: boolean;
   error?: string;
   failureKind?: string;
   generationDiagnostics?: any;
@@ -47,6 +63,9 @@ export interface PublicSampleBatchRunItem {
 }
 
 export interface PublicSampleBatchRunSummary {
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
   runId: string;
   timestamp: string;
   modelName: string;
@@ -105,6 +124,10 @@ export interface VisualBatchJobEvent {
     | "jobInterrupted"
     | "jobCancelRequested"
     | "jobCanceled"
+    | "sampleRetryScheduled"
+    | "sampleRetryStarted"
+    | "quotaBackoffWaiting"
+    | "sampleRetryExhausted"
     | "jobFailed"
     | "jobCompleted"
     | "jobCanceled"
@@ -129,13 +152,25 @@ export interface VisualBatchJobItem {
   status: VisualBatchJobItemStatus;
   startedAt?: string;
   completedAt?: string;
+  durationMs?: number;
+  attempts?: number;
+  retryHistory?: Array<{
+    attempt: number;
+    startedAt: string;
+    completedAt?: string;
+    durationMs?: number;
+    failureKind?: string;
+    error?: string;
+    delayBeforeNextAttemptMs?: number;
+    nextRetryAt?: string;
+  }>;
+  nextRetryAt?: string;
+  retryExhausted?: boolean;
   error?: string;
   failureKind?: string;
-
   qualityStatus?: string;
   qualityScore?: number;
   qualityIssues?: any[];
-
   
   record?: ImageAnalysisRecord;
   responseRaw?: any;
@@ -158,6 +193,7 @@ export interface VisualBatchJob {
   startedAt?: string;
   completedAt?: string;
   canceledAt?: string;
+  durationMs?: number;
 
   modelName: string;
   jsonMode: string;
