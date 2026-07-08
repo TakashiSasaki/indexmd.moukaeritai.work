@@ -90,3 +90,7 @@
 - Integrated `expectedMetadata` mapping directly on the backend to provide clean, robust structure matching client-side analysis run requirements.
 - Strengthened unit test coverage across `compare.test.ts` (for metrics summarization and optional expectations), `qualityGate.test.ts` (for model-specific logic and text-heavy diagnostics), and added `expectedMetadata.test.ts` to validate helper mappings.
 
+
+## Next (Current)
+- Moved API responses (GET /api/visual/public-samples, POST /api/visual/public-samples/analyze) strictly to canonical structure. Old flat duplicate top-level keys removed in favor of `expectedMetadata` and `record` objects.
+- `expectedNotes` now globally arrays.
