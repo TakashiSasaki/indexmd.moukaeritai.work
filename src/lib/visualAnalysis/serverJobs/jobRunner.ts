@@ -281,7 +281,7 @@ export async function startVisualBatchJob(
         if (comparison.overallStatus === 'warning') counters.expectedComparisonWarningCount++;
         if (comparison.overallStatus === 'fail') counters.expectedComparisonFailCount++;
         if (comparison.reviewStatus === 'pass') counters.reviewPassCount++;
-        if (comparison.reviewStatus === 'needs_review') counters.reviewNeedsReviewCount++;
+        if (comparison.reviewStatus === 'needsReview') counters.reviewNeedsReviewCount++;
         if (comparison.reviewStatus === 'fail') counters.reviewFailCount++;
       }
       

@@ -102,4 +102,8 @@ Visual Analysis differentiates between structural failures and quality warnings:
 - **`generationError`**: The model API call failed before returning any content. This can be caused by quota limits, authentication errors, provider outages, or unsupported image formats. Look at `generationDiagnostics` for status codes and retry history.
 - **`jsonParseError`**: The model executed successfully and returned text, but the text could not be parsed as valid JSON (even after markdown extraction). Look at `parseDiagnostics` for the raw output preview.
 - **Schema Validation Failure**: The JSON was parsed successfully, but the resulting object failed to validate against the Zod schema. (Typically handled as a system error in the current milestone).
-- **Quality Warnings (`qualityIssues`)**: The schema was valid, but the content triggered domain-specific quality rules (e.g. missing `visibleText` in a document photo). This does not fail the execution (`success: true`), but provides warnings to the user.
+- **Quality Warnings (`qualityIssues`)**: The schema was valid, but the content triggered domain-specific quality rules. This does not fail the execution (`success: true`), but provides warnings to the user.
+    - `EXPERIMENTAL_MODEL`: The model used is known to be experimental or unsupported for production visual analysis, or is a non-Gemini provider.
+    - `PROMPTED_JSON_MODE`: The execution relied on raw text generation with JSON instructions instead of native structured outputs.
+    - `VISIBLE_TEXT_NOT_INDEXED`: Important visible text does not appear in the indexing keywords.
+    - `VISIBLE_TEXT_PRESENT_BUT_NOT_KEYWORD`: Visible text is present but not in keywords (likely noise, info-only).

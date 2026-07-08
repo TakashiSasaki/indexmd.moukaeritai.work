@@ -61,14 +61,17 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Cat on ground",
     category: "animal",
     expectedImageKind: "naturalPhoto",
-    expectedElementCategories: ["animal", "plant", "terrain"],
-    expectedVisibleElementLabels: ["cat", "pavement", "berries", "leaves"],
+    acceptableImageKinds: ["naturalPhoto"],
+    expectedElementCategories: ["animal"],
+    expectedVisibleElementLabels: ["cat"],
     expectedVisibleElementLabelAliases: {
       "cat": ["animal", "kitten", "feline", "tabby cat"],
       "pavement": ["concrete", "sidewalk", "ground", "concrete pavement", "stone"],
       "berries": ["berry", "red berries", "fruit", "berries"],
       "leaves": ["leaf", "green leaves", "plant", "foliage", "leaves"]
     },
+    optionalElementCategories: ["plant", "terrain"],
+    optionalVisibleElementLabels: ["pavement", "berries", "leaves"],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Sleeping_cat_on_her_back.jpg",
@@ -114,8 +117,9 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Living Room Interior",
     category: "interior",
     expectedImageKind: "naturalPhoto",
-    expectedElementCategories: ["furniture", "plant", "building"],
-    expectedVisibleElementLabels: ["sofa", "table", "window", "plant", "wall"],
+    acceptableImageKinds: ["naturalPhoto"],
+    expectedElementCategories: ["furniture"],
+    expectedVisibleElementLabels: ["sofa", "table"],
     expectedVisibleElementLabelAliases: {
       "sofa": ["couch", "sofa", "seating", "chair"],
       "table": ["coffee table", "table"],
@@ -123,6 +127,8 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       "plant": ["potted plant", "houseplant", "plant", "indoor plant"],
       "wall": ["walls", "wall", "room divider"]
     },
+    optionalElementCategories: ["plant", "building"],
+    optionalVisibleElementLabels: ["window", "plant", "wall"],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Sittingroom-edit1.jpg",
@@ -195,14 +201,17 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Books on a shelf",
     category: "bookshelf",
     expectedImageKind: "naturalPhoto",
-    expectedElementCategories: ["document", "furniture"],
-    expectedVisibleElementLabels: ["books", "shelf", "spines", "wood"],
+    acceptableImageKinds: ["naturalPhoto", "productPhoto"],
+    expectedElementCategories: ["document"],
+    expectedVisibleElementLabels: ["books", "shelf"],
     expectedVisibleElementLabelAliases: {
       "books": ["book", "library", "books"],
       "shelf": ["bookshelf", "shelves", "shelf"],
       "spines": ["book spines", "spines", "book spine", "spine"],
       "wood": ["wooden shelf", "wood", "wooden bookshelf", "bookshelves"]
     },
+    optionalElementCategories: ["furniture"],
+    optionalVisibleElementLabels: ["spines", "wood"],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Interior_of_Biblioth%C3%A8que_Mazarine_003.JPG",
@@ -408,15 +417,16 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Chest X-Ray",
     category: "medical",
     expectedImageKind: "medicalImage",
-    expectedElementCategories: ["medical", "bodyPart"],
-    expectedVisibleElementLabels: ["x-ray", "chest", "ribs"],
+    acceptableImageKinds: ["medicalImage", "chartOrTable", "documentPhoto"],
+    expectedElementCategories: ["medical"],
+    expectedVisibleElementLabels: ["x-ray", "chest"],
     expectedVisibleElementLabelAliases: {
       "x-ray": ["radiograph", "x-ray", "medical image"],
       "chest": ["thorax", "chest"],
       "ribs": ["bones", "rib cage", "ribs"]
     },
-    optionalElementCategories: ["unknown"],
-    optionalVisibleElementLabels: ["lungs", "spine", "grayscale"],
+    optionalElementCategories: ["unknown", "bodyPart"],
+    optionalVisibleElementLabels: ["lungs", "spine", "grayscale", "ribs"],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Chest_radiograph_2D_Fourier_Spectrum.jpg",

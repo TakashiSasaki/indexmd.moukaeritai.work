@@ -11,7 +11,7 @@ export interface VisualQualityReport {
 
 export function evaluateVisualAnalysisQuality(
   result: VisualAnalysisResultV1 | VisualAnalysisResultV2 | null, 
-  context?: { modelName?: string; providerFamily?: string; effectiveStructuredExecutionMode?: string }
+  context?: { modelName?: string; providerFamily?: string; effectiveStructuredExecutionMode?: string; visualRecommendation?: string }
 ): VisualQualityReport {
   if (!result) {
     return { status: "invalid", score: 0, issues: [{ code: "NULL_RESULT", message: "Result is null", severity: "blocking" }], experimentalModel: false };
@@ -20,11 +20,20 @@ export function evaluateVisualAnalysisQuality(
   const issues: VisualQualityReport["issues"] = [];
   let score = 100;
   
-  const isExperimental = context?.providerFamily !== "gemini" || context?.effectiveStructuredExecutionMode === "promptedJson";
+  const isExperimentalModel =
+    context?.visualRecommendation === "experimental" ||
+    context?.visualRecommendation === "unsupported" ||
+    context?.providerFamily !== "gemini";
 
-  if (isExperimental) {
+  const isPromptedJsonMode =
+    context?.effectiveStructuredExecutionMode === "promptedJson";
+
+  if (isExperimentalModel) {
     score -= 10;
-    issues.push({ code: "EXPERIMENTAL_MODEL", message: "Experimental model or prompted JSON mode used for visual analysis.", severity: "info" });
+    issues.push({ code: "EXPERIMENTAL_MODEL", message: "Experimental model or non-Gemini provider used for visual analysis.", severity: "info" });
+  } else if (isPromptedJsonMode) {
+    score -= 10;
+    issues.push({ code: "PROMPTED_JSON_MODE", message: "Prompted JSON mode used instead of native schema.", severity: "info" });
   }
 
   const vi = result.visualInfo;
@@ -213,12 +222,20 @@ export function evaluateVisualAnalysisQuality(
     }
 
     if (unindexedText.length > 0) {
-      // Don't deduct score, just info
-      issues.push({
-        code: "VISIBLE_TEXT_NOT_INDEXED",
-        message: "Some short visible text does not appear in indexing keywords.",
-        severity: "info"
-      });
+      const isTextHeavy = ['documentPhoto', 'receiptPhoto', 'screenshot', 'packageImage', 'chartOrTable', 'mapImage'].includes(vi?.imageKind || "");
+      if (isTextHeavy) {
+        issues.push({
+          code: "VISIBLE_TEXT_NOT_INDEXED",
+          message: "Some short visible text does not appear in indexing keywords. (May be missing important terms)",
+          severity: "info"
+        });
+      } else {
+        issues.push({
+          code: "VISIBLE_TEXT_PRESENT_BUT_NOT_KEYWORD",
+          message: "Some visible text is present but not included in indexing keywords. (Likely noise or background text)",
+          severity: "info"
+        });
+      }
     }
   }
 
@@ -252,6 +269,6 @@ export function evaluateVisualAnalysisQuality(
     status,
     score: Math.max(0, Math.round(score)),
     issues,
-    experimentalModel: isExperimental
+    experimentalModel: isExperimentalModel
   };
 }

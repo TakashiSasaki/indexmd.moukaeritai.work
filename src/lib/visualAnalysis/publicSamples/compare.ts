@@ -6,6 +6,38 @@ export interface ComparisonResult {
   details?: string;
 }
 
+export function summarizeExpectedComparisonCounts(items: any[]) {
+  let expectedComparisonPassCount = 0;
+  let expectedComparisonWarningCount = 0;
+  let expectedComparisonFailCount = 0;
+
+  for (const item of items) {
+    const status = item.comparison?.overallStatus;
+    if (status === "pass") expectedComparisonPassCount++;
+    else if (status === "warning") expectedComparisonWarningCount++;
+    else if (status === "fail") expectedComparisonFailCount++;
+    else if (!item.success) expectedComparisonFailCount++;
+  }
+
+  return { expectedComparisonPassCount, expectedComparisonWarningCount, expectedComparisonFailCount };
+}
+
+export function summarizeReviewCounts(items: any[]) {
+  let reviewPassCount = 0;
+  let reviewNeedsReviewCount = 0;
+  let reviewFailCount = 0;
+
+  for (const item of items) {
+    const status = item.comparison?.reviewStatus;
+    if (status === "pass") reviewPassCount++;
+    else if (status === "needsReview") reviewNeedsReviewCount++;
+    else if (status === "fail") reviewFailCount++;
+    else if (!item.success) reviewFailCount++;
+  }
+
+  return { reviewPassCount, reviewNeedsReviewCount, reviewFailCount };
+}
+
 export function compareExpectedImageKind(sample: any, detectedKind?: string): ComparisonResult {
   const expectedImageKind = sample.expectedImageKind || sample.imageKind;
   if (!detectedKind) return { status: "diverged", details: "No image kind detected." };
@@ -13,8 +45,13 @@ export function compareExpectedImageKind(sample: any, detectedKind?: string): Co
   if (detectedKind === expectedImageKind) {
     return { status: "exact" };
   }
+
+  // Use acceptableImageKinds if defined in sample metadata
+  if (sample.acceptableImageKinds?.includes(detectedKind)) {
+    return { status: "acceptable", details: `Expected ${expectedImageKind}, accepted ${detectedKind}` };
+  }
   
-  // Some acceptable overlaps
+  // Legacy hard-coded acceptable overlaps
   if (expectedImageKind === 'productPhoto' && detectedKind === 'packageImage') return { status: "acceptable" };
   if (expectedImageKind === 'documentPhoto' && detectedKind === 'handwrittenNote') return { status: "acceptable" };
   if (expectedImageKind === 'documentPhoto' && detectedKind === 'receiptPhoto') return { status: "acceptable" };
@@ -22,7 +59,7 @@ export function compareExpectedImageKind(sample: any, detectedKind?: string): Co
   return { status: "diverged", details: `Expected ${expectedImageKind}, got ${detectedKind}` };
 }
 
-export function compareExpectedCategories(sample: any, detectedCategories: string[]): {
+export function compareExpectedCategories(sample: any, detectedCategories: string[], detectedText: string[] = []): {
   exact: string[];
   acceptable: string[];
   missing: string[];
@@ -80,6 +117,21 @@ export function compareExpectedCategories(sample: any, detectedCategories: strin
   // Phase 2: Soft equivalence / alternatives
   for (const expected of unresolvedExpected) {
     let foundMatch = false;
+
+    // Check textRegion soft equivalence via detected text presence
+    if (expected === "textRegion") {
+      if (detectedText.length > 0) {
+        acceptable.push(expected);
+        matches.push({
+          expected,
+          detected: "(visible text extracted)",
+          status: "acceptable",
+          method: "softEquivalence"
+        });
+        foundMatch = true;
+        continue;
+      }
+    }
 
     // Check landscapeElement soft equivalence
     if (expected === "landscapeElement") {
@@ -707,6 +759,7 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
   const resolvedSample = {
     ...sample,
     expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind ?? (sample as any).imageKind,
+    acceptableImageKinds: expectedMetadata?.acceptableImageKinds ?? sample.acceptableImageKinds ?? (sample as any).acceptableImageKinds ?? [],
     expectedElementCategories: expectedMetadata?.elementCategories ?? sample.expectedElementCategories ?? (sample as any).elementCategories ?? [],
     expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels ?? (sample as any).visibleElementLabels ?? [],
     expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases ?? (sample as any).visibleElementLabelAliases ?? {},
@@ -725,12 +778,12 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
   const kindResult = compareExpectedImageKind(sample, kindDetected);
   
   const detectedCategories = vi?.visibleElements?.map((el: any) => el.category) || [];
-  const categoriesResult = compareExpectedCategories(sample, detectedCategories);
+  const detectedText = vi?.visibleText?.map((txt: any) => typeof txt === 'string' ? txt : txt?.text || "") || [];
+  const categoriesResult = compareExpectedCategories(sample, detectedCategories, detectedText);
   
   const detectedLabels = vi?.visibleElements?.map((el: any) => el.label) || [];
   const detectedKeywords = result.visualAnalysis?.indexing?.keywords?.map((kw: any) => typeof kw === 'string' ? kw : kw?.value || "") || [];
   const detectedAttributes = vi?.visibleElements?.flatMap((el: any) => el.attributes || []) || [];
-  const detectedText = vi?.visibleText?.map((txt: any) => typeof txt === 'string' ? txt : txt?.text || "") || [];
 
   const labelsResult = compareExpectedLabels(sample, {
     labels: detectedLabels,
@@ -859,7 +912,7 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
       expectedVisibleText: sample.optionalVisibleText || []
     };
 
-    const optCategoriesResult = compareExpectedCategories(optionalSampleDummy, detectedCategories);
+    const optCategoriesResult = compareExpectedCategories(optionalSampleDummy, detectedCategories, detectedText);
     const optLabelsResult = compareExpectedLabels(optionalSampleDummy, {
       labels: detectedLabels,
       attributes: detectedAttributes,

@@ -1,5 +1,7 @@
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from "./batchTypes";
 
+import { summarizeExpectedComparisonCounts, summarizeReviewCounts } from "./compare";
+
 export function isNetworkFailure(item: PublicSampleBatchRunItem): boolean {
   return !item.success && item.failureKind === 'networkError';
 }
@@ -71,6 +73,19 @@ export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummar
 export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatchRunSummary) {
   const compactItems = batchSummary.items.map(item => buildCompactItem(item));
 
+  const expectedCounts = summarizeExpectedComparisonCounts(batchSummary.items);
+  const reviewCounts = summarizeReviewCounts(batchSummary.items);
+
+  const expectedConsistent = 
+    expectedCounts.expectedComparisonPassCount === batchSummary.expectedComparisonPassCount &&
+    expectedCounts.expectedComparisonWarningCount === batchSummary.expectedComparisonWarningCount &&
+    expectedCounts.expectedComparisonFailCount === batchSummary.expectedComparisonFailCount;
+
+  const reviewConsistent = 
+    reviewCounts.reviewPassCount === batchSummary.reviewPassCount &&
+    reviewCounts.reviewNeedsReviewCount === batchSummary.reviewNeedsReviewCount &&
+    reviewCounts.reviewFailCount === batchSummary.reviewFailCount;
+
   const report = {
     reportKind: "visualAnalysisPublicSampleBatchDiagnostic",
     generatedAt: new Date().toISOString(),
@@ -88,6 +103,34 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
     reviewPassCount: batchSummary.reviewPassCount,
     reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
     reviewFailCount: batchSummary.reviewFailCount,
+    counterConsistency: {
+      expectedComparison: {
+        declared: {
+          pass: batchSummary.expectedComparisonPassCount || 0,
+          warning: batchSummary.expectedComparisonWarningCount || 0,
+          fail: batchSummary.expectedComparisonFailCount || 0
+        },
+        recomputed: {
+          pass: expectedCounts.expectedComparisonPassCount,
+          warning: expectedCounts.expectedComparisonWarningCount,
+          fail: expectedCounts.expectedComparisonFailCount
+        },
+        consistent: expectedConsistent
+      },
+      review: {
+        declared: {
+          pass: batchSummary.reviewPassCount || 0,
+          needsReview: batchSummary.reviewNeedsReviewCount || 0,
+          fail: batchSummary.reviewFailCount || 0
+        },
+        recomputed: {
+          pass: reviewCounts.reviewPassCount,
+          needsReview: reviewCounts.reviewNeedsReviewCount,
+          fail: reviewCounts.reviewFailCount
+        },
+        consistent: reviewConsistent
+      }
+    },
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
     parseFailureSummary: buildParseFailureSummary(batchSummary.items),
@@ -96,6 +139,7 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
     rateLimitSummary: buildRateLimitSummary(batchSummary.items),
     providerQuotaSummary: buildProviderQuotaSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
+    textHeavyEvaluation: buildTextHeavyEvaluationSummary(batchSummary.items),
     items: compactItems
   };
 
@@ -108,6 +152,19 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
 
 export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRunSummary) {
   const summaryItems = batchSummary.items.map(item => buildSummaryItem(item));
+
+  const expectedCounts = summarizeExpectedComparisonCounts(batchSummary.items);
+  const reviewCounts = summarizeReviewCounts(batchSummary.items);
+
+  const expectedConsistent = 
+    expectedCounts.expectedComparisonPassCount === batchSummary.expectedComparisonPassCount &&
+    expectedCounts.expectedComparisonWarningCount === batchSummary.expectedComparisonWarningCount &&
+    expectedCounts.expectedComparisonFailCount === batchSummary.expectedComparisonFailCount;
+
+  const reviewConsistent = 
+    reviewCounts.reviewPassCount === batchSummary.reviewPassCount &&
+    reviewCounts.reviewNeedsReviewCount === batchSummary.reviewNeedsReviewCount &&
+    reviewCounts.reviewFailCount === batchSummary.reviewFailCount;
 
   const report = {
     reportKind: "visualAnalysisPublicSampleBatchSummary",
@@ -126,6 +183,34 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
     reviewPassCount: batchSummary.reviewPassCount,
     reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
     reviewFailCount: batchSummary.reviewFailCount,
+    counterConsistency: {
+      expectedComparison: {
+        declared: {
+          pass: batchSummary.expectedComparisonPassCount || 0,
+          warning: batchSummary.expectedComparisonWarningCount || 0,
+          fail: batchSummary.expectedComparisonFailCount || 0
+        },
+        recomputed: {
+          pass: expectedCounts.expectedComparisonPassCount,
+          warning: expectedCounts.expectedComparisonWarningCount,
+          fail: expectedCounts.expectedComparisonFailCount
+        },
+        consistent: expectedConsistent
+      },
+      review: {
+        declared: {
+          pass: batchSummary.reviewPassCount || 0,
+          needsReview: batchSummary.reviewNeedsReviewCount || 0,
+          fail: batchSummary.reviewFailCount || 0
+        },
+        recomputed: {
+          pass: reviewCounts.reviewPassCount,
+          needsReview: reviewCounts.reviewNeedsReviewCount,
+          fail: reviewCounts.reviewFailCount
+        },
+        consistent: reviewConsistent
+      }
+    },
     generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
     apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
     parseFailureSummary: buildParseFailureSummary(batchSummary.items),
@@ -134,6 +219,7 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
     rateLimitSummary: buildRateLimitSummary(batchSummary.items),
     providerQuotaSummary: buildProviderQuotaSummary(batchSummary.items),
     inputSizeSummary: buildInputSizeSummary(batchSummary.items),
+    textHeavyEvaluation: buildTextHeavyEvaluationSummary(batchSummary.items),
     items: summaryItems
   };
 
@@ -931,4 +1017,31 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
   }
   
   return summary;
+}
+export function buildTextHeavyEvaluationSummary(items: any[]) {
+  let expectedVisibleTextTotal = 0;
+  let visibleTextCovered = 0;
+  let textMissing = 0;
+  let itemsWithTextExpectation = 0;
+  
+  for (const item of items) {
+    const coverage = item.comparison?.coverage?.visibleText;
+    if (coverage && coverage.expectedTotal > 0) {
+      itemsWithTextExpectation++;
+      expectedVisibleTextTotal += coverage.expectedTotal;
+      visibleTextCovered += coverage.covered;
+      textMissing += coverage.missing;
+    }
+  }
+
+  const ratio = expectedVisibleTextTotal > 0 ? parseFloat((visibleTextCovered / expectedVisibleTextTotal).toFixed(2)) : 1.0;
+
+  return {
+    itemsWithTextExpectation,
+    expectedVisibleTextTotal,
+    visibleTextCovered,
+    textMissing,
+    ratio,
+    mediaResolutionRequested: items[0]?.generationDiagnostics?.mediaResolution || "unknown"
+  };
 }

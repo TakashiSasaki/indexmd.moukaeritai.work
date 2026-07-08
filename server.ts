@@ -2438,7 +2438,8 @@ export async function analyzePublicSample(options: {
       const qReport = evaluateVisualAnalysisQuality(normalized, {
         modelName: targetModel,
         providerFamily: isGemma ? "gemma" : "gemini",
-        effectiveStructuredExecutionMode: mode
+        effectiveStructuredExecutionMode: mode,
+        visualRecommendation: getVisualModelCapability(targetModel).recommendation
       });
       qualityStatus = qReport.status;
       qualityScore = qReport.score;
@@ -2929,7 +2930,8 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
       const qReport = evaluateVisualAnalysisQuality(normalized, {
         modelName: targetModel,
         providerFamily: isGemma ? "gemma" : "gemini",
-        effectiveStructuredExecutionMode: mode
+        effectiveStructuredExecutionMode: mode,
+        visualRecommendation: getVisualModelCapability(targetModel).recommendation
       });
       qualityStatus = qReport.status;
       qualityScore = qReport.score;
