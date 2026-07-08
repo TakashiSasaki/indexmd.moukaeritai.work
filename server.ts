@@ -56,6 +56,7 @@ import {
   buildBatchDiagnosticReportForChat, 
   buildFailuresOnlyReport 
 } from './src/lib/visualAnalysis/publicSamples/reportBuilder';
+import { buildPublicSampleExpectedMetadata } from './src/lib/visualAnalysis/publicSamples/expectedMetadata';
 import { jobToSummary } from './src/lib/visualAnalysis/serverJobs/jobAdapters';
 
 dotenv.config();
@@ -1702,22 +1703,23 @@ app.get("/api/visual/health", (req, res) => {
 });
 
 app.get("/api/visual/public-samples", (req, res) => {
-  const samples = getAllPublicSamples().map(s => ({
-    id: s.id,
-    title: s.title,
-    category: s.category,
-    expectedImageKind: s.expectedImageKind,
-    expectedElementCategories: s.expectedElementCategories,
-    expectedVisibleElementLabels: s.expectedVisibleElementLabels,
-    thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`,
-    licenseKind: s.source.licenseKind,
-    licenseName: s.source.licenseName,
-    attributionText: s.source.attributionText,
-    sourcePageUrl: s.source.pageUrl,
-    sourceProvider: s.source.provider,
-    sourceKind: s.source.provider === "localFixture" ? "synthetic" : "external",
-    isSynthetic: s.source.provider === "localFixture"
-  }));
+  const samples = getAllPublicSamples().map(s => {
+    const expectedMetadata = buildPublicSampleExpectedMetadata(s);
+    return {
+      id: s.id,
+      title: s.title,
+      category: s.category,
+      ...expectedMetadata,
+      thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`,
+      licenseKind: s.source.licenseKind,
+      licenseName: s.source.licenseName,
+      attributionText: s.source.attributionText,
+      sourcePageUrl: s.source.pageUrl,
+      sourceProvider: s.source.provider,
+      sourceKind: s.source.provider === "localFixture" ? "synthetic" : "external",
+      isSynthetic: s.source.provider === "localFixture"
+    };
+  });
   res.json(samples);
 });
 
@@ -1945,15 +1947,7 @@ export async function analyzePublicSample(options: {
             attributionText: sample.source.attributionText,
             sourcePageUrl: sample.source.pageUrl
           },
-          expectedMetadata: {
-            imageKind: sample.expectedImageKind,
-            elementCategories: sample.expectedElementCategories,
-            elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-            visibleElementLabels: sample.expectedVisibleElementLabels,
-            visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-            visibleText: sample.expectedVisibleText,
-            notes: sample.expectedNotes
-          },
+          expectedMetadata: buildPublicSampleExpectedMetadata(sample),
           requestPreview,
           inputDiagnostics: {
             imageVariant: "analysis",
@@ -2147,15 +2141,7 @@ export async function analyzePublicSample(options: {
           },
           analysisRun: runMetadata,
           evaluation: {
-            expectedMetadata: {
-              imageKind: sample.expectedImageKind,
-              elementCategories: sample.expectedElementCategories,
-              elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-              visibleElementLabels: sample.expectedVisibleElementLabels,
-              visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-              visibleText: sample.expectedVisibleText,
-              notes: sample.expectedNotes
-            }
+            expectedMetadata: buildPublicSampleExpectedMetadata(sample)
           },
           diagnostics: {
             input: fullInputDiagnostics,
@@ -2174,15 +2160,7 @@ export async function analyzePublicSample(options: {
           attributionText: sample.source.attributionText,
           sourcePageUrl: sample.source.pageUrl
         },
-        expectedMetadata: {
-          imageKind: sample.expectedImageKind,
-          elementCategories: sample.expectedElementCategories,
-          elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-          visibleElementLabels: sample.expectedVisibleElementLabels,
-          visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-          visibleText: sample.expectedVisibleText,
-          notes: sample.expectedNotes
-        },
+        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
         analysisRun: runMetadata,
         parseDiagnostics: parseRes.diagnostics,
         inputDiagnostics: {
@@ -2258,15 +2236,7 @@ export async function analyzePublicSample(options: {
           visualAnalysis: parsed,
           analysisRun: runMetadata,
           evaluation: {
-            expectedMetadata: {
-              imageKind: sample.expectedImageKind,
-              elementCategories: sample.expectedElementCategories,
-              elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-              visibleElementLabels: sample.expectedVisibleElementLabels,
-              visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-              visibleText: sample.expectedVisibleText,
-              notes: sample.expectedNotes
-            },
+            expectedMetadata: buildPublicSampleExpectedMetadata(sample),
             qualityStatus: "excellent",
             qualityScore: 100,
             qualityIssues: []
@@ -2286,15 +2256,7 @@ export async function analyzePublicSample(options: {
           attributionText: sample.source.attributionText,
           sourcePageUrl: sample.source.pageUrl
         },
-        expectedMetadata: {
-          imageKind: sample.expectedImageKind,
-          elementCategories: sample.expectedElementCategories,
-          elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-          visibleElementLabels: sample.expectedVisibleElementLabels,
-          visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-          visibleText: sample.expectedVisibleText,
-          notes: sample.expectedNotes
-        },
+        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
         visualAnalysis: parsed,
         analysisRun: runMetadata,
         parseDiagnostics: parseDiagnosticsLight,
@@ -2492,15 +2454,7 @@ export async function analyzePublicSample(options: {
         visualAnalysis: normalized,
         analysisRun: runMetadata,
         evaluation: {
-          expectedMetadata: {
-            imageKind: sample.expectedImageKind,
-            elementCategories: sample.expectedElementCategories,
-            elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-            visibleElementLabels: sample.expectedVisibleElementLabels,
-            visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-            visibleText: sample.expectedVisibleText,
-            notes: sample.expectedNotes
-          },
+          expectedMetadata: buildPublicSampleExpectedMetadata(sample),
           qualityStatus,
           qualityScore,
           qualityIssues
@@ -2522,15 +2476,7 @@ export async function analyzePublicSample(options: {
         attributionText: sample.source.attributionText,
         sourcePageUrl: sample.source.pageUrl
       },
-      expectedMetadata: {
-        imageKind: sample.expectedImageKind,
-        elementCategories: sample.expectedElementCategories,
-        elementCategoryAlternatives: sample.expectedElementCategoryAlternatives,
-        visibleElementLabels: sample.expectedVisibleElementLabels,
-        visibleElementLabelAliases: sample.expectedVisibleElementLabelAliases,
-        visibleText: sample.expectedVisibleText,
-        notes: sample.expectedNotes
-      },
+      expectedMetadata: buildPublicSampleExpectedMetadata(sample),
       visualAnalysis: normalized,
       analysisRun: runMetadata,
       parseDiagnostics: parseDiagnosticsLight,

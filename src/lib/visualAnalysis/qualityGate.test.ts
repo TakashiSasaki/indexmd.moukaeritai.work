@@ -1,5 +1,6 @@
-import { describe, it } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert';
+import { describe, it } from 'node:test';
 import { evaluateVisualAnalysisQuality } from './qualityGate';
 
 describe('evaluateVisualAnalysisQuality', () => {
@@ -166,5 +167,56 @@ describe('evaluateVisualAnalysisQuality', () => {
     };
     const rep = evaluateVisualAnalysisQuality(result);
     assert.ok(!rep.issues.some(i => i.code === "POSSIBLE_ATTRIBUTES_MISSING"));
+  });
+});
+
+describe('evaluateVisualAnalysisQuality extra cases', () => {
+  test('non-text-heavy image with unindexed text produces VISIBLE_TEXT_PRESENT_BUT_NOT_KEYWORD', () => {
+    const analysis = {
+      schemaVersion: "visual-analysis-record.v0.1.0",
+      visualInfo: {
+        imageKind: "naturalPhoto",
+        visibleText: [{ text: "Caution" }]
+      },
+      indexing: {
+        keywords: []
+      }
+    } as any;
+    
+    const status = evaluateVisualAnalysisQuality(analysis, { modelName: "gemini-3.5-flash", providerFamily: "gemini", effectiveStructuredExecutionMode: "nativeSchema" });
+    assert.ok(status.issues.some(i => i.code === "VISIBLE_TEXT_PRESENT_BUT_NOT_KEYWORD"));
+  });
+
+  test('text-heavy image with unindexed text produces VISIBLE_TEXT_NOT_INDEXED', () => {
+    const analysis = {
+      schemaVersion: "visual-analysis-record.v0.1.0",
+      visualInfo: {
+        imageKind: "documentPhoto",
+        visibleText: [{ text: "Important Document" }]
+      },
+      indexing: {
+        keywords: []
+      }
+    } as any;
+    
+    const status = evaluateVisualAnalysisQuality(analysis, { modelName: "gemini-3.5-flash", providerFamily: "gemini", effectiveStructuredExecutionMode: "nativeSchema" });
+    assert.ok(status.issues.some(i => i.code === "VISIBLE_TEXT_NOT_INDEXED"));
+  });
+
+  test('recommended Gemini + promptedJson produces PROMPTED_JSON_MODE', () => {
+    const analysis = {
+      schemaVersion: "visual-analysis-record.v0.1.0",
+      visualInfo: {
+        imageKind: "naturalPhoto",
+        visibleText: []
+      },
+      indexing: {
+        keywords: []
+      }
+    } as any;
+    
+    const status = evaluateVisualAnalysisQuality(analysis, { modelName: "gemini-3.5-flash", providerFamily: "gemini", effectiveStructuredExecutionMode: "promptedJson" });
+    assert.ok(status.issues.some(i => i.code === "PROMPTED_JSON_MODE"));
+    assert.strictEqual(status.issues.some(i => i.code === "EXPERIMENTAL_MODEL"), false);
   });
 });

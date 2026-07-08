@@ -1023,14 +1023,60 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
   let visibleTextCovered = 0;
   let textMissing = 0;
   let itemsWithTextExpectation = 0;
+  let possibleResolutionLimitedCount = 0;
+  
+  let highRequested = 0;
+  let mediumRequested = 0;
+  let unknown = 0;
+
+  const samples = [];
   
   for (const item of items) {
     const coverage = item.comparison?.coverage?.visibleText;
+    
+    // Attempt to read requested resolution
+    const mediaResolutionRequested = 
+      item.analysisRun?.metadata?.generationConfig?.mediaResolutionRequested ||
+      item.analysisRun?.generationConfig?.mediaResolutionRequested ||
+      item.responseRaw?.analysisRun?.metadata?.generationConfig?.mediaResolutionRequested ||
+      item.responseRaw?.analysisRun?.generationConfig?.mediaResolutionRequested ||
+      "unknown";
+
+    if (mediaResolutionRequested === "HIGH") highRequested++;
+    else if (mediaResolutionRequested === "MEDIUM") mediumRequested++;
+    else unknown++;
+    
     if (coverage && coverage.expectedTotal > 0) {
       itemsWithTextExpectation++;
       expectedVisibleTextTotal += coverage.expectedTotal;
       visibleTextCovered += coverage.covered;
       textMissing += coverage.missing;
+
+      const possibleResolutionLimited = coverage.missing > 0 && mediaResolutionRequested !== "HIGH";
+      if (possibleResolutionLimited) {
+        possibleResolutionLimitedCount++;
+      }
+
+      samples.push({
+        sampleId: item.sampleMetadata?.id || item.sampleId,
+        title: item.sampleMetadata?.title,
+        imageKind: item.expectedMetadata?.imageKind || item.sampleMetadata?.expectedImageKind,
+        expectedVisibleTextTotal: coverage.expectedTotal,
+        visibleTextCovered: coverage.covered,
+        visibleTextMissing: coverage.missing,
+        visibleTextCoverageRatio: coverage.ratio,
+
+        mediaResolutionRequested,
+        mediaResolutionApplied: item.generationDiagnostics?.mediaResolutionApplied,
+        mediaResolutionReason: item.generationDiagnostics?.mediaResolutionReason,
+
+        processedDimensions: item.inputDiagnostics?.processedDimensions || item.inputDiagnostics?.dimensions,
+        processedByteLength: item.inputDiagnostics?.processedByteLength || item.inputDiagnostics?.byteLength,
+        analysisTargetLongEdge: item.inputDiagnostics?.analysisTargetLongEdge,
+
+        possibleResolutionLimited,
+        reasons: item.comparison?.reviewReasons || []
+      });
     }
   }
 
@@ -1042,6 +1088,12 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
     visibleTextCovered,
     textMissing,
     ratio,
-    mediaResolutionRequested: items[0]?.generationDiagnostics?.mediaResolution || "unknown"
+    mediaResolution: {
+      highRequested,
+      mediumRequested,
+      unknown
+    },
+    possibleResolutionLimitedCount,
+    samples
   };
 }

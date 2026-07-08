@@ -1,5 +1,7 @@
+import { test, describe } from 'node:test';
+import assert from 'node:assert';
+import { buildBatchSummaryReportForChat } from './reportBuilder';
 import { describe, it } from "node:test";
-import assert from "node:assert";
 import { 
   isProviderRateLimitFailure, 
   isProviderQuotaFailure,
@@ -83,5 +85,69 @@ describe("Visual Analysis Report Classification Helpers", () => {
       }
     };
     assert.strictEqual(isProviderQuotaFailure(item), true);
+  });
+});
+
+describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
+  test('buildBatchSummaryReportForChat includes counterConsistency and textHeavyEvaluation', () => {
+    const dummyBatchSummary = {
+      modelName: "gemini-3.5-flash",
+      jsonMode: "native_schema",
+      total: 1,
+      successCount: 1,
+      failureCount: 0,
+      validCount: 1,
+      validLowQualityCount: 0,
+      invalidJsonCount: 0,
+      expectedComparisonPassCount: 1,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 0,
+      reviewPassCount: 1,
+      reviewNeedsReviewCount: 0,
+      reviewFailCount: 0,
+      items: [
+        {
+          sampleId: "test-1",
+          success: true,
+          comparison: {
+            overallStatus: "pass",
+            reviewStatus: "pass",
+            coverage: {
+              visibleText: { expectedTotal: 10, covered: 5, missing: 5, ratio: 0.5 }
+            }
+          },
+          analysisRun: { metadata: { generationConfig: { mediaResolutionRequested: "MEDIUM" } } }
+        }
+      ]
+    } as any;
+
+    const report = buildBatchSummaryReportForChat(dummyBatchSummary);
+    assert.strictEqual(report.counterConsistency, true);
+    assert.ok(report.textHeavyEvaluation);
+    assert.strictEqual(report.textHeavyEvaluation.itemsWithTextExpectation, 1);
+    assert.strictEqual(report.textHeavyEvaluation.visibleTextCovered, 5);
+    assert.strictEqual(report.textHeavyEvaluation.ratio, 0.5);
+    assert.strictEqual(report.textHeavyEvaluation.mediaResolution.mediumRequested, 1);
+  });
+
+  test('counterConsistency detects mismatch in review status counts', () => {
+    const dummyBatchSummary = {
+      total: 1,
+      reviewPassCount: 0, // Declared 0 pass
+      reviewNeedsReviewCount: 0,
+      reviewFailCount: 0,
+      items: [
+        {
+          sampleId: "test-1",
+          success: true,
+          comparison: {
+            reviewStatus: "pass" // Actually 1 pass
+          }
+        }
+      ]
+    } as any;
+
+    const report = buildBatchSummaryReportForChat(dummyBatchSummary);
+    assert.strictEqual(report.counterConsistency, false);
   });
 });

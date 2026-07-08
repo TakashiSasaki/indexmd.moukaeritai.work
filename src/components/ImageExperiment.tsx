@@ -392,10 +392,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           category: (matchedSample?.category || "other") as any,
           source: (matchedSample?.source || "unknown") as any,
           expectedImageKind: data.expectedMetadata.imageKind,
-          expectedElementCategories: data.expectedMetadata.elementCategories,
-          expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels,
-          expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases,
-          expectedVisibleText: data.expectedMetadata.visibleText
+          acceptableImageKinds: data.expectedMetadata.acceptableImageKinds || [],
+          expectedElementCategories: data.expectedMetadata.elementCategories || [],
+          expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels || [],
+          expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases || {},
+          expectedVisibleText: data.expectedMetadata.visibleText || [],
+          optionalElementCategories: data.expectedMetadata.optionalElementCategories || [],
+          optionalVisibleElementLabels: data.expectedMetadata.optionalVisibleElementLabels || [],
+          optionalVisibleElementLabelAliases: data.expectedMetadata.optionalVisibleElementLabelAliases || {},
+          optionalVisibleText: data.expectedMetadata.optionalVisibleText || []
         };
         try {
           const comp = evaluateSampleComparison(comparisonSample, data);
@@ -821,10 +826,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               category: (selectedSample?.category || "other") as any,
               source: (selectedSample?.source || "unknown") as any,
               expectedImageKind: data.expectedMetadata.imageKind,
-              expectedElementCategories: data.expectedMetadata.elementCategories,
-              expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels,
-              expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases,
-              expectedVisibleText: data.expectedMetadata.visibleText
+              acceptableImageKinds: data.expectedMetadata.acceptableImageKinds || [],
+              expectedElementCategories: data.expectedMetadata.elementCategories || [],
+              expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels || [],
+              expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases || {},
+              expectedVisibleText: data.expectedMetadata.visibleText || [],
+              optionalElementCategories: data.expectedMetadata.optionalElementCategories || [],
+              optionalVisibleElementLabels: data.expectedMetadata.optionalVisibleElementLabels || [],
+              optionalVisibleElementLabelAliases: data.expectedMetadata.optionalVisibleElementLabelAliases || {},
+              optionalVisibleText: data.expectedMetadata.optionalVisibleText || []
             };
             try {
               const comp = evaluateSampleComparison(comparisonSample, data);
@@ -1451,10 +1461,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 const comparisonSample = {
                   ...sample,
                   expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind,
+                  acceptableImageKinds: expectedMetadata?.acceptableImageKinds ?? sample.acceptableImageKinds,
                   expectedElementCategories: expectedMetadata?.elementCategories ?? sample.expectedElementCategories,
                   expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels,
                   expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases,
-                  expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText
+                  expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText,
+                  optionalElementCategories: expectedMetadata?.optionalElementCategories ?? sample.optionalElementCategories,
+                  optionalVisibleElementLabels: expectedMetadata?.optionalVisibleElementLabels ?? sample.optionalVisibleElementLabels,
+                  optionalVisibleElementLabelAliases: expectedMetadata?.optionalVisibleElementLabelAliases ?? sample.optionalVisibleElementLabelAliases,
+                  optionalVisibleText: expectedMetadata?.optionalVisibleText ?? sample.optionalVisibleText
                 };
                 const comp = evaluateSampleComparison(comparisonSample, data);
                 item.comparison = comp;

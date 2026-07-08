@@ -70,3 +70,13 @@
   - Enforced `"additionalProperties": false` across root and nested schema blocks to harden telemetry consistency.
   - Integrated full failure coverage inside catch handlers for `/api/drive/debug/generate-file-summary` and `/api/drive/debug/generate-manual-summary`, ensuring `buildFailedTextAnalysisRecord` constructs standard-compliant envelopes for provider/generation failures.
   - Completed rich `technicalMetadata` reporting, tracking exact extraction variables (`originalTextLength`, `extractedTextLength`, `contentSampleLength`, `textExtractionMethod`, `truncated`, `truncationLimit`, `ocrUsed`).
+
+## `visual-analysis-record.v0.1.0` metadata sync
+
+**Date**: 2026-07-08
+
+**Changes**:
+- `expectedMetadata` in `POST /api/visual/public-samples/analyze` now includes `acceptableImageKinds`, `optionalElementCategories`, `optionalVisibleElementLabels`, `optionalVisibleElementLabelAliases`, and `optionalVisibleText`.
+- Client-side `ImageExperiment`'s `Run Selected` correctly honors `acceptableImageKinds` and optional expectations to align strictly with server-side batch evaluations.
+- `textHeavyEvaluation` in `reportBuilder.ts` now produces a detailed `samples` array structure, mapping `visibleTextCovered` and `mediaResolutionRequested`.
+- Separated `EXPERIMENTAL_MODEL` and `PROMPTED_JSON_MODE` explicitly in quality diagnostics.

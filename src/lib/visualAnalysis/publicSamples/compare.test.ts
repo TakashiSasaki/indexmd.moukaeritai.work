@@ -355,3 +355,45 @@ describe('evaluateSampleComparison', () => {
     assert.ok(summary3.reviewReasons.some(r => r.includes("missing expected label: sunflower")));
   });
 });
+
+describe('evaluateSampleComparison extra cases', () => {
+  test('acceptableImageKinds makes detected image kind acceptable', () => {
+    const sample = {
+      expectedImageKind: "naturalPhoto",
+      acceptableImageKinds: ["landscapePhoto"]
+    } as any;
+    
+    const result = {
+      visualAnalysis: {
+        visualInfo: {
+          imageKind: "landscapePhoto"
+        }
+      }
+    };
+    
+    const summary = evaluateSampleComparison(sample, result);
+    assert.strictEqual(summary.imageKind.status, 'acceptable');
+    // reviewStatus should pass since it's acceptable and no other missing required
+    assert.strictEqual(summary.reviewStatus, 'pass');
+  });
+
+  test('textRegion is acceptable when detectedText exists', () => {
+    const sample = {
+      expectedElementCategories: ["textRegion"],
+      expectedVisibleText: ["hello"]
+    } as any;
+    
+    const result = {
+      visualAnalysis: {
+        visualInfo: {
+          visibleElements: [], // no textRegion category explicitly
+          visibleText: [{ text: "hello" }] // but text is here
+        }
+      }
+    };
+    
+    const summary = evaluateSampleComparison(sample, result);
+    assert.strictEqual(summary.categories.missing.includes("textRegion"), false);
+    assert.strictEqual(summary.categories.acceptable.includes("textRegion"), true);
+  });
+});
