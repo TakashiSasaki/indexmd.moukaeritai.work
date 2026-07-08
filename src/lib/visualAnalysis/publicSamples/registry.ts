@@ -182,7 +182,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       "eraser": ["eraser", "rubber", "pink eraser", "rubber eraser", "eraser tip"]
     },
     expectedVisibleText: ["HB"],
-    expectedNotes: "The source filename is Pencils_hb.jpg, but this sample acts as a close-up pencil image for evaluating product detail extraction.",
+    expectedNotes: ["The source filename is Pencils_hb.jpg, but this sample acts as a close-up pencil image for evaluating product detail extraction."],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Pencils_hb.jpg",
@@ -263,7 +263,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       "drawer pulls": ["brass pulls", "brass hardware"],
       "shell carvings": ["carved shells", "shell motif"]
     },
-    expectedNotes: "The ID is sample-mixed-1 but the image is actually an antique furniture product-style photo, not a modern desk setup. TODO: Add a real mixed sample later.",
+    expectedNotes: ["The ID is sample-mixed-1 but the image is actually an antique furniture product-style photo, not a modern desk setup. TODO: Add a real mixed sample later."],
     source: {
       provider: "Wikimedia Commons",
       pageUrl: "https://commons.wikimedia.org/wiki/File:Bureau_table_MET_DP108643.jpg",

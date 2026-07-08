@@ -1710,31 +1710,21 @@ app.get("/api/visual/public-samples", (req, res) => {
       title: s.title,
       category: s.category,
 
-      // Existing compatibility fields. Do not remove.
-      expectedImageKind: s.expectedImageKind,
-      acceptableImageKinds: s.acceptableImageKinds,
-      expectedElementCategories: s.expectedElementCategories,
-      expectedElementCategoryAlternatives: s.expectedElementCategoryAlternatives,
-      expectedVisibleElementLabels: s.expectedVisibleElementLabels,
-      expectedVisibleElementLabelAliases: s.expectedVisibleElementLabelAliases,
-      expectedVisibleText: s.expectedVisibleText,
-      expectedNotes: s.expectedNotes,
-      optionalElementCategories: s.optionalElementCategories,
-      optionalVisibleElementLabels: s.optionalVisibleElementLabels,
-      optionalVisibleElementLabelAliases: s.optionalVisibleElementLabelAliases,
-      optionalVisibleText: s.optionalVisibleText,
+
 
       // New canonical expected metadata object.
       expectedMetadata,
 
-      thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`,
-      licenseKind: s.source.licenseKind,
-      licenseName: s.source.licenseName,
-      attributionText: s.source.attributionText,
-      sourcePageUrl: s.source.pageUrl,
-      sourceProvider: s.source.provider,
-      sourceKind: s.source.provider === "localFixture" ? "synthetic" : "external",
-      isSynthetic: s.source.provider === "localFixture"
+      source: {
+        provider: s.source.provider,
+        kind: s.source.provider === "localFixture" ? "synthetic" : "external",
+        licenseKind: s.source.licenseKind,
+        licenseName: s.source.licenseName,
+        attributionText: s.source.attributionText,
+        pageUrl: s.source.pageUrl,
+        isSynthetic: s.source.provider === "localFixture"
+      },
+      thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`
     };
   });
   res.json(samples);
