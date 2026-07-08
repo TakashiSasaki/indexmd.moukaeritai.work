@@ -213,8 +213,8 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
               errors.push(`Invalid subject label source: "${source}"`);
             }
 
-            if (language !== undefined && typeof language !== "string") {
-              errors.push("Subject label language must be a string");
+            if (language !== undefined && language !== null && typeof language !== "string") {
+              errors.push("Subject label language must be a string or null");
             }
 
             if (script !== undefined && typeof script !== "string") {
@@ -441,6 +441,20 @@ export function getSummaryAnalysisV12ValidationErrors(value: any): string[] {
  * Validates a Summary Analysis v1.2 result against JSON Schema and custom rules.
  * Returns true if valid, false otherwise.
  */
+export function isControlledVocabularyError(errorMsg: string): boolean {
+  return errorMsg.includes("Invalid document kind value") ||
+         errorMsg.includes("Invalid subject domain value") ||
+         errorMsg.includes("Invalid subject label kind") ||
+         errorMsg.includes("Invalid keyword source") ||
+         errorMsg.includes("Invalid temporal roleCategory") ||
+         errorMsg.includes("Invalid party kind value") ||
+         errorMsg.includes("Invalid party roleCategory") ||
+         errorMsg.includes("Invalid monetary roleCategory") ||
+         errorMsg.includes("Invalid search variant relation") ||
+         errorMsg.includes("Invalid subject label source") ||
+         errorMsg.includes("vocabularyVersion must be exactly");
+}
+
 export function validateSummaryAnalysisV12(value: any): boolean {
   return getSummaryAnalysisV12ValidationErrors(value).length === 0;
 }

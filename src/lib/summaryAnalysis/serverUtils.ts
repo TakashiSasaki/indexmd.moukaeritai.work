@@ -54,7 +54,7 @@ export async function processStructuredSummaryOutput(
   repairApplied?: boolean;
   repairFallbackUsed?: boolean;
   rawText: string;
-  failureKind?: "providerError" | "emptyStructuredOutput" | "jsonParseError" | "schemaValidationError" | "controlledVocabularyValidationError" | "repairFallbackFailed";
+  failureKind?: "providerError" | "emptyStructuredOutput" | "jsonParseError" | "schemaValidationError" | "controlledVocabularyValidationError" | "repairFallbackFailed" | "underGeneratedStructuredOutput" | "qualityGateFailed" | "unknown";
   emptyStructuredOutput?: boolean;
   underGeneratedStructuredOutput?: boolean;
   effectiveStructuredExecutionMode?: string;
@@ -103,7 +103,7 @@ export async function processStructuredSummaryOutput(
       result.summary = typeof parsed === "string" ? parsed : JSON.stringify(parsed, null, 2);
       result.validationErrors = [];
       result.warnings = ["Used custom extracted JSON schema."];
-      result.qualityStatus = "excellent";
+      result.qualityStatus = "valid";
       result.qualityScore = 100;
       result.qualityIssues = [];
       return result;
@@ -146,7 +146,7 @@ export async function processStructuredSummaryOutput(
     let repairFallbackUsed = false;
 
     if (validationErrors.length > 0) {
-      const hasVocabError = validationErrors.some((err: any) => err.path?.includes("controlledVocabulary"));
+      const hasVocabError = validationErrors.some((err: any) => typeof err === "string" ? err.includes("controlledVocabulary") : err.path?.includes("controlledVocabulary"));
       result.failureKind = hasVocabError ? "controlledVocabularyValidationError" : "schemaValidationError";
 
       const repairedText = await repairOutputWithLLM(targetModel, summaryText, validationErrors, configOption);
@@ -200,6 +200,7 @@ export async function processStructuredSummaryOutput(
       if (qualityReport.status === "invalid") {
         result.structuredParseFailed = true;
         result.error = "Structured output failed quality gate requirements: " + qualityReport.issues.map(i => i.message).join(", ");
+        result.failureKind = "qualityGateFailed";
         result.validationErrors = qualityReport.issues.map(iss => ({
           path: "qualityGate",
           message: iss.message,

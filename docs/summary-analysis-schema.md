@@ -94,3 +94,9 @@ Validation and normalization are handled by clean utility layers:
 
 ## 🚀 Scope of Current Milestone
 This milestone hardens the Summary Analysis Schema v1.2.0-draft.2 as a repository-level, exchange-oriented schema artifact. It establishes the JSON Schema, typescript loader/validation skeleton, normalizer, comprehensive unit testing, and markdown documentation. It is explicitly decoupled from the live AI extraction flow to ensure safe integration in the subsequent phase.
+
+## 📦 Envelope Schema
+
+This schema represents the **document-derived semantic payload** (what the document is about).
+
+For asset metadata (file path, bytes), analysis execution telemetry (model used, token count), and validation evaluations, `SummaryAnalysisResultV12` is embedded within the `TextAnalysisRecord` envelope. See [Text Analysis Record](./text-analysis-record.md) for details.

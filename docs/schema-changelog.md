@@ -58,3 +58,12 @@
 ## v1.0.0
 - Type: structural schema change
 - Initial schema with `oneLineSummary`, `detailedSummary`, `title`, `documentType`, `urls`, and `language`.
+
+### Text Analysis Record v0.1.0
+- **Status:** Active
+- **Release:** 2026-07-08
+- **Major Changes:**
+  - Introduced `TextAnalysisRecord` envelope schema for text indexing.
+  - Aligned with `ImageAnalysisRecord` architecture (assetMetadata, technicalMetadata, analysisRun, evaluation, diagnostics).
+  - Maintained `summary-analysis.v1.2.0-draft.2` unmodified as the inner `summaryAnalysis` payload.
+  - Added strict JSON validation and TypeScript types.
