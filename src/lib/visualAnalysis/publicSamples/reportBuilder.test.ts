@@ -8,7 +8,8 @@ import {
   isProviderQuotaFailure,
   isProviderGenerationFailure,
   validateBatchRunInvariants,
-  normalizeLegacyBatchRunItem
+  normalizeLegacyBatchRunItem,
+  buildComparisonRecordConsistency
 } from './reportBuilder';
 
 describe("Visual Analysis Report Classification Helpers", () => {
@@ -296,5 +297,89 @@ describe("Legacy reportBuilder fallbacks and normalization", () => {
     assert.strictEqual(normalized.record.evaluation?.qualityStatus, "valid");
     assert.strictEqual(normalized.record.evaluation?.qualityScore, 95);
     assert.strictEqual(normalized.record.evaluation?.expectedMetadata?.imageKind, "screenshot");
+  });
+});
+
+describe("Comparison Record Consistency and Invariants", () => {
+  it("should evaluate comparison consistency successfully", () => {
+    const items: any[] = [
+      {
+        sampleId: "s-1",
+        title: "S1",
+        success: true,
+        record: {
+          evaluation: {
+            qualityStatus: "valid",
+            expectedMetadata: {
+              imageKind: "landscapePhoto",
+              elementCategories: ["plant"],
+              visibleText: ["flower"]
+            }
+          },
+          visualAnalysis: {
+            visualInfo: {
+              imageKind: "landscapePhoto",
+              visibleElements: [{ category: "plant" }],
+              visibleText: [{ text: "beautiful flower" }]
+            }
+          }
+        },
+        comparison: {
+          imageKind: { detected: "landscapePhoto", status: "exact" },
+          categories: { matched: ["plant"] },
+          visibleText: { matched: ["flower"] },
+          overallStatus: "pass"
+        }
+      }
+    ];
+
+    const consistency = buildComparisonRecordConsistency(items);
+    assert.strictEqual(consistency.consistent, true);
+    assert.strictEqual(consistency.itemsWithRecordVisualAnalysis, 1);
+    assert.strictEqual(consistency.itemsWithImageKindMismatch, 0);
+  });
+
+  it("should detect suspicious all comparison fail invariant", () => {
+    const items: any[] = [
+      {
+        sampleId: "s-1",
+        title: "S1",
+        success: true,
+        record: {
+          evaluation: {
+            qualityStatus: "valid",
+            expectedMetadata: {
+              imageKind: "landscapePhoto"
+            }
+          },
+          visualAnalysis: {
+            visualInfo: {
+              imageKind: "landscapePhoto"
+            }
+          }
+        },
+        comparison: {
+          imageKind: { detected: "landscapePhoto", status: "exact" },
+          overallStatus: "fail" // explicitly failed comparison
+        }
+      }
+    ];
+
+    const consistency = buildComparisonRecordConsistency(items);
+    assert.strictEqual(consistency.suspiciousAllComparisonFail, true);
+
+    const batchSummary: any = {
+      modelName: "test-model",
+      jsonMode: "prompted_json",
+      total: 1,
+      successCount: 1,
+      failureCount: 0,
+      validCount: 1,
+      items
+    };
+
+    const result = validateBatchRunInvariants(batchSummary);
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.issues.some(issue => issue.includes("Suspicious run: all 1 successful items with visual analysis failed in comparison.")));
   });
 });

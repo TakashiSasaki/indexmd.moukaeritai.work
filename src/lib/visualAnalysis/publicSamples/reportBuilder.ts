@@ -179,6 +179,144 @@ export function buildComparisonCoverage(items: PublicSampleBatchRunItem[]) {
   };
 }
 
+export function buildComparisonRecordConsistency(items: PublicSampleBatchRunItem[]) {
+  let itemsWithRecordVisualAnalysis = 0;
+  let itemsWithImageKindMismatch = 0;
+  let itemsWithNoDetectedImageKindDespiteRecordImageKind = 0;
+  let itemsWithExpectedCategoryOverlapButNoComparisonMatch = 0;
+  let itemsWithExpectedLabelOverlapButNoComparisonMatch = 0;
+  let itemsWithExpectedTextOverlapButNoComparisonMatch = 0;
+
+  for (const item of items) {
+    if (!item.success) continue;
+
+    const record = item.record;
+    const vi = record?.visualAnalysis?.visualInfo;
+    const comp = item.comparison;
+
+    if (vi) {
+      itemsWithRecordVisualAnalysis++;
+
+      // 1. imageKind consistency
+      const recordImageKind = vi.imageKind;
+      if (recordImageKind) {
+        const detectedImageKind = comp?.imageKind?.detected;
+        if (detectedImageKind !== recordImageKind) {
+          itemsWithImageKindMismatch++;
+        }
+        if (!detectedImageKind || comp?.imageKind?.details?.includes("No image kind detected")) {
+          itemsWithNoDetectedImageKindDespiteRecordImageKind++;
+        }
+      }
+
+      const expectedMetadata = record?.evaluation?.expectedMetadata;
+      if (expectedMetadata) {
+        // 2. category consistency
+        const expectedCats: string[] = expectedMetadata.elementCategories || [];
+        const recordCats: string[] = vi.visibleElements?.map((el: any) => el.category).filter(Boolean) || [];
+        
+        const hasCategoryOverlap = expectedCats.some(expected => {
+          if (recordCats.includes(expected)) return true;
+          if (expected === "landscapeElement") {
+            const landscapeEquivalents = ["terrain", "plant", "waterBody", "weatherOrSky", "roadOrPath"];
+            if (recordCats.some(c => landscapeEquivalents.includes(c))) return true;
+          }
+          const alternatives = expectedMetadata.elementCategoryAlternatives?.[expected] || [];
+          if (recordCats.some(c => alternatives.includes(c))) return true;
+          return false;
+        });
+
+        if (hasCategoryOverlap && expectedCats.length > 0) {
+          const matchedCats = comp?.categories?.matched || [];
+          const acceptableCats = comp?.categories?.acceptable || [];
+          if (matchedCats.length === 0 && acceptableCats.length === 0) {
+            itemsWithExpectedCategoryOverlapButNoComparisonMatch++;
+          }
+        }
+
+        // 3. visible text consistency
+        const expectedTexts: string[] = expectedMetadata.visibleText || [];
+        const recordTexts: string[] = vi.visibleText?.map((txt: any) => typeof txt === 'string' ? txt : txt?.text || "").filter(Boolean) || [];
+
+        const hasTextOverlap = expectedTexts.some(expected => {
+          const normExpected = expected.trim().toLowerCase();
+          return recordTexts.some(rec => {
+            const normRec = rec.trim().toLowerCase();
+            return normRec.includes(normExpected) || normExpected.includes(normRec);
+          });
+        });
+
+        if (hasTextOverlap && expectedTexts.length > 0) {
+          const matchedTexts = comp?.visibleText?.matched || [];
+          if (matchedTexts.length === 0) {
+            itemsWithExpectedTextOverlapButNoComparisonMatch++;
+          }
+        }
+
+        // 4. label consistency
+        const expectedLabels: string[] = expectedMetadata.visibleElementLabels || [];
+        const recordLabels: string[] = vi.visibleElements?.map((el: any) => el.label).filter(Boolean) || [];
+        const recordAttributes: string[] = vi.visibleElements?.flatMap((el: any) => el.attributes || []).filter(Boolean) || [];
+        const recordKeywords: string[] = record?.visualAnalysis?.indexing?.keywords?.map((kw: any) => typeof kw === 'string' ? kw : kw?.value || "").filter(Boolean) || [];
+
+        const hasLabelOverlap = expectedLabels.some(expected => {
+          const normExpected = expected.trim().toLowerCase();
+          
+          const checkMatch = (val: string) => {
+            const normVal = val.trim().toLowerCase();
+            return normVal.includes(normExpected) || normExpected.includes(normVal);
+          };
+
+          if (recordLabels.some(checkMatch)) return true;
+          if (recordAttributes.some(checkMatch)) return true;
+          if (recordKeywords.some(checkMatch)) return true;
+
+          const aliases = expectedMetadata.visibleElementLabelAliases?.[expected] || [];
+          for (const alias of aliases) {
+            const normAlias = alias.trim().toLowerCase();
+            if (recordLabels.some(l => l.trim().toLowerCase().includes(normAlias))) return true;
+          }
+          return false;
+        });
+
+        if (hasLabelOverlap && expectedLabels.length > 0) {
+          const matchedLabels = comp?.labels?.matched || [];
+          const acceptableLabels = comp?.labels?.acceptable || [];
+          if (matchedLabels.length === 0 && acceptableLabels.length === 0) {
+            itemsWithExpectedLabelOverlapButNoComparisonMatch++;
+          }
+        }
+      }
+    }
+  }
+
+  const successCount = items.filter(it => it.success).length;
+  const validCount = items.filter(it => it.record?.evaluation?.qualityStatus === 'valid').length;
+  const expectedComparisonFailCount = items.filter(it => !it.success || it.comparison?.overallStatus === 'fail').length;
+
+  const suspiciousAllComparisonFail = 
+    successCount > 0 &&
+    validCount > 0 &&
+    itemsWithRecordVisualAnalysis > 0 &&
+    expectedComparisonFailCount === successCount;
+
+  const consistent = 
+    itemsWithNoDetectedImageKindDespiteRecordImageKind === 0 &&
+    itemsWithExpectedCategoryOverlapButNoComparisonMatch === 0 &&
+    itemsWithExpectedTextOverlapButNoComparisonMatch === 0;
+
+  return {
+    itemsWithRecordVisualAnalysis,
+    itemsWithImageKindMismatch,
+    itemsWithNoDetectedImageKindDespiteRecordImageKind,
+    itemsWithExpectedCategoryOverlapButNoComparisonMatch,
+    itemsWithExpectedLabelOverlapButNoComparisonMatch,
+    itemsWithExpectedTextOverlapButNoComparisonMatch,
+    suspiciousAllComparisonFail,
+    consistent
+  };
+}
+
 export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummary) {
   return buildBatchDiagnosticReportForChat(batchSummary);
 }
@@ -248,6 +386,7 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
       }
     },
     comparisonCoverage: buildComparisonCoverage(normalizedItems),
+    comparisonRecordConsistency: buildComparisonRecordConsistency(normalizedItems),
     invariants: validateBatchRunInvariants(reSummary),
     generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
     apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
@@ -333,6 +472,7 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
       }
     },
     comparisonCoverage: buildComparisonCoverage(normalizedItems),
+    comparisonRecordConsistency: buildComparisonRecordConsistency(normalizedItems),
     invariants: validateBatchRunInvariants(reSummary),
     generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
     apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
@@ -1242,6 +1382,27 @@ export function validateBatchRunInvariants(batchSummary: PublicSampleBatchRunSum
   const coverage = buildComparisonCoverage(batchSummary.items);
   if (!coverage.consistent) {
     issues.push(`Comparison coverage is inconsistent: ${coverage.comparisonMissingCount} comparisons missing.`);
+  }
+
+  const consistency = buildComparisonRecordConsistency(batchSummary.items);
+  if (!consistency.consistent) {
+    if (consistency.itemsWithNoDetectedImageKindDespiteRecordImageKind > 0) {
+      issues.push(`Record has imageKind but comparison detected no image kind in ${consistency.itemsWithNoDetectedImageKindDespiteRecordImageKind} items.`);
+    }
+    if (consistency.itemsWithExpectedCategoryOverlapButNoComparisonMatch > 0) {
+      issues.push(`Expected categories overlap with record but got no comparison category match in ${consistency.itemsWithExpectedCategoryOverlapButNoComparisonMatch} items.`);
+    }
+    if (consistency.itemsWithExpectedTextOverlapButNoComparisonMatch > 0) {
+      issues.push(`Expected visible text matches record but got no comparison visibleText match in ${consistency.itemsWithExpectedTextOverlapButNoComparisonMatch} items.`);
+    }
+  }
+
+  if (consistency.itemsWithImageKindMismatch > 0) {
+    issues.push(`Comparison imageKind mismatch with record in ${consistency.itemsWithImageKindMismatch} items.`);
+  }
+
+  if (consistency.suspiciousAllComparisonFail) {
+    issues.push(`Suspicious run: all ${consistency.itemsWithRecordVisualAnalysis} successful items with visual analysis failed in comparison.`);
   }
 
   let totalProcessedBytesFromInputSize = 0;

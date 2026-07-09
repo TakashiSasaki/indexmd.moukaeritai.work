@@ -429,3 +429,36 @@ describe('summarizeExpectedComparisonCounts and summarizeReviewCounts', () => {
     });
   });
 });
+
+describe('evaluateSampleComparison record-aware structures', () => {
+  test('should correctly read expectedMetadata and visualAnalysis from record', () => {
+    const sample = {
+      id: "test-rec-1"
+    } as any;
+
+    const result = {
+      record: {
+        evaluation: {
+          expectedMetadata: {
+            imageKind: "landscapePhoto",
+            elementCategories: ["plant"],
+            visibleText: ["Sky"]
+          }
+        },
+        visualAnalysis: {
+          visualInfo: {
+            imageKind: "landscapePhoto",
+            visibleElements: [{ category: "plant", label: "tree" }],
+            visibleText: ["Sky"]
+          }
+        }
+      }
+    };
+
+    const summary = evaluateSampleComparison(sample, result);
+    assert.strictEqual(summary.overallStatus, 'pass');
+    assert.strictEqual(summary.imageKind.status, 'exact');
+    assert.deepEqual(summary.categories.matched, ['plant']);
+    assert.deepEqual(summary.visibleText.matched, ['Sky']);
+  });
+});
