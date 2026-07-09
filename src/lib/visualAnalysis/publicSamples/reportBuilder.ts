@@ -2,37 +2,91 @@ import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem } from "./batchTy
 
 import { summarizeExpectedComparisonCounts, summarizeReviewCounts } from "./compare";
 
+export function normalizeLegacyBatchRunItem(item: any): PublicSampleBatchRunItem {
+  if (!item) return item;
+  if (item.record && !item.responseRaw) return item;
+
+  const responseRaw = item.responseRaw || {};
+  const record = item.record || {};
+  const assetMetadata = record.assetMetadata || responseRaw.sampleMetadata || {};
+  const evaluation = record.evaluation || {};
+  const expectedMetadata = evaluation.expectedMetadata || responseRaw.expectedMetadata || {};
+  const analysisRun = record.analysisRun || responseRaw.analysisRun || (item.execution ? { execution: item.execution } : {});
+  const diagnostics = record.diagnostics || {};
+
+  const finalRecord = {
+    ...record,
+    assetMetadata: {
+      id: assetMetadata.id || item.sampleId,
+      title: assetMetadata.title || item.title,
+      category: assetMetadata.category || item.category,
+      licenseName: assetMetadata.licenseName || item.licenseName,
+      ...assetMetadata
+    },
+    evaluation: {
+      qualityStatus: evaluation.qualityStatus ?? item.qualityStatus ?? responseRaw.qualityStatus,
+      qualityScore: evaluation.qualityScore ?? item.qualityScore ?? responseRaw.qualityScore,
+      qualityIssues: evaluation.qualityIssues ?? item.qualityIssues ?? responseRaw.qualityIssues ?? [],
+      expectedMetadata: {
+        ...expectedMetadata
+      },
+      ...evaluation
+    },
+    analysisRun: {
+      execution: analysisRun.execution || item.execution,
+      ...analysisRun,
+      metadata: analysisRun.metadata || {
+        generationConfig: {
+          mediaResolutionRequested: responseRaw.mediaResolutionRequested || analysisRun?.generationConfig?.mediaResolutionRequested || analysisRun?.metadata?.generationConfig?.mediaResolutionRequested,
+        }
+      }
+    },
+    visualAnalysis: record.visualAnalysis || responseRaw.visualAnalysis,
+    diagnostics: {
+      input: diagnostics.input ?? item.inputDiagnostics ?? responseRaw.inputDiagnostics,
+      generation: diagnostics.generation ?? item.generationDiagnostics ?? responseRaw.generationDiagnostics,
+      parse: diagnostics.parse ?? item.parseDiagnostics ?? responseRaw.parseDiagnostics,
+      normalization: diagnostics.normalization ?? item.normalizationDiagnostics ?? responseRaw.normalizationDiagnostics,
+      ...diagnostics
+    }
+  };
+
+  return {
+    ...item,
+    record: finalRecord
+  };
+}
 
 export function getItemQualityStatus(item: PublicSampleBatchRunItem) {
-  return item.record?.evaluation?.qualityStatus ?? (item as any).qualityStatus;
+  return item.record?.evaluation?.qualityStatus;
 }
 
 export function getItemQualityScore(item: PublicSampleBatchRunItem) {
-  return item.record?.evaluation?.qualityScore ?? (item as any).qualityScore;
+  return item.record?.evaluation?.qualityScore;
 }
 
 export function getItemQualityIssues(item: PublicSampleBatchRunItem) {
-  return item.record?.evaluation?.qualityIssues ?? (item as any).qualityIssues ?? [];
+  return item.record?.evaluation?.qualityIssues ?? [];
 }
 
 export function getItemAnalysisRun(item: PublicSampleBatchRunItem) {
-  return item.record?.analysisRun ?? (item as any).analysisRun;
+  return item.record?.analysisRun;
 }
 
 export function getItemInputDiagnostics(item: PublicSampleBatchRunItem) {
-  return item.record?.diagnostics?.input ?? (item as any).inputDiagnostics;
+  return item.record?.diagnostics?.input;
 }
 
 export function getItemGenerationDiagnostics(item: PublicSampleBatchRunItem) {
-  return item.record?.diagnostics?.generation ?? (item as any).generationDiagnostics;
+  return item.record?.diagnostics?.generation;
 }
 
 export function getItemParseDiagnostics(item: PublicSampleBatchRunItem) {
-  return item.record?.diagnostics?.parse ?? (item as any).parseDiagnostics;
+  return item.record?.diagnostics?.parse;
 }
 
 export function getItemNormalizationDiagnostics(item: PublicSampleBatchRunItem) {
-  return item.record?.diagnostics?.normalization ?? (item as any).normalizationDiagnostics;
+  return item.record?.diagnostics?.normalization;
 }
 
 export function isNetworkFailure(item: PublicSampleBatchRunItem): boolean {
@@ -99,15 +153,44 @@ export function isProviderGenerationFailure(item: PublicSampleBatchRunItem): boo
          !isTransportOrResponseFailure(item);
 }
 
+export function buildComparisonCoverage(items: PublicSampleBatchRunItem[]) {
+  let itemsWithExpectedMetadata = 0;
+  let itemsWithComparison = 0;
+
+  for (const item of items) {
+    if (item.success) {
+      if (item.record?.evaluation?.expectedMetadata) {
+        itemsWithExpectedMetadata++;
+      }
+      if (item.comparison) {
+        itemsWithComparison++;
+      }
+    }
+  }
+
+  const comparisonMissingCount = itemsWithExpectedMetadata - itemsWithComparison;
+  const consistent = comparisonMissingCount === 0;
+
+  return {
+    itemsWithExpectedMetadata,
+    itemsWithComparison,
+    comparisonMissingCount,
+    consistent
+  };
+}
+
 export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummary) {
   return buildBatchDiagnosticReportForChat(batchSummary);
 }
 
 export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatchRunSummary) {
-  const compactItems = batchSummary.items.map(item => buildCompactItem(item));
+  const normalizedItems = batchSummary.items.map(normalizeLegacyBatchRunItem);
+  const reSummary = { ...batchSummary, items: normalizedItems };
 
-  const expectedCounts = summarizeExpectedComparisonCounts(batchSummary.items);
-  const reviewCounts = summarizeReviewCounts(batchSummary.items);
+  const compactItems = normalizedItems.map(item => buildCompactItem(item));
+
+  const expectedCounts = summarizeExpectedComparisonCounts(normalizedItems);
+  const reviewCounts = summarizeReviewCounts(normalizedItems);
 
   const expectedConsistent = 
     expectedCounts.expectedComparisonPassCount === batchSummary.expectedComparisonPassCount &&
@@ -164,30 +247,35 @@ export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatc
         consistent: reviewConsistent
       }
     },
-    generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
-    apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
-    parseFailureSummary: buildParseFailureSummary(batchSummary.items),
-    networkFailureSummary: buildNetworkFailureSummary(batchSummary.items),
-    validationFailureSummary: buildValidationFailureSummary(batchSummary.items),
-    rateLimitSummary: buildRateLimitSummary(batchSummary.items),
-    providerQuotaSummary: buildProviderQuotaSummary(batchSummary.items),
-    inputSizeSummary: buildInputSizeSummary(batchSummary.items),
-    textHeavyEvaluation: buildTextHeavyEvaluationSummary(batchSummary.items),
+    comparisonCoverage: buildComparisonCoverage(normalizedItems),
+    invariants: validateBatchRunInvariants(reSummary),
+    generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
+    apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
+    parseFailureSummary: buildParseFailureSummary(normalizedItems),
+    networkFailureSummary: buildNetworkFailureSummary(normalizedItems),
+    validationFailureSummary: buildValidationFailureSummary(normalizedItems),
+    rateLimitSummary: buildRateLimitSummary(normalizedItems),
+    providerQuotaSummary: buildProviderQuotaSummary(normalizedItems),
+    inputSizeSummary: buildInputSizeSummary(normalizedItems),
+    textHeavyEvaluation: buildTextHeavyEvaluationSummary(normalizedItems),
     items: compactItems
   };
 
   return attachArtifactIntegrity(report, {
     artifactKind: "diagnostic",
-    items: batchSummary.items,
+    items: normalizedItems,
     endSentinel: "END_OF_VISUAL_ANALYSIS_BATCH_DIAGNOSTIC"
   });
 }
 
 export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRunSummary) {
-  const summaryItems = batchSummary.items.map(item => buildSummaryItem(item));
+  const normalizedItems = batchSummary.items.map(normalizeLegacyBatchRunItem);
+  const reSummary = { ...batchSummary, items: normalizedItems };
 
-  const expectedCounts = summarizeExpectedComparisonCounts(batchSummary.items);
-  const reviewCounts = summarizeReviewCounts(batchSummary.items);
+  const summaryItems = normalizedItems.map(item => buildSummaryItem(item));
+
+  const expectedCounts = summarizeExpectedComparisonCounts(normalizedItems);
+  const reviewCounts = summarizeReviewCounts(normalizedItems);
 
   const expectedConsistent = 
     expectedCounts.expectedComparisonPassCount === batchSummary.expectedComparisonPassCount &&
@@ -244,21 +332,23 @@ export function buildBatchSummaryReportForChat(batchSummary: PublicSampleBatchRu
         consistent: reviewConsistent
       }
     },
-    generationFailureSummary: buildGenerationFailureSummary(batchSummary.items),
-    apiResponseFailureSummary: buildApiResponseFailureSummary(batchSummary.items),
-    parseFailureSummary: buildParseFailureSummary(batchSummary.items),
-    networkFailureSummary: buildNetworkFailureSummary(batchSummary.items),
-    validationFailureSummary: buildValidationFailureSummary(batchSummary.items),
-    rateLimitSummary: buildRateLimitSummary(batchSummary.items),
-    providerQuotaSummary: buildProviderQuotaSummary(batchSummary.items),
-    inputSizeSummary: buildInputSizeSummary(batchSummary.items),
-    textHeavyEvaluation: buildTextHeavyEvaluationSummary(batchSummary.items),
+    comparisonCoverage: buildComparisonCoverage(normalizedItems),
+    invariants: validateBatchRunInvariants(reSummary),
+    generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
+    apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
+    parseFailureSummary: buildParseFailureSummary(normalizedItems),
+    networkFailureSummary: buildNetworkFailureSummary(normalizedItems),
+    validationFailureSummary: buildValidationFailureSummary(normalizedItems),
+    rateLimitSummary: buildRateLimitSummary(normalizedItems),
+    providerQuotaSummary: buildProviderQuotaSummary(normalizedItems),
+    inputSizeSummary: buildInputSizeSummary(normalizedItems),
+    textHeavyEvaluation: buildTextHeavyEvaluationSummary(normalizedItems),
     items: summaryItems
   };
 
   return attachArtifactIntegrity(report, {
     artifactKind: "summary",
-    items: batchSummary.items,
+    items: normalizedItems,
     endSentinel: "END_OF_VISUAL_ANALYSIS_BATCH_SUMMARY"
   });
 }
@@ -337,23 +427,12 @@ function buildNetworkFailureSummary(items: PublicSampleBatchRunItem[]) {
 }
 
 export function getItemExecutionMetadata(item: any) {
-  if (item.execution) {
-    return {
-      modelName: item.execution.modelName || "UNKNOWN",
-      providerFamily: item.execution.providerFamily || "UNKNOWN",
-      structuredExecutionMode: item.execution.structuredExecutionMode || "UNKNOWN",
-      jsonMode: item.execution.jsonMode || "UNKNOWN",
-      jsonRecovery: item.execution.jsonRecovery
-    };
-  }
-  const analysisRun = getItemAnalysisRun(item) ?? item.record?.analysisRun ?? (item as any).responseRaw?.analysisRun;
-  const run = analysisRun?.metadata ?? analysisRun;
-  
-  const modelName = run?.model?.name || run?.execution?.usedModelName || run?.execution?.modelName || item.record?.analysisRun?.execution?.modelName || (item as any).responseRaw?.usedModelName || "UNKNOWN";
-  const providerFamily = run?.model?.providerFamily || run?.execution?.providerFamily || item.record?.analysisRun?.execution?.providerFamily || (item as any).responseRaw?.providerFamily || "UNKNOWN";
-  const structuredExecutionMode = run?.execution?.structuredExecutionMode || item.record?.analysisRun?.execution?.structuredExecutionMode || (item as any).responseRaw?.effectiveStructuredExecutionMode || "UNKNOWN";
-  const jsonMode = run?.execution?.jsonMode || item.record?.analysisRun?.execution?.jsonMode || (item as any).responseRaw?.jsonMode || "UNKNOWN";
-  const jsonRecovery = run?.execution?.jsonRecovery || item.record?.analysisRun?.execution?.jsonRecovery || (item as any).responseRaw?.jsonRecovery;
+  const run = item.record?.analysisRun;
+  const modelName = run?.model?.name ?? run?.execution?.modelName ?? "UNKNOWN";
+  const providerFamily = run?.model?.providerFamily ?? run?.execution?.providerFamily ?? "UNKNOWN";
+  const structuredExecutionMode = run?.execution?.structuredExecutionMode ?? "UNKNOWN";
+  const jsonMode = run?.execution?.jsonMode ?? "UNKNOWN";
+  const jsonRecovery = run?.execution?.jsonRecovery;
   
   return {
     modelName,
@@ -499,11 +578,12 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
   }> = [];
   
   for (const item of parseFailures) {
-    const analysisRun = getItemAnalysisRun(item) || (item as any).responseRaw?.analysisRun;
+    const analysisRun = getItemAnalysisRun(item);
     
     const model =
       analysisRun?.model?.name ??
       analysisRun?.execution?.usedModelName ??
+      analysisRun?.execution?.modelName ??
       "UNKNOWN";
 
     const family =
@@ -525,7 +605,7 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
     byStructuredExecutionMode[execMode] = (byStructuredExecutionMode[execMode] || 0) + 1;
     byJsonMode[jsonMode] = (byJsonMode[jsonMode] || 0) + 1;
     
-    const parseDiag = getItemParseDiagnostics(item) || (item as any).responseRaw?.parseDiagnostics;
+    const parseDiag = getItemParseDiagnostics(item);
     const lastAttempt = parseDiag?.attempts?.[parseDiag.attempts.length - 1];
     
     const jsonRecovery = analysisRun?.execution?.jsonRecovery;
@@ -846,13 +926,13 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
   if (getItemQualityScore(item) !== undefined) compact.qualityScore = getItemQualityScore(item);
   if (getItemQualityIssues(item) && getItemQualityIssues(item).length > 0) compact.qualityIssues = getItemQualityIssues(item);
 
-  const assetMetadata = item.record?.assetMetadata || (item as any).responseRaw?.sampleMetadata;
+  const assetMetadata = item.record?.assetMetadata;
   if (assetMetadata) {
      compact.category = assetMetadata.category;
      compact.licenseName = assetMetadata.licenseName;
   }
 
-  const expectedMetadata = item.record?.evaluation?.expectedMetadata || (item as any).responseRaw?.expectedMetadata;
+  const expectedMetadata = item.record?.evaluation?.expectedMetadata;
   if (expectedMetadata) {
      compact.expected = expectedMetadata;
   }
@@ -882,7 +962,7 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     jsonRecovery: exec.jsonRecovery
   };
 
-  const visualAnalysis = item.record?.visualAnalysis || (item as any).responseRaw?.visualAnalysis;
+  const visualAnalysis = item.record?.visualAnalysis;
   const vi = visualAnalysis?.visualInfo;
   const indexing = visualAnalysis?.indexing;
   const normalized = getItemAnalysisRun(item)?.result?.normalized;
@@ -931,7 +1011,7 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     delete compact.parseDiagnostics.requestPreview;
   }
   
-  const normDiag = getItemNormalizationDiagnostics(item) ?? item.record?.diagnostics?.normalization ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
+  const normDiag = getItemNormalizationDiagnostics(item);
   if (normDiag) {
     compact.normalizationDiagnostics = {
       schemaVersionCorrected: normDiag.schemaVersionCorrected,
@@ -1045,7 +1125,7 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     summary.retried = item.retryDiagnostics.retried;
   }
 
-  const normDiag = getItemNormalizationDiagnostics(item) ?? item.record?.diagnostics?.normalization ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
+  const normDiag = getItemNormalizationDiagnostics(item);
   if (normDiag?.schemaVersionCorrected) {
     summary.schemaVersionCorrected = true;
     summary.canonicalSchemaVersionApplied = true;
@@ -1066,11 +1146,23 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
   let mediumRequested = 0;
   let unknown = 0;
 
+  let expectedMetadataTextItems = 0;
+  let comparisonTextCoverageItems = 0;
+
   const samples = [];
   
   for (const item of items) {
     const coverage = item.comparison?.coverage?.visibleText;
     
+    const visibleTextArray = item.record?.evaluation?.expectedMetadata?.visibleText;
+    if (Array.isArray(visibleTextArray) && visibleTextArray.length > 0) {
+      expectedMetadataTextItems++;
+    }
+
+    if (coverage && coverage.expectedTotal > 0) {
+      comparisonTextCoverageItems++;
+    }
+
     // Attempt to read requested resolution
     const mediaResolutionRequested =
       item.record?.analysisRun?.metadata?.generationConfig?.mediaResolutionRequested ||
@@ -1095,9 +1187,9 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
       }
 
       samples.push({
-        sampleId: item.sampleMetadata?.id || item.sampleId,
-        title: item.sampleMetadata?.title,
-        imageKind: item.expectedMetadata?.imageKind || item.sampleMetadata?.expectedImageKind,
+        sampleId: item.record?.assetMetadata?.id || item.sampleId,
+        title: item.record?.assetMetadata?.title ?? item.title,
+        imageKind: item.record?.evaluation?.expectedMetadata?.imageKind,
         expectedVisibleTextTotal: coverage.expectedTotal,
         visibleTextCovered: coverage.covered,
         visibleTextMissing: coverage.missing,
@@ -1118,6 +1210,7 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
   }
 
   const ratio = expectedVisibleTextTotal > 0 ? parseFloat((visibleTextCovered / expectedVisibleTextTotal).toFixed(2)) : 1.0;
+  const textComparisonMissingCount = Math.max(0, expectedMetadataTextItems - comparisonTextCoverageItems);
 
   return {
     itemsWithTextExpectation,
@@ -1131,6 +1224,9 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
       unknown
     },
     possibleResolutionLimitedCount,
+    expectedMetadataTextItems,
+    comparisonTextCoverageItems,
+    textComparisonMissingCount,
     samples
   };
 }
@@ -1143,33 +1239,70 @@ export interface BatchInvariantResult {
 export function validateBatchRunInvariants(batchSummary: PublicSampleBatchRunSummary): BatchInvariantResult {
   const issues: string[] = [];
 
+  const coverage = buildComparisonCoverage(batchSummary.items);
+  if (!coverage.consistent) {
+    issues.push(`Comparison coverage is inconsistent: ${coverage.comparisonMissingCount} comparisons missing.`);
+  }
+
+  let totalProcessedBytesFromInputSize = 0;
+  try {
+    const inputSizeSummary = buildInputSizeSummary(batchSummary.items);
+    totalProcessedBytesFromInputSize = inputSizeSummary.totalProcessedBytes;
+  } catch (e) {
+    // Ignore if buildInputSizeSummary fails or is not ready
+  }
+
+  let hasRecordWithProcessedByteLength = false;
+
   for (const item of batchSummary.items) {
+    if (item.record?.technicalMetadata?.processedByteLength) {
+      hasRecordWithProcessedByteLength = true;
+    }
+
     if (item.success) {
-      if (!item.comparison) {
-        issues.push(`Item ${item.sampleId} is successful but missing a comparison object.`);
-      } else {
+      const expectedMetadata = item.record?.evaluation?.expectedMetadata;
+      if (expectedMetadata) {
+        if (!item.comparison) {
+          issues.push(`Item ${item.sampleId} is successful with expectedMetadata but missing comparison object.`);
+        }
+      }
+
+      if (item.comparison) {
         const comp = item.comparison;
         if (!comp.overallStatus || !['pass', 'warning', 'fail'].includes(comp.overallStatus)) {
           issues.push(`Item ${item.sampleId} comparison overallStatus is invalid: ${comp.overallStatus}`);
+        }
+        if (!comp.reviewStatus || !['pass', 'needsReview', 'fail'].includes(comp.reviewStatus)) {
+          issues.push(`Item ${item.sampleId} comparison reviewStatus is invalid: ${comp.reviewStatus}`);
         }
         if (!comp.coverage) {
           issues.push(`Item ${item.sampleId} comparison missing coverage field.`);
         } else {
           const visibleText = comp.coverage.visibleText;
           if (visibleText) {
-            const { expectedTotal, covered, missing, ratio } = visibleText;
+            const { expectedTotal, covered, missing } = visibleText;
             if (typeof expectedTotal !== 'number' || typeof covered !== 'number' || typeof missing !== 'number') {
               issues.push(`Item ${item.sampleId} comparison.coverage.visibleText has invalid non-numeric fields.`);
             } else if (expectedTotal !== covered + missing) {
               issues.push(`Item ${item.sampleId} comparison.coverage.visibleText expectedTotal (${expectedTotal}) does not match covered (${covered}) + missing (${missing}).`);
             }
+          } else if (expectedMetadata?.visibleText && expectedMetadata.visibleText.length > 0) {
+            issues.push(`Item ${item.sampleId} expectedMetadata.visibleText exists but comparison.coverage.visibleText is missing.`);
           }
         }
       }
     }
   }
 
+  if (hasRecordWithProcessedByteLength && totalProcessedBytesFromInputSize === 0) {
+    issues.push(`Some records have technicalMetadata.processedByteLength, but batch-level inputSizeSummary.totalProcessedBytes is 0.`);
+  }
+
   const textHeavy = buildTextHeavyEvaluationSummary(batchSummary.items);
+  if (textHeavy.textComparisonMissingCount > 0) {
+    issues.push(`TextHeavy evaluation has ${textHeavy.textComparisonMissingCount} missing text comparisons.`);
+  }
+
   let recomputedExpectedTotal = 0;
   let recomputedCovered = 0;
   let recomputedMissing = 0;

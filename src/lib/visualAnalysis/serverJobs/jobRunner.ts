@@ -155,14 +155,23 @@ export async function startVisualBatchJob(
 
       if (success) {
         if (sampleMeta) {
-          comparison = evaluateSampleComparison(sampleMeta, finalData);
+          const record = finalData?.record;
+          comparison = evaluateSampleComparison(sampleMeta, {
+            record,
+            visualAnalysis: record?.visualAnalysis,
+            expectedMetadata: record?.evaluation?.expectedMetadata
+          });
         }
         break; // Success!
       }
 
       // Check if we should retry
       const failureKind = finalData?.failureKind;
-      const providerStatus = finalData?.generationDiagnostics?.providerStatus;
+      const generationDiagnostics =
+        finalData?.record?.diagnostics?.generation ??
+        finalData?.generationDiagnostics;
+
+      const providerStatus = generationDiagnostics?.providerStatus;
       const isQuotaError = 
         failureKind === 'providerQuotaExceeded' || 
         failureKind === 'providerRateLimited' ||

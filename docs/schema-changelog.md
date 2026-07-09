@@ -1,13 +1,19 @@
 # Summary Analysis Schema Changelog
 
 ## Unreleased
-- Type: structural schema, prompt refinement, and strict execution modes
+- Type: record-centered contract consolidation, legacy fallback normalization, and rigorous report invariants
 - **Changes**:
-  - Implemented model-aware structured output configurations (`nativeSchema` for Gemini vs `promptedJson` for Gemma).
-  - Fixed `processStructuredSummaryOutput` to reliably detect `emptyStructuredOutput` and `underGeneratedStructuredOutput` using correct draft.2 root sections.
-  - Hardened metadata caching and experiment history logging to explicitly strip `rawFullText`, `rawOutput`, `rawPrompt`, `requestPreview`, `systemInstruction` and `customInstruction`.
-  - Suppressed no-op warning logs in `repairSummaryAnalysisV12ControlledVocabularies` and aggregated temporal role warnings.
-  - Added rigorous unit tests for model capabilities, prompt assertions, server utility methods, and repair functions.
+  - Deprecated and removed legacy flat compatibility fields and `responseRaw` references across `compare.ts`, `reportBuilder.ts`, and frontend components.
+  - Implemented `normalizeLegacyBatchRunItem` helper on the backend to safely bridge old `responseRaw` data into compliant `record` containers.
+  - Refactored all evaluation diagnostics and metadata extraction helpers in `reportBuilder.ts` (`getItemQualityStatus`, `getItemExecutionMetadata`, etc.) to operate strictly on the `item.record` object.
+  - Refactored frontend component `ImageExperiment.tsx` to read telemetry from `item.record.diagnostics.generation` rather than old flat fields.
+  - Expanded `validateBatchRunInvariants` with comprehensive structural validations:
+    - Verifies comparison coverage consistency.
+    - Asserts that all successful items containing expected metadata must have associated comparison objects.
+    - Validates that comparison `reviewStatus` falls strictly within the set `["pass", "needsReview", "fail"]`.
+    - Detects discrepancies where `expectedMetadata.visibleText` exists but `comparison.coverage.visibleText` is omitted.
+    - Validates batch-level size consistency by detecting records with positive `technicalMetadata.processedByteLength` when the batch-level `inputSizeSummary.totalProcessedBytes` is zero.
+  - Updated unit test suite (`reportBuilder.test.ts`) with modern, record-centric fixtures covering all new invariants, isolation of legacy tests, and normalization behavior.
 
 ## v1.2.0-draft.2
 - Type: structural schema and prompt refinement
