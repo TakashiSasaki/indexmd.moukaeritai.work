@@ -6,7 +6,8 @@ import {
   buildTextHeavyEvaluationSummary,
   isProviderRateLimitFailure, 
   isProviderQuotaFailure,
-  isProviderGenerationFailure
+  isProviderGenerationFailure,
+  validateBatchRunInvariants
 } from './reportBuilder';
 
 describe("Visual Analysis Report Classification Helpers", () => {
@@ -314,5 +315,100 @@ describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
     const evaluation = buildTextHeavyEvaluationSummary(items);
     assert.strictEqual(evaluation.possibleResolutionLimitedCount, 1);
     assert.strictEqual(evaluation.samples[0].possibleResolutionLimited, true);
+  });
+});
+
+describe('validateBatchRunInvariants', () => {
+  it('should pass on valid batch summary data', () => {
+    const validBatchSummary = {
+      modelName: "gemini-2.5-flash",
+      jsonMode: "native_schema",
+      total: 1,
+      successCount: 1,
+      items: [
+        {
+          sampleId: "sample-1",
+          success: true,
+          comparison: {
+            overallStatus: "pass",
+            coverage: {
+              visibleText: { expectedTotal: 10, covered: 8, missing: 2, ratio: 0.8 }
+            }
+          }
+        }
+      ]
+    } as any;
+
+    const result = validateBatchRunInvariants(validBatchSummary);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.issues.length, 0);
+  });
+
+  it('should detect missing comparison object for success items', () => {
+    const invalidBatchSummary = {
+      modelName: "gemini-2.5-flash",
+      jsonMode: "native_schema",
+      total: 1,
+      successCount: 1,
+      items: [
+        {
+          sampleId: "sample-1",
+          success: true
+          // comparison is missing
+        }
+      ]
+    } as any;
+
+    const result = validateBatchRunInvariants(invalidBatchSummary);
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.issues.some(issue => issue.includes("missing a comparison object")));
+  });
+
+  it('should detect invalid overallStatus', () => {
+    const invalidBatchSummary = {
+      modelName: "gemini-2.5-flash",
+      jsonMode: "native_schema",
+      total: 1,
+      items: [
+        {
+          sampleId: "sample-1",
+          success: true,
+          comparison: {
+            overallStatus: "invalid_status",
+            coverage: {
+              visibleText: { expectedTotal: 5, covered: 5, missing: 0, ratio: 1.0 }
+            }
+          }
+        }
+      ]
+    } as any;
+
+    const result = validateBatchRunInvariants(invalidBatchSummary);
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.issues.some(issue => issue.includes("comparison overallStatus is invalid")));
+  });
+
+  it('should detect mismatch in visibleText expectedTotal and covered + missing', () => {
+    const invalidBatchSummary = {
+      modelName: "gemini-2.5-flash",
+      jsonMode: "native_schema",
+      total: 1,
+      items: [
+        {
+          sampleId: "sample-1",
+          success: true,
+          comparison: {
+            overallStatus: "pass",
+            coverage: {
+              visibleText: { expectedTotal: 10, covered: 5, missing: 4, ratio: 0.5 } // 5 + 4 = 9 !== 10
+            }
+          }
+        }
+      ]
+    } as any;
+
+    const result = validateBatchRunInvariants(invalidBatchSummary);
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.issues.some(issue => issue.includes("expectedTotal (10) does not match covered (5) + missing (4)")));
   });
 });

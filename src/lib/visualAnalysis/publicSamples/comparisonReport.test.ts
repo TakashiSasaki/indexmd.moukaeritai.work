@@ -5,7 +5,7 @@ import { PublicSampleBatchRunSummary } from './batchTypes';
 
 describe('Public Sample Batch Comparison Report', () => {
   it('should build a structured comparison report from multiple batch run summaries', () => {
-    const runNative: PublicSampleBatchRunSummary = {
+    const runNative: any = {
       runId: 'run-native-123',
       timestamp: '2026-06-28T00:00:00Z',
       modelName: 'gemini-3.5-flash',
@@ -54,7 +54,7 @@ describe('Public Sample Batch Comparison Report', () => {
       ]
     };
 
-    const runPrompted: PublicSampleBatchRunSummary = {
+    const runPrompted: any = {
       runId: 'run-prompted-456',
       timestamp: '2026-06-28T00:01:00Z',
       modelName: 'gemini-3.5-flash',
@@ -143,7 +143,7 @@ describe('Public Sample Batch Comparison Report', () => {
   });
 
   it('should support compact past run format and map category / jsonMode correctly', () => {
-    const compactNative: PublicSampleBatchRunSummary = {
+    const compactNative: any = {
       runId: 'run-compact-native',
       timestamp: '2026-06-28T02:00:00Z',
       modelName: 'gemini-3.5-flash',
@@ -173,7 +173,7 @@ describe('Public Sample Batch Comparison Report', () => {
       ]
     };
 
-    const compactPrompted: PublicSampleBatchRunSummary = {
+    const compactPrompted: any = {
       runId: 'run-compact-prompted',
       timestamp: '2026-06-28T02:05:00Z',
       modelName: 'gemini-3.5-flash',

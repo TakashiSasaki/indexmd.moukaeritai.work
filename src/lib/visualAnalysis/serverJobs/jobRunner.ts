@@ -250,6 +250,7 @@ export async function startVisualBatchJob(
     const itemDurationMs = itemCompletedAtDate.getTime() - itemStartedAtDate.getTime();
     
     if (success && finalData) {
+      const record = finalData.record;
       item = {
         ...item,
         status: 'succeeded',
@@ -257,25 +258,16 @@ export async function startVisualBatchJob(
         durationMs: itemDurationMs,
         error: finalData.error,
         failureKind: finalData.failureKind,
-        qualityStatus: finalData.qualityStatus,
-        qualityScore: finalData.qualityScore,
-        qualityIssues: finalData.qualityIssues,
-        record: finalData.record || finalData,
-        responseRaw: finalData,
-        responseDiagnostics: finalData.responseDiagnostics,
-        retryDiagnostics: finalData.retryDiagnostics,
-        generationDiagnostics: finalData.generationDiagnostics,
-        parseDiagnostics: finalData.parseDiagnostics,
-        normalizationDiagnostics: finalData.normalizationDiagnostics,
-        inputDiagnostics: finalData.inputDiagnostics,
+        record,
         comparison: comparison
       };
       
       const counters = { ...(jobStore.getJob(jobId)?.counters || job.counters) };
       counters.total = job.targetSampleIds.length;
       counters.successCount++;
-      if (finalData.qualityStatus === 'valid') counters.validCount++;
-      if (finalData.qualityStatus === 'validLowQuality') counters.validLowQualityCount++;
+      const qStatus = record?.evaluation?.qualityStatus || finalData.qualityStatus;
+      if (qStatus === 'valid') counters.validCount++;
+      if (qStatus === 'validLowQuality') counters.validLowQualityCount++;
       if (comparison) {
         if (comparison.overallStatus === 'pass') counters.expectedComparisonPassCount++;
         if (comparison.overallStatus === 'warning') counters.expectedComparisonWarningCount++;
@@ -313,17 +305,7 @@ export async function startVisualBatchJob(
       };
 
       if (finalData) {
-        item.qualityStatus = finalData.qualityStatus;
-        item.qualityScore = finalData.qualityScore;
-        item.qualityIssues = finalData.qualityIssues;
-        item.record = finalData.record || finalData;
-        item.responseRaw = finalData;
-        item.responseDiagnostics = finalData.responseDiagnostics;
-        item.retryDiagnostics = finalData.retryDiagnostics;
-        item.generationDiagnostics = finalData.generationDiagnostics;
-        item.parseDiagnostics = finalData.parseDiagnostics;
-        item.normalizationDiagnostics = finalData.normalizationDiagnostics;
-        item.inputDiagnostics = finalData.inputDiagnostics;
+        item.record = finalData.record;
       }
       
       const counters = { ...(jobStore.getJob(jobId)?.counters || job.counters) };

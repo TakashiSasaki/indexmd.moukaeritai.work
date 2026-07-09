@@ -28,11 +28,6 @@ export interface PublicSampleBatchRunItem {
   title: string;
   success: boolean;
   record?: ImageAnalysisRecord;
-  qualityStatus?: string;
-  qualityScore?: number;
-  qualityIssues?: any[];
-  analysisRun?: any;
-  parseDiagnostics?: any;
   comparison?: PublicSampleComparisonSummary;
   durationMs?: number;
   attempts?: number;
@@ -54,12 +49,8 @@ export interface PublicSampleBatchRunItem {
   inputDiagnostics?: PublicSampleInputDiagnostics;
   normalizationDiagnostics?: any;
   
-  responseRaw?: any;
   responseDiagnostics?: ResponseDiagnostics;
   retryDiagnostics?: SafeFetchRetryDiagnostics;
-  category?: string;
-  execution?: any;
-  taxonomyCategory?: string;
 }
 
 export interface PublicSampleBatchRunSummary {
@@ -168,18 +159,8 @@ export interface VisualBatchJobItem {
   retryExhausted?: boolean;
   error?: string;
   failureKind?: string;
-  qualityStatus?: string;
-  qualityScore?: number;
-  qualityIssues?: any[];
   
   record?: ImageAnalysisRecord;
-  responseRaw?: any;
-  responseDiagnostics?: any;
-  retryDiagnostics?: any;
-  generationDiagnostics?: any;
-  parseDiagnostics?: any;
-  normalizationDiagnostics?: any;
-  inputDiagnostics?: any;
   comparison?: any;
 }
 
