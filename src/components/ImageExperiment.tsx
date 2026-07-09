@@ -1167,6 +1167,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         } else {
           failureCount++;
           reviewFailCount++;
+          expectedComparisonFailCount++;
           if (item.failureKind === 'jsonParseError') {
             invalidJsonCount++;
           }
@@ -1482,6 +1483,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             } else {
                 failureCount++;
                 reviewFailCount++;
+                expectedComparisonFailCount++;
                 newStatuses[sample.id] = "failure";
                 if (item.failureKind === 'jsonParseError' || (data.parseDiagnostics && !data.parseDiagnostics.success && data.parseDiagnostics.attempts)) {
                     invalidJsonCount++;
@@ -1490,8 +1492,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             items.push(item);
         } catch (e: any) {
             failureCount++;
-            reviewFailCount++;
-            newStatuses[sample.id] = "failure";
+                reviewFailCount++;
+                expectedComparisonFailCount++;
+                newStatuses[sample.id] = "failure";
             item = {
                sampleId: sample.id,
                title: sample.title,

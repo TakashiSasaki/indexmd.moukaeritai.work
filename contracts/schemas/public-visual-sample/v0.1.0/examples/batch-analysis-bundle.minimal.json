@@ -6,10 +6,25 @@
   "total": 1,
   "successCount": 0,
   "failureCount": 1,
-  "counterConsistency": true,
-  "comparisonCoverage": true,
-  "comparisonRecordConsistency": true,
-  "invariants": true,
+  "counterConsistency": {
+    "expectedComparison": {
+      "consistent": true
+    },
+    "review": {
+      "consistent": true
+    }
+  },
+  "comparisonCoverage": {
+    "expectedMetadataVsRecordConsistency": {
+      "consistent": true
+    }
+  },
+  "comparisonRecordConsistency": {
+    "allValid": true
+  },
+  "invariants": {
+    "valid": true
+  },
   "failureSummaries": {
     "totalFailures": 1,
     "qualityInvalid": 1
@@ -22,7 +37,9 @@
     "textHeavySamples": 1,
     "averageOcrLatencyMs": 150
   },
-  "analysisGuidance": "Use this artifact to diagnose test failures.",
+  "analysisGuidance": {
+    "message": "Use this artifact to diagnose test failures."
+  },
   "failures": {
     "totalFailures": 1,
     "items": [

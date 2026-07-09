@@ -340,6 +340,10 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     reviewCounts.reviewNeedsReviewCount === batchSummary.reviewNeedsReviewCount &&
     reviewCounts.reviewFailCount === batchSummary.reviewFailCount;
 
+  const generationFailureCount = normalizedItems.filter(i => !i.success).length;
+  const comparisonOnlyFailCount = normalizedItems.filter(i => i.success && i.comparison?.overallStatus === 'fail').length;
+  const notComparableCount = normalizedItems.filter(i => i.success && !i.comparison).length;
+
   const report = {
     reportKind: "visualAnalysisPublicSampleBatchAnalysisBundle" as const,
     generatedAt: new Date().toISOString(),
@@ -351,6 +355,14 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     validCount: batchSummary.validCount,
     validLowQualityCount: batchSummary.validLowQualityCount,
     invalidJsonCount: batchSummary.invalidJsonCount,
+    generationFailureCount,
+    comparisonOnlyFailCount,
+    notComparableCount,
+    jobStatus: batchSummary.jobStatus,
+    isComplete: batchSummary.isComplete,
+    completedCount: batchSummary.completedCount,
+    pendingCount: batchSummary.pendingCount,
+    processedCount: batchSummary.processedCount,
     expectedComparisonPassCount: batchSummary.expectedComparisonPassCount,
     expectedComparisonWarningCount: batchSummary.expectedComparisonWarningCount,
     expectedComparisonFailCount: batchSummary.expectedComparisonFailCount,
@@ -716,9 +728,14 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
 
 function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
   const failedItems = items.filter(isProviderGenerationFailure);
-  const byProviderStatus: Record<string, number> = {};
-  const byStatusCode: Record<string, number> = {};
+  
+  const byFinalProviderStatus: Record<string, number> = {};
+  const byObservedProviderStatus: Record<string, number> = {};
+  const byFinalStatusCode: Record<string, number> = {};
+  const byObservedStatusCode: Record<string, number> = {};
+  const byProviderFailureKind: Record<string, number> = {};
   const byMimeType: Record<string, number> = {};
+  let transientFetchFailureCount = 0;
   
   const inputsInfo: Array<{
     sampleId: string;
@@ -728,19 +745,45 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
   }> = [];
 
   for (const item of failedItems) {
-
     const diag = getItemGenerationDiagnostics(item);
     const inputDiag = getItemInputDiagnostics(item);
 
     if (diag) {
-      const provStatus = diag.providerStatus || "UNKNOWN";
-      byProviderStatus[provStatus] = (byProviderStatus[provStatus] || 0) + 1;
+      const finalProvStatus = diag.providerStatus || "UNKNOWN";
+      byFinalProviderStatus[finalProvStatus] = (byFinalProviderStatus[finalProvStatus] || 0) + 1;
       
-      const statusCodeStr = diag.statusCode ? String(diag.statusCode) : "UNKNOWN";
-      byStatusCode[statusCodeStr] = (byStatusCode[statusCodeStr] || 0) + 1;
+      const finalStatusCodeStr = diag.statusCode ? String(diag.statusCode) : "UNKNOWN";
+      byFinalStatusCode[finalStatusCodeStr] = (byFinalStatusCode[finalStatusCodeStr] || 0) + 1;
+
+      const failKind = diag.providerFailureKind || "UNKNOWN";
+      byProviderFailureKind[failKind] = (byProviderFailureKind[failKind] || 0) + 1;
+
+      if (diag.attempts && diag.attempts.length > 0) {
+        let hasTransient = false;
+        for (const attempt of diag.attempts) {
+           const obsStatus = attempt.providerStatus || "UNKNOWN";
+           byObservedProviderStatus[obsStatus] = (byObservedProviderStatus[obsStatus] || 0) + 1;
+           const obsCode = attempt.statusCode ? String(attempt.statusCode) : "UNKNOWN";
+           byObservedStatusCode[obsCode] = (byObservedStatusCode[obsCode] || 0) + 1;
+
+           if (attempt.errorMessageSummary && attempt.errorMessageSummary.toUpperCase().includes("FETCH FAILED")) {
+             hasTransient = true;
+           }
+        }
+        if (hasTransient) transientFetchFailureCount++;
+      } else {
+        byObservedProviderStatus[finalProvStatus] = (byObservedProviderStatus[finalProvStatus] || 0) + 1;
+        byObservedStatusCode[finalStatusCodeStr] = (byObservedStatusCode[finalStatusCodeStr] || 0) + 1;
+        if (diag.rawMessageSummary && diag.rawMessageSummary.toUpperCase().includes("FETCH FAILED")) {
+          transientFetchFailureCount++;
+        }
+      }
     } else {
-      byProviderStatus["UNKNOWN"] = (byProviderStatus["UNKNOWN"] || 0) + 1;
-      byStatusCode["UNKNOWN"] = (byStatusCode["UNKNOWN"] || 0) + 1;
+      byFinalProviderStatus["UNKNOWN"] = (byFinalProviderStatus["UNKNOWN"] || 0) + 1;
+      byFinalStatusCode["UNKNOWN"] = (byFinalStatusCode["UNKNOWN"] || 0) + 1;
+      byObservedProviderStatus["UNKNOWN"] = (byObservedProviderStatus["UNKNOWN"] || 0) + 1;
+      byObservedStatusCode["UNKNOWN"] = (byObservedStatusCode["UNKNOWN"] || 0) + 1;
+      byProviderFailureKind["UNKNOWN"] = (byProviderFailureKind["UNKNOWN"] || 0) + 1;
     }
 
     if (inputDiag) {
@@ -765,8 +808,12 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
 
   return {
     total: failedItems.length,
-    byProviderStatus,
-    byStatusCode,
+    byFinalProviderStatus,
+    byObservedProviderStatus,
+    byFinalStatusCode,
+    byObservedStatusCode,
+    byProviderFailureKind,
+    transientFetchFailureCount,
     byMimeType,
     largestInputs
   };

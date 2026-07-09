@@ -321,6 +321,7 @@ export async function startVisualBatchJob(
       counters.total = job.targetSampleIds.length;
       counters.failureCount++;
       counters.reviewFailCount++;
+      counters.expectedComparisonFailCount++;
       if (item.failureKind === 'jsonParseError' || item.failureKind === 'schemaValidationError') {
         counters.invalidJsonCount++;
       }
