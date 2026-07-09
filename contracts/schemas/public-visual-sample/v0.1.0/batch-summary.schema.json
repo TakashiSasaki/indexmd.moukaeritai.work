@@ -4,7 +4,7 @@
   "title": "Public Visual Sample Batch Run Summary Schema",
   "x-contract-id": "batch-summary",
   "x-contract-version": "v0.1.0",
-  "x-contract-status": "stable",
+  "x-contract-status": "rc",
   "type": "object",
   "required": [
     "runId",

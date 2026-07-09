@@ -4,7 +4,7 @@
   "title": "Visual Public Sample Analyze Response",
   "x-contract-id": "visual-public-samples-analyze.response",
   "x-contract-version": "v0.1.0",
-  "x-contract-status": "stable",
+  "x-contract-status": "rc",
   "type": "object",
   "required": [
     "success",

@@ -4,7 +4,7 @@
   "title": "Image Analysis Record Schema v0.1.0",
   "x-contract-id": "image-analysis-record",
   "x-contract-version": "v0.1.0",
-  "x-contract-status": "stable",
+  "x-contract-status": "rc",
   "type": "object",
   "properties": {
     "schemaVersion": {

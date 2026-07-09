@@ -4,7 +4,7 @@
   "title": "Visual Public Samples List Response",
   "x-contract-id": "visual-public-samples-list.response",
   "x-contract-version": "v0.1.0",
-  "x-contract-status": "stable",
+  "x-contract-status": "rc",
   "type": "array",
   "items": {
     "type": "object",

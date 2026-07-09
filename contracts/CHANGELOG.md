@@ -19,9 +19,14 @@ All notable changes to the versioned data exchange contracts, schemas, API paylo
 - Copied shared vocabularies to `contracts/vocabularies/` to serve as a unified source of truth for governed enums.
 - Added contract consistency checker script (`scripts/validate-contracts.mjs`) and wired it into `npm run validate:contracts`.
 - Implemented recursive deep nested contract validation in `scripts/validate-contracts.mjs` to ensure envelope payload files (such as `image-analysis-record` and `text-analysis-record`) and API response structures are thoroughly validated against inner nested schemas (like `visual-analysis` and `summary-analysis`).
+- Added contract-to-mirror verification script `scripts/verifyContractMirrors.mjs` and wired it to `npm run verify:contract-mirrors` to enforce structural synchronization without silent drift.
 
 ### Changed
+- Shifted several key schema contracts (`text-analysis-record/v0.1.0`, `image-analysis-record/v0.1.0`, `public-visual-sample/v0.1.0`, and `api/v0.1.0`) from `stable` status to `rc` (Release Candidate) to allow thorough real-world validation and alignment testing before final immutability.
 - Refined metadata on all schemas to include `$id`, `x-contract-id`, `x-contract-version`, and `x-contract-status` attributes to facilitate automated cataloging.
 - Confirmed the absolute removal of legacy flat properties and `responseRaw` from the standard schema paths of all new contracts, fully enforcing the nested `record`-centric design contract.
 - Aligned all canonical example JSON files with their respective schemas and inner schemas, correcting structural issues (such as `visibleElements` placement inside `visualInfo`) and correcting `sceneContext.lighting` enum values in `image-analysis-record` and API success examples.
 - Enriched `text-analysis-record` minimal examples to fully satisfy the `summary-analysis` required properties, avoiding empty mock placeholders.
+
+### Removed
+- Removed the deprecated and dangerous legacy `scripts/copyContracts.ts` script to prevent accidental overwrites of canonical `contracts/` with stale runtime `/schemas` files.

@@ -37,10 +37,12 @@ The application operates across distinct, strictly bounded schema layers:
      (Client-side preview)
 ```
 
-1.  **Summary Analysis Schema (v1.2.0-draft.2)**: Established as the **Source of Truth** for document indexing. Governed by the versioned data exchange contract `contracts/schemas/summary-analysis/v1.2.0-draft.2/schema.json` (mirrored internally in `/schemas/`). Instantiated inside Firestore as `FileSummaryMetadata` documents.
-2.  **Visual Analysis Schema (v0.2.0-draft.1)**: Experimental layout for visual indexing and OCR analysis. Governed by the versioned data exchange contract `contracts/schemas/visual-analysis/v0.2.0-draft.1/schema.json` (mirrored internally in `/schemas/`). Kept completely transient during this phase; no raw visual data or image bytes are stored in the database.
-3.  **Local Cache Layers**: `.gitignore`d folder caches at `cache/` to speed up operations and respect provider rate/quota limits.
-4.  **Audit Logs**: Structured histories kept locally or written to Firestore under strict privacy filters.
+1.  **Summary Analysis Schema (v1.2.0-draft.2)**: Established as the **Source of Truth** for document indexing. Governed by the versioned data exchange contract `contracts/schemas/summary-analysis/v1.2.0-draft.2/schema.json` (mirrored internally in `/schemas/`). Instantiated inside Firestore as `FileSummaryMetadata` documents. [Status: **Draft**]
+2.  **Visual Analysis Schema (v0.2.0-draft.1)**: Experimental layout for visual indexing and OCR analysis. Governed by the versioned data exchange contract `contracts/schemas/visual-analysis/v0.2.0-draft.1/schema.json` (mirrored internally in `/schemas/`). Kept completely transient during this phase. [Status: **Draft**]
+3.  **Envelope Contracts**: Governed by `text-analysis-record/v0.1.0` and `image-analysis-record/v0.1.0` envelopes. [Status: **RC** (Release Candidate)]
+4.  **Mirror Verification**: All runtime schemas under `/schemas` are structural mirrors of the canonical paths in `contracts/`. We verify alignment without drift using `npm run verify:contract-mirrors`.
+5.  **Local Cache Layers**: `.gitignore`d folder caches at `cache/` to speed up operations and respect provider rate/quota limits.
+6.  **Audit Logs**: Structured histories kept locally or written to Firestore under strict privacy filters.
 
 ---
 
