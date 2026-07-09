@@ -48,6 +48,10 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - Benign errors (401 expiry, model fallback warnings, Firestore temporary disconnects) are muted in the UI to prevent cluttering the user experience during transient network/API issues.
 - Do not mute blocking data-loss, schema, provider quota, or cache integrity problems in developer diagnostics.
 
+### 5. UI Render Performance
+- **O(M*N) Nested Loops**: Avoid nested array iterations such as `.filter()` inside `.map()` in render functions. Pre-calculate data into hash maps using `useMemo` to achieve O(1) lookups.
+- **Memoizing List Items**: When mapping over frequently updated large lists in React (like terminal logs), wrap the rendered item in a `React.memo` component to drop render times for existing items from O(N) to O(1) on list append.
+
 ## 🎨 Design Rules
 - **Typography**: Primary font is `Inter`. Display/headings may use `Space Grotesk` or `Outfit` for a tool-oriented technical feel.
 - **Theme**: High-contrast light theme (`#F8FAFC` background) with Indigo (`#4F46E5`) as the primary brand color.

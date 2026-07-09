@@ -153,7 +153,7 @@ Check server endpoints against frontend consumers and tests. Pay attention to:
 - Drive scan and cache endpoints;
 - Visual Analysis analyze endpoints;
 - public sample image endpoints;
-- report export builders;
+- `/api/visual/batch-jobs/:jobId/reports/analysis-bundle` (consolidated export builder);
 - comparison artifact generation.
 
 For each endpoint, verify that the response shape expected by the UI and tests still matches the server output. Preserve backward-compatible fallbacks for old artifacts where reports or comparisons may load older localStorage data.
