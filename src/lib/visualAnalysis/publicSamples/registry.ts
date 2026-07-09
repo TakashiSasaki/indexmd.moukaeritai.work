@@ -214,7 +214,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       "spines": ["book spines", "spines", "book spine", "spine"],
       "wood": ["wooden shelf", "wood", "wooden bookshelf", "bookshelves"]
     },
-    optionalElementCategories: ["document", "furniture", "product"],
+    optionalElementCategories: ["furniture", "product"],
     optionalVisibleElementLabels: ["spines", "wood"],
     source: {
       provider: "Wikimedia Commons",
@@ -331,7 +331,6 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     },
     optionalVisibleElementLabels: ["gate"],
     expectedVisibleText: ["ADMIT ONE", "TICKET"],
-    optionalVisibleText: ["TICKET"],
     source: {
       provider: "localFixture",
       imageUrl: "/visual-samples/synthetic-ticket.png",

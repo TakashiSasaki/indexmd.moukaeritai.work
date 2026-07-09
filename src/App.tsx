@@ -81,9 +81,12 @@ export default function App() {
   // Persist current tab to localStorage for session recovery
   useEffect(() => {
     if (location.pathname !== "/") {
-      localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+      const pathTab = location.pathname.replace(/^\//, "");
+      if (validTabs.includes(pathTab as AppTabId)) {
+        localStorage.setItem(ACTIVE_TAB_KEY, pathTab);
+      }
     }
-  }, [activeTab, location.pathname]);
+  }, [location.pathname, validTabs]);
 
   const handleTabChange = (tab: AppTabId) => {
     navigate(`/${tab}`);
