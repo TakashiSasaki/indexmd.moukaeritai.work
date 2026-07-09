@@ -1588,6 +1588,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     };
 
     const summary: PublicSampleBatchRunSummary = {
+        jobStatus: "COMPLETED",
+        isComplete: true,
+        completedCount: total,
+        pendingCount: 0,
+        processedCount: total,
         runId: checkpointRef.current.runId,
         timestamp: new Date().toISOString(),
         startedAt: checkpointRef.current.startedAt,

@@ -737,11 +737,16 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
   const byMimeType: Record<string, number> = {};
   let transientFetchFailureCount = 0;
   
-  const inputsInfo: Array<{
+  const representativeSamples: Array<{
     sampleId: string;
+    finalProviderStatus?: string;
+    finalStatusCode?: string;
+    providerFailureKind?: string;
+    observedAttemptStatuses?: string[];
+    causeCode?: string;
+    causeSyscall?: string;
     byteLength?: number;
     base64Length?: number;
-    providerStatus?: string;
   }> = [];
 
   for (const item of failedItems) {
@@ -789,22 +794,34 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
     if (inputDiag) {
       const mime = inputDiag.mimeType || "UNKNOWN";
       byMimeType[mime] = (byMimeType[mime] || 0) + 1;
-
-      inputsInfo.push({
-        sampleId: item.sampleId,
-        byteLength: inputDiag.byteLength,
-        base64Length: inputDiag.base64Length,
-        providerStatus: diag?.providerStatus
-      });
     } else {
       byMimeType["UNKNOWN"] = (byMimeType["UNKNOWN"] || 0) + 1;
     }
+
+    const sampleEntry: any = {
+      sampleId: item.sampleId,
+      finalProviderStatus: diag?.providerStatus,
+      finalStatusCode: diag?.statusCode ? String(diag.statusCode) : undefined,
+      providerFailureKind: diag?.providerFailureKind,
+      byteLength: inputDiag?.byteLength,
+      base64Length: inputDiag?.base64Length,
+      causeCode: (diag as any)?.causeCode,
+      causeSyscall: (diag as any)?.causeSyscall
+    };
+    
+    if (diag?.attempts) {
+       sampleEntry.observedAttemptStatuses = diag.attempts.map((a: any) => a.providerStatus || "UNKNOWN");
+       const lastAttempt = diag.attempts[diag.attempts.length - 1];
+       if (!sampleEntry.causeCode && lastAttempt?.causeCode) sampleEntry.causeCode = lastAttempt.causeCode;
+       if (!sampleEntry.causeSyscall && lastAttempt?.causeSyscall) sampleEntry.causeSyscall = lastAttempt.causeSyscall;
+    }
+
+    if (representativeSamples.length < 10) {
+       representativeSamples.push(sampleEntry);
+    }
   }
 
-  const largestInputs = inputsInfo
-    .filter(i => i.byteLength !== undefined)
-    .sort((a, b) => (b.byteLength || 0) - (a.byteLength || 0))
-    .slice(0, 5);
+  
 
   return {
     total: failedItems.length,
@@ -815,7 +832,7 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
     byProviderFailureKind,
     transientFetchFailureCount,
     byMimeType,
-    largestInputs
+    representativeSamples
   };
 }
 
