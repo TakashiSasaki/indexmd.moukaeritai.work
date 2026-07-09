@@ -31,11 +31,11 @@ describe('buildGenerationFailureResponse', () => {
 
     assert.strictEqual(response.success, false);
     assert.strictEqual(response.failureKind, "generationError");
-    assert.strictEqual(response.generationDiagnostics.statusCode, 401);
-    assert.strictEqual(response.generationDiagnostics.providerStatus, "UNAUTHENTICATED");
-    assert.strictEqual(response.generationDiagnostics.rawMessageSummary, "Raw message 123");
-    assert.strictEqual(response.generationDiagnostics.retryable, false);
-    assert.deepEqual(response.generationDiagnostics.attemptedModels, ["test-model"]);
+    assert.strictEqual(response.record.diagnostics.generation.statusCode, 401);
+    assert.strictEqual(response.record.diagnostics.generation.providerStatus, "UNAUTHENTICATED");
+    assert.strictEqual(response.record.diagnostics.generation.rawMessageSummary, "Raw message 123");
+    assert.strictEqual(response.record.diagnostics.generation.retryable, false);
+    assert.deepEqual(response.record.diagnostics.generation.attemptedModels, ["test-model"]);
   });
 
   test('should map providerRateLimited ProviderError correctly', () => {
@@ -52,8 +52,8 @@ describe('buildGenerationFailureResponse', () => {
 
     assert.strictEqual(response.success, false);
     assert.strictEqual(response.failureKind, "providerRateLimited");
-    assert.strictEqual(response.generationDiagnostics.providerFailureKind, "providerRateLimited");
-    assert.strictEqual(response.generationDiagnostics.rateLimited, true);
+    assert.strictEqual(response.record.diagnostics.generation.providerFailureKind, "providerRateLimited");
+    assert.strictEqual(response.record.diagnostics.generation.rateLimited, true);
   });
 
   test('should map providerQuotaExceeded ProviderError correctly', () => {
@@ -70,8 +70,8 @@ describe('buildGenerationFailureResponse', () => {
 
     assert.strictEqual(response.success, false);
     assert.strictEqual(response.failureKind, "providerQuotaExceeded");
-    assert.strictEqual(response.generationDiagnostics.providerFailureKind, "providerQuotaExceeded");
-    assert.strictEqual(response.generationDiagnostics.quotaExceeded, true);
+    assert.strictEqual(response.record.diagnostics.generation.providerFailureKind, "providerQuotaExceeded");
+    assert.strictEqual(response.record.diagnostics.generation.quotaExceeded, true);
   });
 
   test('should handle generic Error', () => {
@@ -86,7 +86,7 @@ describe('buildGenerationFailureResponse', () => {
 
     assert.strictEqual(response.success, false);
     assert.strictEqual(response.failureKind, "generationError");
-    assert.strictEqual(response.generationDiagnostics.rawMessageSummary, "Generic error message");
+    assert.strictEqual(response.record.diagnostics.generation.rawMessageSummary, "Generic error message");
   });
 
   test('should handle string error', () => {
@@ -99,7 +99,7 @@ describe('buildGenerationFailureResponse', () => {
 
     assert.strictEqual(response.success, false);
     assert.strictEqual(response.failureKind, "generationError");
-    assert.strictEqual(response.generationDiagnostics.rawMessageSummary, "\"Just a string\"");
+    assert.strictEqual(response.record.diagnostics.generation.rawMessageSummary, "\"Just a string\"");
   });
 
   test('should include metadata blocks', () => {
@@ -115,8 +115,8 @@ describe('buildGenerationFailureResponse', () => {
       requestPreview: { prompt: "hello" }
     });
 
-    assert.deepEqual(response.sampleMetadata, { id: "1" });
-    assert.deepEqual(response.expectedMetadata, { kind: "photo" });
+    assert.strictEqual(response.record.assetMetadata.assetId, "1");
+    assert.deepEqual(response.record.evaluation.expectedMetadata, { kind: "photo" });
     assert.deepEqual(response.requestPreview, { prompt: "hello" });
   });
 
@@ -128,6 +128,6 @@ describe('buildGenerationFailureResponse', () => {
       providerFamily: "gemini",
       runMetadata: mockRunMetadata as any
     });
-    assert.deepEqual(response.analysisRun, mockRunMetadata);
+    assert.deepEqual(response.record.analysisRun, mockRunMetadata);
   });
 });

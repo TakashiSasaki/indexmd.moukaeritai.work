@@ -6,11 +6,21 @@ export function jobToSummary(job: VisualBatchJob) {
     sampleId: item.sampleId,
     title: item.title || item.sampleId,
     success: item.status === 'succeeded',
-    record: item.record,
+    qualityStatus: item.qualityStatus,
+    qualityScore: item.qualityScore,
+    qualityIssues: item.qualityIssues,
+    analysisRun: item.record?.analysisRun ?? item.responseRaw?.analysisRun,
+    parseDiagnostics: item.parseDiagnostics,
+    generationDiagnostics: item.generationDiagnostics,
+    inputDiagnostics: item.inputDiagnostics,
+    normalizationDiagnostics: item.normalizationDiagnostics,
+    responseRaw: item.responseRaw,
     responseDiagnostics: item.responseDiagnostics,
     retryDiagnostics: item.retryDiagnostics,
+    comparison: item.comparison,
     error: item.error,
     failureKind: item.failureKind,
+    record: item.record,
   })) as any[];
 
   return {

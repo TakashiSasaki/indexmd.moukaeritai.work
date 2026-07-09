@@ -48,7 +48,6 @@ import { evaluateVisualAnalysisQuality } from "./src/lib/visualAnalysis/qualityG
 import { parseModelJsonOutput } from "./src/lib/visualAnalysis/jsonParsing";
 import { VISUAL_ANALYSIS_SCHEMA, VISUAL_ANALYSIS_SCHEMA_VERSION } from "./src/lib/visualAnalysis/schema";
 import { GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA } from "./src/lib/visualAnalysis/providerSchema";
-import { ImageAnalysisRecord } from "./src/lib/visualAnalysis/types";
 import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } from "./src/lib/visualAnalysis/runMetadata";
 import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
 import { generateContentWithRetry, ProviderGenerationRetryPolicy } from "./src/lib/gemini";
@@ -1711,17 +1710,21 @@ app.get("/api/visual/public-samples", (req, res) => {
       title: s.title,
       category: s.category,
 
+
+
       // New canonical expected metadata object.
       expectedMetadata,
 
-      thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`,
-      licenseKind: s.source.licenseKind,
-      licenseName: s.source.licenseName,
-      attributionText: s.source.attributionText,
-      sourcePageUrl: s.source.pageUrl,
-      sourceProvider: s.source.provider,
-      sourceKind: s.source.provider === "localFixture" ? "synthetic" : "external",
-      isSynthetic: s.source.provider === "localFixture"
+      source: {
+        provider: s.source.provider,
+        kind: s.source.provider === "localFixture" ? "synthetic" : "external",
+        licenseKind: s.source.licenseKind,
+        licenseName: s.source.licenseName,
+        attributionText: s.source.attributionText,
+        pageUrl: s.source.pageUrl,
+        isSynthetic: s.source.provider === "localFixture"
+      },
+      thumbnailRoute: `/api/visual/public-samples/${s.id}/image?variant=thumbnail`
     };
   });
   res.json(samples);
@@ -2104,56 +2107,87 @@ export async function analyzePublicSample(options: {
     };
 
     if (!parseRes.ok) {
-      const record: ImageAnalysisRecord = {
-        schemaVersion: "image-analysis-record.v0.1.0",
-        status: { success: false, failureKind: "jsonParseError", error: "Model returned invalid JSON" },
-        assetMetadata: {
-          assetId: sample.id,
+      return { status: 200, body: {
+        record: {
+          schemaVersion: "image-analysis-record.v0.1.0",
+          status: { success: false, failureKind: "jsonParseError", error: "Model returned invalid JSON" },
+          assetMetadata: {
+            assetId: sample.id,
+            title: sample.title,
+            category: sample.category,
+            sourceKind: "publicSample",
+            sampleId: sample.id,
+            sourceProvider: "publicSamples",
+            sourcePageUrl: sample.source.pageUrl,
+            licenseKind: sample.source.licenseKind,
+            licenseName: sample.source.licenseName,
+            attributionText: sample.source.attributionText
+          },
+          technicalMetadata: {
+            mimeType: runMetadata.input.mimeType,
+            originalByteLength: inputDiagnostics?.originalByteLength,
+            processedByteLength: runMetadata.input.byteLength,
+            base64Length: runMetadata.input.base64Length,
+            inputFormat: inputDiagnostics?.inputFormat,
+            outputFormat: inputDiagnostics?.outputFormat,
+            resized: inputDiagnostics?.resized,
+            recompressed: inputDiagnostics?.recompressed,
+            reencoded: inputDiagnostics?.reencoded,
+            quality: inputDiagnostics?.quality,
+            analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
+            analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
+            analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
+            analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
+            analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
+            targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
+            hardCapExceeded: inputDiagnostics?.hardCapExceeded,
+            minQualityReached: inputDiagnostics?.minQualityReached,
+            providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
+            originalDimensions: inputDiagnostics?.originalDimensions,
+            processedDimensions: inputDiagnostics?.dimensions
+          },
+          analysisRun: runMetadata,
+          evaluation: {
+            expectedMetadata: buildPublicSampleExpectedMetadata(sample)
+          },
+          diagnostics: {
+            input: fullInputDiagnostics,
+            parse: parseRes.diagnostics
+          }
+        },
+        success: false,
+        error: "Model returned invalid JSON",
+        failureKind: "jsonParseError",
+        sampleMetadata: {
+          id: sample.id,
           title: sample.title,
           category: sample.category,
-          sourceKind: "publicSample",
-          sampleId: sample.id,
-          sourceProvider: "publicSamples",
-          sourcePageUrl: sample.source.pageUrl,
           licenseKind: sample.source.licenseKind,
           licenseName: sample.source.licenseName,
-          attributionText: sample.source.attributionText
+          attributionText: sample.source.attributionText,
+          sourcePageUrl: sample.source.pageUrl
         },
-        technicalMetadata: {
-          mimeType: runMetadata.input.mimeType,
-          originalByteLength: inputDiagnostics?.originalByteLength,
-          processedByteLength: runMetadata.input.byteLength,
-          base64Length: runMetadata.input.base64Length,
-          inputFormat: inputDiagnostics?.inputFormat,
-          outputFormat: inputDiagnostics?.outputFormat,
-          resized: inputDiagnostics?.resized,
-          recompressed: inputDiagnostics?.recompressed,
-          reencoded: inputDiagnostics?.reencoded,
-          quality: inputDiagnostics?.quality,
-          analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
-          analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
-          analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
-          analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
-          analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
-          targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
-          hardCapExceeded: inputDiagnostics?.hardCapExceeded,
-          minQualityReached: inputDiagnostics?.minQualityReached,
-          providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
-          originalDimensions: inputDiagnostics?.originalDimensions,
-          processedDimensions: inputDiagnostics?.dimensions
-        },
+        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
         analysisRun: runMetadata,
-        evaluation: {
-          expectedMetadata: buildPublicSampleExpectedMetadata(sample)
+        parseDiagnostics: parseRes.diagnostics,
+        inputDiagnostics: {
+          sourceKind: runMetadata.input.sourceKind,
+          sampleId: runMetadata.input.sampleId,
+          mimeType: runMetadata.input.mimeType,
+          byteLength: runMetadata.input.byteLength,
+          base64Length: runMetadata.input.base64Length,
+          imageVariant: "analysis",
+          analysisSourceUrlKind: sourceUrlKind,
+          inputSizeWarning,
+          ...inputDiagnostics,
+          cacheLayer: fetchResult.cacheLayer,
+          cacheKey: fetchResult.cacheKey,
+          cachePolicyVersion: fetchResult.cachePolicyVersion,
+          cacheStored: fetchResult.cacheStored,
+          cacheReadError: fetchResult.cacheReadError,
+          cacheWriteError: fetchResult.cacheWriteError,
+          cacheSharedInFlight: fetchResult.cacheSharedInFlight
         },
-        diagnostics: {
-          input: fullInputDiagnostics,
-          parse: parseRes.diagnostics
-        }
-      };
-
-      return { status: 200, body: {
-        record,
         ...(requestPreview ? { requestPreview } : {})
       } };
     }
@@ -2167,62 +2201,107 @@ export async function analyzePublicSample(options: {
     };
 
     if (extractedCustomSchema) {
-      const record: ImageAnalysisRecord = {
-        schemaVersion: "image-analysis-record.v0.1.0",
-        status: { success: true },
-        assetMetadata: {
-          assetId: sample.id,
+      const result: any = {
+        record: {
+          schemaVersion: "image-analysis-record.v0.1.0",
+          status: { success: true },
+          assetMetadata: {
+            assetId: sample.id,
+            title: sample.title,
+            category: sample.category,
+            sourceKind: "publicSample",
+            sampleId: sample.id,
+            sourceProvider: "publicSamples",
+            sourcePageUrl: sample.source.pageUrl,
+            licenseKind: sample.source.licenseKind,
+            licenseName: sample.source.licenseName,
+            attributionText: sample.source.attributionText
+          },
+          technicalMetadata: {
+            mimeType: runMetadata.input.mimeType,
+            originalByteLength: inputDiagnostics?.originalByteLength,
+            processedByteLength: runMetadata.input.byteLength,
+            base64Length: runMetadata.input.base64Length,
+            inputFormat: inputDiagnostics?.inputFormat,
+            outputFormat: inputDiagnostics?.outputFormat,
+            resized: inputDiagnostics?.resized,
+            recompressed: inputDiagnostics?.recompressed,
+            reencoded: inputDiagnostics?.reencoded,
+            quality: inputDiagnostics?.quality,
+            analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
+            analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
+            analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
+            analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
+            analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
+            targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
+            hardCapExceeded: inputDiagnostics?.hardCapExceeded,
+            minQualityReached: inputDiagnostics?.minQualityReached,
+            providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
+            originalDimensions: inputDiagnostics?.originalDimensions,
+            processedDimensions: inputDiagnostics?.dimensions
+          },
+          visualAnalysis: parsed,
+          analysisRun: runMetadata,
+          evaluation: {
+            expectedMetadata: buildPublicSampleExpectedMetadata(sample),
+            qualityStatus: "excellent",
+            qualityScore: 100,
+            qualityIssues: []
+          },
+          diagnostics: {
+            input: fullInputDiagnostics,
+            parse: parseDiagnosticsLight
+          }
+        },
+        success: true,
+        sampleMetadata: {
+          id: sample.id,
           title: sample.title,
           category: sample.category,
-          sourceKind: "publicSample",
-          sampleId: sample.id,
-          sourceProvider: "publicSamples",
-          sourcePageUrl: sample.source.pageUrl,
           licenseKind: sample.source.licenseKind,
           licenseName: sample.source.licenseName,
-          attributionText: sample.source.attributionText
+          attributionText: sample.source.attributionText,
+          sourcePageUrl: sample.source.pageUrl
         },
-        technicalMetadata: {
-          mimeType: runMetadata.input.mimeType,
-          originalByteLength: inputDiagnostics?.originalByteLength,
-          processedByteLength: runMetadata.input.byteLength,
-          base64Length: runMetadata.input.base64Length,
-          inputFormat: inputDiagnostics?.inputFormat,
-          outputFormat: inputDiagnostics?.outputFormat,
-          resized: inputDiagnostics?.resized,
-          recompressed: inputDiagnostics?.recompressed,
-          reencoded: inputDiagnostics?.reencoded,
-          quality: inputDiagnostics?.quality,
-          analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
-          analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
-          analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
-          analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
-          analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
-          targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
-          hardCapExceeded: inputDiagnostics?.hardCapExceeded,
-          minQualityReached: inputDiagnostics?.minQualityReached,
-          providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
-          originalDimensions: inputDiagnostics?.originalDimensions,
-          processedDimensions: inputDiagnostics?.dimensions
-        },
+        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
         visualAnalysis: parsed,
         analysisRun: runMetadata,
-        evaluation: {
-          expectedMetadata: buildPublicSampleExpectedMetadata(sample),
-          qualityStatus: "excellent",
-          qualityScore: 100,
-          qualityIssues: []
-        },
-        diagnostics: {
-          input: fullInputDiagnostics,
-          parse: parseDiagnosticsLight
+        parseDiagnostics: parseDiagnosticsLight,
+        qualityStatus: "excellent",
+        qualityScore: 100,
+        qualityIssues: [],
+        experimentalModel: false,
+        usedModelName: targetModel,
+        providerFamily: isGemma ? "gemma" : "gemini",
+        effectiveStructuredExecutionMode: mode,
+        validationPassed: true,
+        schemaVersion: "custom",
+        rawOutput: outputText,
+        inputDiagnostics: {
+          sourceKind: runMetadata.input.sourceKind,
+          sampleId: runMetadata.input.sampleId,
+          mimeType: runMetadata.input.mimeType,
+          byteLength: runMetadata.input.byteLength,
+          base64Length: runMetadata.input.base64Length,
+          imageVariant: "analysis",
+          analysisSourceUrlKind: sourceUrlKind,
+          inputSizeWarning,
+          ...inputDiagnostics,
+          cacheLayer: fetchResult.cacheLayer,
+          cacheKey: fetchResult.cacheKey,
+          cachePolicyVersion: fetchResult.cachePolicyVersion,
+          cacheStored: fetchResult.cacheStored,
+          cacheReadError: fetchResult.cacheReadError,
+          cacheWriteError: fetchResult.cacheWriteError,
+          cacheSharedInFlight: fetchResult.cacheSharedInFlight
         }
       };
 
-      return { status: 200, body: {
-        record,
-        ...(includeRequestPreview ? { requestPreview } : {})
-      } };
+      if (includeRequestPreview) {
+        result.requestPreview = requestPreview;
+      }
+
+      return { status: 200, body: result };
     }
 
     let canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
@@ -2337,66 +2416,110 @@ export async function analyzePublicSample(options: {
       isExperimental = qReport.experimentalModel;
     }
 
-    const record: ImageAnalysisRecord = {
-      schemaVersion: "image-analysis-record.v0.1.0",
-      status: {
-        success: validation.isValid,
-        failureKind: validation.isValid ? undefined : "schemaValidationError"
+    const result: any = {
+      record: {
+        schemaVersion: "image-analysis-record.v0.1.0",
+        status: {
+          success: validation.isValid,
+          failureKind: validation.isValid ? undefined : "schemaValidationError"
+        },
+        assetMetadata: {
+          assetId: sample.id,
+          title: sample.title,
+          category: sample.category,
+          sourceKind: "publicSample",
+          sampleId: sample.id,
+          sourceProvider: "publicSamples",
+          sourcePageUrl: sample.source.pageUrl,
+          licenseKind: sample.source.licenseKind,
+          licenseName: sample.source.licenseName,
+          attributionText: sample.source.attributionText
+        },
+        technicalMetadata: {
+          mimeType: runMetadata.input.mimeType,
+          originalByteLength: inputDiagnostics?.originalByteLength,
+          processedByteLength: runMetadata.input.byteLength,
+          base64Length: runMetadata.input.base64Length,
+          inputFormat: inputDiagnostics?.inputFormat,
+          outputFormat: inputDiagnostics?.outputFormat,
+          resized: inputDiagnostics?.resized,
+          recompressed: inputDiagnostics?.recompressed,
+          reencoded: inputDiagnostics?.reencoded,
+          quality: inputDiagnostics?.quality,
+          analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
+          analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
+          analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
+          analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
+          analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
+          targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
+          hardCapExceeded: inputDiagnostics?.hardCapExceeded,
+          minQualityReached: inputDiagnostics?.minQualityReached,
+          providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
+          originalDimensions: inputDiagnostics?.originalDimensions,
+          processedDimensions: inputDiagnostics?.dimensions
+        },
+        visualAnalysis: normalized,
+        analysisRun: runMetadata,
+        evaluation: {
+          expectedMetadata: buildPublicSampleExpectedMetadata(sample),
+          qualityStatus,
+          qualityScore,
+          qualityIssues
+        },
+        diagnostics: {
+          input: fullInputDiagnostics,
+          parse: parseDiagnosticsLight,
+          normalization: canonicalization.diagnostics
+        }
       },
-      assetMetadata: {
-        assetId: sample.id,
+      success: validation.isValid,
+      ...(validation.isValid ? {} : { failureKind: "schemaValidationError" }),
+      sampleMetadata: {
+        id: sample.id,
         title: sample.title,
         category: sample.category,
-        sourceKind: "publicSample",
-        sampleId: sample.id,
-        sourceProvider: "publicSamples",
-        sourcePageUrl: sample.source.pageUrl,
         licenseKind: sample.source.licenseKind,
         licenseName: sample.source.licenseName,
-        attributionText: sample.source.attributionText
+        attributionText: sample.source.attributionText,
+        sourcePageUrl: sample.source.pageUrl
       },
-      technicalMetadata: {
-        mimeType: runMetadata.input.mimeType,
-        originalByteLength: inputDiagnostics?.originalByteLength,
-        processedByteLength: runMetadata.input.byteLength,
-        base64Length: runMetadata.input.base64Length,
-        inputFormat: inputDiagnostics?.inputFormat,
-        outputFormat: inputDiagnostics?.outputFormat,
-        resized: inputDiagnostics?.resized,
-        recompressed: inputDiagnostics?.recompressed,
-        reencoded: inputDiagnostics?.reencoded,
-        quality: inputDiagnostics?.quality,
-        analysisSizingPolicy: inputDiagnostics?.analysisSizingPolicy,
-        analysisTargetLongEdge: inputDiagnostics?.analysisTargetLongEdge,
-        analysisTargetBytes: inputDiagnostics?.analysisTargetBytes,
-        analysisHardCapBytes: inputDiagnostics?.analysisHardCapBytes,
-        analysisSizeReductionRatio: inputDiagnostics?.analysisSizeReductionRatio,
-        targetExceededButAccepted: inputDiagnostics?.targetExceededButAccepted,
-        hardCapExceeded: inputDiagnostics?.hardCapExceeded,
-        minQualityReached: inputDiagnostics?.minQualityReached,
-        providerSafeMimeType: inputDiagnostics?.providerSafeMimeType,
-        originalDimensions: inputDiagnostics?.originalDimensions,
-        processedDimensions: inputDiagnostics?.dimensions
-      },
+      expectedMetadata: buildPublicSampleExpectedMetadata(sample),
       visualAnalysis: normalized,
       analysisRun: runMetadata,
-      evaluation: {
-        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
-        qualityStatus,
-        qualityScore,
-        qualityIssues
-      },
-      diagnostics: {
-        input: fullInputDiagnostics,
-        parse: parseDiagnosticsLight,
-        normalization: canonicalization.diagnostics
+      parseDiagnostics: parseDiagnosticsLight,
+      normalizationDiagnostics: canonicalization.diagnostics,
+      qualityStatus,
+      qualityScore,
+      qualityIssues,
+      experimentalModel: isExperimental,
+      usedModelName: targetModel,
+      providerFamily: isGemma ? "gemma" : "gemini",
+      effectiveStructuredExecutionMode: mode,
+      inputDiagnostics: {
+        sourceKind: runMetadata.input.sourceKind,
+        sampleId: runMetadata.input.sampleId,
+        mimeType: runMetadata.input.mimeType,
+        byteLength: runMetadata.input.byteLength,
+        base64Length: runMetadata.input.base64Length,
+        imageVariant: "analysis",
+        analysisSourceUrlKind: sourceUrlKind,
+        inputSizeWarning,
+        ...inputDiagnostics,
+        cacheLayer: fetchResult.cacheLayer,
+        cacheKey: fetchResult.cacheKey,
+        cachePolicyVersion: fetchResult.cachePolicyVersion,
+        cacheStored: fetchResult.cacheStored,
+        cacheReadError: fetchResult.cacheReadError,
+        cacheWriteError: fetchResult.cacheWriteError,
+        cacheSharedInFlight: fetchResult.cacheSharedInFlight
       }
     };
 
-    return { status: 200, body: {
-      record,
-      ...(includeRequestPreview && requestPreview ? { requestPreview } : {})
-    } };
+    if (includeRequestPreview && requestPreview) {
+      result.requestPreview = requestPreview;
+    }
+
+    return { status: 200, body: result };
   } catch (err: any) {
     console.error("Public sample analysis error:", err.message);
     return { status: 500, body: { error: err.message || "Failed to analyze public sample" } };
@@ -2960,7 +3083,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
       sampleId: item.sampleId,
       title: item.title || item.sampleId,
       status: item.status,
-      qualityStatus: item.record?.evaluation?.qualityStatus,
+      qualityStatus: item.qualityStatus,
       error: item.error,
       failureKind: item.failureKind,
       hasRecord: !!item.record,
@@ -2975,7 +3098,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
       completedAt: item.completedAt,
       error: item.error,
       failureKind: item.failureKind,
-      qualityStatus: item.record?.evaluation?.qualityStatus,
+      qualityStatus: item.qualityStatus,
     }));
 
     const { executionPrivate, ...restJob } = job;
@@ -3007,8 +3130,8 @@ app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
         completedAt: item.completedAt,
         durationMs: item.durationMs,
         attempts: item.attempts,
-        qualityStatus: item.record?.evaluation?.qualityStatus,
-        qualityScore: item.record?.evaluation?.qualityScore,
+        qualityStatus: item.qualityStatus,
+        qualityScore: item.qualityScore,
         error: item.error,
         failureKind: item.failureKind,
         retryExhausted: item.retryExhausted,

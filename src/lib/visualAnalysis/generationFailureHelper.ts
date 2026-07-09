@@ -124,25 +124,13 @@ export function buildGenerationFailureResponse(args: {
     success: false,
     error: err?.message || "Generate content failed",
     failureKind,
-    analysisRun: runMetadata,
-    generationDiagnostics: diagnostics
   };
 
-  if (runMetadata.input || inputDiagnostics) {
-    response.inputDiagnostics = {
-      sourceKind: runMetadata.input?.sourceKind,
-      sampleId: runMetadata.input?.sampleId,
-      fileId: runMetadata.input?.fileId,
-      mimeType: runMetadata.input?.mimeType,
-      byteLength: runMetadata.input?.byteLength,
-      base64Length: runMetadata.input?.base64Length,
-      ...(inputDiagnostics || {})
-    };
-  }
 
-  if (outputMode) response.outputMode = outputMode;
-  if (sampleMetadata) response.sampleMetadata = sampleMetadata;
-  if (expectedMetadata) response.expectedMetadata = expectedMetadata;
+
+
+
+
   if (requestPreview) response.requestPreview = requestPreview;
 
   // Drive API endpoint expects `metadata` instead of sampleMetadata
