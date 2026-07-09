@@ -321,6 +321,115 @@ export function buildBatchReportForChat(batchSummary: PublicSampleBatchRunSummar
   return buildBatchDiagnosticReportForChat(batchSummary);
 }
 
+export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchRunSummary) {
+  const normalizedItems = batchSummary.items.map(normalizeLegacyBatchRunItem);
+  const reSummary = { ...batchSummary, items: normalizedItems };
+
+  const compactItems = normalizedItems.map(item => buildCompactItem(item));
+
+  // Extract failure items (where success is false or quality status is invalid)
+  const failureItems = normalizedItems.filter(item => !item.success || getItemQualityStatus(item) === 'invalid');
+  const compactFailureItems = failureItems.map(item => buildCompactItem(item));
+
+  const expectedCounts = summarizeExpectedComparisonCounts(normalizedItems);
+  const reviewCounts = summarizeReviewCounts(normalizedItems);
+
+  const expectedConsistent = 
+    expectedCounts.expectedComparisonPassCount === batchSummary.expectedComparisonPassCount &&
+    expectedCounts.expectedComparisonWarningCount === batchSummary.expectedComparisonWarningCount &&
+    expectedCounts.expectedComparisonFailCount === batchSummary.expectedComparisonFailCount;
+
+  const reviewConsistent = 
+    reviewCounts.reviewPassCount === batchSummary.reviewPassCount &&
+    reviewCounts.reviewNeedsReviewCount === batchSummary.reviewNeedsReviewCount &&
+    reviewCounts.reviewFailCount === batchSummary.reviewFailCount;
+
+  const report = {
+    reportKind: "visualAnalysisPublicSampleBatchAnalysisBundle" as const,
+    generatedAt: new Date().toISOString(),
+    modelName: batchSummary.modelName,
+    jsonMode: batchSummary.jsonMode,
+    total: batchSummary.total,
+    successCount: batchSummary.successCount,
+    failureCount: batchSummary.failureCount,
+    validCount: batchSummary.validCount,
+    validLowQualityCount: batchSummary.validLowQualityCount,
+    invalidJsonCount: batchSummary.invalidJsonCount,
+    expectedComparisonPassCount: batchSummary.expectedComparisonPassCount,
+    expectedComparisonWarningCount: batchSummary.expectedComparisonWarningCount,
+    expectedComparisonFailCount: batchSummary.expectedComparisonFailCount,
+    reviewPassCount: batchSummary.reviewPassCount,
+    reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
+    reviewFailCount: batchSummary.reviewFailCount,
+    counterConsistency: {
+      expectedComparison: {
+        declared: {
+          pass: batchSummary.expectedComparisonPassCount || 0,
+          warning: batchSummary.expectedComparisonWarningCount || 0,
+          fail: batchSummary.expectedComparisonFailCount || 0
+        },
+        recomputed: {
+          pass: expectedCounts.expectedComparisonPassCount,
+          warning: expectedCounts.expectedComparisonWarningCount,
+          fail: expectedCounts.expectedComparisonFailCount
+        },
+        consistent: expectedConsistent
+      },
+      review: {
+        declared: {
+          pass: batchSummary.reviewPassCount || 0,
+          needsReview: batchSummary.reviewNeedsReviewCount || 0,
+          fail: batchSummary.reviewFailCount || 0
+        },
+        recomputed: {
+          pass: reviewCounts.reviewPassCount,
+          needsReview: reviewCounts.reviewNeedsReviewCount,
+          fail: reviewCounts.reviewFailCount
+        },
+        consistent: reviewConsistent
+      }
+    },
+    comparisonCoverage: buildComparisonCoverage(normalizedItems),
+    comparisonRecordConsistency: buildComparisonRecordConsistency(normalizedItems),
+    invariants: validateBatchRunInvariants(reSummary),
+    generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
+    apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
+    parseFailureSummary: buildParseFailureSummary(normalizedItems),
+    networkFailureSummary: buildNetworkFailureSummary(normalizedItems),
+    validationFailureSummary: buildValidationFailureSummary(normalizedItems),
+    rateLimitSummary: buildRateLimitSummary(normalizedItems),
+    providerQuotaSummary: buildProviderQuotaSummary(normalizedItems),
+    inputSizeSummary: buildInputSizeSummary(normalizedItems),
+    textHeavyEvaluation: buildTextHeavyEvaluationSummary(normalizedItems),
+    analysisGuidance: {
+      intendedUse: "Primary single-file artifact for ChatGPT-assisted analysis of visual public sample batch regressions.",
+      recommendedFirstChecks: [
+        "invariants.valid",
+        "comparisonCoverage.consistent",
+        "comparisonRecordConsistency.consistent",
+        "expectedComparisonFailCount",
+        "reviewFailCount",
+        "textHeavyEvaluation.ratio"
+      ],
+      fullJsonPolicy: "Use Full JSON only for archival replay or when canonical ImageAnalysisRecord details omitted from this bundle are required.",
+      summaryPolicy: "Summary JSON is a lightweight view and is no longer required for normal ChatGPT analysis when this bundle is available.",
+      failuresPolicy: "Failures are embedded in this bundle under failures.items."
+    },
+    failures: {
+      totalFailures: compactFailureItems.length,
+      items: compactFailureItems
+    },
+    items: compactItems
+  };
+
+  return attachArtifactIntegrity(report, {
+    artifactKind: "analysis-bundle" as any,
+    items: normalizedItems,
+    endSentinel: "END_OF_VISUAL_ANALYSIS_BATCH_ANALYSIS_BUNDLE"
+  });
+}
+
+
 export function buildBatchDiagnosticReportForChat(batchSummary: PublicSampleBatchRunSummary) {
   const normalizedItems = batchSummary.items.map(normalizeLegacyBatchRunItem);
   const reSummary = { ...batchSummary, items: normalizedItems };
@@ -1205,7 +1314,7 @@ export function buildFullItemReport(item: PublicSampleBatchRunItem) {
 }
 
 function attachArtifactIntegrity(report: any, options: {
-  artifactKind: "summary" | "diagnostic" | "failures" | "full" | "item";
+  artifactKind: "summary" | "diagnostic" | "failures" | "full" | "item" | "analysis-bundle";
   items: PublicSampleBatchRunItem[];
   endSentinel: string;
 }) {

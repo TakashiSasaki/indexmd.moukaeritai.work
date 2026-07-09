@@ -141,3 +141,16 @@ An aggregation block used in batch summary reports to measure OCR extraction per
 - **`ratio`**: Overall visible text matching ratio across the batch.
 - **`possibleResolutionLimitedCount`**: Count of items where visible text was missed and the model requested a low/medium resolution instead of `HIGH`, helping diagnose resolution bottlenecks.
 
+---
+
+## 📦 Analysis Bundle JSON Schema
+
+The `Analysis Bundle` (`visualAnalysisPublicSampleBatchAnalysisBundle`) is the recommended single-file artifact for ChatGPT-assisted batch regression analysis. It aggregates high-level metrics, detailed failure taxonomies, and compact individual item metrics while omitting heavy raw payloads.
+
+### Key Fields:
+- **`reportKind`**: `"visualAnalysisPublicSampleBatchAnalysisBundle"`.
+- **`analysisGuidance`**: Intended use guidelines, recommended first checks, and archival policies.
+- **`counterConsistency`**: Recomputed vs declared verification metrics.
+- **`failures`**: Embedded array of compact item metrics (`failures.items`) specifically representing runs where `success` is `false` or quality/review status is `invalid` / `fail`.
+- **`items`**: Full collection of run records represented in an ultra-compact schema (omitting `responseRaw` and successful `bodyPreview`) to protect token windows.
+

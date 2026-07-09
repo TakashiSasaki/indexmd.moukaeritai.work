@@ -57,30 +57,37 @@ The public sample matrix acts as a regression review utility to safeguard agains
 
 ## Batch Regression Artifacts (JSON Output Types)
 
-During batch evaluation, four different JSON artifacts are generated to help optimize model review, diagnostic depth, and sharing limits:
+During batch evaluation, a unified recommended bundle is produced for ChatGPT analysis, alongside four legacy or archive-level JSON artifacts to optimize model review, diagnostic depth, and sharing limits:
 
+### Recommended for ChatGPT / Analysis
+1. **Analysis Bundle JSON**:
+   - **Purpose**: The primary recommended single-file artifact for ChatGPT-assisted analysis of visual public sample batch regressions.
+   - **Included Content**: Core execution summaries, run counters (total, success, failure, valid, invalid JSON, etc.), consistency metrics, detailed failure summaries (generation, API, parse, network, validation, rate limits, and provider quotas), text-heavy evaluations, and embedded compact failure items (`failures.items`).
+   - **Excluded Content**: To fit comfortably in your chat context window, raw API response bodies (`responseRaw`), large body previews, and massive successful preview details are strictly omitted.
+   - **Flow**: This is the only file you need to send to ChatGPT for regular analysis.
+
+### Advanced / Archive Artifacts
 1. **ChatGPT Summary**:
-   - **Purpose**: Extremely lightweight summary optimized for quick sharing with ChatGPT or other models.
-   - **Included Content**: `sampleId`, `title`, `success`, `qualityStatus`, `reviewStatus`, expected and detected `imageKind`, calculated coverage metrics, and lists of missing categories, labels, and visible text.
-   - **Excluded Content**: Raw API response bodies (`responseRaw`), detailed visual element attributes, raw model parser diagnostics, and response body previews.
-   - **Recommended Flow**: This is the default artifact copied to paste into model chats.
+   - **Purpose**: Extremely lightweight, minimalist summary showing high-level status only.
+   - **Included Content**: `sampleId`, `title`, `success`, `qualityStatus`, `reviewStatus`, expected and detected `imageKind`, and basic coverage.
+   - **Excluded Content**: Detailed logs, diagnostics, or full item evaluations.
+   - **Flow**: Archive only; no longer required when the Analysis Bundle is available.
 
 2. **ChatGPT Diagnostic**:
-   - **Purpose**: High-fidelity diagnostics used when a test is failing or needs manual review, but reasons aren't obvious from the summary alone.
-   - **Included Content**: Curated expected metadata, detailed `comparisonSummary`, detected elements, extracted text keywords, input and parser diagnostics.
-   - **Excluded Content**: Successful items have their massive raw body previews omitted to keep the token size reasonable.
+   - **Purpose**: High-fidelity diagnostics used when deep-tracing single-item matcher issues.
+   - **Included Content**: Curated expected metadata, detailed element comparisons, detected elements, and full parser logs.
+   - **Flow**: Archive only; no longer required for normal ChatGPT analysis.
 
 3. **Failures Only JSON**:
    - **Purpose**: Instantly isolate only the samples that encountered critical failures (e.g., API failures, JSON parse errors, structural invalidations).
-   - **Value**: If all tests pass, this artifact is virtually empty. When failure emerges, this snippet can be pasted into ChatGPT to immediately pinpoint structural or provider-side issues.
+   - **Flow**: Archive only; failures are now embedded inline in the Analysis Bundle.
 
 4. **Full Batch JSON**:
-   - **Purpose**: Comprehensive historical archive containing each sample's canonical `ImageAnalysisRecord`, comparison summary, retry metadata, response diagnostics, and record-centered execution diagnostics.
-   - **Excluded Content**: New artifacts do not emit legacy raw API response bodies such as `responseRaw`. Legacy artifacts may be normalized through compatibility helpers only.
-   - **Action**: Due to its immense size, this should be downloaded (via the recommended "Download" action) rather than copied, preventing truncation or clipboard crashes.
+   - **Purpose**: Comprehensive, high-overhead historical archive containing each sample's canonical `ImageAnalysisRecord`, raw API metrics, and full execution trace.
+   - **Action**: Due to its immense size, this must be downloaded rather than copied to avoid browser crashes.
 
 ### Copy Integrity Verification (endSentinel)
-All generated JSON artifacts are appended with an `artifactIntegrity.endSentinel` field (e.g., `"END_OF_VISUAL_ANALYSIS_BATCH_SUMMARY"`). When copy-pasting into chat interfaces, users can quickly check the very bottom of their prompt: if the sentinel is visible, the snippet was pasted completely. If missing, the text was truncated due to interface limits.
+All generated JSON artifacts are appended with an `artifactIntegrity.endSentinel` field (e.g., `"END_OF_VISUAL_ANALYSIS_BATCH_ANALYSIS_BUNDLE"`). When copy-pasting into chat interfaces, users can quickly check the very bottom of their prompt: if the sentinel is visible, the snippet was pasted completely. If missing, the text was truncated due to interface limits.
 
 ---
 

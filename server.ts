@@ -54,7 +54,8 @@ import { generateContentWithRetry, ProviderGenerationRetryPolicy } from "./src/l
 import { 
   buildBatchSummaryReportForChat, 
   buildBatchDiagnosticReportForChat, 
-  buildFailuresOnlyReport 
+  buildFailuresOnlyReport,
+  buildBatchAnalysisBundleForChat
 } from './src/lib/visualAnalysis/publicSamples/reportBuilder';
 import { buildPublicSampleExpectedMetadata } from './src/lib/visualAnalysis/publicSamples/expectedMetadata';
 import { jobToSummary } from './src/lib/visualAnalysis/serverJobs/jobAdapters';
@@ -3174,6 +3175,18 @@ app.post("/api/visual/batch-jobs/:jobId/force-cancel", async (req, res) => {
     }
     
     return res.status(200).json({ success: true, job: jobStore.getJob(job.jobId) });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/visual/batch-jobs/:jobId/reports/analysis-bundle", async (req, res) => {
+  try {
+    const job = jobStore.getJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    const summary = jobToSummary(job);
+    const report = buildBatchAnalysisBundleForChat(summary);
+    return res.status(200).json(report);
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }
