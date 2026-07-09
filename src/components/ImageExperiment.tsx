@@ -175,6 +175,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [serverJobComputedState, setServerJobComputedState] = useState<any>(null);
   const [serverJobItemsPreview, setServerJobItemsPreview] = useState<any[]>([]);
   const [isStartingServerJob, setIsStartingServerJob] = useState(false);
+  const [isRefreshingServerJob, setIsRefreshingServerJob] = useState(false);
   const [serverJobList, setServerJobList] = useState<any[]>([]);
 
   // Batch evaluation state
@@ -687,10 +688,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             setSelectedSampleId(data[0].id);
           }
 
-          // Initialize checkboxes to all true by default
+          // Initialize checkboxes to all false by default
           const initialSelected: Record<string, boolean> = {};
           data.forEach((s: any) => {
-            initialSelected[s.id] = true;
+            initialSelected[s.id] = false;
           });
           setSelectedSampleIds(initialSelected);
         })
@@ -888,8 +889,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
-  const handleRefreshServerJob = async () => {
+  const handleRefreshServerJob = async (isManual = false) => {
     if (!serverJobId) return;
+    if (isManual) setIsRefreshingServerJob(true);
     try {
       const res = await fetch(`/api/visual/batch-jobs/${serverJobId}`);
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
@@ -898,7 +900,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       setServerJobComputedState(data.computedState ?? null);
       setServerJobItemsPreview(data.itemsPreview ?? []);
     } catch (e: any) {
-      onAddLog("error", `Refresh failed: ${e.message}`);
+      if (isManual) onAddLog("error", `Refresh failed: ${e.message}`);
+    } finally {
+      if (isManual) {
+        setIsRefreshingServerJob(false);
+      }
     }
   };
   
@@ -957,9 +963,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   };
 
   const handleImportServerJob = async () => {
-    if (!serverJobStatus || serverJobStatus.status !== 'completed') return;
+    if (!serverJobStatus) return;
+    const hasProcessedItems = (serverJobStatus.items?.length || 0) > 0 || (serverJobComputedState && (serverJobComputedState.successCount + serverJobComputedState.failureCount) > 0);
+    if (!hasProcessedItems) return;
     try {
-      onAddLog("info", `Importing server job ${serverJobStatus.jobId} into batch summary...`);
+      const isCompleted = serverJobStatus.status === 'completed';
+      onAddLog("info", `Importing ${isCompleted ? 'completed' : 'partial'} server job summary ${serverJobStatus.jobId}...`);
       const res = await fetch(`/api/visual/batch-jobs/${serverJobStatus.jobId}/summary-data`);
       if (!res.ok) throw new Error(`Failed to fetch summary data: ${res.status}`);
       const summary = await res.json();
@@ -2349,19 +2358,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </button>
               
               <div className="flex-1 max-w-xs flex items-center gap-2 ml-4">
-                <input 
-                  type="text" 
-                  value={serverJobId}
-                  onChange={(e) => setServerJobId(e.target.value)}
-                  placeholder="Enter Job ID"
-                  className="w-full text-xs p-1.5 border rounded"
-                />
+                {serverJobId && (
+                  <span className="text-xs text-slate-500 font-mono select-all">
+                    Job: {serverJobId.substring(0, 8)}...
+                  </span>
+                )}
                 <button
-                  onClick={handleRefreshServerJob}
-                  disabled={!serverJobId}
-                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
+                  onClick={() => handleRefreshServerJob(true)}
+                  disabled={!serverJobId || isRefreshingServerJob}
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
                 >
-                  Refresh
+                  {isRefreshingServerJob ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  {isRefreshingServerJob ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
             </div>
@@ -2423,7 +2431,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </div>
                 )}
                 <div className="pt-4 mt-2 border-t border-slate-200">
-                  {serverJobStatus.status === 'completed' && (
+                  {((serverJobStatus.items?.length || 0) > 0 || (serverJobComputedState && (serverJobComputedState.successCount + serverJobComputedState.failureCount) > 0)) ? (
                     <div className="p-4 rounded-lg border-2 border-indigo-200 bg-indigo-50/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -2432,7 +2440,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         </div>
                         <h4 className="font-extrabold text-sm text-indigo-900">Analysis Bundle JSON</h4>
                         <p className="text-[11px] text-slate-600 leading-normal max-w-2xl">
-                          The primary single-file artifact for ChatGPT-assisted analysis. Includes run counters, consistency metrics, failure summaries, input sizes, text-heavy assessments, and embedded failure items.
+                          {serverJobStatus.status === 'completed' ? 'The primary single-file artifact for ChatGPT-assisted analysis. Includes run counters, consistency metrics, failure summaries, input sizes, text-heavy assessments, and embedded failure items.' : 'The partial artifact for ChatGPT-assisted analysis. Includes all items processed so far. You can download this while the job is running or if it was canceled.'}
                         </p>
                       </div>
                       <div className="flex gap-2 w-full sm:w-auto shrink-0 flex-wrap">
@@ -2450,7 +2458,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                           className="text-[11px] font-bold text-indigo-600 hover:text-indigo-750 flex items-center justify-center gap-1.5 bg-white hover:bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-200 shadow-sm transition-colors"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          <span>Download</span>
+                          <span>{serverJobStatus.status === 'completed' ? 'Download Bundle' : serverJobStatus.status === 'canceled' ? 'Download Canceled Bundle' : 'Download Partial Bundle'}</span>
                         </a>
                         <button onClick={handleImportServerJob} className="text-[11px] px-3 py-2 bg-emerald-100 text-emerald-800 rounded-lg font-bold hover:bg-emerald-200 transition-colors flex items-center gap-1.5">
                           <Activity className="w-3.5 h-3.5" />
@@ -2458,11 +2466,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         </button>
                       </div>
                     </div>
-                  )}
-                  {serverJobStatus.status !== 'completed' && (
+                  ) : (
                     <div className="text-xs flex items-center justify-between gap-2">
                        <span className="font-bold text-slate-700">Get Results:</span>
-                       <span className="text-slate-500 italic">Available when completed</span>
+                       <span className="text-slate-500 italic">No completed items yet.</span>
                     </div>
                   )}
                 </div>

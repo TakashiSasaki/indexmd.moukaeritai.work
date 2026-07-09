@@ -1,7 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ModelInfo, ValidationRecord } from '../types';
 import MODELS_INFO from '../data/models_info.json';
-import VALIDATION_HISTORY from '../data/validation_history.json';
 import { Check, X, HelpCircle, AlertCircle } from 'lucide-react';
 
 const MODELS = MODELS_INFO as ModelInfo[];
@@ -33,7 +32,20 @@ export const CompatibilityMatrix = React.memo(({
   currentMimeType 
 }: CompatibilityMatrixProps) => {
 
-  const displayHistory = historyProp || VALIDATION_HISTORY;
+  const [fetchedHistory, setFetchedHistory] = useState<ValidationRecord[]>([]);
+
+  useEffect(() => {
+    if (!historyProp) {
+      fetch('/api/validation-history')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setFetchedHistory(data);
+        })
+        .catch(err => console.error('Failed to fetch validation history', err));
+    }
+  }, [historyProp]);
+
+  const displayHistory = historyProp || fetchedHistory;
 
   // Cache/Index validation status per model and mimeType
   const statusMap = useMemo(() => {
