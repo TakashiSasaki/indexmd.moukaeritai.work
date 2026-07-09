@@ -27,35 +27,29 @@ describe('Public Sample Batch Comparison Report', () => {
           sampleId: 'sample-1',
           title: 'Sample 1',
           success: true,
-          record: {
-            status: { success: true },
-            assetMetadata: { category: 'charts' },
-            evaluation: {
-              qualityStatus: 'valid',
-              qualityScore: 1.0,
-              comparison: {
-                reviewStatus: 'pass',
-                overallStatus: 'pass'
-              }
-            }
-          } as any
+          qualityStatus: 'pass',
+          qualityScore: 1.0,
+          comparison: {
+            reviewStatus: 'pass',
+            overallStatus: 'pass'
+          } as any,
+          responseRaw: {
+            sampleMetadata: { category: 'charts' }
+          }
         },
         {
           sampleId: 'sample-2',
           title: 'Sample 2',
           success: true,
-          record: {
-            status: { success: true },
-            assetMetadata: { category: 'tables' },
-            evaluation: {
-              qualityStatus: 'valid',
-              qualityScore: 1.0,
-              comparison: {
-                reviewStatus: 'pass',
-                overallStatus: 'pass'
-              }
-            }
-          } as any
+          qualityStatus: 'pass',
+          qualityScore: 1.0,
+          comparison: {
+            reviewStatus: 'pass',
+            overallStatus: 'pass'
+          } as any,
+          responseRaw: {
+            sampleMetadata: { category: 'tables' }
+          }
         }
       ]
     };
@@ -82,17 +76,14 @@ describe('Public Sample Batch Comparison Report', () => {
           sampleId: 'sample-1',
           title: 'Sample 1',
           success: true,
-          record: {
-            status: { success: true },
-            assetMetadata: { category: 'charts' },
-            evaluation: {
-              qualityStatus: 'valid',
-              qualityScore: 0.9,
-              comparison: {
-                reviewStatus: 'pass',
-                overallStatus: 'pass'
-              }
-            },
+          qualityStatus: 'pass',
+          qualityScore: 0.9,
+          comparison: {
+            reviewStatus: 'pass',
+            overallStatus: 'pass'
+          } as any,
+          responseRaw: {
+            sampleMetadata: { category: 'charts' },
             analysisRun: {
               execution: {
                 jsonRecovery: {
@@ -100,21 +91,18 @@ describe('Public Sample Batch Comparison Report', () => {
                   localRepairSucceeded: true
                 }
               }
-            } as any
-          } as any
+            }
+          }
         },
         {
           sampleId: 'sample-2',
           title: 'Sample 2',
           success: false,
-          record: {
-            status: { 
-              success: false, 
-              failureKind: 'jsonParseError',
-              error: 'SyntaxError'
-            },
-            assetMetadata: { category: 'tables' }
-          } as any
+          failureKind: 'jsonParseError',
+          error: 'SyntaxError',
+          responseRaw: {
+            sampleMetadata: { category: 'tables' }
+          }
         }
       ]
     };
@@ -174,18 +162,13 @@ describe('Public Sample Batch Comparison Report', () => {
           sampleId: 'sample-landscape-1', // maps to 'landscape' category in registry
           title: 'Yosemite Valley',
           success: true,
-          record: {
-            status: { success: true },
-            assetMetadata: { category: 'landscape' },
-            analysisRun: {
-              execution: {
-                modelName: 'gemini-3.5-flash',
-                providerFamily: 'gemini',
-                structuredExecutionMode: 'nativeSchema',
-                jsonMode: 'native_schema'
-              }
-            } as any
-          } as any
+          category: 'landscape',
+          execution: {
+            modelName: 'gemini-3.5-flash',
+            providerFamily: 'gemini',
+            structuredExecutionMode: 'nativeSchema',
+            jsonMode: 'native_schema'
+          }
         }
       ]
     };
@@ -209,23 +192,19 @@ describe('Public Sample Batch Comparison Report', () => {
           sampleId: 'sample-landscape-1',
           title: 'Yosemite Valley',
           success: false,
-          record: {
-            status: { success: false, failureKind: 'schemaValidationError' },
-            analysisRun: {
-              execution: {
-                modelName: 'gemini-3.5-flash',
-                providerFamily: 'gemini',
-                structuredExecutionMode: 'promptedJson',
-                jsonMode: 'prompt_only',
-                jsonRecovery: {
-                  schemaValidationRecoveryAttempted: true,
-                  schemaValidationRetryCount: 1,
-                  schemaValidationRetryParseSucceeded: true,
-                  schemaValidationRetryValidationErrors: ["some-error"]
-                }
-              }
-            } as any
-          } as any
+          failureKind: 'schemaValidationError', // schema validation taxonomy
+          execution: {
+            modelName: 'gemini-3.5-flash',
+            providerFamily: 'gemini',
+            structuredExecutionMode: 'promptedJson',
+            jsonMode: 'prompt_only',
+            jsonRecovery: {
+              schemaValidationRecoveryAttempted: true,
+              schemaValidationRetryCount: 1,
+              schemaValidationRetryParseSucceeded: true,
+              schemaValidationRetryValidationErrors: ["some-error"]
+            }
+          }
         }
       ]
     };

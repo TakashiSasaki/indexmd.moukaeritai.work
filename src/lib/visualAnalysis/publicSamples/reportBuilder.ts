@@ -36,41 +36,31 @@ export function getItemNormalizationDiagnostics(item: PublicSampleBatchRunItem) 
 }
 
 export function isNetworkFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  const failureKind = item.record?.status?.failureKind ?? item.failureKind;
-  return !success && failureKind === 'networkError';
+  return !item.success && item.failureKind === 'networkError';
 }
 
 export function isRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  const failureKind = item.record?.status?.failureKind ?? item.failureKind;
-  return !success && failureKind === 'rateLimited';
+  return !item.success && item.failureKind === 'rateLimited';
 }
 
 export function isProviderRateLimitFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  const failureKind = item.record?.status?.failureKind ?? item.failureKind;
-  const genDiag = item.record?.diagnostics?.generation || item.generationDiagnostics;
-  if (success) return false;
+  if (item.success) return false;
   return (
-    failureKind === 'providerRateLimited' ||
-    genDiag?.providerFailureKind === 'providerRateLimited' ||
-    genDiag?.statusCode === 429 ||
-    (genDiag as any)?.rateLimited === true
+    item.failureKind === 'providerRateLimited' ||
+    getItemGenerationDiagnostics(item)?.providerFailureKind === 'providerRateLimited' ||
+    getItemGenerationDiagnostics(item)?.statusCode === 429 ||
+    (getItemGenerationDiagnostics(item) as any)?.rateLimited === true
   );
 }
 
 export function isProviderQuotaFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  const failureKind = item.record?.status?.failureKind ?? item.failureKind;
-  const genDiag = item.record?.diagnostics?.generation || item.generationDiagnostics;
-  if (success) return false;
+  if (item.success) return false;
   return (
-    failureKind === 'providerQuotaExceeded' ||
-    genDiag?.providerFailureKind === 'providerQuotaExceeded' ||
-    genDiag?.providerStatus === 'RESOURCE_EXHAUSTED' ||
-    genDiag?.providerStatus === 'QUOTA_EXCEEDED' ||
-    (genDiag as any)?.quotaExceeded === true
+    item.failureKind === 'providerQuotaExceeded' ||
+    getItemGenerationDiagnostics(item)?.providerFailureKind === 'providerQuotaExceeded' ||
+    getItemGenerationDiagnostics(item)?.providerStatus === 'RESOURCE_EXHAUSTED' ||
+    getItemGenerationDiagnostics(item)?.providerStatus === 'QUOTA_EXCEEDED' ||
+    (getItemGenerationDiagnostics(item) as any)?.quotaExceeded === true
   );
 }
 
@@ -79,34 +69,27 @@ export function isProviderQuotaOrRateLimitFailure(item: PublicSampleBatchRunItem
 }
 
 export function isTransportOrResponseFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  const failureKind = item.record?.status?.failureKind ?? item.failureKind;
-  return !success && 
+  return !item.success &&
          !isNetworkFailure(item) &&
          !isRateLimitFailure(item) &&
          !isProviderRateLimitFailure(item) &&
          !isProviderQuotaFailure(item) &&
-         (failureKind === 'nonJsonResponse' || 
-          failureKind === 'invalidJsonResponse' || 
-          failureKind === 'apiError' || 
-          failureKind === 'startupHtml');
+         (item.failureKind === 'nonJsonResponse' ||
+          item.failureKind === 'invalidJsonResponse' ||
+          item.failureKind === 'apiError' ||
+          item.failureKind === 'startupHtml');
 }
 
 export function isModelParseFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  const failureKind = item.record?.status?.failureKind ?? item.failureKind;
-  return !success && failureKind === 'jsonParseError';
+  return !item.success && item.failureKind === 'jsonParseError';
 }
 
 export function isSchemaValidationFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  const failureKind = item.record?.status?.failureKind ?? item.failureKind;
-  return !success && failureKind === 'schemaValidationError';
+  return !item.success && item.failureKind === 'schemaValidationError';
 }
 
 export function isProviderGenerationFailure(item: PublicSampleBatchRunItem): boolean {
-  const success = item.record?.status?.success ?? item.success;
-  return !success && 
+  return !item.success &&
          !isNetworkFailure(item) &&
          !isRateLimitFailure(item) &&
          !isProviderRateLimitFailure(item) &&
@@ -354,27 +337,23 @@ function buildNetworkFailureSummary(items: PublicSampleBatchRunItem[]) {
 }
 
 export function getItemExecutionMetadata(item: any) {
-  const record = item.record;
-  const analysisRun = record?.analysisRun;
-  const execution = analysisRun?.execution || record?.diagnostics?.execution;
-  
-  if (execution) {
+  if (item.execution) {
     return {
-      modelName: execution.modelName || "UNKNOWN",
-      providerFamily: execution.providerFamily || "UNKNOWN",
-      structuredExecutionMode: execution.structuredExecutionMode || "UNKNOWN",
-      jsonMode: execution.jsonMode || "UNKNOWN",
-      jsonRecovery: execution.jsonRecovery
+      modelName: item.execution.modelName || "UNKNOWN",
+      providerFamily: item.execution.providerFamily || "UNKNOWN",
+      structuredExecutionMode: item.execution.structuredExecutionMode || "UNKNOWN",
+      jsonMode: item.execution.jsonMode || "UNKNOWN",
+      jsonRecovery: item.execution.jsonRecovery
     };
   }
-  
+  const analysisRun = getItemAnalysisRun(item) ?? (item as any).responseRaw?.analysisRun;
   const run = analysisRun?.metadata ?? analysisRun;
   
-  const modelName = run?.model?.name || run?.execution?.usedModelName || run?.execution?.modelName || "UNKNOWN";
-  const providerFamily = run?.model?.providerFamily || run?.execution?.providerFamily || "UNKNOWN";
-  const structuredExecutionMode = run?.execution?.structuredExecutionMode || "UNKNOWN";
-  const jsonMode = run?.execution?.jsonMode || "UNKNOWN";
-  const jsonRecovery = run?.execution?.jsonRecovery;
+  const modelName = run?.model?.name || run?.execution?.usedModelName || run?.execution?.modelName || (item as any).responseRaw?.usedModelName || "UNKNOWN";
+  const providerFamily = run?.model?.providerFamily || run?.execution?.providerFamily || (item as any).responseRaw?.providerFamily || "UNKNOWN";
+  const structuredExecutionMode = run?.execution?.structuredExecutionMode || (item as any).responseRaw?.effectiveStructuredExecutionMode || "UNKNOWN";
+  const jsonMode = run?.execution?.jsonMode || (item as any).responseRaw?.jsonMode || "UNKNOWN";
+  const jsonRecovery = run?.execution?.jsonRecovery || (item as any).responseRaw?.jsonRecovery;
   
   return {
     modelName,
@@ -385,20 +364,6 @@ export function getItemExecutionMetadata(item: any) {
   };
 }
 
-export function getItemFailureTaxonomy(item: PublicSampleBatchRunItem): string {
-  if (item.record?.status?.success ?? item.success) return "success";
-  
-  if (isNetworkFailure(item)) return "networkError";
-  if (isRateLimitFailure(item)) return "rateLimited";
-  if (isProviderRateLimitFailure(item)) return "providerRateLimited";
-  if (isProviderQuotaFailure(item)) return "providerQuotaExceeded";
-  if (isTransportOrResponseFailure(item)) return "apiError";
-  if (isModelParseFailure(item)) return "jsonParseError";
-  if (isSchemaValidationFailure(item)) return "schemaValidationError";
-  
-  return item.record?.status?.failureKind || item.failureKind || "unknown";
-}
-
 function buildValidationFailureSummary(items: PublicSampleBatchRunItem[]) {
   const valFailures = items.filter(isSchemaValidationFailure);
   const byErrorCode: Record<string, number> = {};
@@ -406,7 +371,7 @@ function buildValidationFailureSummary(items: PublicSampleBatchRunItem[]) {
   const samples: any[] = [];
 
   for (const item of valFailures) {
-    const issues = item.record?.evaluation?.qualityIssues || [];
+    const issues = getItemQualityIssues(item) || [];
     for (const issue of issues) {
       const code = issue.code || "SCHEMA_ERROR";
       byErrorCode[code] = (byErrorCode[code] || 0) + 1;
@@ -534,7 +499,7 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
   }> = [];
   
   for (const item of parseFailures) {
-    const analysisRun = item.record?.analysisRun;
+    const analysisRun = getItemAnalysisRun(item) || (item as any).responseRaw?.analysisRun;
     
     const model =
       analysisRun?.model?.name ??
@@ -560,7 +525,7 @@ function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
     byStructuredExecutionMode[execMode] = (byStructuredExecutionMode[execMode] || 0) + 1;
     byJsonMode[jsonMode] = (byJsonMode[jsonMode] || 0) + 1;
     
-    const parseDiag = item.record?.diagnostics?.parse;
+    const parseDiag = getItemParseDiagnostics(item) || (item as any).responseRaw?.parseDiagnostics;
     const lastAttempt = parseDiag?.attempts?.[parseDiag.attempts.length - 1];
     
     const jsonRecovery = analysisRun?.execution?.jsonRecovery;
@@ -687,7 +652,7 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let writeErrors = 0;
 
   for (const item of items) {
-    const run = item.record?.analysisRun;
+    const run = getItemAnalysisRun(item)?.metadata ?? getItemAnalysisRun(item);
     if (run && run.generationConfig) {
       const requested = run.generationConfig.mediaResolutionRequested;
       if (requested === 'HIGH') mediaResolutionHighRequested++;
@@ -841,11 +806,7 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
 }
 
 export function buildFailuresOnlyReport(batchSummary: PublicSampleBatchRunSummary) {
-  const failures = batchSummary.items.filter(item => {
-    const isSuccess = item.record?.status?.success ?? item.success;
-    const isInvalid = item.record?.evaluation?.qualityStatus === 'invalid';
-    return !isSuccess || isInvalid;
-  });
+  const failures = batchSummary.items.filter(item => !item.success || getItemQualityStatus(item) === 'invalid');
   const compactItems = failures.map(item => buildCompactItem(item));
 
   const report = {
@@ -865,52 +826,48 @@ export function buildFailuresOnlyReport(batchSummary: PublicSampleBatchRunSummar
 }
 
 function buildCompactItem(item: PublicSampleBatchRunItem) {
-  const record = item.record;
-  const evaluation = record?.evaluation;
-  const diagnostics = record?.diagnostics;
-  const status = record?.status;
-
   const compact: any = {
     sampleId: item.sampleId,
     title: item.title,
-    success: status?.success ?? item.success
+    success: item.success
   };
 
-  if (record) {
+
+  if (item.record) {
     compact.record = {
-      ...record,
+      ...item.record,
       visualAnalysis: undefined // Omit for compact view
     };
   }
 
-  if (status?.error || item.error) compact.error = status?.error || item.error;
-  if (status?.failureKind || item.failureKind) compact.failureKind = status?.failureKind || item.failureKind;
-  if (evaluation?.qualityStatus) compact.qualityStatus = evaluation.qualityStatus;
-  if (evaluation?.qualityScore !== undefined) compact.qualityScore = evaluation.qualityScore;
-  if (evaluation?.qualityIssues && evaluation.qualityIssues.length > 0) compact.qualityIssues = evaluation.qualityIssues;
+  if (item.error) compact.error = item.error;
+  if (item.failureKind) compact.failureKind = item.failureKind;
+  if (getItemQualityStatus(item)) compact.qualityStatus = getItemQualityStatus(item);
+  if (getItemQualityScore(item) !== undefined) compact.qualityScore = getItemQualityScore(item);
+  if (getItemQualityIssues(item) && getItemQualityIssues(item).length > 0) compact.qualityIssues = getItemQualityIssues(item);
 
-  if (record?.assetMetadata) {
-     compact.category = record.assetMetadata.category;
+  if ((item as any).responseRaw && (item as any).responseRaw.sampleMetadata) {
+     compact.category = (item as any).responseRaw.sampleMetadata.category;
+     compact.licenseName = (item as any).responseRaw.sampleMetadata.licenseName;
   }
 
-  if (evaluation?.expectedMetadata) {
-     compact.expected = evaluation.expectedMetadata;
+  if ((item as any).responseRaw && (item as any).responseRaw.expectedMetadata) {
+     compact.expected = (item as any).responseRaw.expectedMetadata;
   }
   
-  const comparison = evaluation?.comparison;
-  if (comparison) {
+  if (item.comparison) {
      compact.comparisonSummary = {
-        imageKind: comparison.imageKind,
-        categories: comparison.categories,
-        labels: comparison.labels,
-        visibleText: comparison.visibleText,
-        overallStatus: comparison.overallStatus,
-        reasons: comparison.reasons,
-        reviewStatus: comparison.reviewStatus,
-        reviewReasons: comparison.reviewReasons,
-        reviewNotes: comparison.reviewNotes || [],
-        coverage: comparison.coverage,
-        optional: comparison.optional
+        imageKind: item.comparison.imageKind,
+        categories: item.comparison.categories,
+        labels: item.comparison.labels,
+        visibleText: item.comparison.visibleText,
+        overallStatus: item.comparison.overallStatus,
+        reasons: item.comparison.reasons,
+        reviewStatus: item.comparison.reviewStatus,
+        reviewReasons: item.comparison.reviewReasons,
+        reviewNotes: item.comparison.reviewNotes || [],
+        coverage: item.comparison.coverage,
+        optional: item.comparison.optional
      };
   }
 
@@ -923,10 +880,10 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     jsonRecovery: exec.jsonRecovery
   };
 
-  const visualAnalysis = record?.visualAnalysis;
+  const visualAnalysis = (item as any).responseRaw?.visualAnalysis;
   const vi = visualAnalysis?.visualInfo;
   const indexing = visualAnalysis?.indexing;
-  const normalized = record?.analysisRun?.result?.normalized;
+  const normalized = getItemAnalysisRun(item)?.result?.normalized;
 
   if (vi || normalized) {
     const imageKind = vi?.imageKind ?? normalized?.imageKind;
@@ -958,21 +915,21 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     };
   }
 
-  if (diagnostics?.generation) {
-    compact.generationDiagnostics = { ...diagnostics.generation };
+  if (getItemGenerationDiagnostics(item)) {
+    compact.generationDiagnostics = { ...getItemGenerationDiagnostics(item) };
   }
 
-  if (diagnostics?.input) {
-    compact.inputDiagnostics = diagnostics.input;
+  if (getItemInputDiagnostics(item)) {
+    compact.inputDiagnostics = getItemInputDiagnostics(item);
   }
 
-  if (diagnostics?.parse) {
-    compact.parseDiagnostics = { ...diagnostics.parse };
+  if (getItemParseDiagnostics(item)) {
+    compact.parseDiagnostics = { ...getItemParseDiagnostics(item) };
     delete compact.parseDiagnostics.rawOutputPreview;
     delete compact.parseDiagnostics.requestPreview;
   }
   
-  const normDiag = diagnostics?.normalization;
+  const normDiag = getItemNormalizationDiagnostics(item) ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
   if (normDiag) {
     compact.normalizationDiagnostics = {
       schemaVersionCorrected: normDiag.schemaVersionCorrected,
@@ -981,14 +938,14 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
       providerSchemaName: normDiag.providerSchemaName,
       providerSchemaVersion: normDiag.providerSchemaVersion,
       // Include all diagnostics if it's a failure
-      ...(status?.success ? {} : normDiag)
+      ...(item.success ? {} : normDiag)
     };
   }
 
   if (item.responseDiagnostics) {
-    const includeBodyPreview = !(status?.success ?? item.success) && (
-      (status?.failureKind ?? item.failureKind) === "nonJsonResponse" || 
-      (status?.failureKind ?? item.failureKind) === "invalidJsonResponse" || 
+    const includeBodyPreview = !item.success && (
+      item.failureKind === "nonJsonResponse" ||
+      item.failureKind === "invalidJsonResponse" ||
       item.responseDiagnostics.looksLikeHtml === true
     );
     
@@ -1045,45 +1002,39 @@ function attachArtifactIntegrity(report: any, options: {
 }
 
 function buildSummaryItem(item: PublicSampleBatchRunItem) {
-  const record = item.record;
-  const evaluation = record?.evaluation;
-  const status = record?.status;
-  const diagnostics = record?.diagnostics;
-
   const summary: any = {
     sampleId: item.sampleId,
     title: item.title,
-    success: status?.success ?? item.success
+    success: item.success
   };
 
-  if (status?.error || item.error) summary.error = status?.error || item.error;
-  if (status?.failureKind || item.failureKind) summary.failureKind = status?.failureKind || item.failureKind;
-  if (evaluation?.qualityStatus) summary.qualityStatus = evaluation.qualityStatus;
-  if (evaluation?.qualityScore !== undefined) summary.qualityScore = evaluation.qualityScore;
+  if (item.error) summary.error = item.error;
+  if (item.failureKind) summary.failureKind = item.failureKind;
+  if (getItemQualityStatus(item)) summary.qualityStatus = getItemQualityStatus(item);
+  if (getItemQualityScore(item) !== undefined) summary.qualityScore = getItemQualityScore(item);
   
-  if (evaluation?.qualityIssues && evaluation.qualityIssues.length > 0) {
-    summary.issues = evaluation.qualityIssues.map((issue: any) => typeof issue === 'string' ? issue : issue.code || issue.type).filter(Boolean);
+  if (getItemQualityIssues(item) && getItemQualityIssues(item).length > 0) {
+    summary.issues = getItemQualityIssues(item).map((issue: any) => typeof issue === 'string' ? issue : issue.code || issue.type).filter(Boolean);
   }
 
-  const comparison = evaluation?.comparison;
-  if (comparison) {
-    summary.reviewStatus = comparison.reviewStatus;
-    summary.expectedImageKind = evaluation.expectedMetadata?.imageKind || comparison.imageKind?.expected;
-    summary.detectedImageKind = comparison.imageKind?.detected;
-    summary.imageKindStatus = comparison.imageKind?.status;
+  if (item.comparison) {
+    summary.reviewStatus = item.comparison.reviewStatus;
+    summary.expectedImageKind = item.record?.evaluation?.expectedMetadata?.imageKind || item.comparison.imageKind?.expected;
+    summary.detectedImageKind = item.comparison.imageKind?.detected;
+    summary.imageKindStatus = item.comparison.imageKind?.status;
     
     // Use the complete, structured comparison coverage
-    summary.coverage = comparison.coverage;
-    summary.coverageOverall = comparison.coverage?.overall?.ratio ?? 1.0;
+    summary.coverage = item.comparison.coverage;
+    summary.coverageOverall = item.comparison.coverage?.overall?.ratio ?? 1.0;
 
     summary.missing = {
-      categories: comparison.categories?.missing || [],
-      labels: comparison.labels?.missing || [],
-      visibleText: comparison.visibleText?.missing || []
+      categories: item.comparison.categories?.missing || [],
+      labels: item.comparison.labels?.missing || [],
+      visibleText: item.comparison.visibleText?.missing || []
     };
 
-    if (comparison.reviewNotes && comparison.reviewNotes.length > 0) {
-      summary.reviewNotes = comparison.reviewNotes;
+    if (item.comparison.reviewNotes && item.comparison.reviewNotes.length > 0) {
+      summary.reviewNotes = item.comparison.reviewNotes;
     }
   }
 
@@ -1092,7 +1043,7 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     summary.retried = item.retryDiagnostics.retried;
   }
 
-  const normDiag = diagnostics?.normalization;
+  const normDiag = getItemNormalizationDiagnostics(item) ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
   if (normDiag?.schemaVersionCorrected) {
     summary.schemaVersionCorrected = true;
     summary.canonicalSchemaVersionApplied = true;
@@ -1116,14 +1067,15 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
   const samples = [];
   
   for (const item of items) {
-    const record = item.record;
-    const evaluation = record?.evaluation;
-    const comparison = evaluation?.comparison;
-    const coverage = comparison?.visibleTextCoverage || comparison?.coverage?.visibleText;
+    const coverage = item.comparison?.coverage?.visibleText;
     
     // Attempt to read requested resolution
-    const execution = record?.analysisRun?.execution || record?.diagnostics?.execution;
-    const mediaResolutionRequested = execution?.mediaResolutionRequested || "unknown";
+    const mediaResolutionRequested =
+      item.record?.analysisRun?.metadata?.generationConfig?.mediaResolutionRequested ||
+      item.record?.analysisRun?.generationConfig?.mediaResolutionRequested ||
+      getItemAnalysisRun(item)?.metadata?.generationConfig?.mediaResolutionRequested ||
+      getItemAnalysisRun(item)?.generationConfig?.mediaResolutionRequested ||
+      "unknown";
 
     if (mediaResolutionRequested === "HIGH") highRequested++;
     else if (mediaResolutionRequested === "MEDIUM") mediumRequested++;
@@ -1141,24 +1093,24 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
       }
 
       samples.push({
-        sampleId: record?.assetMetadata?.sampleId || item.sampleId,
-        title: record?.assetMetadata?.title || item.title,
-        imageKind: evaluation?.expectedMetadata?.imageKind,
+        sampleId: item.sampleMetadata?.id || item.sampleId,
+        title: item.sampleMetadata?.title,
+        imageKind: item.expectedMetadata?.imageKind || item.sampleMetadata?.expectedImageKind,
         expectedVisibleTextTotal: coverage.expectedTotal,
         visibleTextCovered: coverage.covered,
         visibleTextMissing: coverage.missing,
         visibleTextCoverageRatio: coverage.ratio,
 
         mediaResolutionRequested,
-        mediaResolutionApplied: execution?.mediaResolutionApplied,
-        mediaResolutionReason: execution?.mediaResolutionReason,
+        mediaResolutionApplied: getItemGenerationDiagnostics(item)?.mediaResolutionApplied,
+        mediaResolutionReason: getItemGenerationDiagnostics(item)?.mediaResolutionReason,
 
-        processedDimensions: record?.technicalMetadata?.processedDimensions,
-        processedByteLength: record?.technicalMetadata?.processedByteLength,
-        analysisTargetLongEdge: record?.technicalMetadata?.analysisTargetLongEdge,
+        processedDimensions: getItemInputDiagnostics(item)?.processedDimensions || getItemInputDiagnostics(item)?.dimensions,
+        processedByteLength: getItemInputDiagnostics(item)?.processedByteLength || getItemInputDiagnostics(item)?.byteLength,
+        analysisTargetLongEdge: getItemInputDiagnostics(item)?.analysisTargetLongEdge,
 
         possibleResolutionLimited,
-        reasons: evaluation?.reviewReasons || []
+        reasons: item.comparison?.reviewReasons || []
       });
     }
   }
