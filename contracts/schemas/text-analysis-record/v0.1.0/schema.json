@@ -5,7 +5,7 @@
   "description": "Envelope schema for text analysis results including asset metadata, execution details, semantic analysis, evaluation, and diagnostics.",
   "x-contract-id": "text-analysis-record",
   "x-contract-version": "v0.1.0",
-  "x-contract-status": "stable",
+  "x-contract-status": "rc",
   "type": "object",
   "required": [
     "schemaVersion",

@@ -4,7 +4,7 @@
   "title": "Public Visual Sample Expected Metadata Schema",
   "x-contract-id": "expected-metadata",
   "x-contract-version": "v0.1.0",
-  "x-contract-status": "stable",
+  "x-contract-status": "rc",
   "type": "object",
   "properties": {
     "imageKind": {

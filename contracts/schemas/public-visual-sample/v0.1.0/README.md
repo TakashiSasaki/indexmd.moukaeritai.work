@@ -1,6 +1,6 @@
 # Public Visual Sample Contracts v0.1.0
 
-Status: **Stable**
+Status: **RC** (Release Candidate)
 
 This directory defines the public visual sample contracts used for vision-model evaluation, regression tracking, validation calibration, and batch diagnostics.
 

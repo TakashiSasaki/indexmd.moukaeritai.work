@@ -4,7 +4,7 @@
   "title": "Public Visual Sample Schema",
   "x-contract-id": "public-sample",
   "x-contract-version": "v0.1.0",
-  "x-contract-status": "stable",
+  "x-contract-status": "rc",
   "type": "object",
   "required": [
     "id",

@@ -2,7 +2,7 @@
 
 - **Contract Name**: Public Visual Sample API Exchange Contracts
 - **Version**: v0.1.0
-- **Status**: **Stable**
+- **Status**: **RC** (Release Candidate)
 - **Purpose**: Defines public schema contracts for the system's external web API endpoints. This enables programmatic integration for regression testing, quality evaluation, and automated diagnostic workflows.
 - **Primary Producer**: `indexmd` backend server (`server.ts`)
 - **Primary Consumers**: Front-end workbench dashboard, downstream regression-run CLI tools, and external CI/CD analytics collectors.

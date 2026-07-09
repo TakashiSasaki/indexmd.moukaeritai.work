@@ -10,6 +10,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "validate:contracts": "node scripts/validate-contracts.mjs",
+    "verify:contract-mirrors": "node scripts/verifyContractMirrors.mjs",
     "validate:public-samples:images": "node --import tsx scripts/validatePublicSamples.ts",
     "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:coverage": "node --experimental-test-coverage --import tsx --test \"src/**/*.test.ts\""
