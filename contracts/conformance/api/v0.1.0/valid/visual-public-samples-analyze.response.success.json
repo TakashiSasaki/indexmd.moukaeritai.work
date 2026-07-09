@@ -1,0 +1,65 @@
+{
+  "success": true,
+  "record": {
+    "schemaVersion": "image-analysis-record.v0.1.0",
+    "status": {
+      "success": true
+    },
+    "assetMetadata": {
+      "assetId": "sample-landscape-1",
+      "title": "Landscape 1",
+      "category": "landscape",
+      "sourceKind": "publicSample",
+      "sampleId": "sample-landscape-1"
+    },
+    "technicalMetadata": {
+      "mimeType": "image/jpeg",
+      "originalByteLength": 13427,
+      "processedByteLength": 13427,
+      "base64Length": 17904,
+      "resized": false,
+      "recompressed": false,
+      "reencoded": false
+    },
+    "visualAnalysis": {
+      "schemaVersion": "visual-analysis.v0.2.0-draft.1",
+      "summary": {
+        "caption": "A sunset over water.",
+        "description": "Scenic sunset casting warm light over a calm lake."
+      },
+      "visualInfo": {
+        "imageKind": "landscapePhoto",
+        "imageKindConfidence": 0.99,
+        "sceneDescription": "Warm golden hour landscape",
+        "sceneContext": {
+          "environment": "outdoor",
+          "cover": "uncovered",
+          "weather": "sunny",
+          "lighting": "directSunlight"
+        },
+        "visibleElements": [
+          {
+            "label": "sun",
+            "category": "landscapeElement",
+            "confidence": 0.99
+          }
+        ],
+        "visibleText": [],
+        "uncertainties": []
+      },
+      "indexing": {
+        "keywords": [
+          {
+            "value": "sunset",
+            "confidence": 0.99,
+            "importance": 0.95
+          }
+        ]
+      },
+      "quality": {
+        "confidence": 0.98,
+        "issues": []
+      }
+    }
+  }
+}

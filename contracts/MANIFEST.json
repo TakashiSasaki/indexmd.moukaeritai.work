@@ -1,0 +1,181 @@
+{
+  "manifestVersion": "0.1.0",
+  "project": "indexmd",
+  "canonicalRoot": "contracts/",
+  "generated": false,
+  "contracts": [
+    {
+      "id": "summary-analysis",
+      "version": "v1.2.0-draft.2",
+      "status": "draft",
+      "kind": "schema",
+      "schema": "contracts/schemas/summary-analysis/v1.2.0-draft.2/schema.json",
+      "readme": "contracts/schemas/summary-analysis/v1.2.0-draft.2/README.md",
+      "examples": [
+        "contracts/schemas/summary-analysis/v1.2.0-draft.2/examples/minimal.json",
+        "contracts/schemas/summary-analysis/v1.2.0-draft.2/examples/japanese-mixed.json"
+      ]
+    },
+    {
+      "id": "visual-analysis",
+      "version": "v0.2.0-draft.1",
+      "status": "draft",
+      "kind": "schema",
+      "schema": "contracts/schemas/visual-analysis/v0.2.0-draft.1/schema.json",
+      "readme": "contracts/schemas/visual-analysis/v0.2.0-draft.1/README.md",
+      "examples": [
+        "contracts/schemas/visual-analysis/v0.2.0-draft.1/examples/minimal.json",
+        "contracts/schemas/visual-analysis/v0.2.0-draft.1/examples/full.json"
+      ]
+    },
+    {
+      "id": "image-analysis-record",
+      "version": "v0.1.0",
+      "status": "rc",
+      "kind": "schema",
+      "schema": "contracts/schemas/image-analysis-record/v0.1.0/schema.json",
+      "readme": "contracts/schemas/image-analysis-record/v0.1.0/README.md",
+      "examples": [
+        "contracts/schemas/image-analysis-record/v0.1.0/examples/minimal.json",
+        "contracts/schemas/image-analysis-record/v0.1.0/examples/failure.json"
+      ],
+      "nestedContracts": [
+        {
+          "field": "visualAnalysis",
+          "contractId": "visual-analysis",
+          "version": "v0.2.0-draft.1",
+          "requiredWhenPresent": true
+        }
+      ]
+    },
+    {
+      "id": "text-analysis-record",
+      "version": "v0.1.0",
+      "status": "rc",
+      "kind": "schema",
+      "schema": "contracts/schemas/text-analysis-record/v0.1.0/schema.json",
+      "readme": "contracts/schemas/text-analysis-record/v0.1.0/README.md",
+      "examples": [
+        "contracts/schemas/text-analysis-record/v0.1.0/examples/minimal.json",
+        "contracts/schemas/text-analysis-record/v0.1.0/examples/failure.json"
+      ],
+      "nestedContracts": [
+        {
+          "field": "summaryAnalysis",
+          "contractId": "summary-analysis",
+          "version": "v1.2.0-draft.2",
+          "requiredWhenPresent": true
+        }
+      ]
+    },
+    {
+      "id": "public-sample",
+      "version": "v0.1.0",
+      "status": "rc",
+      "kind": "schema",
+      "schema": "contracts/schemas/public-visual-sample/v0.1.0/public-sample.schema.json",
+      "readme": "contracts/schemas/public-visual-sample/v0.1.0/README.md",
+      "examples": []
+    },
+    {
+      "id": "expected-metadata",
+      "version": "v0.1.0",
+      "status": "rc",
+      "kind": "schema",
+      "schema": "contracts/schemas/public-visual-sample/v0.1.0/expected-metadata.schema.json",
+      "readme": "contracts/schemas/public-visual-sample/v0.1.0/README.md",
+      "examples": []
+    },
+    {
+      "id": "batch-summary",
+      "version": "v0.1.0",
+      "status": "rc",
+      "kind": "schema",
+      "schema": "contracts/schemas/public-visual-sample/v0.1.0/batch-summary.schema.json",
+      "readme": "contracts/schemas/public-visual-sample/v0.1.0/README.md",
+      "examples": []
+    },
+    {
+      "id": "batch-diagnostic",
+      "version": "v0.1.0",
+      "status": "rc",
+      "kind": "schema",
+      "schema": "contracts/schemas/public-visual-sample/v0.1.0/batch-diagnostic.schema.json",
+      "readme": "contracts/schemas/public-visual-sample/v0.1.0/README.md",
+      "examples": []
+    }
+  ],
+  "apiContracts": [
+    {
+      "id": "visual-public-samples-analyze.request",
+      "version": "v0.1.0",
+      "status": "rc",
+      "schema": "contracts/api/v0.1.0/visual-public-samples-analyze.request.schema.json",
+      "readme": "contracts/api/v0.1.0/README.md",
+      "examples": [
+        "contracts/api/v0.1.0/examples/visual-public-samples-analyze.request.minimal.json"
+      ]
+    },
+    {
+      "id": "visual-public-samples-analyze.response",
+      "version": "v0.1.0",
+      "status": "rc",
+      "schema": "contracts/api/v0.1.0/visual-public-samples-analyze.response.schema.json",
+      "readme": "contracts/api/v0.1.0/README.md",
+      "examples": [
+        "contracts/api/v0.1.0/examples/visual-public-samples-analyze.response.success.json",
+        "contracts/api/v0.1.0/examples/visual-public-samples-analyze.response.failure.json"
+      ],
+      "nestedContracts": [
+        {
+          "field": "record",
+          "contractId": "image-analysis-record",
+          "version": "v0.1.0"
+        },
+        {
+          "field": "record.visualAnalysis",
+          "contractId": "visual-analysis",
+          "version": "v0.2.0-draft.1",
+          "requiredWhenPresent": true
+        }
+      ]
+    },
+    {
+      "id": "visual-public-samples-list.response",
+      "version": "v0.1.0",
+      "status": "rc",
+      "schema": "contracts/api/v0.1.0/visual-public-samples-list.response.schema.json",
+      "readme": "contracts/api/v0.1.0/README.md",
+      "examples": [
+        "contracts/api/v0.1.0/examples/visual-public-samples-list.response.minimal.json"
+      ]
+    }
+  ],
+  "vocabularies": [
+    {
+      "id": "document-kinds",
+      "version": "1.0.0-draft.1",
+      "path": "contracts/vocabularies/document-kinds.v1.0.0-draft.1.json"
+    },
+    {
+      "id": "extraction-role-categories",
+      "version": "1.0.0-draft.1",
+      "path": "contracts/vocabularies/extraction-role-categories.v1.0.0-draft.1.json"
+    },
+    {
+      "id": "keyword-sources",
+      "version": "1.0.0-draft.1",
+      "path": "contracts/vocabularies/keyword-sources.v1.0.0-draft.1.json"
+    },
+    {
+      "id": "subject-domains",
+      "version": "1.0.0-draft.1",
+      "path": "contracts/vocabularies/subject-domains.v1.0.0-draft.1.json"
+    },
+    {
+      "id": "subject-label-kinds",
+      "version": "1.0.0-draft.1",
+      "path": "contracts/vocabularies/subject-label-kinds.v1.0.0-draft.1.json"
+    }
+  ]
+}
