@@ -9,7 +9,8 @@ import {
   isTransportOrResponseFailure,
   isModelParseFailure,
   isSchemaValidationFailure,
-  getItemExecutionMetadata
+  getItemExecutionMetadata,
+  normalizeLegacyBatchRunItem
 } from './reportBuilder';
 
 export function getItemJsonRecovery(item: any) {
@@ -99,8 +100,14 @@ export interface VisualAnalysisPublicSampleBatchComparison {
 export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSummary[]): VisualAnalysisPublicSampleBatchComparison {
   const generatedAt = new Date().toISOString();
   
+  // Normalize runs to always be record-centric
+  const normalizedRuns = runs.map(run => ({
+    ...run,
+    items: run.items.map(normalizeLegacyBatchRunItem)
+  }));
+
   // 1. Gather compared runs summary
-  const comparedRuns = runs.map(run => {
+  const comparedRuns = normalizedRuns.map(run => {
     return {
       runId: run.runId,
       modelName: run.modelName,
@@ -119,7 +126,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
   const allSampleIdsSet = new Set<string>();
   const sampleMetadataMap = new Map<string, { title: string; category: string }>();
 
-  for (const run of runs) {
+  for (const run of normalizedRuns) {
     for (const item of run.items) {
       allSampleIdsSet.add(item.sampleId);
       if (!sampleMetadataMap.has(item.sampleId)) {
@@ -144,7 +151,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
     const meta = sampleMetadataMap.get(sampleId) || { title: sampleId, category: "unknown" };
     const byRun: Record<string, any> = {};
 
-    for (const run of runs) {
+    for (const run of normalizedRuns) {
       const item = run.items.find(it => it.sampleId === sampleId);
       if (item) {
         const exec = getItemExecutionMetadata(item);
@@ -195,7 +202,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
   // 4. Calculate aggregate deltas if native_schema and prompted_json are both present
   let aggregateDelta: VisualAnalysisPublicSampleBatchComparison["aggregateDelta"] = undefined;
   
-  const nativeRun = runs.find(r => 
+  const nativeRun = normalizedRuns.find(r => 
     r.jsonMode === 'native_schema' || 
     r.jsonMode === 'nativeSchema' || 
     r.items.some(it => {
@@ -204,7 +211,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
     })
   );
   
-  const promptedRun = runs.find(r => 
+  const promptedRun = normalizedRuns.find(r => 
     r.jsonMode === 'prompted_json' || 
     r.jsonMode === 'prompt_only' || 
     r.jsonMode === 'promptedJson' ||
@@ -241,7 +248,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
   let generationFailureCount = 0;
   let mediaResolutionFallbackCount = 0;
 
-  for (const run of runs) {
+  for (const run of normalizedRuns) {
     for (const item of run.items) {
       // Prompt recovery
       const jsonRecovery = getItemJsonRecovery(item);
@@ -312,7 +319,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
     ...partialReport,
     artifactIntegrity: {
       generatedAt,
-      runCount: runs.length,
+      runCount: normalizedRuns.length,
       hash: artifactStr.hash,
       endSentinel: "END_OF_VISUAL_ANALYSIS_BATCH_COMPARISON" as const
     }

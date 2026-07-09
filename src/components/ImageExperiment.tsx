@@ -2014,9 +2014,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                               Kind: {item.failureKind}
                             </span>
                           )}
-                          {item.generationDiagnostics?.providerStatus && (
+                          {item.record?.diagnostics?.generation?.providerStatus && (
                             <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono border border-amber-100">
-                              Provider Status: {item.generationDiagnostics.providerStatus}
+                              Provider Status: {item.record.diagnostics.generation.providerStatus}
                             </span>
                           )}
                           {item.responseDiagnostics?.status && (
@@ -2818,26 +2818,26 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         {!item.success && (
                           <div className="mt-1 space-y-1 font-sans">
                             <span className="block font-normal text-red-600 mt-0.5">{item.error || 'Failed'}</span>
-                            {item.generationDiagnostics && (
+                            {item.record?.diagnostics?.generation && (
                               <div className="bg-white rounded border border-amber-200 p-2 text-[9px] space-y-1 font-sans mt-1">
                                 <div className="font-bold text-amber-800">
-                                  [{item.failureKind}] Model: {item.generationDiagnostics.modelName} | Code: {item.generationDiagnostics.statusCode || "N/A"} ({item.generationDiagnostics.providerStatus || "N/A"})
+                                  [{item.failureKind}] Model: {item.record.diagnostics.generation.modelName} | Code: {item.record.diagnostics.generation.statusCode || "N/A"} ({item.record.diagnostics.generation.providerStatus || "N/A"})
                                 </div>
-                                {item.generationDiagnostics.providerFailureKind && (
+                                {item.record.diagnostics.generation.providerFailureKind && (
                                   <div className="text-amber-700 font-medium font-mono">
-                                    Provider Failure Class: {item.generationDiagnostics.providerFailureKind}
+                                    Provider Failure Class: {item.record.diagnostics.generation.providerFailureKind}
                                   </div>
                                 )}
-                                {item.generationDiagnostics.retryAfterMs !== undefined && (
+                                {item.record.diagnostics.generation.retryAfterMs !== undefined && (
                                   <div className="text-indigo-600 font-semibold font-mono">
-                                    Retry-After: {item.generationDiagnostics.retryAfterMs}ms (Reason: {item.generationDiagnostics.retryAfterReason || "N/A"})
+                                    Retry-After: {item.record.diagnostics.generation.retryAfterMs}ms (Reason: {item.record.diagnostics.generation.retryAfterReason || "N/A"})
                                   </div>
                                 )}
-                                {item.generationDiagnostics.attempts && item.generationDiagnostics.attempts.length > 0 && (
+                                {item.record.diagnostics.generation.attempts && item.record.diagnostics.generation.attempts.length > 0 && (
                                   <div className="text-slate-500 font-sans mt-1">
-                                    <span className="font-semibold block text-slate-700">Generation Attempts ({item.generationDiagnostics.attempts.length}):</span>
+                                    <span className="font-semibold block text-slate-700">Generation Attempts ({item.record.diagnostics.generation.attempts.length}):</span>
                                     <ul className="list-disc list-inside pl-1 text-[8px] space-y-0.5 mt-0.5">
-                                      {item.generationDiagnostics.attempts.map((att: any, aIdx: number) => (
+                                      {item.record.diagnostics.generation.attempts.map((att: any, aIdx: number) => (
                                         <li key={aIdx} className="font-mono text-slate-600">
                                           # {att.attempt} Model: {att.modelName} | Status: {att.statusCode} ({att.providerStatus || "N/A"}) | Kind: {att.providerFailureKind || "N/A"} {att.delayMs ? `| Backoff: ${Math.round(att.delayMs)}ms` : ""} {att.retryAfterMs ? `| Retry-After: ${att.retryAfterMs}ms` : ""}
                                         </li>

@@ -755,7 +755,16 @@ export interface PublicSampleComparisonSummary {
 }
 
 export function evaluateSampleComparison(sample: PublicVisualSample, result: any): PublicSampleComparisonSummary {
-  const expectedMetadata = result?.expectedMetadata || result?.visualAnalysis?.expectedMetadata;
+  const record = result?.record;
+  const visualAnalysis =
+    result?.visualAnalysis ??
+    record?.visualAnalysis;
+
+  const expectedMetadata =
+    result?.expectedMetadata ??
+    record?.evaluation?.expectedMetadata ??
+    result?.visualAnalysis?.expectedMetadata;
+
   const resolvedSample = {
     ...sample,
     expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind ?? (sample as any).imageKind,
@@ -764,14 +773,14 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
     expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels ?? (sample as any).visibleElementLabels ?? [],
     expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases ?? (sample as any).visibleElementLabelAliases ?? {},
     expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText ?? (sample as any).visibleText ?? [],
-    optionalElementCategories: sample.optionalElementCategories ?? [],
-    optionalVisibleElementLabels: sample.optionalVisibleElementLabels ?? [],
-    optionalVisibleElementLabelAliases: sample.optionalVisibleElementLabelAliases ?? {},
-    optionalVisibleText: sample.optionalVisibleText ?? []
+    optionalElementCategories: expectedMetadata?.optionalElementCategories ?? sample.optionalElementCategories ?? [],
+    optionalVisibleElementLabels: expectedMetadata?.optionalVisibleElementLabels ?? sample.optionalVisibleElementLabels ?? [],
+    optionalVisibleElementLabelAliases: expectedMetadata?.optionalVisibleElementLabelAliases ?? sample.optionalVisibleElementLabelAliases ?? {},
+    optionalVisibleText: expectedMetadata?.optionalVisibleText ?? sample.optionalVisibleText ?? []
   };
   sample = resolvedSample;
 
-  const vi = result.visualAnalysis?.visualInfo;
+  const vi = visualAnalysis?.visualInfo;
   
   const expectedImageKind = sample.expectedImageKind;
   const kindDetected = vi?.imageKind;
@@ -782,7 +791,7 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
   const categoriesResult = compareExpectedCategories(sample, detectedCategories, detectedText);
   
   const detectedLabels = vi?.visibleElements?.map((el: any) => el.label) || [];
-  const detectedKeywords = result.visualAnalysis?.indexing?.keywords?.map((kw: any) => typeof kw === 'string' ? kw : kw?.value || "") || [];
+  const detectedKeywords = visualAnalysis?.indexing?.keywords?.map((kw: any) => typeof kw === 'string' ? kw : kw?.value || "") || [];
   const detectedAttributes = vi?.visibleElements?.flatMap((el: any) => el.attributes || []) || [];
 
   const labelsResult = compareExpectedLabels(sample, {

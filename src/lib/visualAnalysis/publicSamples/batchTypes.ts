@@ -24,12 +24,15 @@ export interface PublicSampleInputDiagnostics extends Partial<ImageProcessingDia
 export interface PublicSampleBatchRunItem {
   startedAt?: string;
   completedAt?: string;
+  durationMs?: number;
+
   sampleId: string;
   title: string;
   success: boolean;
+
   record?: ImageAnalysisRecord;
   comparison?: PublicSampleComparisonSummary;
-  durationMs?: number;
+
   attempts?: number;
   retryHistory?: Array<{
     attempt: number;
@@ -43,11 +46,9 @@ export interface PublicSampleBatchRunItem {
   }>;
   nextRetryAt?: string;
   retryExhausted?: boolean;
+
   error?: string;
   failureKind?: string;
-  generationDiagnostics?: any;
-  inputDiagnostics?: PublicSampleInputDiagnostics;
-  normalizationDiagnostics?: any;
   
   responseDiagnostics?: ResponseDiagnostics;
   retryDiagnostics?: SafeFetchRetryDiagnostics;
