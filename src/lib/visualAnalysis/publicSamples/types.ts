@@ -67,5 +67,5 @@ export interface PublicVisualSample {
   optionalVisibleElementLabelAliases?: Record<string, string[]>;
   optionalVisibleText?: string[];
   source: PublicVisualSampleSource;
-  notes?: string[];
+  notes?: string;
 }

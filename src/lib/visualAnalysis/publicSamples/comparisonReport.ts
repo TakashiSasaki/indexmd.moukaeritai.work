@@ -124,10 +124,8 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
       allSampleIdsSet.add(item.sampleId);
       if (!sampleMetadataMap.has(item.sampleId)) {
         const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === item.sampleId);
-        const category = item.category ||
+        const category = item.record?.assetMetadata?.category ||
                          matchedSample?.category ||
-                         (item.responseRaw?.sampleMetadata as any)?.category ||
-                         (item.comparison as any)?.category ||
                          "unknown";
         sampleMetadataMap.set(item.sampleId, {
           title: item.title,
@@ -147,6 +145,11 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
     for (const run of runs) {
       const item = run.items.find(it => it.sampleId === sampleId);
       if (item) {
+        const record = item.record;
+        const evaluation = record?.evaluation;
+        const diagnostics = record?.diagnostics;
+        const status = record?.status;
+
         const exec = getItemExecutionMetadata(item);
         const jsonRecovery = exec.jsonRecovery;
         const localRepairAttempted = jsonRecovery?.localRepairAttempted ?? false;
@@ -154,7 +157,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
         const retryCount = jsonRecovery?.retryCount ?? 0;
         const jsonRecoveryUsed = localRepairAttempted || modelRetryAttempted || retryCount > 0;
 
-        const normDiag = item.normalizationDiagnostics ?? item.responseRaw?.normalizationDiagnostics ?? item.analysisRun?.normalizationDiagnostics;
+        const normDiag = diagnostics?.normalization;
         const schemaVersionCorrected = normDiag?.schemaVersionCorrected ?? false;
 
         const taxonomyCategory = getItemFailureTaxonomy(item);
@@ -164,12 +167,12 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
         );
 
         byRun[run.runId] = {
-          success: item.success,
-          failureKind: item.failureKind,
-          qualityStatus: item.qualityStatus,
-          qualityScore: item.qualityScore,
-          reviewStatus: item.comparison?.reviewStatus,
-          expectedComparisonStatus: item.comparison?.overallStatus,
+          success: status?.success ?? item.success,
+          failureKind: status?.failureKind ?? item.failureKind,
+          qualityStatus: evaluation?.qualityStatus,
+          qualityScore: evaluation?.qualityScore,
+          reviewStatus: evaluation?.comparison?.reviewStatus,
+          expectedComparisonStatus: evaluation?.comparison?.overallStatus,
           parseFailure: isModelParseFailure(item),
           validationFailure: isSchemaValidationFailure(item),
           rateLimited: isRateLimitFailure(item),
@@ -276,7 +279,7 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
       }
 
       // Media resolution fallback
-      const runMeta = item.analysisRun?.metadata ?? item.analysisRun;
+      const runMeta = item.record?.analysisRun;
       if (runMeta?.generationConfig?.mediaResolutionFallbackUsed) {
         mediaResolutionFallbackCount++;
       }
