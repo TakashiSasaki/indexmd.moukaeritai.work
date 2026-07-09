@@ -19,6 +19,7 @@ export interface GenerationAttemptDiagnostic {
   retryAfterMs?: number;
   retryReason?: string;
   providerFailureKind?: string;
+  notRetriedReason?: string;
 }
 
 export interface GenerationDiagnostics {
@@ -47,4 +48,5 @@ export interface GenerationDiagnostics {
   retryAfterMs?: number;
   retryAfterReason?: string;
   retryPolicy?: ProviderGenerationRetryPolicy;
+  notRetriedReason?: string;
 }

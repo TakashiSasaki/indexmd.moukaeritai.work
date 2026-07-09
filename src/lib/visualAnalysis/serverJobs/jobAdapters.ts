@@ -14,8 +14,8 @@ export function jobToSummary(job: VisualBatchJob) {
 
   return {
     jobStatus: job.status,
-    completedCount: job.counters.successCount,
-    pendingCount: job.targetSampleIds.length - job.counters.successCount - job.counters.failureCount,
+    completedCount: job.counters.successCount + job.counters.failureCount,
+    pendingCount: Math.max(job.counters.total - (job.counters.successCount + job.counters.failureCount), 0),
     processedCount: job.counters.successCount + job.counters.failureCount,
     isComplete: job.status === 'completed' || job.status === 'canceled' || job.status === 'failed',
     startedAt: job.startedAt,

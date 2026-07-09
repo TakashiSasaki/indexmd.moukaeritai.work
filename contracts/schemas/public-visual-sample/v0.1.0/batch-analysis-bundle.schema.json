@@ -84,6 +84,29 @@
         }
       },
       "additionalProperties": true
+    },
+    "comparisonEligibleCount": {
+      "type": "integer"
+    },
+    "successfulWithoutComparisonCount": {
+      "type": "integer"
+    },
+    "notComparableCount": {
+      "type": "integer"
+    },
+    "generationFailureCount": {
+      "type": "integer"
+    },
+    "comparisonOnlyFailCount": {
+      "type": "integer"
+    },
+    "imageExpansionMetrics": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "mediaResolutionMetrics": {
+      "type": "object",
+      "additionalProperties": true
     }
   }
 }

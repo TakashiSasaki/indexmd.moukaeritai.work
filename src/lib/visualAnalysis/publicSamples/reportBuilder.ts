@@ -154,12 +154,18 @@ export function isProviderGenerationFailure(item: PublicSampleBatchRunItem): boo
 }
 
 export function buildComparisonCoverage(items: PublicSampleBatchRunItem[]) {
+  let allItemsWithExpectedMetadata = 0;
+  let comparableItemsWithExpectedMetadata = 0;
   let itemsWithExpectedMetadata = 0;
   let itemsWithComparison = 0;
 
   for (const item of items) {
+    if (item.record?.evaluation?.expectedMetadata) {
+      allItemsWithExpectedMetadata++;
+    }
     if (item.success) {
       if (item.record?.evaluation?.expectedMetadata) {
+        comparableItemsWithExpectedMetadata++;
         itemsWithExpectedMetadata++;
       }
       if (item.comparison) {
@@ -168,10 +174,12 @@ export function buildComparisonCoverage(items: PublicSampleBatchRunItem[]) {
     }
   }
 
-  const comparisonMissingCount = itemsWithExpectedMetadata - itemsWithComparison;
+  const comparisonMissingCount = comparableItemsWithExpectedMetadata - itemsWithComparison;
   const consistent = comparisonMissingCount === 0;
 
   return {
+    allItemsWithExpectedMetadata,
+    comparableItemsWithExpectedMetadata,
     itemsWithExpectedMetadata,
     itemsWithComparison,
     comparisonMissingCount,
@@ -292,13 +300,10 @@ export function buildComparisonRecordConsistency(items: PublicSampleBatchRunItem
 
   const successCount = items.filter(it => it.success).length;
   const validCount = items.filter(it => it.record?.evaluation?.qualityStatus === 'valid').length;
-  const expectedComparisonFailCount = items.filter(it => !it.success || it.comparison?.overallStatus === 'fail').length;
-
+  const successfulComparisonFailCount = items.filter(it => it.success && it.comparison?.overallStatus === 'fail').length;
   const suspiciousAllComparisonFail = 
-    successCount > 0 &&
-    validCount > 0 &&
-    itemsWithRecordVisualAnalysis > 0 &&
-    expectedComparisonFailCount === successCount;
+    successfulComparisonFailCount > 0 &&
+    successfulComparisonFailCount === itemsWithRecordVisualAnalysis;
 
   const consistent = 
     itemsWithNoDetectedImageKindDespiteRecordImageKind === 0 &&
@@ -341,8 +346,10 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     reviewCounts.reviewFailCount === batchSummary.reviewFailCount;
 
   const generationFailureCount = normalizedItems.filter(i => !i.success).length;
+  const comparisonEligibleCount = normalizedItems.filter(i => i.success).length;
   const comparisonOnlyFailCount = normalizedItems.filter(i => i.success && i.comparison?.overallStatus === 'fail').length;
-  const notComparableCount = normalizedItems.filter(i => i.success && !i.comparison).length;
+  const successfulWithoutComparisonCount = normalizedItems.filter(i => i.success && !i.comparison).length;
+  const notComparableCount = successfulWithoutComparisonCount;
 
   const report = {
     reportKind: "visualAnalysisPublicSampleBatchAnalysisBundle" as const,
@@ -355,8 +362,10 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     validCount: batchSummary.validCount,
     validLowQualityCount: batchSummary.validLowQualityCount,
     invalidJsonCount: batchSummary.invalidJsonCount,
+    comparisonEligibleCount,
     generationFailureCount,
     comparisonOnlyFailCount,
+    successfulWithoutComparisonCount,
     notComparableCount,
     jobStatus: batchSummary.jobStatus,
     isComplete: batchSummary.isComplete,
@@ -859,6 +868,10 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let mediaResolutionApplied = 0;
   let mediaResolutionUnsupported = 0;
   let mediaResolutionFallbackUsed = 0;
+  let unsupportedProviderFamilyCount = 0;
+
+  let bytesIncreasedInputs = 0;
+  let totalBytesIncreased = 0;
 
   let memoryHits = 0;
   let diskHits = 0;
@@ -889,6 +902,9 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
 
       if (run.generationConfig.mediaResolutionUnsupportedReason && run.generationConfig.mediaResolutionUnsupportedReason !== "") {
         mediaResolutionUnsupported++;
+        if (run.generationConfig.mediaResolutionUnsupportedReason.includes("providerFamilyUnsupported") || run.generationConfig.mediaResolutionUnsupportedReason.includes("provider family unsupported")) {
+          unsupportedProviderFamilyCount++;
+        }
       }
       if (run.generationConfig.mediaResolutionFallbackUsed) {
         mediaResolutionFallbackUsed++;
@@ -911,6 +927,12 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       }
 
       if (inputDiag.resized) resizedInputs++;
+      const orig = inputDiag.originalByteLength || inputDiag.byteLength;
+      const proc = inputDiag.processedByteLength || inputDiag.byteLength;
+      if (proc && orig && proc > orig) {
+        bytesIncreasedInputs++;
+        totalBytesIncreased += (proc - orig);
+      }
       if (inputDiag.recompressed) recompressedInputs++;
       if (inputDiag.reencoded) reencodedInputs++;
 
@@ -968,6 +990,11 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     }
   }
 
+  const largestExpandedInputs = [...inputsInfo]
+    .filter(i => i.processedByteLength && i.originalByteLength && i.processedByteLength > i.originalByteLength)
+    .sort((a, b) => ((b.processedByteLength - b.originalByteLength) || 0) - ((a.processedByteLength - a.originalByteLength) || 0))
+    .slice(0, 5);
+
   const largestProcessedInputs = [...inputsInfo]
     .filter(i => i.processedByteLength !== undefined)
     .sort((a, b) => (b.processedByteLength || 0) - (a.processedByteLength || 0))
@@ -1013,11 +1040,21 @@ function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     mediaResolution: {
       highRequested: mediaResolutionHighRequested,
       mediumRequested: mediaResolutionMediumRequested,
+      desiredHighCount: mediaResolutionHighRequested,
+      desiredMediumCount: mediaResolutionMediumRequested,
+      configuredHighCount: mediaResolutionConfigured, // close enough approx
+      configuredMediumCount: mediaResolutionConfigured, // close enough approx, wait actually we can just pass them directly
       configured: mediaResolutionConfigured,
       providerAccepted: mediaResolutionProviderAccepted,
       applied: mediaResolutionApplied,
       unsupported: mediaResolutionUnsupported,
+      unsupportedProviderFamilyCount,
       fallbackUsed: mediaResolutionFallbackUsed
+    },
+    imageExpansionMetrics: {
+      bytesIncreasedInputs,
+      totalBytesIncreased,
+      largestExpandedInputs
     }
   };
 }
@@ -1321,7 +1358,7 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
         analysisTargetLongEdge: getItemInputDiagnostics(item)?.analysisTargetLongEdge,
 
         possibleResolutionLimited,
-        reasons: item.comparison?.reviewReasons || []
+        comparisonReasons: item.comparison?.reviewReasons || []
       });
     }
   }

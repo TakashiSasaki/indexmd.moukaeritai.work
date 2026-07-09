@@ -3,8 +3,8 @@
   "generatedAt": "2026-07-09T00:00:00.000Z",
   "modelName": "gemini-2.5-pro",
   "jsonMode": true,
-  "total": 1,
-  "successCount": 0,
+  "total": 2,
+  "successCount": 1,
   "failureCount": 1,
   "counterConsistency": {
     "expectedComparison": {
@@ -53,6 +53,21 @@
           "status": 200,
           "contentType": "application/json",
           "bodyLength": 100
+        },
+        "error": {
+          "name": "ProviderError",
+          "message": "Internal Server Error"
+        },
+        "failureKind": "providerGenerationError",
+        "generationDiagnostics": {
+          "failureKind": "generationError",
+          "stage": "modelGenerateContent",
+          "modelName": "gemini-2.5-pro",
+          "statusCode": 500,
+          "providerStatus": "INTERNAL",
+          "retryable": false,
+          "notRetriedReason": "retryInternalErrors=false",
+          "apiRetryCount": 0
         }
       }
     ]
@@ -62,11 +77,40 @@
       "id": "sample-1",
       "sampleId": "sample-1",
       "success": false,
-      "qualityStatus": "invalid"
+      "qualityStatus": "invalid",
+      "failureKind": "providerGenerationError"
+    },
+    {
+      "id": "sample-2",
+      "sampleId": "sample-2",
+      "success": true,
+      "comparison": {
+        "overallStatus": "warning"
+      },
+      "record": {
+        "visualAnalysis": {
+          "visualInfo": {
+            "imageKind": "screenshot"
+          }
+        },
+        "evaluation": {
+          "qualityStatus": "valid"
+        }
+      }
     }
   ],
   "artifactIntegrity": {
     "artifactKind": "analysis-bundle",
     "endSentinel": "END_OF_VISUAL_ANALYSIS_BATCH_ANALYSIS_BUNDLE"
-  }
+  },
+  "jobStatus": "COMPLETED",
+  "isComplete": true,
+  "completedCount": 2,
+  "pendingCount": 0,
+  "processedCount": 2,
+  "comparisonEligibleCount": 1,
+  "generationFailureCount": 1,
+  "comparisonOnlyFailCount": 0,
+  "notComparableCount": 0,
+  "successfulWithoutComparisonCount": 0
 }
