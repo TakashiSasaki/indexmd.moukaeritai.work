@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, memo } from "react";
 import { DriveLog } from "../types";
 import { Terminal, Trash2, Calendar, AlertCircle, Copy, Check } from "lucide-react";
 
@@ -7,24 +7,54 @@ interface DriveLogsProps {
   onClearLogs: () => void;
 }
 
+const formatTimestamp = (isoString: string) => {
+  try {
+    const d = new Date(isoString);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const date = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const seconds = String(d.getSeconds()).padStart(2, "0");
+    return `${year}/${month}/${date} ${hours}:${minutes}:${seconds}`;
+  } catch {
+    return "0000/00/00 00:00:00";
+  }
+};
+
+const LogItem = memo(({ log }: { log: DriveLog }) => {
+  let badgeStyle = "text-blue-550 bg-blue-50/70 border border-blue-100/80";
+  if (log.level === "success") badgeStyle = "text-green-650 bg-green-50/70 border border-green-100/80";
+  if (log.level === "warn") badgeStyle = "text-amber-600 bg-amber-50/70 border border-amber-100/80";
+  if (log.level === "error") badgeStyle = "text-red-600 bg-red-50 border border-red-100 font-bold";
+
+  return (
+    <div className="grid grid-cols-[115px_58px_1fr] items-start gap-1.5 py-1 text-[10.5px] hover:bg-slate-200/20 transition-colors">
+      <span className="text-slate-400 font-bold select-none text-[10px] pt-0.5">
+        [{formatTimestamp(log.timestamp)}]
+      </span>
+      <span className={`px-1 py-0.5 rounded text-[8.5px] font-extrabold tracking-tight text-center uppercase shrink-0 ${badgeStyle}`}>
+        {log.level}
+      </span>
+      <span className="break-all text-slate-700 font-medium leading-normal pl-0.5">
+        {log.message}
+      </span>
+      {log.details && (
+        <div className="col-span-3 mt-1 sm:pl-[180px]">
+          <pre className="text-[10px] text-indigo-700 bg-indigo-50/50 p-2 rounded border border-indigo-100 break-words overflow-x-auto whitespace-pre-wrap">
+            {log.details}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+});
+
 export default function DriveLogs({ logs, onClearLogs }: DriveLogsProps) {
   const [copied, setCopied] = useState<boolean>(false);
   const [confirming, setConfirming] = useState<boolean>(false);
 
-  const formatTimestamp = (isoString: string) => {
-    try {
-      const d = new Date(isoString);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const date = String(d.getDate()).padStart(2, "0");
-      const hours = String(d.getHours()).padStart(2, "0");
-      const minutes = String(d.getMinutes()).padStart(2, "0");
-      const seconds = String(d.getSeconds()).padStart(2, "0");
-      return `${year}/${month}/${date} ${hours}:${minutes}:${seconds}`;
-    } catch {
-      return "0000/00/00 00:00:00";
-    }
-  };
+
 
   const handleClearClick = () => {
     if (logs.length === 0) return;
@@ -109,33 +139,9 @@ export default function DriveLogs({ logs, onClearLogs }: DriveLogsProps) {
           </div>
         ) : (
           <div className="divide-y divide-slate-250/20">
-            {logs.map((log, idx) => {
-              let badgeStyle = "text-blue-550 bg-blue-50/70 border border-blue-100/80";
-              if (log.level === "success") badgeStyle = "text-green-650 bg-green-50/70 border border-green-100/80";
-              if (log.level === "warn") badgeStyle = "text-amber-600 bg-amber-50/70 border border-amber-100/80";
-              if (log.level === "error") badgeStyle = "text-red-600 bg-red-50 border border-red-100 font-bold";
- 
-              return (
-                <div key={log.id ? `${log.id}-${idx}` : idx} className="grid grid-cols-[115px_58px_1fr] items-start gap-1.5 py-1 text-[10.5px] hover:bg-slate-200/20 transition-colors">
-                  <span className="text-slate-400 font-bold select-none text-[10px] pt-0.5">
-                    [{formatTimestamp(log.timestamp)}]
-                  </span>
-                  <span className={`px-1 py-0.5 rounded text-[8.5px] font-extrabold tracking-tight text-center uppercase shrink-0 ${badgeStyle}`}>
-                    {log.level}
-                  </span>
-                  <span className="break-all text-slate-700 font-medium leading-normal pl-0.5">
-                    {log.message}
-                  </span>
-                  {log.details && (
-                    <div className="col-span-3 mt-1 sm:pl-[180px]">
-                      <pre className="text-[10px] text-indigo-700 bg-indigo-50/50 p-2 rounded border border-indigo-100 break-words overflow-x-auto whitespace-pre-wrap">
-                        {log.details}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {logs.map((log, idx) => (
+              <LogItem key={log.id ? `${log.id}-${idx}` : idx} log={log} />
+            ))}
           </div>
         )}
       </div>
