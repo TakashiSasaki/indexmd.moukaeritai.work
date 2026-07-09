@@ -36,9 +36,30 @@
           "cover": "uncovered",
           "weather": "sunny",
           "lighting": "directSunlight"
-        }
+        },
+        "visibleElements": [
+          {
+            "label": "sun",
+            "category": "landscapeElement",
+            "confidence": 0.99
+          }
+        ],
+        "visibleText": [],
+        "uncertainties": []
       },
-      "visibleElements": []
+      "indexing": {
+        "keywords": [
+          {
+            "value": "sunset",
+            "confidence": 0.99,
+            "importance": 0.95
+          }
+        ]
+      },
+      "quality": {
+        "confidence": 0.98,
+        "issues": []
+      }
     }
   }
 }

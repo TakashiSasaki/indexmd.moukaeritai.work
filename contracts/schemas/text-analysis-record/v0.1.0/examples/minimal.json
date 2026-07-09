@@ -26,6 +26,75 @@
     "summary": {
       "oneLine": "This file contains developmental notes for the backend server setup.",
       "detailed": "Detailed notes explaining the integration of Express middlewares, routing configurations, and the database connection pool using postgres client libraries."
+    },
+    "titleInfo": {
+      "explicitTitle": null,
+      "fileNameTitle": {
+        "value": "project_notes.txt",
+        "isGeneric": false
+      },
+      "inferredTitle": "Backend Server Setup and Development Notes",
+      "displayTitle": {
+        "value": "Backend Server Setup and Development Notes",
+        "source": "inferredTitle",
+        "reason": "AI inferred title provides better descriptive clarity than the filename."
+      }
+    },
+    "documentKindInfo": {
+      "vocabularyVersion": "1.0.0-draft.1",
+      "kinds": [
+        {
+          "kind": "note",
+          "confidence": 0.95,
+          "reason": "Unstructured technical development notes."
+        }
+      ]
+    },
+    "fileFormatInfo": {
+      "mimeType": "text/plain",
+      "extension": "txt"
+    },
+    "subjectAreas": {
+      "vocabularyVersion": "1.0.0-draft.1",
+      "domains": [
+        {
+          "domain": "computerScience",
+          "confidence": 0.98,
+          "reason": "Focuses on backend server architecture and routing.",
+          "labels": [
+            {
+              "label": "Web Development",
+              "kind": "topic",
+              "confidence": 0.95,
+              "source": "inferred"
+            }
+          ]
+        }
+      ]
+    },
+    "languageInfo": {
+      "primary": "en",
+      "detected": ["en"]
+    },
+    "indexing": {
+      "keywords": [
+        {
+          "value": "backend",
+          "source": "body",
+          "confidence": 0.95
+        }
+      ],
+      "namedEntities": [],
+      "resourceReferences": []
+    },
+    "extractedFacts": {
+      "temporalReferences": [],
+      "parties": [],
+      "monetaryAmounts": []
+    },
+    "quality": {
+      "confidence": 0.9,
+      "warnings": []
     }
   },
   "analysisRun": {

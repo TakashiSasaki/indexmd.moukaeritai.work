@@ -253,6 +253,115 @@ function runValidation() {
     }
   }
 
+  // Helper functions for nested validation
+  function loadJson(filePath) {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  }
+
+  const schemaCache = new Map();
+
+  function getValidator(schemaPath) {
+    if (schemaCache.has(schemaPath)) {
+      return schemaCache.get(schemaPath);
+    }
+    const schemaContent = loadJson(schemaPath);
+    try {
+      const localAjv = new Ajv({ allErrors: true, strict: false });
+      const validate = localAjv.compile(schemaContent);
+      schemaCache.set(schemaPath, validate);
+      return validate;
+    } catch (err) {
+      console.error(`❌ Unable to compile schema: ${schemaPath} - ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  function validateAgainstSchema(label, payload, schemaPath, relativeExamplePath) {
+    const validate = getValidator(schemaPath);
+    const isValid = validate(payload);
+    if (!isValid) {
+      console.error(`❌ Nested validation failed [${label}]: ${relativeExamplePath} at schema ${path.relative(process.cwd(), schemaPath)}`);
+      console.error(JSON.stringify(validate.errors, null, 2));
+      process.exit(1);
+    }
+    console.log(`[OK] Nested validation success [${label}]: ${relativeExamplePath} complies with nested schema.`);
+  }
+
+  function validateNestedContracts() {
+    console.log('Validating nested contract examples...');
+
+    const visualAnalysisSchemaPath = path.join(contractsDir, 'schemas/visual-analysis/v0.2.0-draft.1/schema.json');
+    const summaryAnalysisSchemaPath = path.join(contractsDir, 'schemas/summary-analysis/v1.2.0-draft.2/schema.json');
+    const imageAnalysisRecordSchemaPath = path.join(contractsDir, 'schemas/image-analysis-record/v0.1.0/schema.json');
+
+    // 1. image-analysis-record examples
+    const imageAnalysisRecordExamplesDir = path.join(contractsDir, 'schemas/image-analysis-record/v0.1.0/examples');
+    if (fs.existsSync(imageAnalysisRecordExamplesDir)) {
+      const examples = fs.readdirSync(imageAnalysisRecordExamplesDir).filter(f => f.endsWith('.json'));
+      for (const exFile of examples) {
+        const exPath = path.join(imageAnalysisRecordExamplesDir, exFile);
+        const relativeExamplePath = path.relative(process.cwd(), exPath);
+        const exContent = loadJson(exPath);
+        if (exContent.visualAnalysis) {
+          validateAgainstSchema(
+            'image-analysis-record -> visualAnalysis',
+            exContent.visualAnalysis,
+            visualAnalysisSchemaPath,
+            relativeExamplePath
+          );
+        }
+      }
+    }
+
+    // 2. text-analysis-record examples
+    const textAnalysisRecordExamplesDir = path.join(contractsDir, 'schemas/text-analysis-record/v0.1.0/examples');
+    if (fs.existsSync(textAnalysisRecordExamplesDir)) {
+      const examples = fs.readdirSync(textAnalysisRecordExamplesDir).filter(f => f.endsWith('.json'));
+      for (const exFile of examples) {
+        const exPath = path.join(textAnalysisRecordExamplesDir, exFile);
+        const relativeExamplePath = path.relative(process.cwd(), exPath);
+        const exContent = loadJson(exPath);
+        if (exContent.summaryAnalysis) {
+          validateAgainstSchema(
+            'text-analysis-record -> summaryAnalysis',
+            exContent.summaryAnalysis,
+            summaryAnalysisSchemaPath,
+            relativeExamplePath
+          );
+        }
+      }
+    }
+
+    // 3. API analyze response examples
+    const apiAnalyzeExamplesDir = path.join(contractsDir, 'api/v0.1.0/examples');
+    if (fs.existsSync(apiAnalyzeExamplesDir)) {
+      const examples = fs.readdirSync(apiAnalyzeExamplesDir).filter(f => f.startsWith('visual-public-samples-analyze.response') && f.endsWith('.json'));
+      for (const exFile of examples) {
+        const exPath = path.join(apiAnalyzeExamplesDir, exFile);
+        const relativeExamplePath = path.relative(process.cwd(), exPath);
+        const exContent = loadJson(exPath);
+        if (exContent.record) {
+          validateAgainstSchema(
+            'API response -> record',
+            exContent.record,
+            imageAnalysisRecordSchemaPath,
+            relativeExamplePath
+          );
+          if (exContent.record.visualAnalysis) {
+            validateAgainstSchema(
+              'API response -> record -> visualAnalysis',
+              exContent.record.visualAnalysis,
+              visualAnalysisSchemaPath,
+              relativeExamplePath
+            );
+          }
+        }
+      }
+    }
+  }
+
+  validateNestedContracts();
+
   console.log('\n✨ Contracts Validation Successful! ✨');
 }
 
