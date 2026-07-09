@@ -46,7 +46,20 @@ export function buildGenerationFailureResponse(args: {
     diagnostics.retryAfterMs = err.retryAfterMs;
     diagnostics.retryAfterReason = err.retryAfterReason;
     diagnostics.retryPolicy = err.retryPolicy;
+    diagnostics.errorName = err.errorName;
+    diagnostics.causeName = err.causeName;
+    diagnostics.causeMessageSummary = err.causeMessageSummary;
+    diagnostics.causeCode = err.causeCode;
+    diagnostics.causeErrno = err.causeErrno;
+    diagnostics.causeSyscall = err.causeSyscall;
+    diagnostics.causeHostname = err.causeHostname;
   } else if (err instanceof Error) {
+    diagnostics.errorName = err.name;
+    if ((err as any).cause) {
+      diagnostics.causeName = (err as any).cause.name || "Error";
+      diagnostics.causeMessageSummary = String((err as any).cause.message || (err as any).cause).substring(0, 500);
+      diagnostics.causeCode = (err as any).cause.code;
+    }
     diagnostics.rawMessageSummary = err.message.substring(0, 1000);
   } else {
     try {
