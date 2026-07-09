@@ -32,7 +32,13 @@ export class ProviderError extends Error {
   retryAfterReason?: string;
   retryPolicy?: ProviderGenerationRetryPolicy;
   notRetriedReason?: string;
-
+  errorName?: string;
+  causeName?: string;
+  causeMessageSummary?: string;
+  causeCode?: string;
+  causeErrno?: string;
+  causeSyscall?: string;
+  causeHostname?: string;
   constructor(message: string, statusCode?: number, providerStatus?: string, rawMessageSummary?: string) {
     super(message);
     this.name = "ProviderError";
