@@ -30,6 +30,8 @@ describe('appTabs', () => {
   test('isValidTabId returns false for invalid tabs', () => {
     assert.strictEqual(isValidTabId('invalid-tab'), false);
     assert.strictEqual(isValidTabId(''), false);
+    assert.strictEqual(isValidTabId('docs'), false);
+    assert.strictEqual(isValidTabId('/docs'), false);
   });
 
   test('No duplicate tab IDs', () => {
