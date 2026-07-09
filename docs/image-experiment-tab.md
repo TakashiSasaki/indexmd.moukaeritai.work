@@ -29,12 +29,11 @@ This allows testing the visual schema against a curated matrix of public-domain 
 - Previews and analyses run through a CORS-safe server proxy.
 - Expected metadata from a local registry is compared against the live model output.
 
-### Public Sample Batch Report RC
-You can execute a batch regression run across **all** registered public samples sequentially.
-- **License Filter Removed:** Batch runs unconditionally across all public samples regardless of license or category.
-- **ChatGPT Report JSON:** A specialized "Copy ChatGPT Report JSON" button generates a compact summary of the batch run. To prevent context overflow in ChatGPT, this JSON explicitly omits `requestPreview` and `rawOutputPreview`.
-- **Full JSON & Failures:** You can also copy the "Full Batch JSON" (for deep debugging) or a "Failures Only" JSON.
-- **No Server Persistence:** The batch execution runs client-side and saves summaries only to `localStorage`. Server-side execution and persistence are currently out of scope.
+### Public Sample Batch Reports & Observability
+You can execute a batch regression run across registered public samples sequentially (either client-side or server-side). Once completed, the following artifacts are available:
+- **Analysis Bundle JSON (Recommended):** The primary unified artifact designed for ChatGPT-assisted regression analysis. It includes summary metrics, consistency checks, failure categories, and embedded compact failure sample data. It strictly excludes raw API response bodies (`responseRaw`) to keep sizes minimal.
+- **Advanced / Archive Artifacts:** Includes "Full Batch JSON", "ChatGPT Summary", "ChatGPT Diagnostic", and "Failures Only JSON" for archival or advanced deep-tracing scenarios.
+- **Server Persistence:** Supports running batch regressions as background server jobs, which can be monitored in real-time, imported to client summaries, and downloaded from persistent endpoints.
 
 ### Transient API Failures & Retry Policies
 When running in cloud environments (like AI Studio or Cloud Run), the backend container might be warming up or restarting.

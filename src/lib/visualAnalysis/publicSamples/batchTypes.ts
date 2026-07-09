@@ -224,3 +224,55 @@ export interface VisualBatchJob {
 
   items: VisualBatchJobItem[];
 }
+
+export interface PublicSampleBatchAnalysisBundleReport {
+  reportKind: "visualAnalysisPublicSampleBatchAnalysisBundle";
+  generatedAt: string;
+  modelName: string;
+  jsonMode: string;
+  total: number;
+  successCount: number;
+  failureCount: number;
+  validCount: number;
+  validLowQualityCount: number;
+  invalidJsonCount: number;
+  expectedComparisonPassCount: number;
+  expectedComparisonWarningCount: number;
+  expectedComparisonFailCount: number;
+  reviewPassCount: number;
+  reviewNeedsReviewCount: number;
+  reviewFailCount: number;
+  counterConsistency: any;
+  comparisonCoverage: any;
+  comparisonRecordConsistency: any;
+  invariants: any;
+  generationFailureSummary: any;
+  apiResponseFailureSummary: any;
+  parseFailureSummary: any;
+  networkFailureSummary: any;
+  validationFailureSummary: any;
+  rateLimitSummary: any;
+  providerQuotaSummary: any;
+  inputSizeSummary: any;
+  textHeavyEvaluation: any;
+  analysisGuidance: {
+    intendedUse: string;
+    recommendedFirstChecks: string[];
+    fullJsonPolicy: string;
+    summaryPolicy: string;
+    failuresPolicy: string;
+  };
+  failures: {
+    totalFailures: number;
+    items: any[];
+  };
+  items: any[];
+  artifactIntegrity: {
+    artifactKind: string;
+    itemCount: number;
+    firstSampleId: string;
+    lastSampleId: string;
+    endSentinel: string;
+  };
+}
+
