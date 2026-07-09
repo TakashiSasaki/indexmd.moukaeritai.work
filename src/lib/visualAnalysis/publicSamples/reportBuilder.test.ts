@@ -1,3 +1,4 @@
+import { PublicSampleBatchRunSummary } from "./batchTypes";
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { 
@@ -449,4 +450,74 @@ describe("Analysis Bundle Sanitization", () => {
     assert.ok(!bundleStr.includes("SECRET_OUTPUT"), "rawOutputPreview should be stripped");
     assert.ok(!bundleStr.includes("SECRET_FAIL_OUTPUT"), "rawOutputPreview should be stripped");
   });
+});
+
+it('validateBatchRunInvariants ignores missing items for partial/canceled jobs', () => {
+  const partialSummary: PublicSampleBatchRunSummary = {
+    jobStatus: 'running',
+    isComplete: false,
+    runId: 'partial-1',
+    timestamp: new Date().toISOString(),
+    startedAt: new Date().toISOString(),
+    durationMs: 100,
+    modelName: 'test',
+    jsonMode: 'prompt_only',
+    total: 3,
+    successCount: 1,
+    failureCount: 0,
+    validCount: 1,
+    validLowQualityCount: 0,
+    invalidJsonCount: 0,
+    expectedComparisonPassCount: 1,
+    expectedComparisonWarningCount: 0,
+    expectedComparisonFailCount: 0,
+    reviewPassCount: 0,
+    reviewNeedsReviewCount: 0,
+    reviewFailCount: 0,
+    items: [
+      {
+        sampleId: '1',
+        title: 'sample 1',
+        success: true,
+        record: {
+          visualAnalysis: {
+            qualityStatus: 'valid',
+            analysisType: 'document',
+            imageKind: 'document',
+            elementCategories: [],
+            visibleElementLabels: [],
+            visibleText: []
+          },
+          evaluation: {
+            expectedMetadata: {
+              imageKind: 'document',
+              elementCategories: [],
+              visibleElementLabels: [],
+              visibleText: []
+            }
+          }
+        } as any,
+        comparison: {
+          overallStatus: 'pass',
+          reviewStatus: 'pass',
+          reasons: [],
+          reviewReasons: [],
+          reviewNotes: [],
+          imageKind: { expected: 'document', status: 'exact' },
+          categories: { matched: [], missing: [], extra: [], acceptable: [] },
+          labels: { matched: [], missing: [], extra: [], acceptable: [] },
+          visibleText: { matched: [], missing: [] },
+                    coverage: {
+            categories: { expectedTotal: 0, covered: 0, missing: 0, ratio: 1.0 },
+            labels: { expectedTotal: 0, covered: 0, missing: 0, ratio: 1.0 },
+            visibleText: { expectedTotal: 0, covered: 0, missing: 0, ratio: 1.0 },
+            overall: { expectedTotal: 0, covered: 0, missing: 0, ratio: 1.0 }
+          }
+        }
+      }
+    ]
+  };
+
+  const invariants = validateBatchRunInvariants(partialSummary);
+  assert.strictEqual(invariants.valid, true, `Expected valid, got issues: ${invariants.issues.join(', ')}`);
 });

@@ -11,6 +11,10 @@ import { ProviderGenerationRetryPolicy } from '../../gemini';
 
 test('jobToSummary semantics for 1 success 1 fail', () => {
   const summary = jobToSummary({
+    updatedAt: 'now',
+    completedSampleIds: [],
+    pendingSampleIds: [],
+    failedSampleIds: [],
     jobId: '123',
     createdAt: 'now',
     startedAt: 'now',
