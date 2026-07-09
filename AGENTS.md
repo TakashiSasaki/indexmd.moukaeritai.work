@@ -105,6 +105,9 @@ Safe maintenance changes include documentation corrections, non-breaking fallbac
 - **Report Safety**: Do NOT commit raw model output, request previews, private document text, tokens, or API keys in exported artifacts or fixtures.
 - **Quality Safety**: Before committing, run `npm run lint`, `npm run test:unit`, `npm run build`, and `npm run validate:public-samples:images` unless the task explicitly documents why a command cannot be run. Use latest schema/prompt versions and keep schema-related docs/tests aligned.
 
+## 📝 Commit Guidelines
+- **Detailed English Commit Messages**: Whenever you perform any file modifications, you MUST write a detailed commit message in English explaining the purpose and scope of the changes.
+
 ## 🛠 Local Agent Skills (Workspace Local)
 In addition to the standard system skills, this project defines **workspace-local skills** in the `skills/` directory at the project root.
 - When performing repetitive or complex tasks (e.g., testing local API endpoints or SDK features), check the `skills/` directory for established local conventions and boilerplate scripts.
