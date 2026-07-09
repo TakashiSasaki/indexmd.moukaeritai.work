@@ -8,8 +8,11 @@ This directory defines the public visual sample contracts used for vision-model 
 
 1. **`public-sample.schema.json`**: Schema defining the structure of a public evaluation sample setup in our regression test suite.
 2. **`expected-metadata.schema.json`**: Schema representing the expected target metadata, which serves as a target model prediction validation target.
-3. **`batch-summary.schema.json`**: Defines the summary output structure of batch evaluation execution, reporting global diagnostic rates and accuracy metrics.
-4. **`batch-diagnostic.schema.json`**: Schema detailing run-level performance telemetry, caching parameters, and file reduction details.
+3. **`batch-summary.schema.json`**: (Historical/Advanced) Defines the summary output structure of batch evaluation execution, reporting global diagnostic rates and accuracy metrics.
+4. **`batch-diagnostic.schema.json`**: (Historical/Advanced) Schema detailing run-level performance telemetry, caching parameters, and file reduction details.
+5. **`batch-analysis-bundle.schema.json`**: Recommended single-file artifact for ChatGPT-assisted analysis of visual public sample batch regressions.
+
+Note: `batch-summary.schema.json` and `batch-diagnostic.schema.json` are historical/advanced contracts. The Analysis Bundle JSON is the recommended artifact.
 
 ## ⚠️ Key Operational Assumptions
 

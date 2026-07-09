@@ -103,6 +103,17 @@
       "schema": "contracts/schemas/public-visual-sample/v0.1.0/batch-diagnostic.schema.json",
       "readme": "contracts/schemas/public-visual-sample/v0.1.0/README.md",
       "examples": []
+    },
+    {
+      "id": "public-visual-sample.batch-analysis-bundle",
+      "version": "v0.1.0",
+      "status": "rc",
+      "kind": "schema",
+      "schema": "contracts/schemas/public-visual-sample/v0.1.0/batch-analysis-bundle.schema.json",
+      "readme": "contracts/schemas/public-visual-sample/v0.1.0/README.md",
+      "examples": [
+        "contracts/schemas/public-visual-sample/v0.1.0/examples/batch-analysis-bundle.minimal.json"
+      ]
     }
   ],
   "apiContracts": [

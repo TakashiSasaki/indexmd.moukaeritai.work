@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://indexmd.moukaeritai.work/contracts/schemas/public-visual-sample/v0.1.0/batch-analysis-bundle.schema.json",
+  "title": "Visual Analysis Public Sample Batch Analysis Bundle",
+  "description": "Recommended single-file artifact for ChatGPT-assisted analysis of visual public sample batch regressions.",
+  "x-contract-id": "public-visual-sample.batch-analysis-bundle",
+  "x-contract-version": "v0.1.0",
+  "x-contract-status": "rc",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "reportKind",
+    "generatedAt",
+    "modelName",
+    "total",
+    "successCount",
+    "failureCount",
+    "counterConsistency",
+    "comparisonCoverage",
+    "comparisonRecordConsistency",
+    "invariants",
+    "analysisGuidance",
+    "failures",
+    "items",
+    "artifactIntegrity"
+  ],
+  "properties": {
+    "reportKind": {
+      "type": "string",
+      "const": "visualAnalysisPublicSampleBatchAnalysisBundle"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "modelName": {
+      "type": "string"
+    },
+    "total": {
+      "type": "integer"
+    },
+    "successCount": {
+      "type": "integer"
+    },
+    "failureCount": {
+      "type": "integer"
+    },
+    "counterConsistency": {
+      "type": "boolean"
+    },
+    "comparisonCoverage": {
+      "type": "boolean"
+    },
+    "comparisonRecordConsistency": {
+      "type": "boolean"
+    },
+    "invariants": {
+      "type": "boolean"
+    },
+    "analysisGuidance": {
+      "type": "string"
+    },
+    "failures": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "artifactIntegrity": {
+      "type": "object",
+      "properties": {
+        "endSentinel": {
+          "type": "string",
+          "const": "END_OF_VISUAL_ANALYSIS_BATCH_ANALYSIS_BUNDLE"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

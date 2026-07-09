@@ -1,0 +1,55 @@
+{
+  "reportKind": "visualAnalysisPublicSampleBatchAnalysisBundle",
+  "generatedAt": "2026-07-09T00:00:00.000Z",
+  "modelName": "gemini-2.5-pro",
+  "jsonMode": true,
+  "total": 1,
+  "successCount": 0,
+  "failureCount": 1,
+  "counterConsistency": true,
+  "comparisonCoverage": true,
+  "comparisonRecordConsistency": true,
+  "invariants": true,
+  "failureSummaries": {
+    "totalFailures": 1,
+    "qualityInvalid": 1
+  },
+  "inputSizeSummary": {
+    "averageSizeKb": 1024,
+    "maxSizeKb": 1024
+  },
+  "textHeavyEvaluation": {
+    "textHeavySamples": 1,
+    "averageOcrLatencyMs": 150
+  },
+  "analysisGuidance": "Use this artifact to diagnose test failures.",
+  "failures": {
+    "totalFailures": 1,
+    "items": [
+      {
+        "id": "sample-1",
+        "sampleId": "sample-1",
+        "qualityStatus": "invalid",
+        "status": 200,
+        "isSuccess": false,
+        "responseDiagnostics": {
+          "status": 200,
+          "contentType": "application/json",
+          "bodyLength": 100
+        }
+      }
+    ]
+  },
+  "items": [
+    {
+      "id": "sample-1",
+      "sampleId": "sample-1",
+      "success": false,
+      "qualityStatus": "invalid"
+    }
+  ],
+  "artifactIntegrity": {
+    "artifactKind": "analysis-bundle",
+    "endSentinel": "END_OF_VISUAL_ANALYSIS_BATCH_ANALYSIS_BUNDLE"
+  }
+}

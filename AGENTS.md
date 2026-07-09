@@ -17,7 +17,7 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
       - `users/{userId}/state/global_sync`: Tracks global sync tokens.
       - `users/{userId}/directories/{directoryId}`: Stores metadata for each directory.
   - **Local Filesystem Runtime State**:
-    - `src/data/validation_history.json`: Tracks processing success/fail history.
+    - `src/data/validation_history.json`: local runtime-generated validation history. It is ignored by Git and must not contain committed real user histories.
     - `cache/scan`: Folder scan result cache.
     - `cache/snippets`: Optional Drive content snippet cache, controlled by `ENABLE_DRIVE_CONTENT_CACHE`.
     - `cache/summaries`: AI summary cache.

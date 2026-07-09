@@ -34,7 +34,7 @@ Unlike the `src/` directory, which represents volatile, runtime-bound implementa
 1. **Never import from `src/`**: External tools **MUST NOT** import internal TypeScript types or helper modules from `src/`. They should compile their own types directly from these versioned JSON Schemas.
 2. **Immutable Versioned Paths**: Once a version folder under `contracts/` is marked `stable`, its contents are **immutable**. Corrections must be released as a new version.
 3. **Avoid "Latest" Symlinks**: There is no generic `latest` or `current` path. External applications must bind to explicit semantic versions (e.g., `v1.2.0-draft.2`) to avoid runtime breaking changes.
-4. **Runtime Mirrors (`/schemas`)**: The `/schemas` directory contains runtime compatibility mirrors. Code in `src/` and `server.ts` may import from `/schemas` directly for live execution. However, `contracts/` remains the absolute source-of-truth. Never manually edit `/schemas` directly without validating sync alignment.
+4. **Canonical Source Only**: `contracts/` is the canonical schema and contract source. Runtime code, docs, tests, and validators read canonical schemas directly from `contracts/`. Root-level `schemas/` must not be reintroduced. Use `npm run validate:contracts` for contract validation, and use `npm run verify:no-schema-mirror` to prevent accidental root-level schema mirror reintroduction.
 
 ---
 
@@ -159,10 +159,11 @@ To facilitate automated ingestion and ensure high-fidelity implementation, we pr
 
 ## ⚡ Schema Verification and Validation
 
-All JSON Schemas, example payloads, and runtime compatibility mirrors are verified continuously.
+All JSON Schemas and example payloads are verified continuously.
 
 ### 1. Contract Structure and Examples Validation
 To run contract checks (verifying JSON syntax, required metadata fields, example compliance, and deep nested envelope validation):
+
 ```bash
 npm run validate:contracts
 ```
@@ -174,10 +175,11 @@ This validation ensures:
 4. Example payloads are fully valid against their associated schemas.
 5. **Deep Nested Validation**: Inside envelope schemas (such as `image-analysis-record` and `text-analysis-record`) and API responses, nested payloads (like `visual-analysis` and `summary-analysis`) are validated recursively against their canonical inner schemas to guarantee that examples do not diverge from their respective definitions.
 
-### 2. Runtime Mirror Alignment Validation
-To verify that the `/schemas` compatibility mirrors are structurally in sync with their parent definitions under `contracts/schemas/` (ignoring top-level metadata fields like `$id`, `$schema`, `x-contract-*`, and descriptions):
+### 2. Anti-Mirror Guard
+To verify that no root-level `/schemas` directory or code references to it have been reintroduced:
+
 ```bash
-npm run verify:contract-mirrors
+npm run verify:no-schema-mirror
 ```
 
-This verification prevents silent structural drift between your external integration schemas and internal runtime codes.
+This verification prevents the accidental recreation of redundant runtime schema mirrors outside of `contracts/schemas/`.
