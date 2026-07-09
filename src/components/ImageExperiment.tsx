@@ -21,7 +21,15 @@ import {
   rebuildBatchSummaryFromCheckpoint,
   buildTargetSampleIdsHash
 } from '../lib/visualAnalysis/publicSamples/batchCheckpoint';
-import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
+import { 
+  buildBatchReportForChat, 
+  buildFailuresOnlyReport, 
+  buildBatchSummaryReportForChat, 
+  buildBatchDiagnosticReportForChat, 
+  buildFullItemReport,
+  getItemExecutionMetadata,
+  getItemFailureTaxonomy
+} from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
@@ -380,30 +388,32 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       });
 
       const data = sfResult.data || {};
-      const success = sfResult.success && data.success;
+      const record = data.record;
+      const success = sfResult.success && record?.status?.success;
       
       let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
       let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
-      if (success && data.record?.evaluation?.expectedMetadata) {
+      if (success && record?.evaluation?.expectedMetadata) {
+        const expectedMetadata = record.evaluation.expectedMetadata;
         const comparisonSample = {
           id: sampleId,
           title: matchedSample?.title || sampleId,
           category: (matchedSample?.category || "other") as any,
           source: (matchedSample?.source || "unknown") as any,
-          expectedImageKind: data.record?.evaluation?.expectedMetadata?.imageKind,
-          acceptableImageKinds: data.record?.evaluation?.expectedMetadata?.acceptableImageKinds || [],
-          expectedElementCategories: data.record?.evaluation?.expectedMetadata.elementCategories || [],
-          expectedVisibleElementLabels: data.record?.evaluation?.expectedMetadata.visibleElementLabels || [],
-          expectedVisibleElementLabelAliases: data.record?.evaluation?.expectedMetadata.visibleElementLabelAliases || {},
-          expectedVisibleText: data.record?.evaluation?.expectedMetadata.visibleText || [],
-          optionalElementCategories: data.record?.evaluation?.expectedMetadata.optionalElementCategories || [],
-          optionalVisibleElementLabels: data.record?.evaluation?.expectedMetadata.optionalVisibleElementLabels || [],
-          optionalVisibleElementLabelAliases: data.record?.evaluation?.expectedMetadata.optionalVisibleElementLabelAliases || {},
-          optionalVisibleText: data.record?.evaluation?.expectedMetadata.optionalVisibleText || []
+          expectedImageKind: expectedMetadata.imageKind,
+          acceptableImageKinds: expectedMetadata.acceptableImageKinds || [],
+          expectedElementCategories: expectedMetadata.elementCategories || [],
+          expectedVisibleElementLabels: expectedMetadata.visibleElementLabels || [],
+          expectedVisibleElementLabelAliases: expectedMetadata.visibleElementLabelAliases || {},
+          expectedVisibleText: expectedMetadata.visibleText || [],
+          optionalElementCategories: expectedMetadata.optionalElementCategories || [],
+          optionalVisibleElementLabels: expectedMetadata.optionalVisibleElementLabels || [],
+          optionalVisibleElementLabelAliases: expectedMetadata.optionalVisibleElementLabelAliases || {},
+          optionalVisibleText: expectedMetadata.optionalVisibleText || []
         };
         try {
-          const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
+          const comp = evaluateSampleComparison(comparisonSample, record);
           overallStatus = comp.overallStatus;
           reviewStatus = comp.reviewStatus;
         } catch (e) {}
@@ -775,6 +785,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       }
 
       const data = sfResult.data || {};
+      const record = data.record;
 
       if (!sfResult.success) {
         const errMsg = sfResult.error || "Failed to analyze public sample";
@@ -782,7 +793,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           success: false,
           error: errMsg,
           failureKind: sfResult.failureKind,
-          responseDiagnostics: sfResult.responseDiagnostics
+          responseDiagnostics: sfResult.responseDiagnostics,
+          record
         };
         setResult(errorResult);
         onAddLog("error", `[Image Analysis] Error: ${errMsg}`);
@@ -799,8 +811,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         });
       } else {
         setResult(data);
-        if (!data.success) {
-          onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
+        if (!record?.status?.success) {
+          onAddLog("error", `[Image Analysis] Error: ${record?.status?.error || "Failed to analyze public sample"}`);
           setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
 
           handleUpdateMatrixResult({
@@ -809,7 +821,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             jsonMode: jsonModeOption,
             success: false,
             timestamp: new Date().toISOString(),
-            error: data.error || "Failed to analyze public sample",
+            error: record?.status?.error || "Failed to analyze public sample",
             source: 'client-single'
           });
         } else {
@@ -819,7 +831,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
           let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
-          const expectedMetadata = data.record?.evaluation?.expectedMetadata;
+          const expectedMetadata = record?.evaluation?.expectedMetadata;
           const comparisonSample = {
             id: selectedSampleId,
             title: selectedSample?.title || selectedSampleId,
@@ -838,7 +850,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             optionalVisibleText: expectedMetadata?.optionalVisibleText ?? selectedSample?.optionalVisibleText ?? []
           };
           try {
-            const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
+            const comp = evaluateSampleComparison(comparisonSample, record);
             overallStatus = comp.overallStatus;
             reviewStatus = comp.reviewStatus;
           } catch (e) {}
@@ -1152,12 +1164,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       
       // Re-sum counters from remaining/restored items
       for (const item of items) {
-        if (item.success) {
+        const record = item.record;
+        const evaluation = record?.evaluation;
+        const status = record?.status;
+        const isSuccess = status?.success ?? item.success;
+
+        if (isSuccess) {
           successCount++;
-          if (item.qualityStatus === 'valid') validCount++;
-          if (item.qualityStatus === 'validLowQuality') validLowQualityCount++;
+          const qualityStatus = evaluation?.qualityStatus;
+          if (qualityStatus === 'valid') validCount++;
+          if (qualityStatus === 'validLowQuality') validLowQualityCount++;
           
-          const comp = item.comparison;
+          const comp = evaluation?.comparison;
           if (comp) {
             if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
             if (comp.overallStatus === 'warning') expectedComparisonWarningCount++;
@@ -1427,6 +1445,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
             const data = sfResult.data || {};
             const record = data.record;
+            
             const sampleCompletedAt = new Date();
 
             item = {
@@ -1435,10 +1454,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               startedAt: sampleStartedAt.toISOString(),
               completedAt: sampleCompletedAt.toISOString(),
               durationMs: sampleCompletedAt.getTime() - sampleStartedAt.getTime(),
-              success: sfResult.success && data.success,
+              success: sfResult.success && record?.status?.success,
               record,
-              failureKind: sfResult.failureKind || data.failureKind || record?.status?.failureKind,
-              error: sfResult.error || data.error || record?.status?.error,
+              failureKind: sfResult.failureKind || record?.status?.failureKind,
+              error: sfResult.error || record?.status?.error,
               responseDiagnostics: sfResult.responseDiagnostics,
               retryDiagnostics: sfResult.retryDiagnostics
             };
@@ -1614,46 +1633,28 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       return {
         ...sum,
         items: sum.items.map(it => {
+          const record = it.record;
+          const evaluation = record?.evaluation;
           const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === it.sampleId);
-          const category = it.category || 
+          const category = record?.assetMetadata?.category || 
                            matchedSample?.category || 
-                           (it.responseRaw?.sampleMetadata as any)?.category || 
-                           (it.comparison as any)?.category || 
                            "unknown";
           
-          let exec: any = undefined;
-          if (it.analysisRun?.metadata ?? it.analysisRun) {
-            const run = it.analysisRun?.metadata ?? it.analysisRun;
-            exec = {
-              modelName: run.model?.name || run.execution?.modelName,
-              providerFamily: run.model?.providerFamily || run.execution?.providerFamily,
-              structuredExecutionMode: run.execution?.structuredExecutionMode,
-              jsonMode: run.execution?.jsonMode,
-              jsonRecovery: run.execution?.jsonRecovery
-            };
-          } else if (it.execution) {
-            exec = {
-              modelName: it.execution.modelName,
-              providerFamily: it.execution.providerFamily,
-              structuredExecutionMode: it.execution.structuredExecutionMode,
-              jsonMode: it.execution.jsonMode,
-              jsonRecovery: it.execution.jsonRecovery
-            };
-          }
+          const exec = getItemExecutionMetadata(it);
 
           return {
             sampleId: it.sampleId,
             title: it.title,
-            success: it.success,
-            error: it.error,
-            failureKind: it.failureKind,
-            qualityStatus: it.qualityStatus,
-            qualityScore: it.qualityScore,
-            qualityIssues: it.qualityIssues,
+            success: record?.status?.success ?? it.success,
+            error: record?.status?.error || it.error,
+            failureKind: record?.status?.failureKind || it.failureKind,
+            qualityStatus: evaluation?.qualityStatus,
+            qualityScore: evaluation?.qualityScore,
+            qualityIssues: evaluation?.qualityIssues,
             category,
-            taxonomyCategory: it.taxonomyCategory,
-            comparison: it.comparison ? {
-              imageKind: it.comparison.imageKind,
+            taxonomyCategory: getItemFailureTaxonomy(it),
+            comparison: evaluation?.comparison ? {
+              imageKind: evaluation.comparison.imageKind,
               categories: it.comparison.categories,
               labels: it.comparison.labels,
               visibleText: it.comparison.visibleText,
@@ -1679,8 +1680,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     onAddLog("success", `Batch regression complete for ${total} samples.`);
 
     // If exactly 1 sample was processed in this subset run, also set single result so the user can see detail tabs immediately
-    if (total === 1 && items[0].responseRaw) {
-      setResult(items[0].responseRaw);
+    if (total === 1 && items[0].record) {
+      setResult(items[0].record);
     }
     } finally {
       clearInterval(heartbeatTimer);
@@ -2856,31 +2857,31 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.success && (
-                            <span className={`px-1.5 py-0.5 rounded ${item.qualityStatus === 'valid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                               {item.qualityStatus}
+                         {item.record?.status?.success && (
+                            <span className={`px-1.5 py-0.5 rounded ${item.record.evaluation?.qualityStatus === 'valid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                               {item.record.evaluation?.qualityStatus}
                             </span>
                          )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.comparison?.imageKind && (
-                            <span className={`font-mono ${item.comparison.imageKind.status === 'exact' ? 'text-emerald-600' : item.comparison.imageKind.status === 'acceptable' ? 'text-indigo-600' : 'text-red-600'}`}>
-                               {item.comparison.imageKind.detected || 'missing'} 
-                               {item.comparison.imageKind.status !== 'exact' && ` (exp: ${item.comparison.imageKind.expected})`}
+                         {item.record?.evaluation?.comparison?.imageKind && (
+                            <span className={`font-mono ${item.record.evaluation.comparison.imageKind.status === 'exact' ? 'text-emerald-600' : item.record.evaluation.comparison.imageKind.status === 'acceptable' ? 'text-indigo-600' : 'text-red-600'}`}>
+                               {item.record.evaluation.comparison.imageKind.detected || 'missing'} 
+                               {item.record.evaluation.comparison.imageKind.status !== 'exact' && ` (exp: ${item.record.evaluation.comparison.imageKind.expected})`}
                             </span>
                          )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.comparison && (
-                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.comparison.overallStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.comparison.overallStatus === 'warning' ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50'}`}>
-                               {item.comparison.overallStatus}
+                         {item.record?.evaluation?.comparison && (
+                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.record.evaluation.comparison.overallStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.record.evaluation.comparison.overallStatus === 'warning' ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50'}`}>
+                               {item.record.evaluation.comparison.overallStatus}
                             </span>
                          )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.comparison && (
-                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.comparison.reviewStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.comparison.reviewStatus === 'needsReview' ? 'text-indigo-600 bg-indigo-50' : 'text-red-600 bg-red-50'}`}>
-                               {item.comparison.reviewStatus}
+                         {item.record?.evaluation?.comparison && (
+                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.record.evaluation.comparison.reviewStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.record.evaluation.comparison.reviewStatus === 'needsReview' ? 'text-indigo-600 bg-indigo-50' : 'text-red-600 bg-red-50'}`}>
+                               {item.record.evaluation.comparison.reviewStatus}
                             </span>
                          )}
                       </td>

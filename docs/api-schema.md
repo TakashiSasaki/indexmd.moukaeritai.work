@@ -222,7 +222,7 @@ Generates summaries and validates schema fields on raw manual text entered in th
 ---
 
 ### 5. `GET /api/visual/public-samples`
-Returns a list of public images and synthetic documents registered in the system for visual indexing testing.
+Returns a list of public images and synthetic documents registered in the system for visual indexing testing, including legacy fields and the unified `expectedMetadata` object.
 
 *   **Success Response** (200 OK):
     ```json
@@ -231,6 +231,18 @@ Returns a list of public images and synthetic documents registered in the system
         "id": "string (e.g. 'starry-night')",
         "title": "string",
         "category": "string (e.g. 'landscape', 'document')",
+        "expectedImageKind": "string (e.g. 'landscapePhoto', 'receiptPhoto')",
+        "acceptableImageKinds": ["string"],
+        "expectedElementCategories": ["string"],
+        "expectedElementCategoryAlternatives": { "string": ["string"] },
+        "expectedVisibleElementLabels": ["string"],
+        "expectedVisibleElementLabelAliases": { "string": ["string"] },
+        "expectedVisibleText": ["string"],
+        "expectedNotes": ["string"],
+        "optionalElementCategories": ["string"],
+        "optionalVisibleElementLabels": ["string"],
+        "optionalVisibleElementLabelAliases": { "string": ["string"] },
+        "optionalVisibleText": ["string"],
         "expectedMetadata": {
           "imageKind": "string",
           "acceptableImageKinds": ["string"],
@@ -245,16 +257,14 @@ Returns a list of public images and synthetic documents registered in the system
           "optionalVisibleElementLabelAliases": { "string": ["string"] },
           "optionalVisibleText": ["string"]
         },
-        "source": {
-          "provider": "string",
-          "kind": "string",
-          "licenseKind": "string",
-          "licenseName": "string",
-          "attributionText": "string",
-          "pageUrl": "string",
-          "isSynthetic": "boolean"
-        },
-        "thumbnailRoute": "string (URL to fetch image thumbnail)"
+        "thumbnailRoute": "string (URL to fetch image thumbnail)",
+        "licenseKind": "string",
+        "licenseName": "string",
+        "attributionText": "string",
+        "sourcePageUrl": "string",
+        "sourceProvider": "string ('wikimedia' | 'localFixture')",
+        "sourceKind": "string ('external' | 'synthetic')",
+        "isSynthetic": "boolean"
       }
     ]
     ```
