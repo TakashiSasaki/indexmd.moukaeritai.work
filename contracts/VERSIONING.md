@@ -50,7 +50,7 @@ To support continuous evolution of metadata structures while providing strong st
    - Example files are present and validate correctly against the schema.
 2. **`rc` -> `stable`**:
    - At least 30 days of production-like execution with zero integration failures or schema-related exceptions.
-   - The contract matches the `/schemas` runtime compatibility mirror perfectly.
+   - The contract does not rely on any `/schemas` mirror.
    - All client integrations have confirmed successful deserialization.
 
 ---
@@ -82,7 +82,7 @@ Additive, backward-compatible alterations that do not cause parser failures. Exa
 Once a contract reaches `stable` status:
 * **No code-breaking modifications**: Under no circumstances can properties be modified, deleted, or redefined.
 * **Safe fixes**: Only corrections to markdown READMEs, comments, or descriptions that do not alter the parsed AST/JSON Schema structure are allowed.
-* **Drift Avoidance**: Structural identity between the immutable canonical contract and the internal runtime mirrors in `/schemas` must be verified continuously.
+* **Anti-Mirror Guard**: The canonical contract path must be used directly. Root-level runtime mirrors in `/schemas` must not be reintroduced, verified continuously.
 
 ---
 
@@ -94,9 +94,9 @@ Before promoting any contract or releasing a contract version, developers and in
    ```bash
    npm run validate:contracts
    ```
-2. **Drift Verification**: Confirm that runtime compatibility mirrors in `/schemas` match the contract definitions exactly:
+2. **Anti-Mirror Guard**: Verify that no root-level `/schemas` directory has been reintroduced:
    ```bash
-   npm run verify:contract-mirrors
+   npm run verify:no-schema-mirror
    ```
 3. **Run Production Build**: Confirm that the client and server build succeeds:
    ```bash

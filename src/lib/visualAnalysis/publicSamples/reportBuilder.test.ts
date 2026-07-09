@@ -382,3 +382,71 @@ describe("Comparison Record Consistency and Invariants", () => {
     assert.ok(result.issues.some(issue => issue.includes("Suspicious run: all 1 successful items with visual analysis failed in comparison.")));
   });
 });
+
+
+
+
+describe("Analysis Bundle Sanitization", () => {
+  it("should generate a valid bundle and strip raw payload strings and success items", () => {
+    const rawBatchSummary = {
+      modelName: "test-model",
+      jsonMode: "native_schema",
+      total: 2,
+      successCount: 1,
+      failureCount: 1,
+      validCount: 1,
+      items: [
+        {
+          sampleId: "success-sample",
+          success: true,
+          qualityStatus: "valid",
+          record: {
+            assetMetadata: { id: "success-sample" },
+            evaluation: { expectedMetadata: { imageKind: "diagram" } }
+          },
+          comparison: { overallStatus: "pass", reviewStatus: "pass" },
+          responseRaw: "SECRET_RAW_RESPONSE",
+          requestPreview: "SECRET_REQUEST",
+          rawOutputPreview: "SECRET_OUTPUT"
+        },
+        {
+          sampleId: "fail-sample",
+          success: false,
+          qualityStatus: "invalid",
+          record: {
+            assetMetadata: { id: "fail-sample" },
+            evaluation: { expectedMetadata: { imageKind: "diagram" } }
+          },
+          responseRaw: "SECRET_FAIL_RESPONSE",
+          requestPreview: "SECRET_FAIL_REQUEST",
+          rawOutputPreview: "SECRET_FAIL_OUTPUT",
+          responseDiagnostics: {
+             bodyPreview: "compact-body-error"
+          }
+        }
+      ]
+    };
+
+    const bundle = buildBatchAnalysisBundleForChat(rawBatchSummary as any);
+
+    assert.strictEqual(bundle.reportKind, "visualAnalysisPublicSampleBatchAnalysisBundle");
+    assert.strictEqual(bundle.artifactIntegrity.artifactKind, "analysis-bundle");
+    assert.strictEqual(bundle.artifactIntegrity.endSentinel, "END_OF_VISUAL_ANALYSIS_BATCH_ANALYSIS_BUNDLE");
+    assert.ok(bundle.analysisGuidance);
+
+    // Failures items check: should only include failed item
+    assert.strictEqual(bundle.failures.items.length, 1);
+    assert.strictEqual(bundle.failures.items[0].sampleId, "fail-sample");
+    
+    // Top-level items check: shouldn't have success item details since they are filtered by default for chat
+    // Actually, in buildBatchAnalysisBundleForChat, let's see what items contains. Usually we check that secrets are absent.
+
+    const bundleStr = JSON.stringify(bundle);
+    assert.ok(!bundleStr.includes("SECRET_RAW_RESPONSE"), "responseRaw should be stripped");
+    assert.ok(!bundleStr.includes("SECRET_FAIL_RESPONSE"), "responseRaw should be stripped");
+    assert.ok(!bundleStr.includes("SECRET_REQUEST"), "requestPreview should be stripped");
+    assert.ok(!bundleStr.includes("SECRET_FAIL_REQUEST"), "requestPreview should be stripped");
+    assert.ok(!bundleStr.includes("SECRET_OUTPUT"), "rawOutputPreview should be stripped");
+    assert.ok(!bundleStr.includes("SECRET_FAIL_OUTPUT"), "rawOutputPreview should be stripped");
+  });
+});

@@ -4,6 +4,14 @@ All notable changes to the versioned data exchange contracts, schemas, API paylo
 
 ---
 
+## [Unreleased]
+### Added
+- Added public visual sample Analysis Bundle contract and minimal example.
+- Registered Analysis Bundle in MANIFEST.
+
+### Removed
+- Removed stale documentation guidance for retired root-level `/schemas` mirrors.
+
 ## [0.2.0] - 2026-07-09
 
 ### Added

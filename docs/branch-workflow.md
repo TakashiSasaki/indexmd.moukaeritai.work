@@ -20,7 +20,7 @@ This document outlines the operational design, roles, and validation procedures 
    - Automatically synchronized from `main` to ensure Jules' changes always build on top of Google AI Studio's latest generations.
    - **Important Constraint**: This branch is **never** reset or force-pushed by automation, preserving Jules' unpushed history.
 
-3. **`automation/sync-main-to-jules-integration` (Conflict Isolation Branch)**
+4. **`automation/sync-main-to-jules-integration` (Conflict Isolation Branch)**
    - Owned by the synchronization runner.
    - Used exclusively to build conflict pull requests into `jules/integration` when automatic direct merging fails.
    - **Force-pushes are permitted on this branch only.**

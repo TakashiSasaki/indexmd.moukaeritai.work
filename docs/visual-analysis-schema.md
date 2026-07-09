@@ -154,3 +154,9 @@ The `Analysis Bundle` (`visualAnalysisPublicSampleBatchAnalysisBundle`) is the r
 - **`failures`**: Embedded array of compact item metrics (`failures.items`) specifically representing runs where `success` is `false` or quality/review status is `invalid` / `fail`.
 - **`items`**: Full collection of run records represented in an ultra-compact schema (omitting `responseRaw` and successful `bodyPreview`) to protect token windows.
 
+
+### Historical Artifacts Note
+Full/Summary/Diagnostic/Failures are no longer required for ordinary ChatGPT analysis.
+Server-side report endpoint is `/api/visual/batch-jobs/:jobId/reports/analysis-bundle`.
+Analysis Bundle is now represented in `contracts/schemas/public-visual-sample/v0.1.0/batch-analysis-bundle.schema.json`.
+`responseRaw`/`requestPreview`/`rawOutputPreview` are excluded from Analysis Bundle.
