@@ -1,8 +1,8 @@
-import documentKindsJson from "../../../schemas/vocabularies/document-kinds.v1.0.0-draft.1.json";
-import subjectDomainsJson from "../../../schemas/vocabularies/subject-domains.v1.0.0-draft.1.json";
-import subjectLabelKindsJson from "../../../schemas/vocabularies/subject-label-kinds.v1.0.0-draft.1.json";
-import extractionRoleCategoriesJson from "../../../schemas/vocabularies/extraction-role-categories.v1.0.0-draft.1.json";
-import keywordSourcesJson from "../../../schemas/vocabularies/keyword-sources.v1.0.0-draft.1.json";
+import documentKindsJson from "../../../contracts/vocabularies/document-kinds.v1.0.0-draft.1.json";
+import subjectDomainsJson from "../../../contracts/vocabularies/subject-domains.v1.0.0-draft.1.json";
+import subjectLabelKindsJson from "../../../contracts/vocabularies/subject-label-kinds.v1.0.0-draft.1.json";
+import extractionRoleCategoriesJson from "../../../contracts/vocabularies/extraction-role-categories.v1.0.0-draft.1.json";
+import keywordSourcesJson from "../../../contracts/vocabularies/keyword-sources.v1.0.0-draft.1.json";
 
 export const DOCUMENT_KIND_VOCABULARY_VERSION = "1.0.0-draft.1";
 export const SUBJECT_DOMAIN_VOCABULARY_VERSION = "1.0.0-draft.1";

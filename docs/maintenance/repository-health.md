@@ -73,7 +73,7 @@ Check at least the following files and areas when relevant:
 - `src/lib/cacheMetrics.ts`
 - `src/lib/visualAnalysis/`
 - `src/lib/visualAnalysis/publicSamples/`
-- `schemas/`
+- `contracts/`
 - `scripts/`
 - `skills/`
 
@@ -132,7 +132,7 @@ Do not remove branch workflow documentation or workflow files as dead code.
 
 Check that schema-related sources agree:
 
-- `schemas/*.schema.json` version constants;
+- `contracts/schemas/` version constants;
 - `src/lib/visualAnalysis/schema.ts` exports;
 - provider schema files;
 - canonicalizer and normalizer behavior;

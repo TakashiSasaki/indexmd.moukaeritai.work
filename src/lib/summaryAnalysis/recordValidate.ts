@@ -2,7 +2,7 @@ import Ajv from "ajv";
 import { TEXT_ANALYSIS_RECORD_SCHEMA_V01 } from "./recordSchema.js";
 import { validateSummaryAnalysisV12, getSummaryAnalysisV12ValidationErrors } from "./validate.js";
 
-const ajv = new Ajv({ allErrors: true });
+const ajv = new Ajv({ allErrors: true, strict: false });
 ajv.addFormat("date-time", {
   type: "string",
   validate: (str: string) => !isNaN(Date.parse(str))

@@ -14,7 +14,7 @@ import {
 } from "./vocabularies";
 
 // Initialize Ajv with standard configuration
-const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
+const ajv = new Ajv({ allErrors: true, allowUnionTypes: true, strict: false });
 const validateSchema = ajv.compile(SUMMARY_ANALYSIS_SCHEMA_V12);
 
 /**
