@@ -385,25 +385,25 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
       let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
-      if (success && data.expectedMetadata) {
+      if (success && data.record?.evaluation?.expectedMetadata) {
         const comparisonSample = {
           id: sampleId,
           title: matchedSample?.title || sampleId,
           category: (matchedSample?.category || "other") as any,
           source: (matchedSample?.source || "unknown") as any,
-          expectedImageKind: data.expectedMetadata.imageKind,
-          acceptableImageKinds: data.expectedMetadata.acceptableImageKinds || [],
-          expectedElementCategories: data.expectedMetadata.elementCategories || [],
-          expectedVisibleElementLabels: data.expectedMetadata.visibleElementLabels || [],
-          expectedVisibleElementLabelAliases: data.expectedMetadata.visibleElementLabelAliases || {},
-          expectedVisibleText: data.expectedMetadata.visibleText || [],
-          optionalElementCategories: data.expectedMetadata.optionalElementCategories || [],
-          optionalVisibleElementLabels: data.expectedMetadata.optionalVisibleElementLabels || [],
-          optionalVisibleElementLabelAliases: data.expectedMetadata.optionalVisibleElementLabelAliases || {},
-          optionalVisibleText: data.expectedMetadata.optionalVisibleText || []
+          expectedImageKind: data.record?.evaluation?.expectedMetadata?.imageKind,
+          acceptableImageKinds: data.record?.evaluation?.expectedMetadata?.acceptableImageKinds || [],
+          expectedElementCategories: data.record?.evaluation?.expectedMetadata.elementCategories || [],
+          expectedVisibleElementLabels: data.record?.evaluation?.expectedMetadata.visibleElementLabels || [],
+          expectedVisibleElementLabelAliases: data.record?.evaluation?.expectedMetadata.visibleElementLabelAliases || {},
+          expectedVisibleText: data.record?.evaluation?.expectedMetadata.visibleText || [],
+          optionalElementCategories: data.record?.evaluation?.expectedMetadata.optionalElementCategories || [],
+          optionalVisibleElementLabels: data.record?.evaluation?.expectedMetadata.optionalVisibleElementLabels || [],
+          optionalVisibleElementLabelAliases: data.record?.evaluation?.expectedMetadata.optionalVisibleElementLabelAliases || {},
+          optionalVisibleText: data.record?.evaluation?.expectedMetadata.optionalVisibleText || []
         };
         try {
-          const comp = evaluateSampleComparison(comparisonSample, data);
+          const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
           overallStatus = comp.overallStatus;
           reviewStatus = comp.reviewStatus;
         } catch (e) {}
@@ -819,7 +819,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
           let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
-          const expectedMetadata = data.expectedMetadata;
+          const expectedMetadata = data.record?.evaluation?.expectedMetadata;
           const comparisonSample = {
             id: selectedSampleId,
             title: selectedSample?.title || selectedSampleId,
@@ -838,7 +838,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             optionalVisibleText: expectedMetadata?.optionalVisibleText ?? selectedSample?.optionalVisibleText ?? []
           };
           try {
-            const comp = evaluateSampleComparison(comparisonSample, data);
+            const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
             overallStatus = comp.overallStatus;
             reviewStatus = comp.reviewStatus;
           } catch (e) {}
@@ -1426,8 +1426,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             }
 
             const data = sfResult.data || {};
-            
+            const record = data.record;
             const sampleCompletedAt = new Date();
+
             item = {
               sampleId: sample.id,
               title: sample.title,
@@ -1435,17 +1436,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               completedAt: sampleCompletedAt.toISOString(),
               durationMs: sampleCompletedAt.getTime() - sampleStartedAt.getTime(),
               success: sfResult.success && data.success,
-              qualityStatus: data.qualityStatus,
-              qualityScore: data.qualityScore,
-              qualityIssues: data.qualityIssues,
-              analysisRun: data.analysisRun,
-              parseDiagnostics: data.parseDiagnostics,
-              generationDiagnostics: data.generationDiagnostics,
-              inputDiagnostics: data.inputDiagnostics,
-              normalizationDiagnostics: data.normalizationDiagnostics,
-              failureKind: sfResult.failureKind || data.failureKind,
-              error: sfResult.error || data.error,
-              responseRaw: data,
+              record,
+              failureKind: sfResult.failureKind || data.failureKind || record?.status?.failureKind,
+              error: sfResult.error || data.error || record?.status?.error,
               responseDiagnostics: sfResult.responseDiagnostics,
               retryDiagnostics: sfResult.retryDiagnostics
             };
@@ -1453,11 +1446,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             if (sfResult.success && data.success) {
                 successCount++;
                 newStatuses[sample.id] = "success";
-                if (data.qualityStatus === 'valid') validCount++;
-                if (data.qualityStatus === 'validLowQuality') validLowQualityCount++;
+                if (record?.evaluation?.qualityStatus === 'valid') validCount++;
+                if (record?.evaluation?.qualityStatus === 'validLowQuality') validLowQualityCount++;
                 
                 // compute comparison
-                const expectedMetadata = data.expectedMetadata;
+                const expectedMetadata = data.record?.evaluation?.expectedMetadata;
                 const comparisonSample = {
                   ...sample,
                   expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind,
@@ -1472,7 +1465,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   optionalVisibleElementLabelAliases: expectedMetadata?.optionalVisibleElementLabelAliases ?? sample.optionalVisibleElementLabelAliases,
                   optionalVisibleText: expectedMetadata?.optionalVisibleText ?? sample.optionalVisibleText
                 };
-                const comp = evaluateSampleComparison(comparisonSample, data);
+                const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
                 item.comparison = comp;
                 
                 if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
