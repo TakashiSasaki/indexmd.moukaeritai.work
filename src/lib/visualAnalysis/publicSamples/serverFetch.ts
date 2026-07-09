@@ -170,6 +170,10 @@ async function fetchExternalImageWithWikimediaFallback(
       };
     } catch (err: any) {
       lastErr = err;
+      if (err.status === 429) {
+        console.warn(`[serverFetch] Wikimedia rate-limit (429) hit. Aborting fallback loop for ${url}`);
+        throw err;
+      }
       console.warn(`[serverFetch] Wikimedia fetch failed for size ${size}px with error: ${err.message}. Trying next fallback size.`);
     }
   }
@@ -446,6 +450,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
   let retries = 3;
   let delayMs = 1500;
   let lastStatus = 0;
+  let lastErr: any;
 
   for (let i = 0; i < retries; i++) {
     try {
@@ -552,6 +557,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
       return result;
 
     } catch (err: any) {
+      lastErr = err;
       if (err.status === 429) {
         console.warn(`[serverFetch] Wikimedia rate-limit (429) for ${url}. Retrying in ${delayMs}ms... (Attempt ${i + 1}/${retries})`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -567,5 +573,5 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
     }
   }
 
-  throw new Error(`Fetch failed with status: ${lastStatus}`);
+  throw lastErr || new Error(`Fetch failed with status: ${lastStatus}`);
 }

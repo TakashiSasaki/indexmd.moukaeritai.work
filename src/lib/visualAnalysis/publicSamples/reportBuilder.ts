@@ -845,7 +845,7 @@ function buildGenerationFailureSummary(items: PublicSampleBatchRunItem[]) {
   };
 }
 
-function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
+export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   const inputsInfo: Array<any> = [];
 
   let overTargetInputs = 0;
