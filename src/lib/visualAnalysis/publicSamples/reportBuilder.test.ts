@@ -1,8 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { 
-  buildBatchSummaryReportForChat, 
-  buildBatchDiagnosticReportForChat,
+  buildBatchAnalysisBundleForChat,
   buildTextHeavyEvaluationSummary,
   isProviderRateLimitFailure, 
   isProviderQuotaFailure,
@@ -44,7 +43,7 @@ describe("Visual Analysis Report Classification Helpers", () => {
 });
 
 describe('Record-centric counterConsistency and textHeavyEvaluation in reportBuilder', () => {
-  it('buildBatchSummaryReportForChat includes counterConsistency, textHeavyEvaluation, and comparisonCoverage', () => {
+  it('buildBatchAnalysisBundleForChat includes counterConsistency, textHeavyEvaluation, and comparisonCoverage', () => {
     const dummyBatchSummary = {
       modelName: "gemini-3.5-flash",
       jsonMode: "native_schema",
@@ -94,7 +93,7 @@ describe('Record-centric counterConsistency and textHeavyEvaluation in reportBui
       ]
     } as any;
 
-    const report = buildBatchSummaryReportForChat(dummyBatchSummary);
+    const report = buildBatchAnalysisBundleForChat(dummyBatchSummary);
     assert.strictEqual(report.counterConsistency.expectedComparison.consistent, true);
     assert.strictEqual(report.counterConsistency.review.consistent, true);
     assert.ok(report.textHeavyEvaluation);

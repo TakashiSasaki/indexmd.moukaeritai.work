@@ -21,7 +21,7 @@ import {
   rebuildBatchSummaryFromCheckpoint,
   buildTargetSampleIdsHash
 } from '../lib/visualAnalysis/publicSamples/batchCheckpoint';
-import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport, buildBatchAnalysisBundleForChat } from '../lib/visualAnalysis/publicSamples/reportBuilder';
+import { buildFullItemReport, buildBatchAnalysisBundleForChat } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
@@ -578,35 +578,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [healthCheckDiagnostics, setHealthCheckDiagnostics] = useState<ResponseDiagnostics | null>(null);
   const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
 
-  const chatSummaryReport = useMemo(() => batchSummary ? buildBatchSummaryReportForChat(batchSummary) : null, [batchSummary]);
-  const chatDiagnosticReport = useMemo(() => batchSummary ? buildBatchDiagnosticReportForChat(batchSummary) : null, [batchSummary]);
-  const failuresReport = useMemo(() => batchSummary ? buildFailuresOnlyReport(batchSummary) : null, [batchSummary]);
   const analysisBundleReport = useMemo(() => batchSummary ? buildBatchAnalysisBundleForChat(batchSummary) : null, [batchSummary]);
   
-  const chatSummaryReportStats = useMemo(() => {
-    if (!chatSummaryReport) return null;
-    return stringifyJsonArtifact(chatSummaryReport);
-  }, [chatSummaryReport]);
-
-  const chatDiagnosticReportStats = useMemo(() => {
-    if (!chatDiagnosticReport) return null;
-    return stringifyJsonArtifact(chatDiagnosticReport);
-  }, [chatDiagnosticReport]);
-
-  const failuresReportStats = useMemo(() => {
-    if (!failuresReport) return null;
-    return stringifyJsonArtifact(failuresReport);
-  }, [failuresReport]);
-
   const analysisBundleReportStats = useMemo(() => {
     if (!analysisBundleReport) return null;
     return stringifyJsonArtifact(analysisBundleReport);
   }, [analysisBundleReport]);
-
-  const fullReportStats = useMemo(() => {
-    if (!batchSummary) return null;
-    return stringifyJsonArtifact(batchSummary);
-  }, [batchSummary]);
   
   // Privacy options
   const [storeRawOutputPreviewInDrive, setStoreRawOutputPreviewInDrive] = useState<boolean>(false);
@@ -2424,33 +2401,22 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     </div>
                   </div>
                 )}
-                <div className="pt-2 mt-2 border-t border-slate-200 text-xs space-y-2">
+                <div className="pt-2 mt-2 border-t border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-slate-700">Recommended:</span>
+                    <span className="font-bold text-slate-700">Get Results:</span>
                     <a 
                       href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/analysis-bundle`} 
                       target="_blank" 
                       className="inline-flex items-center gap-1.5 text-indigo-600 hover:underline font-bold bg-indigo-50 px-2.5 py-1 rounded border border-indigo-200"
                     >
-                      Analysis Bundle
+                      Analysis Bundle JSON
                     </a>
-                    <span className="text-slate-500 text-[10px]">(Recommended single-file report for ChatGPT analysis)</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-slate-500 pt-1 border-t border-slate-100/60">
-                    <span className="font-semibold text-[11px]">Advanced / Archive:</span>
-                    <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/full`} target="_blank" className="text-indigo-600 hover:underline">Full JSON</a>
-                    <span>•</span>
-                    <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/summary`} target="_blank" className="text-indigo-600 hover:underline">Summary</a>
-                    <span>•</span>
-                    <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/diagnostic`} target="_blank" className="text-indigo-600 hover:underline">Diagnostic</a>
-                    <span>•</span>
-                    <a href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/failures`} target="_blank" className="text-indigo-600 hover:underline">Failures</a>
-                    {serverJobStatus.status === 'completed' && (
-                      <button onClick={handleImportServerJob} className="ml-auto px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold hover:bg-emerald-200 text-[10px]">
-                        Import to Batch Summary
-                      </button>
-                    )}
-                  </div>
+                  {serverJobStatus.status === 'completed' && (
+                    <button onClick={handleImportServerJob} className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold hover:bg-emerald-200 text-[10px] transition-colors">
+                      Import to Local Summary
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -2607,149 +2573,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   {copied === 'batch-report-analysis-bundle-dl' ? <Check className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
                   <span>Download Bundle</span>
                 </button>
-              </div>
-            </div>
-
-            {/* Advanced / Archive */}
-            <div className="pt-2">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Advanced / Archive Artifacts:</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* 1. ChatGPT Summary Report */}
-                <div className="p-3 rounded-lg border border-emerald-100 bg-emerald-50/30 flex flex-col justify-between space-y-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 justify-between">
-                      <div className="text-[11px] font-bold text-emerald-900">ChatGPT Summary</div>
-                      <span className="text-[8.5px] bg-emerald-100 text-emerald-800 px-1 rounded font-black uppercase">Archive</span>
-                    </div>
-                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Minimalist, ultra-compact text representation. High-speed copy, targeted &lt;50KB.</p>
-                    {chatSummaryReportStats && (
-                      <div className="text-[9px] font-mono text-emerald-700/80 mt-1">
-                        Size: {chatSummaryReportStats.byteLength} bytes ({chatSummaryReportStats.charLength} chars) | Hash: {chatSummaryReportStats.hash}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(chatSummaryReportStats?.text || "", 'batch-report-summary')}
-                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center justify-center gap-1 bg-white hover:bg-emerald-50 px-2 py-1.5 rounded border border-emerald-200 shadow-sm flex-1"
-                    >
-                      {copied === 'batch-report-summary' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      {copied === 'batch-report-summary' ? "Copied" : "Copy Report"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(chatSummaryReport, `visual-analysis-summary-${Date.now()}.json`, 'batch-report-summary-dl')}
-                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-850 flex items-center justify-center gap-1 bg-white hover:bg-emerald-50 px-2 py-1.5 rounded border border-emerald-200 shadow-sm"
-                      title="Download as JSON file"
-                    >
-                      {copied === 'batch-report-summary-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 2. ChatGPT Diagnostic Report */}
-                <div className="p-3 rounded-lg border border-indigo-100 bg-indigo-50/50 flex flex-col justify-between space-y-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 justify-between">
-                      <div className="text-[11px] font-bold text-indigo-900">ChatGPT Diagnostic</div>
-                      <span className="text-[8.5px] bg-indigo-100 text-indigo-800 px-1 rounded font-black uppercase">Archive</span>
-                    </div>
-                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Compact diagnostics (excludes success bodyPreviews). Target size: 50KB-100KB.</p>
-                    {chatDiagnosticReportStats && (
-                      <div className="text-[9px] font-mono text-indigo-700/80 mt-1">
-                        Size: {chatDiagnosticReportStats.byteLength} bytes ({chatDiagnosticReportStats.charLength} chars) | Hash: {chatDiagnosticReportStats.hash}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(chatDiagnosticReportStats?.text || "", 'batch-report-diagnostic')}
-                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm flex-1"
-                    >
-                      {copied === 'batch-report-diagnostic' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      {copied === 'batch-report-diagnostic' ? "Copied" : "Copy Report"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(chatDiagnosticReport, `visual-analysis-diagnostic-${Date.now()}.json`, 'batch-report-diagnostic-dl')}
-                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-200 shadow-sm"
-                      title="Download as JSON file"
-                    >
-                      {copied === 'batch-report-diagnostic-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3. Failures Only Section */}
-                <div className="p-3 rounded-lg border border-red-100 bg-red-50/50 flex flex-col justify-between space-y-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 justify-between">
-                      <div className="text-[11px] font-bold text-red-900">Failures Only JSON</div>
-                      <span className="text-[8.5px] bg-red-100 text-red-800 px-1 rounded font-black uppercase">Archive</span>
-                    </div>
-                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Only contains samples that failed generation, schemas or validation checks.</p>
-                    {failuresReportStats && (
-                      <div className="text-[9px] font-mono text-red-700/80 mt-1">
-                        Size: {failuresReportStats.byteLength} bytes ({failuresReportStats.charLength} chars) | Hash: {failuresReportStats.hash}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(failuresReportStats?.text || "", 'batch-report-failures')}
-                      className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center justify-center gap-1 bg-white hover:bg-red-50 px-2 py-1.5 rounded border border-red-200 shadow-sm flex-1"
-                    >
-                      {copied === 'batch-report-failures' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      {copied === 'batch-report-failures' ? "Copied" : "Copy"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(failuresReport, `visual-analysis-failures-${Date.now()}.json`, 'batch-report-failures-dl')}
-                      className="text-[10px] font-bold text-red-600 hover:text-red-700 flex items-center justify-center gap-1 bg-white hover:bg-red-50 px-2 py-1.5 rounded border border-red-200 shadow-sm"
-                      title="Download as JSON file"
-                    >
-                      {copied === 'batch-report-failures-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Full Batch Section (Download recommended) */}
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex flex-col justify-between space-y-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 justify-between">
-                      <div className="text-[11px] font-bold text-slate-900">Full Batch JSON</div>
-                      <span className="text-[8.5px] bg-slate-200 text-slate-800 px-1 rounded font-black uppercase">Archive</span>
-                    </div>
-                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Full raw output, complete execution runs, and raw responses.</p>
-                    {fullReportStats && (
-                      <div className="text-[9px] font-mono text-slate-600 mt-1">
-                        Size: {fullReportStats.byteLength} bytes ({fullReportStats.charLength} chars) | Hash: {fullReportStats.hash}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(batchSummary, `visual-analysis-full-batch-${Date.now()}.json`, 'batch-summary-full-dl')}
-                      className="text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center gap-1 px-2 py-1.5 rounded shadow-sm flex-1"
-                      title="Download complete payload directly"
-                    >
-                      {copied === 'batch-summary-full-dl' ? <Check className="w-3 h-3" /> : <Download className="w-3 h-3" />}
-                      {copied === 'batch-summary-full-dl' ? "Downloaded" : "Download Full JSON"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(fullReportStats?.text || "", 'batch-summary-full')}
-                      className="text-[10px] font-bold text-slate-600 hover:text-slate-700 flex items-center justify-center gap-1 bg-white hover:bg-slate-100 px-2.5 py-1.5 rounded border border-slate-200 shadow-sm"
-                      title="Copy raw string (May freeze if too large)"
-                    >
-                      {copied === 'batch-summary-full' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -4185,7 +4008,7 @@ function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-indigo-600" />
             <h3 id="batch-artifact-help-title" className="text-base font-bold text-slate-800">
-              JSON出力の種類
+              JSON出力について
             </h3>
           </div>
           <button 
@@ -4204,75 +4027,25 @@ function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
         <div className="p-6 space-y-6 overflow-y-auto">
           {/* Intro description */}
           <div className="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 text-xs text-indigo-950 leading-relaxed space-y-2">
-            <h4 className="font-bold text-indigo-900">どれをコピー・参照すればよいか</h4>
+            <h4 className="font-bold text-indigo-900">結果の取得について</h4>
             <p>
-              通常は <strong>Analysis Bundle JSON</strong> をコピーまたはダウンロードしてください。このファイル1つで、評価指標、不整合チェック、エラー原因、および詳細な比較結果や埋め込み型の失敗サンプルデータがすべて揃い、ChatGPT等に渡して分析させるのに最適です。
-              その他の 4 つの JSON は「Advanced / Archive」の位置づけとなり、詳細な差分確認や長期保存といった用途以外では通常不要です。
+              画像解析の評価指標、不整合チェック、エラー原因、および詳細な比較結果や埋め込み型の失敗サンプルデータは、すべて <strong>Analysis Bundle JSON</strong> の1ファイルに統合されています。
+              ChatGPT等に渡して regression 分析を行わせる際は、この <strong>Analysis Bundle JSON</strong> をダウンロードするかコピーしてご活用ください。その他の個別ファイルは必要ありません。
             </p>
           </div>
 
           <div className="space-y-4">
             {/* Analysis Bundle JSON */}
-            <div className="p-4 rounded-lg border-2 border-indigo-200 bg-indigo-50/30 space-y-2 animate-pulse-subtle">
+            <div className="p-4 rounded-lg border-2 border-indigo-200 bg-indigo-50/30 space-y-2">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                <h4 className="text-xs font-bold text-indigo-950 uppercase">Recommended: Analysis Bundle JSON (統合推奨版)</h4>
-                <span className="text-[8.5px] bg-indigo-600 text-white px-1.5 py-0.5 rounded font-black uppercase">Most Popular</span>
+                <h4 className="text-xs font-bold text-indigo-950 uppercase">Analysis Bundle JSON (統合レポート)</h4>
+                <span className="text-[8.5px] bg-indigo-600 text-white px-1.5 py-0.5 rounded font-black uppercase">Standard</span>
               </div>
               <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
                 <li><strong>含まれる情報:</strong> 実行要約・全件のコンパクト化された評価(success, qualityStatus, 各種不足情報)、不整合チェック(counterConsistency, invariants, comparisonCoverage)、エラー集計(quota, rate limit, parse error等)、および失敗サンプルの詳細(failures.items)。</li>
                 <li><strong>含まれない情報:</strong> トークン節約のため、APIの生のレスポンス(responseRaw)や、正常終了したサンプルの巨大な bodyPreview などの冗長データは完全に除外されています。</li>
                 <li><strong>用途:</strong> ChatGPT などを用いた詳細な regression 分析を依頼する際は、<strong>このファイル1つだけを渡せば十分です。</strong></li>
-              </ul>
-            </div>
-
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider pt-2 border-t border-slate-100">Advanced / Archive Artifacts (その他の出力):</div>
-
-            {/* 1. ChatGPT Summary */}
-            <div className="p-4 rounded-lg border border-emerald-100 bg-emerald-50/20 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <h4 className="text-xs font-bold text-emerald-900">1. ChatGPT Summary (要約版 - 旧形式)</h4>
-              </div>
-              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
-                <li>最も軽量な要約テキスト。適合ステータスとカバレッジ不足に絞った形式です。</li>
-                <li><strong>用途:</strong> 極小サイズで要点だけを送信したい場合のアーカイブ用です。</li>
-              </ul>
-            </div>
-
-            {/* 2. ChatGPT Diagnostic */}
-            <div className="p-4 rounded-lg border border-indigo-100 bg-indigo-50/10 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-400" />
-                <h4 className="text-xs font-bold text-indigo-900">2. ChatGPT Diagnostic (診断詳細版 - 旧形式)</h4>
-              </div>
-              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
-                <li>判定理由や期待メタデータとの適合ズレに焦点をあてた旧形式の詳細情報です。</li>
-                <li><strong>用途:</strong> 個別サンプルのマッチャー挙動やパース診断などを単体で深くトレースしたい場合に使用します。</li>
-              </ul>
-            </div>
-
-            {/* 3. Failures Only JSON */}
-            <div className="p-4 rounded-lg border border-red-100 bg-red-50/20 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                <h4 className="text-xs font-bold text-red-900">3. Failures Only JSON (エラーデータ特化版)</h4>
-              </div>
-              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
-                <li>評価実行中に失敗(生成、JSONパース、スキーマ違反、品質 invalid)したサンプルのみに特化した JSON。</li>
-                <li><strong>用途:</strong> 失敗サンプルだけを個別に切り出してデバッグしたい場合に使用します（現在は Analysis Bundle に内包されています）。</li>
-              </ul>
-            </div>
-
-            {/* 4. Full Batch JSON (全件完全版) */}
-            <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
-                <h4 className="text-xs font-bold text-slate-900">4. Full Batch JSON (完全保存版)</h4>
-              </div>
-              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">
-                <li>APIからの生のレスポンス(raw response)や各種実行ログを含むすべてのデータ。</li>
-                <li><strong>用途:</strong> ローカルに実行履歴を100%残しておきたい場合や、リプレイ・アーカイブ用のファイルとしてダウンロードして保存します。</li>
               </ul>
             </div>
           </div>
@@ -4281,7 +4054,7 @@ function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
           <div className="border-t border-slate-100 pt-4 space-y-2 text-xs text-slate-500 leading-relaxed">
             <h5 className="font-bold text-slate-700 font-sans">📌 コピーの途中切れ確認 (endSentinel)</h5>
             <p>
-              各 JSON 出力の末尾には、データの完全性を担保するための <strong>"artifactIntegrity.endSentinel"</strong> というフィールドが含まれています。
+              JSON 出力の末尾には、データの完全性を担保するための <strong>"artifactIntegrity.endSentinel"</strong> というフィールドが含まれています。
               ChatGPT などに貼り付けた後、末尾にこの sentinel が見えていれば、データが途切れることなく正常にコピー＆ペーストされたことを確認できます。
             </p>
           </div>

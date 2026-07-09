@@ -31,8 +31,7 @@ This allows testing the visual schema against a curated matrix of public-domain 
 
 ### Public Sample Batch Reports & Observability
 You can execute a batch regression run across registered public samples sequentially (either client-side or server-side). Once completed, the following artifacts are available:
-- **Analysis Bundle JSON (Recommended):** The primary unified artifact designed for ChatGPT-assisted regression analysis. It includes summary metrics, consistency checks, failure categories, and embedded compact failure sample data. It strictly excludes raw API response bodies (`responseRaw`) to keep sizes minimal.
-- **Advanced / Archive Artifacts:** Includes "Full Batch JSON", "ChatGPT Summary", "ChatGPT Diagnostic", and "Failures Only JSON" for archival or advanced deep-tracing scenarios.
+- **Analysis Bundle JSON (Recommended):** The primary unified single-file artifact designed for ChatGPT-assisted regression analysis. It includes summary metrics, consistency checks, failure categories, and embedded compact failure sample data. It strictly excludes raw API response bodies (`responseRaw`) to keep sizes minimal, allowing you to copy or download a single file to analyze all image regression results in ChatGPT.
 - **Server Persistence:** Supports running batch regressions as background server jobs, which can be monitored in real-time, imported to client summaries, and downloaded from persistent endpoints.
 
 ### Transient API Failures & Retry Policies

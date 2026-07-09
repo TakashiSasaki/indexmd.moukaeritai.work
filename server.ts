@@ -52,9 +52,6 @@ import { buildVisualAnalysisRunMetadata, VISUAL_ANALYSIS_GENERATION_CONFIG } fro
 import { buildGenerationFailureResponse } from "./src/lib/visualAnalysis/generationFailureHelper";
 import { generateContentWithRetry, ProviderGenerationRetryPolicy } from "./src/lib/gemini";
 import { 
-  buildBatchSummaryReportForChat, 
-  buildBatchDiagnosticReportForChat, 
-  buildFailuresOnlyReport,
   buildBatchAnalysisBundleForChat
 } from './src/lib/visualAnalysis/publicSamples/reportBuilder';
 import { buildPublicSampleExpectedMetadata } from './src/lib/visualAnalysis/publicSamples/expectedMetadata';
@@ -3125,30 +3122,6 @@ app.get("/api/visual/batch-jobs/:jobId/summary-data", async (req, res) => {
   }
 });
 
-app.get("/api/visual/batch-jobs/:jobId/reports/summary", async (req, res) => {
-  try {
-    const job = jobStore.getJob(req.params.jobId);
-    if (!job) return res.status(404).json({ error: "Job not found" });
-    const summary = jobToSummary(job);
-    const report = buildBatchSummaryReportForChat(summary);
-    return res.status(200).send(report);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
-app.get("/api/visual/batch-jobs/:jobId/reports/diagnostic", async (req, res) => {
-  try {
-    const job = jobStore.getJob(req.params.jobId);
-    if (!job) return res.status(404).json({ error: "Job not found" });
-    const summary = jobToSummary(job);
-    const report = buildBatchDiagnosticReportForChat(summary);
-    return res.status(200).send(report);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
 app.post("/api/visual/batch-jobs/:jobId/force-cancel", async (req, res) => {
   try {
     const job = jobStore.getJob(req.params.jobId);
@@ -3187,30 +3160,6 @@ app.get("/api/visual/batch-jobs/:jobId/reports/analysis-bundle", async (req, res
     const summary = jobToSummary(job);
     const report = buildBatchAnalysisBundleForChat(summary);
     return res.status(200).json(report);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
-app.get("/api/visual/batch-jobs/:jobId/reports/failures", async (req, res) => {
-  try {
-    const job = jobStore.getJob(req.params.jobId);
-    if (!job) return res.status(404).json({ error: "Job not found" });
-    const summary = jobToSummary(job);
-    const report = buildFailuresOnlyReport(summary);
-    return res.status(200).json(report);
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
-app.get("/api/visual/batch-jobs/:jobId/reports/full", async (req, res) => {
-  try {
-    const job = jobStore.getJob(req.params.jobId);
-    if (!job) return res.status(404).json({ error: "Job not found" });
-    const summary = jobToSummary(job);
-    const { executionPrivate, ...safeSummary } = summary as any;
-    return res.status(200).json(safeSummary);
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }
