@@ -17,7 +17,7 @@
     },
     "record": {
       "type": "object",
-      "description": "An envelope record matching image-analysis-record schema."
+      "description": "Canonical ImageAnalysisRecord envelope. Validate separately against contracts/schemas/image-analysis-record/v0.1.0/schema.json."
     },
     "error": {
       "type": "string",
