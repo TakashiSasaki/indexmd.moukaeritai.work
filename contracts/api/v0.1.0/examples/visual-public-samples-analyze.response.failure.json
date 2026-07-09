@@ -1,0 +1,20 @@
+{
+  "success": false,
+  "error": "Failed to validate structured vision output against the schema: summary is required.",
+  "failureKind": "schemaValidationError",
+  "record": {
+    "schemaVersion": "image-analysis-record.v0.1.0",
+    "status": {
+      "success": false,
+      "error": "Schema validation failed",
+      "failureKind": "schemaValidationError"
+    },
+    "assetMetadata": {
+      "assetId": "sample-furniture-1",
+      "title": "Furniture 1",
+      "category": "furniture",
+      "sourceKind": "publicSample",
+      "sampleId": "sample-furniture-1"
+    }
+  }
+}

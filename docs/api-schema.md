@@ -2,6 +2,13 @@
 
 This document describes the request and response schemas for the primary API endpoints implemented in the `indexmd` server. These endpoints support Google Drive traversal, AI index generation, metadata workbench experiments, public visual samples analysis, and server cache observability.
 
+### 📝 Versioned API Exchange Contracts
+For external systems, programmatic integrations, and contract validations, we maintain versioned API schemas under the `/contracts/` directory:
+- **Location**: `contracts/api/v0.1.0/`
+- **List Response Contract**: `contracts/api/v0.1.0/visual-public-samples-list.response.schema.json`
+- **Analyze Request Contract**: `contracts/api/v0.1.0/visual-public-samples-analyze.request.schema.json`
+- **Analyze Response Contract**: `contracts/api/v0.1.0/visual-public-samples-analyze.response.schema.json`
+
 ---
 
 ## 📂 Summary of Endpoints

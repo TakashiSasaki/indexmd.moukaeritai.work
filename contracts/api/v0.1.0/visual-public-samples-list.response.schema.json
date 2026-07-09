@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://indexmd.moukaeritai.work/contracts/api/v0.1.0/visual-public-samples-list.response.schema.json",
+  "title": "Visual Public Samples List Response",
+  "x-contract-id": "visual-public-samples-list.response",
+  "x-contract-version": "v0.1.0",
+  "x-contract-status": "stable",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "title",
+      "category",
+      "expectedMetadata",
+      "source",
+      "thumbnailRoute"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "category": {
+        "type": "string"
+      },
+      "expectedMetadata": {
+        "type": "object",
+        "description": "The expected target metadata used for regression checks and validation."
+      },
+      "source": {
+        "type": "object",
+        "required": [
+          "provider",
+          "kind",
+          "licenseKind",
+          "licenseName",
+          "isSynthetic"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["synthetic", "external"]
+          },
+          "licenseKind": {
+            "type": "string"
+          },
+          "licenseName": {
+            "type": "string"
+          },
+          "attributionText": {
+            "type": "string"
+          },
+          "pageUrl": {
+            "type": "string"
+          },
+          "isSynthetic": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "thumbnailRoute": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  }
+}

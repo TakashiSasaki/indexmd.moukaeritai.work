@@ -1,0 +1,25 @@
+{
+  "vocabularyId": "subject-domains",
+  "version": "1.0.0-draft.1",
+  "terms": [
+    { "value": "mathematics", "description": "Mathematics and formal logic studies", "deprecated": false, "aliases": [] },
+    { "value": "naturalSciences", "description": "Physics, chemistry, astronomy, and earth sciences", "deprecated": false, "aliases": [] },
+    { "value": "lifeSciences", "description": "Biology, ecology, genetics, and biotechnology", "deprecated": false, "aliases": [] },
+    { "value": "computerScience", "description": "Software, hardware, algorithms, AI, and computing systems", "deprecated": false, "aliases": [] },
+    { "value": "engineering", "description": "Mechanical, electrical, civil, and other engineering domains", "deprecated": false, "aliases": [] },
+    { "value": "medicine", "description": "Healthcare, clinical medicine, nursing, and pharmacology", "deprecated": false, "aliases": [] },
+    { "value": "law", "description": "Legal systems, jurisprudence, statutes, and regulation", "deprecated": false, "aliases": [] },
+    { "value": "finance", "description": "Banking, investment, personal finance, taxes, and insurance", "deprecated": false, "aliases": [] },
+    { "value": "business", "description": "Commerce, marketing, corporate strategy, and entrepreneurship", "deprecated": false, "aliases": [] },
+    { "value": "administration", "description": "Public administration, governance, and organizational management", "deprecated": false, "aliases": [] },
+    { "value": "education", "description": "Teaching, learning, pedagogy, and curriculum", "deprecated": false, "aliases": [] },
+    { "value": "humanities", "description": "Philosophy, history, literature, linguistics, and religious studies", "deprecated": false, "aliases": [] },
+    { "value": "socialSciences", "description": "Sociology, psychology, political science, and anthropology", "deprecated": false, "aliases": [] },
+    { "value": "artsAndCulture", "description": "Fine arts, music, design, film, and cultural heritage", "deprecated": false, "aliases": [] },
+    { "value": "personal", "description": "Personal journaling, hobbies, family, or domestic planning", "deprecated": false, "aliases": [] },
+    { "value": "technology", "description": "Consumer electronics, internet, or non-CS general technology", "deprecated": false, "aliases": [] },
+    { "value": "operations", "description": "Logistics, supply chain, system operations, and project delivery", "deprecated": false, "aliases": [] },
+    { "value": "other", "description": "A recognized domain that is not covered by any existing terms", "deprecated": false, "aliases": [] },
+    { "value": "unknown", "description": "Subject domain cannot be determined", "deprecated": false, "aliases": [] }
+  ]
+}

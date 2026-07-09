@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "visual-analysis.v0.2.0-draft.1",
+  "summary": {
+    "caption": "Wooden desk setup with a laptop and a notebook.",
+    "description": "An indoor workspace setup containing a modern laptop, an open notebook, a coffee mug, and a small plant."
+  },
+  "visualInfo": {
+    "imageKind": "productPhoto",
+    "imageKindConfidence": 0.95,
+    "sceneDescription": "A clean, modern workstation viewed from above.",
+    "sceneContext": {
+      "environment": "indoor",
+      "cover": "covered",
+      "weather": "unknown",
+      "lighting": "artificialLight"
+    },
+    "visibleElements": [
+      {
+        "label": "laptop",
+        "category": "product",
+        "confidence": 0.98,
+        "attributes": ["silver", "aluminum"],
+        "boundingBox": {
+          "x": 0.15,
+          "y": 0.25,
+          "width": 0.5,
+          "height": 0.4,
+          "coordinateSystem": "normalized"
+        }
+      },
+      {
+        "label": "coffee mug",
+        "category": "container",
+        "confidence": 0.9,
+        "attributes": ["white", "ceramic"],
+        "boundingBox": {
+          "x": 0.7,
+          "y": 0.1,
+          "width": 0.15,
+          "height": 0.15,
+          "coordinateSystem": "normalized"
+        }
+      }
+    ],
+    "visibleText": [
+      {
+        "text": "WEEKLY PLANNER",
+        "confidence": 0.99,
+        "boundingBox": {
+          "x": 0.3,
+          "y": 0.7,
+          "width": 0.4,
+          "height": 0.05,
+          "coordinateSystem": "normalized"
+        }
+      }
+    ],
+    "uncertainties": []
+  },
+  "indexing": {
+    "keywords": [
+      {
+        "value": "workstation",
+        "confidence": 0.95,
+        "importance": 0.9
+      },
+      {
+        "value": "laptop",
+        "confidence": 0.98,
+        "importance": 0.95
+      }
+    ]
+  },
+  "quality": {
+    "confidence": 0.95,
+    "issues": []
+  }
+}

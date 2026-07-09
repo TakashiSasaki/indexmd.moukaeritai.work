@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "image-analysis-record.v0.1.0",
+  "status": {
+    "success": true
+  },
+  "assetMetadata": {
+    "assetId": "asset-desk-setup-001",
+    "title": "My Workstation Layout",
+    "category": "productPhoto",
+    "sourceKind": "publicSample",
+    "sampleId": "sample-desk-1"
+  },
+  "technicalMetadata": {
+    "mimeType": "image/jpeg",
+    "originalDimensions": {
+      "width": 1200,
+      "height": 800
+    },
+    "processedDimensions": {
+      "width": 1024,
+      "height": 683
+    },
+    "originalByteLength": 150000,
+    "processedByteLength": 95000,
+    "resized": true,
+    "recompressed": true,
+    "reencoded": true,
+    "quality": 85,
+    "analysisSizingPolicy": "default",
+    "analysisTargetLongEdge": 1024,
+    "providerSafeMimeType": true
+  },
+  "visualAnalysis": {
+    "schemaVersion": "visual-analysis.v0.2.0-draft.1",
+    "summary": {
+      "caption": "A laptop and notebook on a desk.",
+      "description": "Workstation overview with clean layout."
+    },
+    "visualInfo": {
+      "imageKind": "productPhoto",
+      "imageKindConfidence": 0.95,
+      "sceneDescription": "Laptop desk setup",
+      "sceneContext": {
+        "environment": "indoor",
+        "cover": "covered",
+        "weather": "unknown",
+        "lighting": "indoorSoft"
+      }
+    },
+    "visibleElements": []
+  },
+  "analysisRun": {
+    "runId": "run-f192b-8a21",
+    "timestamp": "2026-07-09T10:00:00Z"
+  }
+}

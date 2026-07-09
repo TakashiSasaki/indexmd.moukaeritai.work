@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "text-analysis-record.v0.1.0",
+  "status": {
+    "success": true
+  },
+  "assetMetadata": {
+    "assetId": "asset-text-doc-123",
+    "fileId": "drive-text-file-456",
+    "name": "project_notes.txt",
+    "title": "Project Notes",
+    "sourceKind": "googleDrive",
+    "path": "/My Folder/project_notes.txt"
+  },
+  "technicalMetadata": {
+    "mimeType": "text/plain",
+    "extension": "txt",
+    "byteLength": 1024,
+    "encoding": "utf-8",
+    "originalTextLength": 950,
+    "extractedTextLength": 950,
+    "contentSampleLength": 500,
+    "truncated": false,
+    "ocrUsed": false
+  },
+  "summaryAnalysis": {
+    "summary": {
+      "oneLine": "This file contains developmental notes for the backend server setup.",
+      "detailed": "Detailed notes explaining the integration of Express middlewares, routing configurations, and the database connection pool using postgres client libraries."
+    }
+  },
+  "analysisRun": {
+    "runId": "run-tx-71ab-2c",
+    "timestamp": "2026-07-09T10:15:00Z",
+    "model": {
+      "name": "gemini-2.5-flash",
+      "providerFamily": "gemini"
+    },
+    "execution": {
+      "outputMode": "structured",
+      "jsonMode": "native_schema"
+    },
+    "schema": {
+      "resultSchemaVersion": "summary-analysis.v1.2.0-draft.2",
+      "recordSchemaVersion": "text-analysis-record.v0.1.0"
+    },
+    "prompt": {
+      "summaryPromptVersion": "summary-prompt.v1.2",
+      "systemInstructionVersion": "system-instruction.v1.2"
+    }
+  }
+}

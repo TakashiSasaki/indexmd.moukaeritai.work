@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "text-analysis-record.v0.1.0",
+  "status": {
+    "success": false,
+    "error": "Failed to parse JSON schema. The output was not in standard JSON format.",
+    "failureKind": "jsonParseError"
+  },
+  "assetMetadata": {
+    "assetId": "asset-text-doc-555",
+    "fileId": "drive-text-file-999",
+    "name": "malformed_config.json",
+    "title": "Malformed Config File",
+    "sourceKind": "googleDrive",
+    "path": "/Configs/malformed_config.json"
+  }
+}
