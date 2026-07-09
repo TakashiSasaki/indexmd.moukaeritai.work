@@ -4,7 +4,16 @@ All notable changes to the versioned data exchange contracts, schemas, API paylo
 
 ---
 
-## [Unreleased]
+## [0.2.0] - 2026-07-09
+
+### Added
+- Created machine-readable contract catalog `contracts/MANIFEST.json` to enable downstream applications to programmatically locate schemas, readmes, examples, and nested dependencies.
+- Formulated `contracts/VERSIONING.md` detailing semantic versioning definitions, stability level lifecycle (`draft`, `rc`, `stable`, `deprecated`), promotion rules, and release checklists.
+- Added a suite of conformance test vectors under `contracts/conformance/` for `visual-analysis`, `image-analysis-record`, and `api/v0.1.0/` containing valid payload assertions (expected to pass) and invalid payload assertions (expected to fail).
+- Updated the automated validation engine `scripts/validate-contracts.mjs` to strictly validate `MANIFEST.json` structure, ensure metadata compatibility with schema files (`id`, `version`, `status`), and verify both positive and negative results across the suite of conformance test vectors using AJV.
+- Appended programmatic integration and automated ingestion guidelines in `contracts/INTEGRATION.md` and updated `contracts/README.md` to describe the new ecosystem directory.
+
+## [0.1.0] - 2026-07-08
 
 ### Added
 - Established top-level versioned `contracts/` directory for stable, externally referenceable integration contracts.

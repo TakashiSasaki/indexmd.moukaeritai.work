@@ -86,6 +86,14 @@ These represent the canonical models for system-to-system interchange.
 contracts/
   ├── README.md             <- This entry point file
   ├── CHANGELOG.md          <- Contract history logs
+  ├── VERSIONING.md         <- Detailed lifecycle, versioning, and promotion policy
+  ├── INTEGRATION.md        <- Integration guidelines for downstream consumers
+  ├── MANIFEST.json         <- Machine-readable contract catalog
+  │
+  ├── conformance/          <- Strict conformance test vectors (valid / invalid)
+  │   ├── api/
+  │   ├── image-analysis-record/
+  │   └── visual-analysis/
   │
   ├── schemas/              <- Versioned schemas
   │   ├── summary-analysis/
@@ -136,6 +144,16 @@ contracts/
       ├── subject-domains.v1.0.0-draft.1.json
       └── subject-label-kinds.v1.0.0-draft.1.json
 ```
+
+---
+
+## 🧭 Navigating Contract Artifacts
+
+To facilitate automated ingestion and ensure high-fidelity implementation, we provide three new core resources:
+
+1. **`MANIFEST.json` (Machine-Readable Catalog)**: A central registry that maps all available schemas, API paths, and vocabularies. Downstream automation pipelines can load this manifest to dynamically locate canonical schema files, associated documentation, and test examples without scanning directories.
+2. **`VERSIONING.md` (Detailed Lifecycle & Promotion Policy)**: Defines our semantic versioning policies, constraints for breaking vs. non-breaking changes, stable version immutability, and pre-release checklists.
+3. **`conformance/` (Validator Test Vectors)**: Contains strict valid (expected to pass) and invalid (expected to fail) payloads for our schemas. External tooling developers can run these vectors against their parsing engines to verify compliance with the `indexmd` specification.
 
 ---
 

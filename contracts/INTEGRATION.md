@@ -86,3 +86,22 @@ A change is considered breaking if it:
 Legacy models and early prototype endpoints included a mutable `responseRaw` field that contained unparsed, unvalidated JSON strings directly from the model. 
 * To guarantee deterministic parsing, **`responseRaw` does not exist in any normal contracts**.
 * All exchange data is cleanly validated, sanitized, and stored inside the structured `record` payload.
+
+---
+
+## 🤖 Programmatic Consumption & Automation
+
+To support fully automated continuous integration, we provide developer-focused resources to discover and test your implementation programmatically.
+
+### 1. Parsing the Manifest (`MANIFEST.json`)
+You can programmatically parse `contracts/MANIFEST.json` to fetch the complete registry of contracts.
+The schema is stable and provides exact relative paths to:
+- `schema`: The JSON schema file.
+- `readme`: Accompanying integration documentation.
+- `examples`: Curated valid payloads.
+- `nestedContracts`: Dependencies on other sub-schemas, listing the field and target contract.
+
+### 2. Testing Compliance with Conformance Test Vectors (`conformance/`)
+Before deploying an integration, we recommend writing automated tests in your codebase that run your parser against our conformance vectors:
+- **`conformance/<contract>/<version>/valid/`**: These files represent completely compliant data payloads. Your parser **MUST** swallow, parse, and process these successfully.
+- **`conformance/<contract>/<version>/invalid/`**: These files represent invalid payloads containing schema-breaking violations. Your parser or validator **MUST** reject these, and fail gracefully with validation diagnostics rather than crashing.

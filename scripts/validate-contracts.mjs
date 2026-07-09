@@ -41,6 +41,167 @@ function runValidation() {
   }
   console.log(`[OK] All ${jsonFiles.length} JSON files are syntactically valid.\n`);
 
+  // 1.1. Validate contracts/MANIFEST.json
+  console.log('Validating contracts/MANIFEST.json...');
+  const manifestPath = path.join(contractsDir, 'MANIFEST.json');
+  if (!fs.existsSync(manifestPath)) {
+    console.error('❌ Error: contracts/MANIFEST.json not found!');
+    process.exit(1);
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (err) {
+    console.error(`❌ Error parsing contracts/MANIFEST.json: ${err.message}`);
+    process.exit(1);
+  }
+
+  if (typeof manifest.manifestVersion !== 'string' || !manifest.manifestVersion) {
+    console.error('❌ Error: MANIFEST.json "manifestVersion" must be a non-empty string.');
+    process.exit(1);
+  }
+
+  if (manifest.project !== 'indexmd') {
+    console.error(`❌ Error: MANIFEST.json "project" must be "indexmd". Got: ${manifest.project}`);
+    process.exit(1);
+  }
+
+  if (!Array.isArray(manifest.contracts) || !Array.isArray(manifest.apiContracts) || !Array.isArray(manifest.vocabularies)) {
+    console.error('❌ Error: MANIFEST.json "contracts", "apiContracts", and "vocabularies" must be arrays.');
+    process.exit(1);
+  }
+
+  // Create lookup maps to check nested target exists in the manifest
+  const knownContracts = new Map(); // id + '@' + version -> contract entry
+  for (const c of manifest.contracts) {
+    knownContracts.set(`${c.id}@${c.version}`, c);
+  }
+
+  // Helper to verify existence of files
+  function assertFileExists(filePath, context) {
+    const fullPath = path.join(process.cwd(), filePath);
+    if (!fs.existsSync(fullPath)) {
+      console.error(`❌ Manifest Error: File "${filePath}" referenced in ${context} does not exist.`);
+      process.exit(1);
+    }
+  }
+
+  // Validate standard contracts
+  for (const c of manifest.contracts) {
+    const ctx = `contracts[id=${c.id}, version=${c.version}]`;
+    if (!c.id || !c.version || !c.status || !c.schema || !c.readme) {
+      console.error(`❌ Manifest Error: Missing fields in contract entry: ${JSON.stringify(c)}`);
+      process.exit(1);
+    }
+    assertFileExists(c.schema, `${ctx}.schema`);
+    assertFileExists(c.readme, `${ctx}.readme`);
+
+    // Verify schema metadata matching
+    const schemaContent = JSON.parse(fs.readFileSync(path.join(process.cwd(), c.schema), 'utf8'));
+    if (schemaContent['x-contract-id'] !== c.id) {
+      console.error(`❌ Manifest/Schema mismatch: x-contract-id "${schemaContent['x-contract-id']}" in file "${c.schema}" does not match manifest id "${c.id}"`);
+      process.exit(1);
+    }
+    if (schemaContent['x-contract-version'] !== c.version) {
+      console.error(`❌ Manifest/Schema mismatch: x-contract-version "${schemaContent['x-contract-version']}" in file "${c.schema}" does not match manifest version "${c.version}"`);
+      process.exit(1);
+    }
+    if (schemaContent['x-contract-status'] !== c.status) {
+      console.error(`❌ Manifest/Schema mismatch: x-contract-status "${schemaContent['x-contract-status']}" in file "${c.schema}" does not match manifest status "${c.status}"`);
+      process.exit(1);
+    }
+
+    if (Array.isArray(c.examples)) {
+      for (const ex of c.examples) {
+        assertFileExists(ex, `${ctx}.examples`);
+      }
+    }
+
+    if (Array.isArray(c.nestedContracts)) {
+      for (const nest of c.nestedContracts) {
+        if (!nest.field || !nest.contractId || !nest.version) {
+          console.error(`❌ Manifest Error: Invalid nested contract structure in ${ctx}`);
+          process.exit(1);
+        }
+        const key = `${nest.contractId}@${nest.version}`;
+        if (!knownContracts.has(key)) {
+          console.error(`❌ Manifest Error: nestedContract refers to unknown contract "${key}" in ${ctx}`);
+          process.exit(1);
+        }
+      }
+    }
+  }
+
+  // Validate API contracts
+  for (const c of manifest.apiContracts) {
+    const ctx = `apiContracts[id=${c.id}, version=${c.version}]`;
+    if (!c.id || !c.version || !c.status || !c.schema || !c.readme) {
+      console.error(`❌ Manifest Error: Missing fields in apiContract entry: ${JSON.stringify(c)}`);
+      process.exit(1);
+    }
+    assertFileExists(c.schema, `${ctx}.schema`);
+    assertFileExists(c.readme, `${ctx}.readme`);
+
+    // Verify schema metadata matching
+    const schemaContent = JSON.parse(fs.readFileSync(path.join(process.cwd(), c.schema), 'utf8'));
+    if (schemaContent['x-contract-id'] !== c.id) {
+      console.error(`❌ Manifest/Schema mismatch: x-contract-id "${schemaContent['x-contract-id']}" in file "${c.schema}" does not match manifest id "${c.id}"`);
+      process.exit(1);
+    }
+    if (schemaContent['x-contract-version'] !== c.version) {
+      console.error(`❌ Manifest/Schema mismatch: x-contract-version "${schemaContent['x-contract-version']}" in file "${c.schema}" does not match manifest version "${c.version}"`);
+      process.exit(1);
+    }
+    if (schemaContent['x-contract-status'] !== c.status) {
+      console.error(`❌ Manifest/Schema mismatch: x-contract-status "${schemaContent['x-contract-status']}" in file "${c.schema}" does not match manifest status "${c.status}"`);
+      process.exit(1);
+    }
+
+    if (Array.isArray(c.examples)) {
+      for (const ex of c.examples) {
+        assertFileExists(ex, `${ctx}.examples`);
+      }
+    }
+
+    if (Array.isArray(c.nestedContracts)) {
+      for (const nest of c.nestedContracts) {
+        if (!nest.field || !nest.contractId || !nest.version) {
+          console.error(`❌ Manifest Error: Invalid nested contract structure in ${ctx}`);
+          process.exit(1);
+        }
+        const key = `${nest.contractId}@${nest.version}`;
+        if (!knownContracts.has(key)) {
+          console.error(`❌ Manifest Error: nestedContract refers to unknown contract "${key}" in ${ctx}`);
+          process.exit(1);
+        }
+      }
+    }
+  }
+
+  // Validate vocabularies
+  for (const v of manifest.vocabularies) {
+    const ctx = `vocabularies[id=${v.id}]`;
+    if (!v.id || !v.version || !v.path) {
+      console.error(`❌ Manifest Error: Missing fields in vocabulary entry: ${JSON.stringify(v)}`);
+      process.exit(1);
+    }
+    assertFileExists(v.path, `${ctx}.path`);
+
+    // Verify vocabulary content matches
+    const vocabContent = JSON.parse(fs.readFileSync(path.join(process.cwd(), v.path), 'utf8'));
+    if (vocabContent.vocabularyId !== v.id) {
+      console.error(`❌ Manifest/Vocabulary mismatch: vocabularyId "${vocabContent.vocabularyId}" in file "${v.path}" does not match manifest id "${v.id}"`);
+      process.exit(1);
+    }
+    if (vocabContent.version !== v.version) {
+      console.error(`❌ Manifest/Vocabulary mismatch: version "${vocabContent.version}" in file "${v.path}" does not match manifest version "${v.version}"`);
+      process.exit(1);
+    }
+  }
+
+  console.log('[OK] MANIFEST.json structure and references are completely valid.\n');
+
   // 2. Identify schemas and check metadata
   console.log('Checking Schema metadata structures...');
   const schemaFiles = walkDir(contractsDir, (p) => p.endsWith('schema.json'));
@@ -361,6 +522,72 @@ function runValidation() {
   }
 
   validateNestedContracts();
+
+  // 5. Validate Conformance vectors
+  console.log('Validating conformance test vectors...');
+  const conformanceDir = path.join(contractsDir, 'conformance');
+  if (fs.existsSync(conformanceDir)) {
+    const conformanceSchemas = [
+      {
+        id: 'visual-analysis',
+        schemaPath: path.join(contractsDir, 'schemas/visual-analysis/v0.2.0-draft.1/schema.json'),
+        conformancePath: path.join(conformanceDir, 'visual-analysis/v0.2.0-draft.1')
+      },
+      {
+        id: 'image-analysis-record',
+        schemaPath: path.join(contractsDir, 'schemas/image-analysis-record/v0.1.0/schema.json'),
+        conformancePath: path.join(conformanceDir, 'image-analysis-record/v0.1.0')
+      },
+      {
+        id: 'api-response',
+        schemaPath: path.join(contractsDir, 'api/v0.1.0/visual-public-samples-analyze.response.schema.json'),
+        conformancePath: path.join(conformanceDir, 'api/v0.1.0')
+      }
+    ];
+
+    for (const item of conformanceSchemas) {
+      if (!fs.existsSync(item.schemaPath) || !fs.existsSync(item.conformancePath)) {
+        continue;
+      }
+      const schemaContent = JSON.parse(fs.readFileSync(item.schemaPath, 'utf8'));
+      const localAjv = new Ajv({ allErrors: true, strict: false });
+      const validate = localAjv.compile(schemaContent);
+
+      const validDir = path.join(item.conformancePath, 'valid');
+      const invalidDir = path.join(item.conformancePath, 'invalid');
+
+      if (fs.existsSync(validDir)) {
+        const files = fs.readdirSync(validDir).filter(f => f.endsWith('.json'));
+        for (const file of files) {
+          const filePath = path.join(validDir, file);
+          const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          const isValid = validate(payload);
+          if (!isValid) {
+            console.error(`❌ Conformance validation failed: ${path.relative(process.cwd(), filePath)} should have PASSED but FAILED.`);
+            console.error(JSON.stringify(validate.errors, null, 2));
+            process.exit(1);
+          } else {
+            console.log(`[OK] Conformance pass success: ${path.relative(process.cwd(), filePath)} passed schema validation as expected.`);
+          }
+        }
+      }
+
+      if (fs.existsSync(invalidDir)) {
+        const files = fs.readdirSync(invalidDir).filter(f => f.endsWith('.json'));
+        for (const file of files) {
+          const filePath = path.join(invalidDir, file);
+          const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          const isValid = validate(payload);
+          if (isValid) {
+            console.error(`❌ Conformance validation failed: ${path.relative(process.cwd(), filePath)} should have FAILED but PASSED.`);
+            process.exit(1);
+          } else {
+            console.log(`[OK] Conformance fail success: ${path.relative(process.cwd(), filePath)} failed schema validation as expected.`);
+          }
+        }
+      }
+    }
+  }
 
   console.log('\n✨ Contracts Validation Successful! ✨');
 }
