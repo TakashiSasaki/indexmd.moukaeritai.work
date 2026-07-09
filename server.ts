@@ -2108,6 +2108,9 @@ export async function analyzePublicSample(options: {
 
     if (!parseRes.ok) {
       return { status: 200, body: {
+        success: false,
+        error: "Model returned invalid JSON",
+        failureKind: "jsonParseError",
         record: {
           schemaVersion: "image-analysis-record.v0.1.0",
           status: { success: false, failureKind: "jsonParseError", error: "Model returned invalid JSON" },
@@ -2155,40 +2158,7 @@ export async function analyzePublicSample(options: {
             parse: parseRes.diagnostics
           }
         },
-        success: false,
-        error: "Model returned invalid JSON",
-        failureKind: "jsonParseError",
-        sampleMetadata: {
-          id: sample.id,
-          title: sample.title,
-          category: sample.category,
-          licenseKind: sample.source.licenseKind,
-          licenseName: sample.source.licenseName,
-          attributionText: sample.source.attributionText,
-          sourcePageUrl: sample.source.pageUrl
-        },
-        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
-        analysisRun: runMetadata,
-        parseDiagnostics: parseRes.diagnostics,
-        inputDiagnostics: {
-          sourceKind: runMetadata.input.sourceKind,
-          sampleId: runMetadata.input.sampleId,
-          mimeType: runMetadata.input.mimeType,
-          byteLength: runMetadata.input.byteLength,
-          base64Length: runMetadata.input.base64Length,
-          imageVariant: "analysis",
-          analysisSourceUrlKind: sourceUrlKind,
-          inputSizeWarning,
-          ...inputDiagnostics,
-          cacheLayer: fetchResult.cacheLayer,
-          cacheKey: fetchResult.cacheKey,
-          cachePolicyVersion: fetchResult.cachePolicyVersion,
-          cacheStored: fetchResult.cacheStored,
-          cacheReadError: fetchResult.cacheReadError,
-          cacheWriteError: fetchResult.cacheWriteError,
-          cacheSharedInFlight: fetchResult.cacheSharedInFlight
-        },
-        ...(requestPreview ? { requestPreview } : {})
+        ...(includeRequestPreview && requestPreview ? { requestPreview } : {})
       } };
     }
 
@@ -2201,7 +2171,8 @@ export async function analyzePublicSample(options: {
     };
 
     if (extractedCustomSchema) {
-      const result: any = {
+      const body: any = {
+        success: true,
         record: {
           schemaVersion: "image-analysis-record.v0.1.0",
           status: { success: true },
@@ -2252,56 +2223,14 @@ export async function analyzePublicSample(options: {
             input: fullInputDiagnostics,
             parse: parseDiagnosticsLight
           }
-        },
-        success: true,
-        sampleMetadata: {
-          id: sample.id,
-          title: sample.title,
-          category: sample.category,
-          licenseKind: sample.source.licenseKind,
-          licenseName: sample.source.licenseName,
-          attributionText: sample.source.attributionText,
-          sourcePageUrl: sample.source.pageUrl
-        },
-        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
-        visualAnalysis: parsed,
-        analysisRun: runMetadata,
-        parseDiagnostics: parseDiagnosticsLight,
-        qualityStatus: "excellent",
-        qualityScore: 100,
-        qualityIssues: [],
-        experimentalModel: false,
-        usedModelName: targetModel,
-        providerFamily: isGemma ? "gemma" : "gemini",
-        effectiveStructuredExecutionMode: mode,
-        validationPassed: true,
-        schemaVersion: "custom",
-        rawOutput: outputText,
-        inputDiagnostics: {
-          sourceKind: runMetadata.input.sourceKind,
-          sampleId: runMetadata.input.sampleId,
-          mimeType: runMetadata.input.mimeType,
-          byteLength: runMetadata.input.byteLength,
-          base64Length: runMetadata.input.base64Length,
-          imageVariant: "analysis",
-          analysisSourceUrlKind: sourceUrlKind,
-          inputSizeWarning,
-          ...inputDiagnostics,
-          cacheLayer: fetchResult.cacheLayer,
-          cacheKey: fetchResult.cacheKey,
-          cachePolicyVersion: fetchResult.cachePolicyVersion,
-          cacheStored: fetchResult.cacheStored,
-          cacheReadError: fetchResult.cacheReadError,
-          cacheWriteError: fetchResult.cacheWriteError,
-          cacheSharedInFlight: fetchResult.cacheSharedInFlight
         }
       };
 
-      if (includeRequestPreview) {
-        result.requestPreview = requestPreview;
+      if (includeRequestPreview && requestPreview) {
+        body.requestPreview = requestPreview;
       }
 
-      return { status: 200, body: result };
+      return { status: 200, body };
     }
 
     let canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
@@ -2416,12 +2345,18 @@ export async function analyzePublicSample(options: {
       isExperimental = qReport.experimentalModel;
     }
 
-    const result: any = {
+    const body: any = {
+      success: validation.isValid,
+      ...(validation.isValid ? {} : { 
+        failureKind: "schemaValidationError",
+        error: "Schema validation failed: " + (validation.errors[0] || "invalid format")
+      }),
       record: {
         schemaVersion: "image-analysis-record.v0.1.0",
         status: {
           success: validation.isValid,
-          failureKind: validation.isValid ? undefined : "schemaValidationError"
+          failureKind: validation.isValid ? undefined : "schemaValidationError",
+          error: validation.isValid ? undefined : "Schema validation failed"
         },
         assetMetadata: {
           assetId: sample.id,
@@ -2471,58 +2406,43 @@ export async function analyzePublicSample(options: {
           parse: parseDiagnosticsLight,
           normalization: canonicalization.diagnostics
         }
-      },
-      success: validation.isValid,
-      ...(validation.isValid ? {} : { failureKind: "schemaValidationError" }),
-      sampleMetadata: {
-        id: sample.id,
-        title: sample.title,
-        category: sample.category,
-        licenseKind: sample.source.licenseKind,
-        licenseName: sample.source.licenseName,
-        attributionText: sample.source.attributionText,
-        sourcePageUrl: sample.source.pageUrl
-      },
-      expectedMetadata: buildPublicSampleExpectedMetadata(sample),
-      visualAnalysis: normalized,
-      analysisRun: runMetadata,
-      parseDiagnostics: parseDiagnosticsLight,
-      normalizationDiagnostics: canonicalization.diagnostics,
-      qualityStatus,
-      qualityScore,
-      qualityIssues,
-      experimentalModel: isExperimental,
-      usedModelName: targetModel,
-      providerFamily: isGemma ? "gemma" : "gemini",
-      effectiveStructuredExecutionMode: mode,
-      inputDiagnostics: {
-        sourceKind: runMetadata.input.sourceKind,
-        sampleId: runMetadata.input.sampleId,
-        mimeType: runMetadata.input.mimeType,
-        byteLength: runMetadata.input.byteLength,
-        base64Length: runMetadata.input.base64Length,
-        imageVariant: "analysis",
-        analysisSourceUrlKind: sourceUrlKind,
-        inputSizeWarning,
-        ...inputDiagnostics,
-        cacheLayer: fetchResult.cacheLayer,
-        cacheKey: fetchResult.cacheKey,
-        cachePolicyVersion: fetchResult.cachePolicyVersion,
-        cacheStored: fetchResult.cacheStored,
-        cacheReadError: fetchResult.cacheReadError,
-        cacheWriteError: fetchResult.cacheWriteError,
-        cacheSharedInFlight: fetchResult.cacheSharedInFlight
       }
     };
 
     if (includeRequestPreview && requestPreview) {
-      result.requestPreview = requestPreview;
+      body.requestPreview = requestPreview;
     }
 
-    return { status: 200, body: result };
+    return { status: 200, body };
   } catch (err: any) {
     console.error("Public sample analysis error:", err.message);
-    return { status: 500, body: { error: err.message || "Failed to analyze public sample" } };
+    const sample = options.sampleId ? getPublicSampleById(options.sampleId) : null;
+    return {
+      status: 500,
+      body: {
+        success: false,
+        error: err.message || "Failed to analyze public sample",
+        failureKind: "unexpectedError",
+        record: {
+          schemaVersion: "image-analysis-record.v0.1.0",
+          status: {
+            success: false,
+            failureKind: "unexpectedError",
+            error: err.message || "Failed to analyze public sample"
+          },
+          assetMetadata: sample ? {
+            assetId: sample.id,
+            title: sample.title,
+            category: sample.category,
+            sourceKind: "publicSample",
+            sampleId: sample.id,
+          } : undefined,
+          evaluation: sample ? {
+            expectedMetadata: buildPublicSampleExpectedMetadata(sample)
+          } : undefined
+        }
+      }
+    };
   }
 }
 
@@ -3083,7 +3003,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
       sampleId: item.sampleId,
       title: item.title || item.sampleId,
       status: item.status,
-      qualityStatus: item.qualityStatus,
+      qualityStatus: item.record?.evaluation?.qualityStatus,
       error: item.error,
       failureKind: item.failureKind,
       hasRecord: !!item.record,
@@ -3098,7 +3018,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
       completedAt: item.completedAt,
       error: item.error,
       failureKind: item.failureKind,
-      qualityStatus: item.qualityStatus,
+      qualityStatus: item.record?.evaluation?.qualityStatus,
     }));
 
     const { executionPrivate, ...restJob } = job;
@@ -3130,8 +3050,8 @@ app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
         completedAt: item.completedAt,
         durationMs: item.durationMs,
         attempts: item.attempts,
-        qualityStatus: item.qualityStatus,
-        qualityScore: item.qualityScore,
+        qualityStatus: item.record?.evaluation?.qualityStatus,
+        qualityScore: item.record?.evaluation?.qualityScore,
         error: item.error,
         failureKind: item.failureKind,
         retryExhausted: item.retryExhausted,

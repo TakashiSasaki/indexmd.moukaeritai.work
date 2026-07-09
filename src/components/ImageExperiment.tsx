@@ -1154,8 +1154,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       for (const item of items) {
         if (item.success) {
           successCount++;
-          if (item.qualityStatus === 'valid') validCount++;
-          if (item.qualityStatus === 'validLowQuality') validLowQualityCount++;
+          const qStatus = item.record?.evaluation?.qualityStatus || (item as any).qualityStatus;
+          if (qStatus === 'valid') validCount++;
+          if (qStatus === 'validLowQuality') validLowQualityCount++;
           
           const comp = item.comparison;
           if (comp) {
@@ -1427,6 +1428,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
             const data = sfResult.data || {};
             const record = data.record;
+            if (!record) {
+              throw new Error("Missing image analysis record");
+            }
             const sampleCompletedAt = new Date();
 
             item = {
@@ -1437,8 +1441,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               durationMs: sampleCompletedAt.getTime() - sampleStartedAt.getTime(),
               success: sfResult.success && data.success,
               record,
-              failureKind: sfResult.failureKind || data.failureKind || record?.status?.failureKind,
-              error: sfResult.error || data.error || record?.status?.error,
+              failureKind: sfResult.failureKind || data.failureKind || record.status?.failureKind,
+              error: sfResult.error || data.error || record.status?.error,
               responseDiagnostics: sfResult.responseDiagnostics,
               retryDiagnostics: sfResult.retryDiagnostics
             };
@@ -1446,11 +1450,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             if (sfResult.success && data.success) {
                 successCount++;
                 newStatuses[sample.id] = "success";
-                if (record?.evaluation?.qualityStatus === 'valid') validCount++;
-                if (record?.evaluation?.qualityStatus === 'validLowQuality') validLowQualityCount++;
+                if (record.evaluation?.qualityStatus === 'valid') validCount++;
+                if (record.evaluation?.qualityStatus === 'validLowQuality') validLowQualityCount++;
                 
                 // compute comparison
-                const expectedMetadata = data.record?.evaluation?.expectedMetadata;
+                const expectedMetadata = record.evaluation?.expectedMetadata;
                 const comparisonSample = {
                   ...sample,
                   expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind,
@@ -1465,7 +1469,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   optionalVisibleElementLabelAliases: expectedMetadata?.optionalVisibleElementLabelAliases ?? sample.optionalVisibleElementLabelAliases,
                   optionalVisibleText: expectedMetadata?.optionalVisibleText ?? sample.optionalVisibleText
                 };
-                const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
+                const comp = evaluateSampleComparison(comparisonSample, {
+                  record,
+                  visualAnalysis: record.visualAnalysis,
+                  expectedMetadata
+                });
                 item.comparison = comp;
                 
                 if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
@@ -1615,15 +1623,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         ...sum,
         items: sum.items.map(it => {
           const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === it.sampleId);
-          const category = it.category ||
+          const category = (it as any).category ||
                            matchedSample?.category || 
-                           (it.responseRaw?.sampleMetadata as any)?.category ||
+                           ((it as any).responseRaw?.sampleMetadata as any)?.category ||
                            (it.comparison as any)?.category ||
                            "unknown";
           
           let exec: any = undefined;
-          if (it.analysisRun?.metadata ?? it.analysisRun) {
-            const run = it.analysisRun?.metadata ?? it.analysisRun;
+          if ((it as any).analysisRun?.metadata ?? (it as any).analysisRun) {
+            const run = (it as any).analysisRun?.metadata ?? (it as any).analysisRun;
             exec = {
               modelName: run.model?.name || run.execution?.modelName,
               providerFamily: run.model?.providerFamily || run.execution?.providerFamily,
@@ -1631,13 +1639,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               jsonMode: run.execution?.jsonMode,
               jsonRecovery: run.execution?.jsonRecovery
             };
-          } else if (it.execution) {
+          } else if ((it as any).execution) {
             exec = {
-              modelName: it.execution.modelName,
-              providerFamily: it.execution.providerFamily,
-              structuredExecutionMode: it.execution.structuredExecutionMode,
-              jsonMode: it.execution.jsonMode,
-              jsonRecovery: it.execution.jsonRecovery
+              modelName: (it as any).execution.modelName,
+              providerFamily: (it as any).execution.providerFamily,
+              structuredExecutionMode: (it as any).execution.structuredExecutionMode,
+              jsonMode: (it as any).execution.jsonMode,
+              jsonRecovery: (it as any).execution.jsonRecovery
             };
           }
 
@@ -1647,11 +1655,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             success: it.success,
             error: it.error,
             failureKind: it.failureKind,
-            qualityStatus: it.qualityStatus,
-            qualityScore: it.qualityScore,
-            qualityIssues: it.qualityIssues,
+            qualityStatus: it.record?.evaluation?.qualityStatus || (it as any).qualityStatus,
+            qualityScore: it.record?.evaluation?.qualityScore || (it as any).qualityScore,
+            qualityIssues: it.record?.evaluation?.qualityIssues || (it as any).qualityIssues,
             category,
-            taxonomyCategory: it.taxonomyCategory,
+            taxonomyCategory: it.record?.assetMetadata?.category || (it as any).taxonomyCategory,
             comparison: it.comparison ? {
               imageKind: it.comparison.imageKind,
               categories: it.comparison.categories,
@@ -1661,7 +1669,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               reviewStatus: it.comparison.reviewStatus,
               reviewReasons: it.comparison.reviewReasons
             } : undefined,
-            execution: exec
+            execution: exec,
+            record: it.record
           };
         })
       };
@@ -1679,8 +1688,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     onAddLog("success", `Batch regression complete for ${total} samples.`);
 
     // If exactly 1 sample was processed in this subset run, also set single result so the user can see detail tabs immediately
-    if (total === 1 && items[0].responseRaw) {
-      setResult(items[0].responseRaw);
+    if (total === 1) {
+      if (items[0].record) {
+        setResult({ success: items[0].success, record: items[0].record, failureKind: items[0].failureKind, error: items[0].error });
+      } else if ((items[0] as any).responseRaw) {
+        setResult((items[0] as any).responseRaw);
+      }
     }
     } finally {
       clearInterval(heartbeatTimer);
@@ -2857,8 +2870,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </td>
                       <td className="px-3 py-2">
                          {item.success && (
-                            <span className={`px-1.5 py-0.5 rounded ${item.qualityStatus === 'valid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                               {item.qualityStatus}
+                            <span className={`px-1.5 py-0.5 rounded ${(item.record?.evaluation?.qualityStatus || (item as any).qualityStatus) === 'valid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                               {item.record?.evaluation?.qualityStatus || (item as any).qualityStatus}
                             </span>
                          )}
                       </td>
@@ -2975,8 +2988,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                    {result.success ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
                   Schema: {result.success ? "VALID" : "INVALID"}
                 </span>
-                <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded border ${result.qualityStatus === 'validLowQuality' ? 'bg-amber-50 text-amber-600 border-amber-200' : result.qualityStatus === 'valid' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                  Quality: {result.qualityStatus}
+                <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded border ${(result.record?.evaluation?.qualityStatus || result.qualityStatus) === 'validLowQuality' ? 'bg-amber-50 text-amber-600 border-amber-200' : (result.record?.evaluation?.qualityStatus || result.qualityStatus) === 'valid' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                  Quality: {result.record?.evaluation?.qualityStatus || result.qualityStatus}
                 </span>
               </div>
             </div>

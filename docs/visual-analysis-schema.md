@@ -68,14 +68,14 @@ This schema is currently in `v0.2.1-rc.1`. It operates exclusively in the "ç”»åƒ
 
 ## Visual Analysis Experiment Provenance (analysisRun)
 
-To maintain tracking of how visual analyses are generated, the response includes an `analysisRun` provenance metadata object. 
+To maintain tracking of how visual analyses are generated, the response includes an `analysisRun` provenance metadata object nested inside the canonical `record` (`record.analysisRun`).
 
 **Important Principles:**
 - `visualAnalysis` ONLY contains the structured results concerning the image content.
 - `analysisRun` represents the execution conditions (model name, parameters, schema version, and prompt version).
 - Generation parameters (temperature, topK, topP) are currently recorded as fixed constants and are NOT modifiable from the UI.
-- `analysisRun` is treated as a top-level property of the API response, independent from the core `visualAnalysis` object.
-- Legacy top-level response properties (e.g., `usedModelName`, `providerFamily`) are retained for backwards compatibility, but `analysisRun` is the canonical source of provenance data.
+- `analysisRun` is nested inside the canonical `ImageAnalysisRecord` object (`record.analysisRun`), maintaining a strict single-source-of-truth structure.
+- Legacy duplicate top-level fields (e.g., `sampleMetadata`, `analysisRun`, `qualityStatus`, `qualityScore`, `qualityIssues`, `usedModelName`, `providerFamily`) and `responseRaw` have been completely removed from API responses, batch summary items, and reports. All UI components and report builders rely exclusively on the nested `record` object.
 
 ## Testing with Public Samples (Matrix Calibration)
 The schema is validated against a curated **Public Visual Sample Matrix**. This covers landscapes, people, objects, and synthetic documents to ensure the model responds with well-formed `visibleElements` and `visibleText` arrays across diverse input types.

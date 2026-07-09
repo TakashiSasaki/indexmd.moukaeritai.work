@@ -132,7 +132,7 @@ describe('Public Sample Batch Checkpoint', () => {
 
   it('shrinkCheckpointForLocalStorage successfully removes heavy raw output fields', () => {
     const shrunk = shrinkCheckpointForLocalStorage(dummyCheckpoint);
-    const firstItem = shrunk.items[0];
+    const firstItem = shrunk.items[0] as any;
 
     assert.strictEqual(firstItem.responseRaw?.rawOutput, undefined);
     assert.strictEqual(firstItem.responseRaw?.rawOutputPreview, undefined);
@@ -142,7 +142,7 @@ describe('Public Sample Batch Checkpoint', () => {
     assert.strictEqual((firstItem.parseDiagnostics as any)?.rawOutputPreview, undefined);
 
     // Confirm original was not mutated
-    assert.strictEqual(dummyCheckpoint.items[0].responseRaw?.rawOutput, '{"test": 1}');
+    assert.strictEqual((dummyCheckpoint.items[0] as any).responseRaw?.rawOutput, '{"test": 1}');
   });
 
   it('rebuildBatchSummaryFromCheckpoint reconstructs batch summary object', () => {

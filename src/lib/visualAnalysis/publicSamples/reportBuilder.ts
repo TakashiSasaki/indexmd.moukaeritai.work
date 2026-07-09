@@ -346,14 +346,14 @@ export function getItemExecutionMetadata(item: any) {
       jsonRecovery: item.execution.jsonRecovery
     };
   }
-  const analysisRun = getItemAnalysisRun(item) ?? (item as any).responseRaw?.analysisRun;
+  const analysisRun = getItemAnalysisRun(item) ?? item.record?.analysisRun ?? (item as any).responseRaw?.analysisRun;
   const run = analysisRun?.metadata ?? analysisRun;
   
-  const modelName = run?.model?.name || run?.execution?.usedModelName || run?.execution?.modelName || (item as any).responseRaw?.usedModelName || "UNKNOWN";
-  const providerFamily = run?.model?.providerFamily || run?.execution?.providerFamily || (item as any).responseRaw?.providerFamily || "UNKNOWN";
-  const structuredExecutionMode = run?.execution?.structuredExecutionMode || (item as any).responseRaw?.effectiveStructuredExecutionMode || "UNKNOWN";
-  const jsonMode = run?.execution?.jsonMode || (item as any).responseRaw?.jsonMode || "UNKNOWN";
-  const jsonRecovery = run?.execution?.jsonRecovery || (item as any).responseRaw?.jsonRecovery;
+  const modelName = run?.model?.name || run?.execution?.usedModelName || run?.execution?.modelName || item.record?.analysisRun?.execution?.modelName || (item as any).responseRaw?.usedModelName || "UNKNOWN";
+  const providerFamily = run?.model?.providerFamily || run?.execution?.providerFamily || item.record?.analysisRun?.execution?.providerFamily || (item as any).responseRaw?.providerFamily || "UNKNOWN";
+  const structuredExecutionMode = run?.execution?.structuredExecutionMode || item.record?.analysisRun?.execution?.structuredExecutionMode || (item as any).responseRaw?.effectiveStructuredExecutionMode || "UNKNOWN";
+  const jsonMode = run?.execution?.jsonMode || item.record?.analysisRun?.execution?.jsonMode || (item as any).responseRaw?.jsonMode || "UNKNOWN";
+  const jsonRecovery = run?.execution?.jsonRecovery || item.record?.analysisRun?.execution?.jsonRecovery || (item as any).responseRaw?.jsonRecovery;
   
   return {
     modelName,
@@ -846,13 +846,15 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
   if (getItemQualityScore(item) !== undefined) compact.qualityScore = getItemQualityScore(item);
   if (getItemQualityIssues(item) && getItemQualityIssues(item).length > 0) compact.qualityIssues = getItemQualityIssues(item);
 
-  if ((item as any).responseRaw && (item as any).responseRaw.sampleMetadata) {
-     compact.category = (item as any).responseRaw.sampleMetadata.category;
-     compact.licenseName = (item as any).responseRaw.sampleMetadata.licenseName;
+  const assetMetadata = item.record?.assetMetadata || (item as any).responseRaw?.sampleMetadata;
+  if (assetMetadata) {
+     compact.category = assetMetadata.category;
+     compact.licenseName = assetMetadata.licenseName;
   }
 
-  if ((item as any).responseRaw && (item as any).responseRaw.expectedMetadata) {
-     compact.expected = (item as any).responseRaw.expectedMetadata;
+  const expectedMetadata = item.record?.evaluation?.expectedMetadata || (item as any).responseRaw?.expectedMetadata;
+  if (expectedMetadata) {
+     compact.expected = expectedMetadata;
   }
   
   if (item.comparison) {
@@ -880,7 +882,7 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     jsonRecovery: exec.jsonRecovery
   };
 
-  const visualAnalysis = (item as any).responseRaw?.visualAnalysis;
+  const visualAnalysis = item.record?.visualAnalysis || (item as any).responseRaw?.visualAnalysis;
   const vi = visualAnalysis?.visualInfo;
   const indexing = visualAnalysis?.indexing;
   const normalized = getItemAnalysisRun(item)?.result?.normalized;
@@ -929,7 +931,7 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
     delete compact.parseDiagnostics.requestPreview;
   }
   
-  const normDiag = getItemNormalizationDiagnostics(item) ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
+  const normDiag = getItemNormalizationDiagnostics(item) ?? item.record?.diagnostics?.normalization ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
   if (normDiag) {
     compact.normalizationDiagnostics = {
       schemaVersionCorrected: normDiag.schemaVersionCorrected,
@@ -1043,7 +1045,7 @@ function buildSummaryItem(item: PublicSampleBatchRunItem) {
     summary.retried = item.retryDiagnostics.retried;
   }
 
-  const normDiag = getItemNormalizationDiagnostics(item) ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
+  const normDiag = getItemNormalizationDiagnostics(item) ?? item.record?.diagnostics?.normalization ?? (item as any).responseRaw?.normalizationDiagnostics ?? getItemAnalysisRun(item)?.normalizationDiagnostics;
   if (normDiag?.schemaVersionCorrected) {
     summary.schemaVersionCorrected = true;
     summary.canonicalSchemaVersionApplied = true;
@@ -1130,5 +1132,79 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
     },
     possibleResolutionLimitedCount,
     samples
+  };
+}
+
+export interface BatchInvariantResult {
+  valid: boolean;
+  issues: string[];
+}
+
+export function validateBatchRunInvariants(batchSummary: PublicSampleBatchRunSummary): BatchInvariantResult {
+  const issues: string[] = [];
+
+  for (const item of batchSummary.items) {
+    if (item.success) {
+      if (!item.comparison) {
+        issues.push(`Item ${item.sampleId} is successful but missing a comparison object.`);
+      } else {
+        const comp = item.comparison;
+        if (!comp.overallStatus || !['pass', 'warning', 'fail'].includes(comp.overallStatus)) {
+          issues.push(`Item ${item.sampleId} comparison overallStatus is invalid: ${comp.overallStatus}`);
+        }
+        if (!comp.coverage) {
+          issues.push(`Item ${item.sampleId} comparison missing coverage field.`);
+        } else {
+          const visibleText = comp.coverage.visibleText;
+          if (visibleText) {
+            const { expectedTotal, covered, missing, ratio } = visibleText;
+            if (typeof expectedTotal !== 'number' || typeof covered !== 'number' || typeof missing !== 'number') {
+              issues.push(`Item ${item.sampleId} comparison.coverage.visibleText has invalid non-numeric fields.`);
+            } else if (expectedTotal !== covered + missing) {
+              issues.push(`Item ${item.sampleId} comparison.coverage.visibleText expectedTotal (${expectedTotal}) does not match covered (${covered}) + missing (${missing}).`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const textHeavy = buildTextHeavyEvaluationSummary(batchSummary.items);
+  let recomputedExpectedTotal = 0;
+  let recomputedCovered = 0;
+  let recomputedMissing = 0;
+  let recomputedItemsWithText = 0;
+
+  for (const item of batchSummary.items) {
+    const visibleText = item.comparison?.coverage?.visibleText;
+    if (visibleText && visibleText.expectedTotal > 0) {
+      recomputedItemsWithText++;
+      recomputedExpectedTotal += visibleText.expectedTotal;
+      recomputedCovered += visibleText.covered;
+      recomputedMissing += visibleText.missing;
+    }
+  }
+
+  if (textHeavy.itemsWithTextExpectation !== recomputedItemsWithText) {
+    issues.push(`TextHeavy items count mismatch: expected ${recomputedItemsWithText}, got ${textHeavy.itemsWithTextExpectation}`);
+  }
+  if (textHeavy.expectedVisibleTextTotal !== recomputedExpectedTotal) {
+    issues.push(`TextHeavy expected visible text total mismatch: expected ${recomputedExpectedTotal}, got ${textHeavy.expectedVisibleTextTotal}`);
+  }
+  if (textHeavy.visibleTextCovered !== recomputedCovered) {
+    issues.push(`TextHeavy visible text covered mismatch: expected ${recomputedCovered}, got ${textHeavy.visibleTextCovered}`);
+  }
+  if (textHeavy.textMissing !== recomputedMissing) {
+    issues.push(`TextHeavy visible text missing mismatch: expected ${recomputedMissing}, got ${textHeavy.textMissing}`);
+  }
+
+  const recomputedRatio = recomputedExpectedTotal > 0 ? parseFloat((recomputedCovered / recomputedExpectedTotal).toFixed(2)) : 1.0;
+  if (Math.abs(textHeavy.ratio - recomputedRatio) > 0.001) {
+    issues.push(`TextHeavy ratio mismatch: expected ${recomputedRatio}, got ${textHeavy.ratio}`);
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues
   };
 }
