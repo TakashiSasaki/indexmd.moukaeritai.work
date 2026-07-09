@@ -142,7 +142,7 @@ contracts/
 
 All JSON Schemas and example payloads residing under this folder are verified continuously. 
 
-To run contract checks (verifying JSON syntax, required metadata fields, and example compliance):
+To run contract checks (verifying JSON syntax, required metadata fields, example compliance, and deep nested envelope validation):
 ```bash
 npm run validate:contracts
 ```
@@ -152,3 +152,4 @@ This validation ensures:
 2. Every version folder has a non-empty, informative `README.md`.
 3. Every main schema file contains correct metadata (`x-contract-id`, `x-contract-version`, `x-contract-status`, and stable `$id`).
 4. Example payloads are fully valid against their associated schemas.
+5. **Deep Nested Validation**: Inside envelope schemas (such as `image-analysis-record` and `text-analysis-record`) and API responses, nested payloads (like `visual-analysis` and `summary-analysis`) are validated recursively against their canonical inner schemas to guarantee that examples do not diverge from their respective definitions.

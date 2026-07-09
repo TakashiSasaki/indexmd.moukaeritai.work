@@ -44,10 +44,31 @@
         "environment": "indoor",
         "cover": "covered",
         "weather": "unknown",
-        "lighting": "indoorSoft"
-      }
+        "lighting": "artificialLight"
+      },
+      "visibleElements": [
+        {
+          "label": "laptop",
+          "category": "product",
+          "confidence": 0.98
+        }
+      ],
+      "visibleText": [],
+      "uncertainties": []
     },
-    "visibleElements": []
+    "indexing": {
+      "keywords": [
+        {
+          "value": "workstation",
+          "confidence": 0.9,
+          "importance": 0.8
+        }
+      ]
+    },
+    "quality": {
+      "confidence": 0.95,
+      "issues": []
+    }
   },
   "analysisRun": {
     "runId": "run-f192b-8a21",
