@@ -31,6 +31,7 @@ export class ProviderError extends Error {
   retryAfterMs?: number;
   retryAfterReason?: string;
   retryPolicy?: ProviderGenerationRetryPolicy;
+  notRetriedReason?: string;
 
   constructor(message: string, statusCode?: number, providerStatus?: string, rawMessageSummary?: string) {
     super(message);
@@ -322,21 +323,39 @@ export async function generateContentWithRetry(
       const isUnavailable = statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || providerFailureKind === "providerUnavailable";
       const isInvalidArgument = statusCode === 400 || providerStatus === "INVALID_ARGUMENT" || providerFailureKind === "providerInvalidArgument";
 
+      let notRetriedReason: string | undefined;
       if (policy) {
         if (isQuota) {
           isRetryable = policy.retryQuotaOrRateLimit !== false;
+          if (!isRetryable) notRetriedReason = "retryQuotaOrRateLimit=false";
         } else if (isInternal) {
           isRetryable = policy.retryInternalErrors === true;
+          if (!isRetryable) notRetriedReason = "retryInternalErrors=false";
         } else if (isUnavailable) {
           isRetryable = policy.retryUnavailable !== false;
+          if (!isRetryable) notRetriedReason = "retryUnavailable=false";
         } else if (isInvalidArgument) {
           isRetryable = policy.retryInvalidArgument === true;
+          if (!isRetryable) notRetriedReason = "retryInvalidArgument=false";
         } else {
-          // generic fallback under policy
-          isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || quotaExceeded;
+          isRetryable = statusCode === 503 || statusCode === 429 || quotaExceeded;
+          if (!isRetryable) notRetriedReason = "nonRetryableProviderStatus";
         }
       } else {
-        isRetryable = statusCode === 503 || statusCode === 429 || statusCode === 500 || quotaExceeded;
+        if (isInternal) {
+          isRetryable = false;
+          notRetriedReason = "retryInternalErrors=false";
+        } else if (isQuota || isUnavailable || statusCode === 503 || statusCode === 429 || quotaExceeded) {
+          isRetryable = true;
+        } else {
+          isRetryable = false;
+          if (isInvalidArgument) notRetriedReason = "retryInvalidArgument=false";
+          else notRetriedReason = "nonRetryableProviderStatus";
+        }
+      }
+      
+      if (i >= resolvedMaxAttempts - 1 && isRetryable) {
+        notRetriedReason = "maxAttemptsReached";
       }
 
       let delayMs;
@@ -364,7 +383,8 @@ export async function generateContentWithRetry(
         delayMs: isRetryable ? delayMs : undefined,
         retryAfterMs,
         retryReason: retryAfterReason,
-        providerFailureKind
+        providerFailureKind,
+        notRetriedReason
       });
       
       lastError = new ProviderError(
@@ -383,6 +403,7 @@ export async function generateContentWithRetry(
       lastError.retryAfterMs = retryAfterMs;
       lastError.retryAfterReason = retryAfterReason;
       lastError.retryPolicy = policy;
+      lastError.notRetriedReason = notRetriedReason;
       
       // Fallback logic for 500 errors with native schema
       if (isRetryable && statusCode === 500 && configOption?.responseSchema) {

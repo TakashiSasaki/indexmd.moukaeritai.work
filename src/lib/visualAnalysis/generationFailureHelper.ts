@@ -46,6 +46,7 @@ export function buildGenerationFailureResponse(args: {
     diagnostics.retryAfterMs = err.retryAfterMs;
     diagnostics.retryAfterReason = err.retryAfterReason;
     diagnostics.retryPolicy = err.retryPolicy;
+    diagnostics.notRetriedReason = err.notRetriedReason;
     diagnostics.errorName = err.errorName;
     diagnostics.causeName = err.causeName;
     diagnostics.causeMessageSummary = err.causeMessageSummary;
