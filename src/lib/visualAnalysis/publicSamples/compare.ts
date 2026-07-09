@@ -756,6 +756,7 @@ export interface PublicSampleComparisonSummary {
 
 export function evaluateSampleComparison(sample: PublicVisualSample, result: any): PublicSampleComparisonSummary {
   const record = result?.record;
+
   const visualAnalysis =
     result?.visualAnalysis ??
     record?.visualAnalysis;
@@ -767,16 +768,65 @@ export function evaluateSampleComparison(sample: PublicVisualSample, result: any
 
   const resolvedSample = {
     ...sample,
-    expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind ?? (sample as any).imageKind,
-    acceptableImageKinds: expectedMetadata?.acceptableImageKinds ?? sample.acceptableImageKinds ?? (sample as any).acceptableImageKinds ?? [],
-    expectedElementCategories: expectedMetadata?.elementCategories ?? sample.expectedElementCategories ?? (sample as any).elementCategories ?? [],
-    expectedVisibleElementLabels: expectedMetadata?.visibleElementLabels ?? sample.expectedVisibleElementLabels ?? (sample as any).visibleElementLabels ?? [],
-    expectedVisibleElementLabelAliases: expectedMetadata?.visibleElementLabelAliases ?? sample.expectedVisibleElementLabelAliases ?? (sample as any).visibleElementLabelAliases ?? {},
-    expectedVisibleText: expectedMetadata?.visibleText ?? sample.expectedVisibleText ?? (sample as any).visibleText ?? [],
-    optionalElementCategories: expectedMetadata?.optionalElementCategories ?? sample.optionalElementCategories ?? [],
-    optionalVisibleElementLabels: expectedMetadata?.optionalVisibleElementLabels ?? sample.optionalVisibleElementLabels ?? [],
-    optionalVisibleElementLabelAliases: expectedMetadata?.optionalVisibleElementLabelAliases ?? sample.optionalVisibleElementLabelAliases ?? {},
-    optionalVisibleText: expectedMetadata?.optionalVisibleText ?? sample.optionalVisibleText ?? []
+    expectedImageKind:
+      expectedMetadata?.imageKind ??
+      sample.expectedImageKind ??
+      (sample as any).imageKind,
+
+    acceptableImageKinds:
+      expectedMetadata?.acceptableImageKinds ??
+      sample.acceptableImageKinds ??
+      (sample as any).acceptableImageKinds ??
+      [],
+
+    expectedElementCategories:
+      expectedMetadata?.elementCategories ??
+      sample.expectedElementCategories ??
+      (sample as any).elementCategories ??
+      [],
+
+    expectedElementCategoryAlternatives:
+      expectedMetadata?.elementCategoryAlternatives ??
+      sample.expectedElementCategoryAlternatives ??
+      {},
+
+    expectedVisibleElementLabels:
+      expectedMetadata?.visibleElementLabels ??
+      sample.expectedVisibleElementLabels ??
+      (sample as any).visibleElementLabels ??
+      [],
+
+    expectedVisibleElementLabelAliases:
+      expectedMetadata?.visibleElementLabelAliases ??
+      sample.expectedVisibleElementLabelAliases ??
+      (sample as any).visibleElementLabelAliases ??
+      {},
+
+    expectedVisibleText:
+      expectedMetadata?.visibleText ??
+      sample.expectedVisibleText ??
+      (sample as any).visibleText ??
+      [],
+
+    optionalElementCategories:
+      expectedMetadata?.optionalElementCategories ??
+      sample.optionalElementCategories ??
+      [],
+
+    optionalVisibleElementLabels:
+      expectedMetadata?.optionalVisibleElementLabels ??
+      sample.optionalVisibleElementLabels ??
+      [],
+
+    optionalVisibleElementLabelAliases:
+      expectedMetadata?.optionalVisibleElementLabelAliases ??
+      sample.optionalVisibleElementLabelAliases ??
+      {},
+
+    optionalVisibleText:
+      expectedMetadata?.optionalVisibleText ??
+      sample.optionalVisibleText ??
+      []
   };
   sample = resolvedSample;
 

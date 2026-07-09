@@ -133,4 +133,24 @@ describe('Public Visual Sample Registry', () => {
     assert.deepEqual(personSample.optionalElementCategories, ["container"]);
     assert.deepEqual(personSample.optionalVisibleElementLabels, ["vase surface", "scroll"]);
   });
+
+  it('verifies calibration of the five focus samples', () => {
+    const samples = getAllPublicSamples();
+
+    const packageSample = samples.find(s => s.id === "sample-package-1");
+    assert.ok(packageSample);
+    assert.ok(packageSample.acceptableImageKinds?.includes("productPhoto"));
+
+    const tableSample = samples.find(s => s.id === "sample-table-synthetic");
+    assert.ok(tableSample);
+    assert.ok(tableSample.acceptableImageKinds?.includes("screenshot"));
+
+    const receiptSample = samples.find(s => s.id === "sample-receipt-synthetic");
+    assert.ok(receiptSample);
+    assert.ok(receiptSample.acceptableImageKinds?.includes("documentPhoto"));
+
+    const ticketSample = samples.find(s => s.id === "sample-ticket-synthetic");
+    assert.ok(ticketSample);
+    assert.ok(ticketSample.expectedVisibleText?.includes("TICKET"));
+  });
 });
