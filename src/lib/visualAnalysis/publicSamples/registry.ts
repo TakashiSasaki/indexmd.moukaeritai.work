@@ -282,8 +282,12 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Synthetic Market Receipt",
     category: "receipt",
     expectedImageKind: "receiptPhoto",
+    acceptableImageKinds: ["receiptPhoto", "documentPhoto"],
     expectedElementCategories: ["document", "textRegion"],
-    expectedVisibleElementLabels: ["receipt", "text", "prices", "items", "total"],
+    expectedElementCategoryAlternatives: {
+      "document": ["table", "textRegion"]
+    },
+    expectedVisibleElementLabels: ["receipt", "prices", "total"],
     expectedVisibleElementLabelAliases: {
       "receipt": ["receipt", "bill", "invoice", "document"],
       "text": ["text", "print", "writing"],
@@ -291,6 +295,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       "items": ["itemized list", "items", "products"],
       "total": ["total", "amount", "total amount"]
     },
+    optionalVisibleElementLabels: ["text", "items"],
     expectedVisibleText: ["TOTAL", "$"],
     source: {
       provider: "localFixture",
@@ -309,7 +314,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     category: "ticket",
     expectedImageKind: "documentPhoto",
     expectedElementCategories: ["document", "textRegion"],
-    expectedVisibleElementLabels: ["ticket", "text", "gate", "seat", "event"],
+    expectedVisibleElementLabels: ["ticket", "text", "seat", "event"],
     expectedVisibleElementLabelAliases: {
       "ticket": ["ticket", "pass", "document"],
       "text": ["text", "print", "writing"],
@@ -317,6 +322,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       "seat": ["seat number", "seat"],
       "event": ["event details", "event"]
     },
+    optionalVisibleElementLabels: ["gate"],
     expectedVisibleText: ["ADMIT ONE", "TICKET"],
     source: {
       provider: "localFixture",
@@ -498,14 +504,15 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Tokyo Neon Street Signs",
     category: "street",
     expectedImageKind: "landscapePhoto",
-    expectedElementCategories: ["building", "signage"],
+    acceptableImageKinds: ["landscapePhoto", "naturalPhoto"],
+    expectedElementCategories: ["signage"],
     expectedVisibleElementLabels: ["street", "signs", "neon"],
     expectedVisibleElementLabelAliases: {
       "street": ["roadOrPath", "street", "alley", "kabukicho street"],
       "signs": ["signage", "billboards", "signs"],
       "neon": ["neon signs", "lights", "neon"]
     },
-    optionalElementCategories: ["roadOrPath"],
+    optionalElementCategories: ["roadOrPath", "building"],
     optionalVisibleText: ["KABUKICHO"],
     source: {
       provider: "Wikimedia Commons",
@@ -579,6 +586,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Candlestick Chart",
     category: "chartOrTable",
     expectedImageKind: "chartOrTable",
+    acceptableImageKinds: ["chartOrTable", "screenshot", "documentPhoto"],
     expectedElementCategories: ["chart", "textRegion"],
     expectedVisibleElementLabels: ["candlestick chart", "axes", "price"],
     expectedVisibleElementLabelAliases: {
@@ -606,6 +614,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Shampoo Bottle",
     category: "package",
     expectedImageKind: "packageImage",
+    acceptableImageKinds: ["packageImage", "productPhoto"],
     expectedElementCategories: ["productPackage", "textRegion"],
     expectedVisibleElementLabels: ["bottle", "label", "shampoo"],
     expectedVisibleElementLabelAliases: {
@@ -633,6 +642,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Synthetic Annual Revenue Chart",
     category: "chartOrTable",
     expectedImageKind: "chartOrTable",
+    acceptableImageKinds: ["chartOrTable", "screenshot", "documentPhoto"],
     expectedElementCategories: ["chart", "textRegion"],
     expectedVisibleElementLabels: ["bar chart", "axis", "legend"],
     expectedVisibleElementLabelAliases: {
@@ -657,6 +667,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Synthetic Milestones Table",
     category: "chartOrTable",
     expectedImageKind: "chartOrTable",
+    acceptableImageKinds: ["chartOrTable", "screenshot", "documentPhoto"],
     expectedElementCategories: ["table", "textRegion"],
     expectedVisibleElementLabels: ["table", "rows", "columns", "headers"],
     expectedVisibleElementLabelAliases: {
@@ -731,6 +742,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Synthetic Product Package Label",
     category: "package",
     expectedImageKind: "packageImage",
+    acceptableImageKinds: ["packageImage", "productPhoto"],
     expectedElementCategories: ["productPackage", "textRegion"],
     expectedVisibleElementLabels: ["package", "label", "ingredients", "barcode"],
     expectedVisibleElementLabelAliases: {

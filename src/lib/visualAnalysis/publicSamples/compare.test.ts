@@ -461,4 +461,88 @@ describe('evaluateSampleComparison record-aware structures', () => {
     assert.deepEqual(summary.categories.matched, ['plant']);
     assert.deepEqual(summary.visibleText.matched, ['Sky']);
   });
+
+  test('8.1 acceptable image kind tests', () => {
+    const runTest = (expected: any, detected: any, acceptableList?: any[]) => {
+      const sample = {
+        id: "test-acc-1",
+        expectedImageKind: expected,
+        acceptableImageKinds: acceptableList,
+        expectedElementCategories: [],
+        expectedVisibleElementLabels: [],
+        expectedVisibleText: []
+      } as any;
+
+      const result = {
+        record: {
+          evaluation: {
+            expectedMetadata: {
+              imageKind: expected
+            }
+          },
+          visualAnalysis: {
+            visualInfo: {
+              imageKind: detected,
+              visibleElements: [],
+              visibleText: []
+            }
+          }
+        }
+      };
+
+      return evaluateSampleComparison(sample, result);
+    };
+
+    // packageImage expected + productPhoto detected is acceptable when sample.acceptableImageKinds includes productPhoto
+    const r1 = runTest("packageImage", "productPhoto", ["packageImage", "productPhoto"]);
+    assert.strictEqual(r1.imageKind.status, "acceptable");
+
+    // chartOrTable expected + screenshot detected is acceptable when sample.acceptableImageKinds includes screenshot
+    const r2 = runTest("chartOrTable", "screenshot", ["chartOrTable", "screenshot"]);
+    assert.strictEqual(r2.imageKind.status, "acceptable");
+
+    // receiptPhoto expected + documentPhoto detected is acceptable when sample.acceptableImageKinds includes documentPhoto
+    const r3 = runTest("receiptPhoto", "documentPhoto", ["receiptPhoto", "documentPhoto"]);
+    assert.strictEqual(r3.imageKind.status, "acceptable");
+
+    // landscapePhoto expected + naturalPhoto detected is acceptable only when sample.acceptableImageKinds includes naturalPhoto
+    const r4WithAcc = runTest("landscapePhoto", "naturalPhoto", ["landscapePhoto", "naturalPhoto"]);
+    assert.strictEqual(r4WithAcc.imageKind.status, "acceptable");
+
+    const r4WithoutAcc = runTest("landscapePhoto", "naturalPhoto", undefined);
+    assert.strictEqual(r4WithoutAcc.imageKind.status, "diverged");
+  });
+
+  test('8.2 strict visibleText sentinel test', () => {
+    const sample = {
+      id: "test-sentinel-1",
+      expectedImageKind: "documentPhoto",
+      expectedElementCategories: [],
+      expectedVisibleElementLabels: [],
+      expectedVisibleText: ["TICKET"]
+    } as any;
+
+    const result = {
+      record: {
+        evaluation: {
+          expectedMetadata: {
+            imageKind: "documentPhoto"
+          }
+        },
+        visualAnalysis: {
+          visualInfo: {
+            imageKind: "documentPhoto",
+            visibleElements: [],
+            visibleText: ["ADMIT ONE"] // missing "TICKET"
+          }
+        }
+      }
+    };
+
+    const summary = evaluateSampleComparison(sample, result);
+    // expectedVisibleText ["TICKET"] and detected visibleText missing it should remain reviewStatus fail
+    assert.strictEqual(summary.overallStatus, "fail");
+    assert.strictEqual(summary.reviewStatus, "fail");
+    assert.ok(summary.reasons.some(r => r.includes("missing expected visible text")));
+  });
 });

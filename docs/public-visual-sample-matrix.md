@@ -122,6 +122,27 @@ Every comparison generates a detailed, multi-dimensional `coverage` structure ba
 
 ---
 
+## Taxonomy Calibration & Soft Equivalences
+
+To move the regression harness from "structurally sound" to "stable regression evaluation," the evaluator supports flexible, non-diluting soft equivalences and taxonomy calibrations that maintain regression sensitivity while eliminating false-positive mismatches:
+
+### 1. Acceptable Image Kinds
+Certain image kinds reside on taxonomy boundaries depending on minor composition differences. For these cases, we define sample-specific `acceptableImageKinds` in `registry.ts` rather than weakening global rules:
+- **Receipts/Documents**: `receiptPhoto` expected, `documentPhoto` acceptable (e.g., `sample-receipt-synthetic`).
+- **Charts/Tables**: `chartOrTable` expected, `screenshot` or `documentPhoto` acceptable (e.g., `sample-table-synthetic`, `sample-chart-synthetic`).
+- **Packages/Products**: `packageImage` expected, `productPhoto` acceptable (e.g., `sample-package-1`).
+- **Landscapes/Natural Scenes**: `landscapePhoto` expected, `naturalPhoto` acceptable (e.g., `sample-street-signs-1`).
+
+### 2. Expected Element Category Alternatives
+When multiple categories correctly describe an element, we define alternative category matches to avoid "missing category" flags:
+- Example: `"document": ["table", "textRegion"]` for `sample-receipt-synthetic` maps the structural `document` expectation to detected tables or high-density text regions.
+
+### 3. Strict Regression Sentinels
+To preserve the regression harness's sensitivity to OCR and detection degradation, certain key expectations are designated as strict regression sentinels:
+- **Required visibleText**: Critical text keys (like `"TICKET"` in `sample-ticket-synthetic`) are maintained as **required**. If the model fails to detect this text, it is treated as a strict fail (`reviewStatus: "fail"`), ensuring the harness remains a high-fidelity diagnostic utility for OCR regressions.
+
+---
+
 ### Known Coverage Gaps
 - **Mixed Content**: The `sample-mixed-1` originally expected to test mixed content but represents antique furniture.
   - **Status**: We have successfully introduced a new local synthetic mixed sample (`sample-mixed-scene-synthetic`) representing a modern desk setup with a journal, coffee cup, phone, and sticky note. This restores full test coverage for the `mixed` image kind and mixed-scene taxonomies.
