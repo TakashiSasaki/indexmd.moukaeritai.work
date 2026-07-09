@@ -13,6 +13,14 @@ export function jobToSummary(job: VisualBatchJob) {
   })) as any[];
 
   return {
+    jobStatus: job.status,
+    completedCount: job.counters.successCount,
+    pendingCount: job.targetSampleIds.length - job.counters.successCount - job.counters.failureCount,
+    processedCount: job.counters.successCount + job.counters.failureCount,
+    isComplete: job.status === 'completed' || job.status === 'canceled' || job.status === 'failed',
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    durationMs: job.durationMs,
     runId: job.jobId,
     timestamp: job.createdAt,
     modelName: job.modelName,

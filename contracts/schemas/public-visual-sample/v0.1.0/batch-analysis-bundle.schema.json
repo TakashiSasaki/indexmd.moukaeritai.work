@@ -45,19 +45,24 @@
       "type": "integer"
     },
     "counterConsistency": {
-      "type": "boolean"
+      "type": "object",
+      "additionalProperties": true
     },
     "comparisonCoverage": {
-      "type": "boolean"
+      "type": "object",
+      "additionalProperties": true
     },
     "comparisonRecordConsistency": {
-      "type": "boolean"
+      "type": "object",
+      "additionalProperties": true
     },
     "invariants": {
-      "type": "boolean"
+      "type": "object",
+      "additionalProperties": true
     },
     "analysisGuidance": {
-      "type": "string"
+      "type": "object",
+      "additionalProperties": true
     },
     "failures": {
       "type": "object",

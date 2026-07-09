@@ -55,6 +55,11 @@ export interface PublicSampleBatchRunItem {
 }
 
 export interface PublicSampleBatchRunSummary {
+  jobStatus?: string;
+  completedCount?: number;
+  pendingCount?: number;
+  processedCount?: number;
+  isComplete?: boolean;
   startedAt?: string;
   completedAt?: string;
   durationMs?: number;

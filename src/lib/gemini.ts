@@ -47,7 +47,16 @@ export function extractProviderErrorDetails(err: any): {
   rawMessage: string;
 } {
   let statusCode = err?.status || err?.response?.status || err?.error?.code;
-  const rawMessage = err?.message || "";
+  let rawMessage = err?.message || "";
+  
+  if (err?.cause) {
+    const cause = err.cause;
+    rawMessage += ` | cause: ${cause.name || 'Error'}: ${cause.message || ''}`;
+    if (cause.code) rawMessage += ` (code: ${cause.code})`;
+    if (cause.errno) rawMessage += ` (errno: ${cause.errno})`;
+    if (cause.syscall) rawMessage += ` (syscall: ${cause.syscall})`;
+    if (cause.hostname) rawMessage += ` (host: ${cause.hostname})`;
+  }
 
   if (!statusCode && rawMessage) {
     try {
@@ -103,12 +112,19 @@ export function classifyProviderFailureKind(
   let quotaExceeded = false;
   let rateLimited = false;
 
+  const upperMsgStr = rawMessage.toUpperCase();
+  const isTransientTransport = upperMsgStr.includes("ECONNRESET") || 
+                               upperMsgStr.includes("ETIMEDOUT") || 
+                               upperMsgStr.includes("EAI_AGAIN") || 
+                               upperMsgStr.includes("UND_ERR_CONNECT_TIMEOUT") || 
+                               upperMsgStr.includes("UND_ERR_HEADERS_TIMEOUT") || 
+                               upperMsgStr.includes("FETCH FAILED");
+
   if (statusCode === 429) {
     rateLimited = true;
     providerFailureKind = "providerRateLimited";
   }
 
-  const upperMsgStr = rawMessage.toUpperCase();
   const isQuotaStatus = providerStatus === "RESOURCE_EXHAUSTED" || 
                         providerStatus === "QUOTA_EXCEEDED" || 
                         upperMsgStr.includes("RESOURCE_EXHAUSTED") || 
@@ -126,7 +142,9 @@ export function classifyProviderFailureKind(
     }
   }
 
-  if (statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || upperMsgStr.includes("UNAVAILABLE")) {
+  if (isTransientTransport) {
+    providerFailureKind = "providerUnavailable";
+  } else if (statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || upperMsgStr.includes("UNAVAILABLE")) {
     providerFailureKind = "providerUnavailable";
   }
 
