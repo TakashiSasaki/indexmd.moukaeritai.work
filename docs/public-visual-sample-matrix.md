@@ -75,7 +75,8 @@ During batch evaluation, four different JSON artifacts are generated to help opt
    - **Value**: If all tests pass, this artifact is virtually empty. When failure emerges, this snippet can be pasted into ChatGPT to immediately pinpoint structural or provider-side issues.
 
 4. **Full Batch JSON**:
-   - **Purpose**: Comprehensive historical archive containing all execution runs, raw API outputs, and complete comparisons.
+   - **Purpose**: Comprehensive historical archive containing each sample's canonical `ImageAnalysisRecord`, comparison summary, retry metadata, response diagnostics, and record-centered execution diagnostics.
+   - **Excluded Content**: New artifacts do not emit legacy raw API response bodies such as `responseRaw`. Legacy artifacts may be normalized through compatibility helpers only.
    - **Action**: Due to its immense size, this should be downloaded (via the recommended "Download" action) rather than copied, preventing truncation or clipboard crashes.
 
 ### Copy Integrity Verification (endSentinel)

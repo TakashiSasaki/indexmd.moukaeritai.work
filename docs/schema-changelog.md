@@ -1,8 +1,18 @@
 # Summary Analysis Schema Changelog
 
 ## Unreleased
-- Type: record-centered contract consolidation, legacy fallback normalization, and rigorous report invariants
+- Type: record-centered contract consolidation, legacy fallback normalization, rigorous report invariants, and expectation calibration
 - **Changes**:
+  - Calibrated public visual sample expectations for stable regression review.
+  - Added sample-specific `acceptableImageKinds` for taxonomy boundary cases:
+    - `receiptPhoto` expected with `documentPhoto` acceptable for the synthetic receipt fixture.
+    - `packageImage` expected with `productPhoto` acceptable for package/product photos.
+    - `chartOrTable` expected with `screenshot` / `documentPhoto` acceptable for synthetic chart/table fixtures.
+    - `landscapePhoto` expected with `naturalPhoto` acceptable for outdoor street-scene boundary cases.
+  - Moved non-core expectations to optional fields where appropriate (e.g. `text`, `items` in synthetic receipt, `gate` in synthetic ticket, and `building` in Tokyo neon street signs).
+  - Preserved required visibleText sentinels, especially `TICKET` in `sample-ticket-synthetic`, so OCR regressions remain strict failures.
+  - Added registry tests for focus sample calibration.
+  - Added comparison tests proving `acceptableImageKinds` only softens imageKind mismatch when explicitly configured.
   - Deprecated and removed legacy flat compatibility fields and `responseRaw` references across `compare.ts`, `reportBuilder.ts`, and frontend components.
   - Implemented `normalizeLegacyBatchRunItem` helper on the backend to safely bridge old `responseRaw` data into compliant `record` containers.
   - Refactored all evaluation diagnostics and metadata extraction helpers in `reportBuilder.ts` (`getItemQualityStatus`, `getItemExecutionMetadata`, etc.) to operate strictly on the `item.record` object.
