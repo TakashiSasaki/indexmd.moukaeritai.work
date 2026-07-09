@@ -9,25 +9,37 @@ import {
 import { PublicSampleBatchRunItem } from './batchTypes';
 
 describe('Public Sample Batch Checkpoint', () => {
-  const dummyItem: PublicSampleBatchRunItem = {
+  const dummyItem: any = {
     sampleId: 'sample-1',
     title: 'sample-1',
     success: true,
-    record: {
-      status: { success: true },
-      diagnostics: {
-        parse: {
-          rawOutputPreview: 'previewText',
-          requestPreview: { some: 'preview' }
-        } as any
-      },
+    responseRaw: {
+      rawOutput: '{"test": 1}',
+      rawOutputPreview: 'previewText',
+      requestPreview: { some: 'preview' },
       analysisRun: {
         execution: {
           jsonRecovery: {
             rawOutputPreview: 'recoveryPreview'
           }
         }
+      }
+    },
+    analysisRun: {
+      metadata: {
+        runId: 'abc',
+        timestamp: '2026-06-28',
+        model: { name: 'gemini-3.5-flash', providerFamily: 'gemini' },
+        execution: { jsonMode: 'json', structuredExecutionMode: 'native' }
+      } as any,
+      execution: {
+        jsonRecovery: {
+          rawOutputPreview: 'otherRecoveryPreview'
+        }
       } as any
+    },
+    parseDiagnostics: {
+      rawOutputPreview: 'diagPreview'
     } as any
   };
 
@@ -122,12 +134,15 @@ describe('Public Sample Batch Checkpoint', () => {
     const shrunk = shrinkCheckpointForLocalStorage(dummyCheckpoint);
     const firstItem = shrunk.items[0];
 
-    assert.strictEqual(firstItem.record?.diagnostics?.parse?.rawOutputPreview, undefined);
-    assert.strictEqual(firstItem.record?.diagnostics?.parse?.requestPreview, undefined);
-    assert.strictEqual(firstItem.record?.analysisRun?.execution?.jsonRecovery?.rawOutputPreview, undefined);
+    assert.strictEqual(firstItem.responseRaw?.rawOutput, undefined);
+    assert.strictEqual(firstItem.responseRaw?.rawOutputPreview, undefined);
+    assert.strictEqual(firstItem.responseRaw?.requestPreview, undefined);
+    assert.strictEqual(firstItem.responseRaw?.analysisRun?.execution?.jsonRecovery?.rawOutputPreview, undefined);
+    assert.strictEqual((firstItem.analysisRun?.execution?.jsonRecovery as any)?.rawOutputPreview, undefined);
+    assert.strictEqual((firstItem.parseDiagnostics as any)?.rawOutputPreview, undefined);
 
     // Confirm original was not mutated
-    assert.strictEqual(dummyCheckpoint.items[0].record?.diagnostics?.parse?.rawOutputPreview, 'previewText');
+    assert.strictEqual(dummyCheckpoint.items[0].responseRaw?.rawOutput, '{"test": 1}');
   });
 
   it('rebuildBatchSummaryFromCheckpoint reconstructs batch summary object', () => {

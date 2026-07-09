@@ -21,15 +21,7 @@ import {
   rebuildBatchSummaryFromCheckpoint,
   buildTargetSampleIdsHash
 } from '../lib/visualAnalysis/publicSamples/batchCheckpoint';
-import { 
-  buildBatchReportForChat, 
-  buildFailuresOnlyReport, 
-  buildBatchSummaryReportForChat, 
-  buildBatchDiagnosticReportForChat, 
-  buildFullItemReport,
-  getItemExecutionMetadata,
-  getItemFailureTaxonomy
-} from '../lib/visualAnalysis/publicSamples/reportBuilder';
+import { buildBatchReportForChat, buildFailuresOnlyReport, buildBatchSummaryReportForChat, buildBatchDiagnosticReportForChat, buildFullItemReport } from '../lib/visualAnalysis/publicSamples/reportBuilder';
 import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
@@ -388,32 +380,30 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       });
 
       const data = sfResult.data || {};
-      const record = data.record;
-      const success = sfResult.success && record?.status?.success;
+      const success = sfResult.success && data.success;
       
       let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
       let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
-      if (success && record?.evaluation?.expectedMetadata) {
-        const expectedMetadata = record.evaluation.expectedMetadata;
+      if (success && data.record?.evaluation?.expectedMetadata) {
         const comparisonSample = {
           id: sampleId,
           title: matchedSample?.title || sampleId,
           category: (matchedSample?.category || "other") as any,
           source: (matchedSample?.source || "unknown") as any,
-          expectedImageKind: expectedMetadata.imageKind,
-          acceptableImageKinds: expectedMetadata.acceptableImageKinds || [],
-          expectedElementCategories: expectedMetadata.elementCategories || [],
-          expectedVisibleElementLabels: expectedMetadata.visibleElementLabels || [],
-          expectedVisibleElementLabelAliases: expectedMetadata.visibleElementLabelAliases || {},
-          expectedVisibleText: expectedMetadata.visibleText || [],
-          optionalElementCategories: expectedMetadata.optionalElementCategories || [],
-          optionalVisibleElementLabels: expectedMetadata.optionalVisibleElementLabels || [],
-          optionalVisibleElementLabelAliases: expectedMetadata.optionalVisibleElementLabelAliases || {},
-          optionalVisibleText: expectedMetadata.optionalVisibleText || []
+          expectedImageKind: data.record?.evaluation?.expectedMetadata?.imageKind,
+          acceptableImageKinds: data.record?.evaluation?.expectedMetadata?.acceptableImageKinds || [],
+          expectedElementCategories: data.record?.evaluation?.expectedMetadata.elementCategories || [],
+          expectedVisibleElementLabels: data.record?.evaluation?.expectedMetadata.visibleElementLabels || [],
+          expectedVisibleElementLabelAliases: data.record?.evaluation?.expectedMetadata.visibleElementLabelAliases || {},
+          expectedVisibleText: data.record?.evaluation?.expectedMetadata.visibleText || [],
+          optionalElementCategories: data.record?.evaluation?.expectedMetadata.optionalElementCategories || [],
+          optionalVisibleElementLabels: data.record?.evaluation?.expectedMetadata.optionalVisibleElementLabels || [],
+          optionalVisibleElementLabelAliases: data.record?.evaluation?.expectedMetadata.optionalVisibleElementLabelAliases || {},
+          optionalVisibleText: data.record?.evaluation?.expectedMetadata.optionalVisibleText || []
         };
         try {
-          const comp = evaluateSampleComparison(comparisonSample, record);
+          const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
           overallStatus = comp.overallStatus;
           reviewStatus = comp.reviewStatus;
         } catch (e) {}
@@ -785,7 +775,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       }
 
       const data = sfResult.data || {};
-      const record = data.record;
 
       if (!sfResult.success) {
         const errMsg = sfResult.error || "Failed to analyze public sample";
@@ -793,8 +782,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           success: false,
           error: errMsg,
           failureKind: sfResult.failureKind,
-          responseDiagnostics: sfResult.responseDiagnostics,
-          record
+          responseDiagnostics: sfResult.responseDiagnostics
         };
         setResult(errorResult);
         onAddLog("error", `[Image Analysis] Error: ${errMsg}`);
@@ -811,8 +799,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         });
       } else {
         setResult(data);
-        if (!record?.status?.success) {
-          onAddLog("error", `[Image Analysis] Error: ${record?.status?.error || "Failed to analyze public sample"}`);
+        if (!data.success) {
+          onAddLog("error", `[Image Analysis] Error: ${data.error || "Failed to analyze public sample"}`);
           setSampleStatuses(prev => ({ ...prev, [selectedSampleId]: "failure" }));
 
           handleUpdateMatrixResult({
@@ -821,7 +809,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             jsonMode: jsonModeOption,
             success: false,
             timestamp: new Date().toISOString(),
-            error: record?.status?.error || "Failed to analyze public sample",
+            error: data.error || "Failed to analyze public sample",
             source: 'client-single'
           });
         } else {
@@ -831,7 +819,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
           let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
-          const expectedMetadata = record?.evaluation?.expectedMetadata;
+          const expectedMetadata = data.record?.evaluation?.expectedMetadata;
           const comparisonSample = {
             id: selectedSampleId,
             title: selectedSample?.title || selectedSampleId,
@@ -850,7 +838,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             optionalVisibleText: expectedMetadata?.optionalVisibleText ?? selectedSample?.optionalVisibleText ?? []
           };
           try {
-            const comp = evaluateSampleComparison(comparisonSample, record);
+            const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
             overallStatus = comp.overallStatus;
             reviewStatus = comp.reviewStatus;
           } catch (e) {}
@@ -1164,18 +1152,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       
       // Re-sum counters from remaining/restored items
       for (const item of items) {
-        const record = item.record;
-        const evaluation = record?.evaluation;
-        const status = record?.status;
-        const isSuccess = status?.success ?? item.success;
-
-        if (isSuccess) {
+        if (item.success) {
           successCount++;
-          const qualityStatus = evaluation?.qualityStatus;
-          if (qualityStatus === 'valid') validCount++;
-          if (qualityStatus === 'validLowQuality') validLowQualityCount++;
+          if (item.qualityStatus === 'valid') validCount++;
+          if (item.qualityStatus === 'validLowQuality') validLowQualityCount++;
           
-          const comp = evaluation?.comparison;
+          const comp = item.comparison;
           if (comp) {
             if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
             if (comp.overallStatus === 'warning') expectedComparisonWarningCount++;
@@ -1445,18 +1427,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
             const data = sfResult.data || {};
             const record = data.record;
-            
             const sampleCompletedAt = new Date();
+
             item = {
               sampleId: sample.id,
               title: sample.title,
               startedAt: sampleStartedAt.toISOString(),
               completedAt: sampleCompletedAt.toISOString(),
               durationMs: sampleCompletedAt.getTime() - sampleStartedAt.getTime(),
-              success: sfResult.success && record?.status?.success,
+              success: sfResult.success && data.success,
               record,
-              failureKind: sfResult.failureKind || record?.status?.failureKind,
-              error: sfResult.error || record?.status?.error,
+              failureKind: sfResult.failureKind || data.failureKind || record?.status?.failureKind,
+              error: sfResult.error || data.error || record?.status?.error,
               responseDiagnostics: sfResult.responseDiagnostics,
               retryDiagnostics: sfResult.retryDiagnostics
             };
@@ -1464,11 +1446,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             if (sfResult.success && data.success) {
                 successCount++;
                 newStatuses[sample.id] = "success";
-                if (data.qualityStatus === 'valid') validCount++;
-                if (data.qualityStatus === 'validLowQuality') validLowQualityCount++;
+                if (record?.evaluation?.qualityStatus === 'valid') validCount++;
+                if (record?.evaluation?.qualityStatus === 'validLowQuality') validLowQualityCount++;
                 
                 // compute comparison
-                const expectedMetadata = data.expectedMetadata;
+                const expectedMetadata = data.record?.evaluation?.expectedMetadata;
                 const comparisonSample = {
                   ...sample,
                   expectedImageKind: expectedMetadata?.imageKind ?? sample.expectedImageKind,
@@ -1483,7 +1465,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   optionalVisibleElementLabelAliases: expectedMetadata?.optionalVisibleElementLabelAliases ?? sample.optionalVisibleElementLabelAliases,
                   optionalVisibleText: expectedMetadata?.optionalVisibleText ?? sample.optionalVisibleText
                 };
-                const comp = evaluateSampleComparison(comparisonSample, data);
+                const comp = evaluateSampleComparison(comparisonSample, { record: data.record, visualAnalysis: data.record?.visualAnalysis });
                 item.comparison = comp;
                 
                 if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
@@ -1632,28 +1614,46 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       return {
         ...sum,
         items: sum.items.map(it => {
-          const record = it.record;
-          const evaluation = record?.evaluation;
           const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === it.sampleId);
-          const category = record?.assetMetadata?.category || 
+          const category = it.category ||
                            matchedSample?.category || 
+                           (it.responseRaw?.sampleMetadata as any)?.category ||
+                           (it.comparison as any)?.category ||
                            "unknown";
           
-          const exec = getItemExecutionMetadata(it);
+          let exec: any = undefined;
+          if (it.analysisRun?.metadata ?? it.analysisRun) {
+            const run = it.analysisRun?.metadata ?? it.analysisRun;
+            exec = {
+              modelName: run.model?.name || run.execution?.modelName,
+              providerFamily: run.model?.providerFamily || run.execution?.providerFamily,
+              structuredExecutionMode: run.execution?.structuredExecutionMode,
+              jsonMode: run.execution?.jsonMode,
+              jsonRecovery: run.execution?.jsonRecovery
+            };
+          } else if (it.execution) {
+            exec = {
+              modelName: it.execution.modelName,
+              providerFamily: it.execution.providerFamily,
+              structuredExecutionMode: it.execution.structuredExecutionMode,
+              jsonMode: it.execution.jsonMode,
+              jsonRecovery: it.execution.jsonRecovery
+            };
+          }
 
           return {
             sampleId: it.sampleId,
             title: it.title,
-            success: record?.status?.success ?? it.success,
-            error: record?.status?.error || it.error,
-            failureKind: record?.status?.failureKind || it.failureKind,
-            qualityStatus: evaluation?.qualityStatus,
-            qualityScore: evaluation?.qualityScore,
-            qualityIssues: evaluation?.qualityIssues,
+            success: it.success,
+            error: it.error,
+            failureKind: it.failureKind,
+            qualityStatus: it.qualityStatus,
+            qualityScore: it.qualityScore,
+            qualityIssues: it.qualityIssues,
             category,
-            taxonomyCategory: getItemFailureTaxonomy(it),
-            comparison: evaluation?.comparison ? {
-              imageKind: evaluation.comparison.imageKind,
+            taxonomyCategory: it.taxonomyCategory,
+            comparison: it.comparison ? {
+              imageKind: it.comparison.imageKind,
               categories: it.comparison.categories,
               labels: it.comparison.labels,
               visibleText: it.comparison.visibleText,
@@ -1679,8 +1679,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     onAddLog("success", `Batch regression complete for ${total} samples.`);
 
     // If exactly 1 sample was processed in this subset run, also set single result so the user can see detail tabs immediately
-    if (total === 1 && items[0].record) {
-      setResult(items[0].record);
+    if (total === 1 && items[0].responseRaw) {
+      setResult(items[0].responseRaw);
     }
     } finally {
       clearInterval(heartbeatTimer);
@@ -2856,31 +2856,31 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.record?.status?.success && (
-                            <span className={`px-1.5 py-0.5 rounded ${item.record.evaluation?.qualityStatus === 'valid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                               {item.record.evaluation?.qualityStatus}
+                         {item.success && (
+                            <span className={`px-1.5 py-0.5 rounded ${item.qualityStatus === 'valid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                               {item.qualityStatus}
                             </span>
                          )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.record?.evaluation?.comparison?.imageKind && (
-                            <span className={`font-mono ${item.record.evaluation.comparison.imageKind.status === 'exact' ? 'text-emerald-600' : item.record.evaluation.comparison.imageKind.status === 'acceptable' ? 'text-indigo-600' : 'text-red-600'}`}>
-                               {item.record.evaluation.comparison.imageKind.detected || 'missing'} 
-                               {item.record.evaluation.comparison.imageKind.status !== 'exact' && ` (exp: ${item.record.evaluation.comparison.imageKind.expected})`}
+                         {item.comparison?.imageKind && (
+                            <span className={`font-mono ${item.comparison.imageKind.status === 'exact' ? 'text-emerald-600' : item.comparison.imageKind.status === 'acceptable' ? 'text-indigo-600' : 'text-red-600'}`}>
+                               {item.comparison.imageKind.detected || 'missing'}
+                               {item.comparison.imageKind.status !== 'exact' && ` (exp: ${item.comparison.imageKind.expected})`}
                             </span>
                          )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.record?.evaluation?.comparison && (
-                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.record.evaluation.comparison.overallStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.record.evaluation.comparison.overallStatus === 'warning' ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50'}`}>
-                               {item.record.evaluation.comparison.overallStatus}
+                         {item.comparison && (
+                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.comparison.overallStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.comparison.overallStatus === 'warning' ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50'}`}>
+                               {item.comparison.overallStatus}
                             </span>
                          )}
                       </td>
                       <td className="px-3 py-2">
-                         {item.record?.evaluation?.comparison && (
-                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.record.evaluation.comparison.reviewStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.record.evaluation.comparison.reviewStatus === 'needsReview' ? 'text-indigo-600 bg-indigo-50' : 'text-red-600 bg-red-50'}`}>
-                               {item.record.evaluation.comparison.reviewStatus}
+                         {item.comparison && (
+                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${item.comparison.reviewStatus === 'pass' ? 'text-emerald-600 bg-emerald-50' : item.comparison.reviewStatus === 'needsReview' ? 'text-indigo-600 bg-indigo-50' : 'text-red-600 bg-red-50'}`}>
+                               {item.comparison.reviewStatus}
                             </span>
                          )}
                       </td>
@@ -2940,13 +2940,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </p>
                 </div>
               )}
-              {isPublicResult && result.sampleMetadata && (
+              {isPublicResult && (result.record?.assetMetadata ?? result.sampleMetadata) && (
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    {result.sampleMetadata.title}
-                    {result.sampleMetadata.sourcePageUrl && (
+                    {(result.record?.assetMetadata ?? result.sampleMetadata).title}
+                    {(result.record?.assetMetadata ?? result.sampleMetadata).sourcePageUrl && (
                       <a
-                        href={result.sampleMetadata.sourcePageUrl}
+                        href={(result.record?.assetMetadata ?? result.sampleMetadata).sourcePageUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-slate-400 hover:text-indigo-600"
@@ -2958,13 +2958,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </h3>
                   <div className="flex flex-col gap-1 mt-1">
                     <p className="text-[11px] text-slate-500 flex items-center gap-3">
-                      <span>Category: <span className="font-bold">{result.sampleMetadata.category}</span></span>
+                      <span>Category: <span className="font-bold">{(result.record?.assetMetadata ?? result.sampleMetadata).category}</span></span>
                       <span>•</span>
-                      <span>License: {result.sampleMetadata.licenseName} ({result.sampleMetadata.licenseKind})</span>
+                      <span>License: {(result.record?.assetMetadata ?? result.sampleMetadata).licenseName} ({(result.record?.assetMetadata ?? result.sampleMetadata).licenseKind})</span>
                     </p>
-                    {result.sampleMetadata.attributionText && (
+                    {(result.record?.assetMetadata ?? result.sampleMetadata).attributionText && (
                       <p className="text-[10px] text-slate-400 italic">
-                        {result.sampleMetadata.attributionText}
+                        {(result.record?.assetMetadata ?? result.sampleMetadata).attributionText}
                       </p>
                     )}
                   </div>
@@ -3004,30 +3004,30 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
                        <div className="p-2 bg-white rounded border border-orange-100">
                           <span className="block text-[10px] text-orange-400 mb-0.5">Status Code</span>
-                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.statusCode || "N/A"}</span>
+                          <span className="font-bold text-xs text-orange-800">{(result.record?.diagnostics?.generation ?? result.generationDiagnostics)?.statusCode || "N/A"}</span>
                        </div>
                        <div className="p-2 bg-white rounded border border-orange-100">
                           <span className="block text-[10px] text-orange-400 mb-0.5">Provider Status</span>
-                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.providerStatus || "UNKNOWN"}</span>
+                          <span className="font-bold text-xs text-orange-800">{(result.record?.diagnostics?.generation ?? result.generationDiagnostics)?.providerStatus || "UNKNOWN"}</span>
                        </div>
                        <div className="p-2 bg-white rounded border border-orange-100">
                           <span className="block text-[10px] text-orange-400 mb-0.5">Retryable</span>
-                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.retryable ? "Yes" : "No"}</span>
+                          <span className="font-bold text-xs text-orange-800">{(result.record?.diagnostics?.generation ?? result.generationDiagnostics)?.retryable ? "Yes" : "No"}</span>
                        </div>
                        <div className="p-2 bg-white rounded border border-orange-100">
                           <span className="block text-[10px] text-orange-400 mb-0.5">API Retry Count</span>
-                          <span className="font-bold text-xs text-orange-800">{result.generationDiagnostics?.apiRetryCount ?? 0}</span>
+                          <span className="font-bold text-xs text-orange-800">{(result.record?.diagnostics?.generation ?? result.generationDiagnostics)?.apiRetryCount ?? 0}</span>
                        </div>
                     </div>
-                    {result.generationDiagnostics?.rawMessageSummary && (
+                    {(result.record?.diagnostics?.generation ?? result.generationDiagnostics)?.rawMessageSummary && (
                       <div className="mt-3">
                          <span className="block text-[10px] font-bold text-orange-800 mb-1">Raw Message Summary:</span>
                          <p className="text-xs text-orange-600 font-mono bg-white p-2 rounded border border-orange-100 break-words whitespace-pre-wrap">
-                           {result.generationDiagnostics.rawMessageSummary}
+                           {(result.record?.diagnostics?.generation ?? result.generationDiagnostics).rawMessageSummary}
                          </p>
                       </div>
                     )}
-                    {result.generationDiagnostics?.attempts && result.generationDiagnostics.attempts.length > 0 && (
+                    {(result.record?.diagnostics?.generation ?? result.generationDiagnostics)?.attempts && (result.record?.diagnostics?.generation ?? result.generationDiagnostics).attempts.length > 0 && (
                       <div className="mt-4 border border-orange-200 rounded overflow-hidden">
                         <div className="bg-orange-100/50 px-3 py-2 text-[10px] font-bold text-orange-800 border-b border-orange-200">
                            Provider Call Attempts
@@ -3042,7 +3042,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-orange-100 bg-white">
-                              {result.generationDiagnostics.attempts.map((att: any, idx: number) => (
+                              {(result.record?.diagnostics?.generation ?? result.generationDiagnostics).attempts.map((att: any, idx: number) => (
                                  <tr key={idx}>
                                     <td className="px-3 py-2 font-bold text-orange-700">{att.attempt}</td>
                                     <td className="px-3 py-2 text-orange-600">{att.modelName}</td>
@@ -3091,7 +3091,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 {result.parseDiagnostics?.attempts && result.parseDiagnostics.attempts.length > 0 && (
                   <div className="bg-white rounded border border-red-100 overflow-hidden">
                     <div className="bg-red-100/50 px-3 py-2 text-[10px] font-bold text-red-800 border-b border-red-100">
-                      Parse & Recovery Attempts ({result.analysisRun?.execution?.jsonRecovery?.retryCount ? `Retry Enabled, ${result.analysisRun.execution.jsonRecovery.retryCount} Retries` : 'No Retries'})
+                      Parse & Recovery Attempts ({(result.record?.analysisRun ?? result.analysisRun)?.execution?.jsonRecovery?.retryCount ? `Retry Enabled, ${(result.record?.analysisRun ?? result.analysisRun).execution.jsonRecovery.retryCount} Retries` : 'No Retries'})
                     </div>
                     <div className="divide-y divide-red-50">
                       {result.parseDiagnostics.attempts.map((attempt: any, i: number) => (
@@ -3203,15 +3203,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="flex flex-wrap items-center gap-4 text-[11px]">
                   <div className="flex items-center gap-1 text-slate-500">
                     <Activity className="w-3.5 h-3.5" />
-                    <span>Model: <span className="font-bold text-slate-700">{result.analysisRun?.model?.name || result.usedModelName}</span></span>
+                    <span>Model: <span className="font-bold text-slate-700">{(result.record?.analysisRun ?? result.analysisRun)?.model?.name || result.usedModelName}</span></span>
                   </div>
                   <div className="flex items-center gap-1 text-slate-500">
                     <Check className="w-3.5 h-3.5" />
-                    <span>Provider: <span className="font-bold text-slate-700">{result.analysisRun?.model?.providerFamily || result.providerFamily}</span></span>
+                    <span>Provider: <span className="font-bold text-slate-700">{(result.record?.analysisRun ?? result.analysisRun)?.model?.providerFamily || result.providerFamily}</span></span>
                   </div>
                   <div className="flex items-center gap-1 text-slate-500">
                     <Info className="w-3.5 h-3.5" />
-                    <span>Execution: <span className="font-bold text-slate-700">{result.analysisRun?.execution?.structuredExecutionMode || result.effectiveStructuredExecutionMode}</span></span>
+                    <span>Execution: <span className="font-bold text-slate-700">{(result.record?.analysisRun ?? result.analysisRun)?.execution?.structuredExecutionMode || result.effectiveStructuredExecutionMode}</span></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -3234,33 +3234,33 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </div>
               </div>
               
-              {result.analysisRun && (
+              {(result.record?.analysisRun ?? result.analysisRun) && (
                 <div className="border-t border-slate-200 pt-3 flex flex-wrap gap-x-6 gap-y-2 text-[10px] text-slate-500">
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Run ID:</span>
-                     <span className="font-mono">{result.analysisRun.runId?.split('-')[0]}</span>
+                     <span className="font-mono">{(result.record?.analysisRun ?? result.analysisRun).runId?.split('-')[0]}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Time:</span>
-                     <span>{result.analysisRun.timestamp ? new Date(result.analysisRun.timestamp).toLocaleTimeString() : ''}</span>
+                     <span>{(result.record?.analysisRun ?? result.analysisRun).timestamp ? new Date((result.record?.analysisRun ?? result.analysisRun).timestamp).toLocaleTimeString() : ''}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Schema:</span>
-                     <span className="font-mono">{result.analysisRun.schema?.resultSchemaVersion}</span>
+                     <span className="font-mono">{(result.record?.analysisRun ?? result.analysisRun).schema?.resultSchemaVersion}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Prompt:</span>
-                     <span className="font-mono">{result.analysisRun.prompt?.visualPromptVersion}</span>
+                     <span className="font-mono">{(result.record?.analysisRun ?? result.analysisRun).prompt?.visualPromptVersion}</span>
                    </div>
                    <div className="flex items-center gap-1">
                      <span className="font-semibold">Generation:</span>
-                     <span>T={result.analysisRun.generationConfig?.temperature} / P={result.analysisRun.generationConfig?.topP} / K={result.analysisRun.generationConfig?.topK}</span>
+                     <span>T={(result.record?.analysisRun ?? result.analysisRun).generationConfig?.temperature} / P={(result.record?.analysisRun ?? result.analysisRun).generationConfig?.topP} / K={(result.record?.analysisRun ?? result.analysisRun).generationConfig?.topK}</span>
                    </div>
                 </div>
               )}
             </div>
 
-            {isPublicResult && result.expectedMetadata && result.visualAnalysis && (
+            {isPublicResult && (result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata) && result.visualAnalysis && (
               <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl space-y-4">
                 <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
                   <Activity className="w-4 h-4 text-indigo-600" /> Expected vs Detected Schema Comparison
@@ -3272,16 +3272,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <div className="flex flex-col gap-1 mt-1">
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">Expected:</span>
-                        <span className="font-mono font-semibold text-slate-700">{result.expectedMetadata.imageKind}</span>
+                        <span className="font-mono font-semibold text-slate-700">{(result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).imageKind}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">Detected:</span>
-                        <span className={`font-mono font-semibold ${compareExpectedImageKind(result.expectedMetadata, result.visualAnalysis.visualInfo?.imageKind).status === 'exact' ? 'text-emerald-600' : (compareExpectedImageKind(result.expectedMetadata, result.visualAnalysis.visualInfo?.imageKind).status === 'acceptable' ? 'text-indigo-600' : 'text-amber-600')}`}>
+                        <span className={`font-mono font-semibold ${compareExpectedImageKind((result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata), result.visualAnalysis.visualInfo?.imageKind).status === 'exact' ? 'text-emerald-600' : (compareExpectedImageKind((result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata), result.visualAnalysis.visualInfo?.imageKind).status === 'acceptable' ? 'text-indigo-600' : 'text-amber-600')}`}>
                           {result.visualAnalysis.visualInfo?.imageKind || 'none'}
                         </span>
                       </div>
                       {(() => {
-                        const status = compareExpectedImageKind(result.expectedMetadata, result.visualAnalysis.visualInfo?.imageKind).status;
+                        const status = compareExpectedImageKind((result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata), result.visualAnalysis.visualInfo?.imageKind).status;
                         if (status === 'exact') return <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Exact Match</span>;
                         if (status === 'acceptable') return <span className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 mt-1"><CheckCircle className="w-3 h-3" /> Acceptable Match</span>;
                         return <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1 mt-1"><AlertCircle className="w-3 h-3" /> Diverged</span>;
@@ -3296,7 +3296,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       <div className="flex flex-wrap gap-1">
                         {(() => {
                           const detected = (result.visualAnalysis.visualInfo?.visibleElements || []).map((el: any) => el.category);
-                          const comp = compareExpectedCategories(result.expectedMetadata, detected);
+                          const comp = compareExpectedCategories((result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata), detected);
                           return (
                             <>
                               <span className="text-slate-400 block text-[10px] w-full mb-1">Status:</span>
@@ -3322,13 +3322,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                           const attributes = (result.visualAnalysis.visualInfo?.visibleElements || []).flatMap((el: any) => el.attributes || []).filter(Boolean);
                           const keywords = (result.visualAnalysis.indexing?.keywords || []).map((kw: any) => typeof kw === 'string' ? kw : kw?.value || "").filter(Boolean);
                           const visibleText = (result.visualAnalysis.visualInfo?.visibleText || []).map((txt: any) => typeof txt === 'string' ? txt : txt?.text || "").filter(Boolean);
-                          const comp = compareExpectedLabels(result.expectedMetadata, {
+                          const comp = compareExpectedLabels((result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata), {
                             labels,
                             attributes,
                             keywords,
                             visibleText
                           });
-                          if (!result.expectedMetadata.visibleElementLabels?.length) return <span className="text-slate-400 italic text-[10px]">No expected labels</span>;
+                          if (!(result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).visibleElementLabels?.length) return <span className="text-slate-400 italic text-[10px]">No expected labels</span>;
                           return (
                             <>
                               {comp.exact.map(l => <span key={`ex-${l}`} className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200" title="Exact match">{l} ✓</span>)}
@@ -3342,14 +3342,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   </div>
                   
                   {/* Expected Visible Text */}
-                  {result.expectedMetadata.visibleText && result.expectedMetadata.visibleText.length > 0 && (
+                  {(result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).visibleText && (result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).visibleText.length > 0 && (
                     <div className="bg-white p-3 rounded-lg border border-indigo-100/80 space-y-1">
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Visible Text Match</span>
                       <div className="space-y-1.5 mt-1">
                         <div className="flex flex-wrap gap-1">
                           {(() => {
                             const detected = (result.visualAnalysis.visualInfo?.visibleText || []).map((t: any) => t.text);
-                            const comp = compareExpectedVisibleText(result.expectedMetadata, detected);
+                            const comp = compareExpectedVisibleText((result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata), detected);
                             return (
                               <>
                                 {comp.matched.map(t => <span key={`ex-${t}`} className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono" title="Matched text">"{t}" ✓</span>)}
@@ -3362,10 +3362,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     </div>
                   )}
                 </div>
-                {result.expectedMetadata.notes && (
+                {(result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).notes && (
                   <div className="text-[10px] text-indigo-700/80 mt-2 bg-indigo-50/50 p-2 rounded flex gap-1.5 items-start">
                     <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    <span>{result.expectedMetadata.notes}</span>
+                    <span>{(result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).notes}</span>
                   </div>
                 )}
               </div>
@@ -3391,7 +3391,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <div>
                       <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Image Preview</h4>
                       {isDriveResult && <ImagePreview fileId={result.metadata?.id} token={token} />}
-                      {isPublicResult && <PublicSamplePreview sampleId={result.sampleMetadata?.id} />}
+                      {isPublicResult && <PublicSamplePreview sampleId={result.record?.assetMetadata?.sampleId ?? result.sampleMetadata?.id} />}
                     </div>
                   </div>
                   <div className="lg:col-span-8 space-y-6">
@@ -3428,7 +3428,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   <div>
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Image Preview</h4>
                     {isDriveResult && <ImagePreview fileId={result.metadata?.id} token={token} />}
-                    {isPublicResult && <PublicSamplePreview sampleId={result.sampleMetadata?.id} />}
+                    {isPublicResult && <PublicSamplePreview sampleId={result.record?.assetMetadata?.sampleId ?? result.sampleMetadata?.id} />}
                   </div>
 
                   <div>

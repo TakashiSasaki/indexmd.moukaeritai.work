@@ -12,14 +12,11 @@ export function summarizeExpectedComparisonCounts(items: any[]) {
   let expectedComparisonFailCount = 0;
 
   for (const item of items) {
-    const comparison = item.record?.evaluation?.comparison || item.comparison;
-    const success = item.record?.status?.success ?? item.success;
-    const status = comparison?.overallStatus;
-    
+    const status = item.comparison?.overallStatus;
     if (status === "pass") expectedComparisonPassCount++;
     else if (status === "warning") expectedComparisonWarningCount++;
     else if (status === "fail") expectedComparisonFailCount++;
-    else if (!success) expectedComparisonFailCount++;
+    else if (!item.success) expectedComparisonFailCount++;
   }
 
   return { expectedComparisonPassCount, expectedComparisonWarningCount, expectedComparisonFailCount };
@@ -31,14 +28,11 @@ export function summarizeReviewCounts(items: any[]) {
   let reviewFailCount = 0;
 
   for (const item of items) {
-    const comparison = item.record?.evaluation?.comparison || item.comparison;
-    const success = item.record?.status?.success ?? item.success;
-    const status = comparison?.reviewStatus;
-    
+    const status = item.comparison?.reviewStatus;
     if (status === "pass") reviewPassCount++;
     else if (status === "needsReview") reviewNeedsReviewCount++;
     else if (status === "fail") reviewFailCount++;
-    else if (!success) reviewFailCount++;
+    else if (!item.success) reviewFailCount++;
   }
 
   return { reviewPassCount, reviewNeedsReviewCount, reviewFailCount };

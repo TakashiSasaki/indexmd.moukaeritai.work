@@ -280,8 +280,7 @@ describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
             visibleText: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1 }
           }
         },
-        // Alt path 1: item.analysisRun.generationConfig
-        analysisRun: { generationConfig: { mediaResolutionRequested: "HIGH" } }
+        record: { analysisRun: { generationConfig: { mediaResolutionRequested: "HIGH" } } }
       },
       {
         sampleId: "s2",
@@ -290,14 +289,11 @@ describe('counterConsistency and textHeavyEvaluation in reportBuilder', () => {
             visibleText: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1 }
           }
         },
-        // Alt path 2: item.responseRaw.analysisRun.metadata.generationConfig
-        responseRaw: {
-          analysisRun: { metadata: { generationConfig: { mediaResolutionRequested: "MEDIUM" } } }
-        }
+        record: { analysisRun: { metadata: { generationConfig: { mediaResolutionRequested: "MEDIUM" } } } }
       }
     ];
 
-    const evaluation = buildTextHeavyEvaluationSummary(items);
+    const evaluation = buildTextHeavyEvaluationSummary(items as any);
     assert.strictEqual(evaluation.mediaResolution.highRequested, 1);
     assert.strictEqual(evaluation.mediaResolution.mediumRequested, 1);
   });

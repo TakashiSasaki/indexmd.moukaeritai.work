@@ -86,11 +86,11 @@
 **Date**: 2026-07-08
 
 **Changes**:
-- Restored legacy compatibility fields (`expectedImageKind`, `acceptableImageKinds`, etc.) in the `GET /api/visual/public-samples` response while preserving the new `expectedMetadata` object.
+- Deprecated and explicitly removed all legacy flat compatibility fields (`expectedImageKind`, `acceptableImageKinds`, etc.) from the `GET /api/visual/public-samples` response enforcing the new canonical `expectedMetadata` schema exclusively.
 - Integrated `expectedMetadata` mapping directly on the backend to provide clean, robust structure matching client-side analysis run requirements.
 - Strengthened unit test coverage across `compare.test.ts` (for metrics summarization and optional expectations), `qualityGate.test.ts` (for model-specific logic and text-heavy diagnostics), and added `expectedMetadata.test.ts` to validate helper mappings.
 
 
-## Next (Current)
-- Moved API responses (GET /api/visual/public-samples, POST /api/visual/public-samples/analyze) strictly to canonical structure. Old flat duplicate top-level keys removed in favor of `expectedMetadata` and `record` objects.
-- `expectedNotes` now globally arrays.
+## Canonical Hard Delete Update
+- Removed flat duplicate properties in `GET /api/visual/public-samples` explicitly, resolving compatibility lag.
+- `expectedNotes` is now array `string[]` uniformly.

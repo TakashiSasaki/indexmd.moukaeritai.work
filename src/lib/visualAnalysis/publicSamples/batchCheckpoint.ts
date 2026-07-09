@@ -96,16 +96,20 @@ export function shrinkCheckpointForLocalStorage(checkpoint: PublicSampleBatchChe
   const copy = JSON.parse(JSON.stringify(checkpoint)) as PublicSampleBatchCheckpoint;
   
   copy.items = copy.items.map(item => {
-    // Remove large fields from record and diagnostics
-    const record = item.record;
-    if (record) {
-      if (record.diagnostics?.parse) {
-        delete (record.diagnostics.parse as any).rawOutputPreview;
-        delete (record.diagnostics.parse as any).requestPreview;
+    // Remove large fields
+    if (item.responseRaw) {
+      delete item.responseRaw.rawOutput;
+      delete item.responseRaw.rawOutputPreview;
+      delete item.responseRaw.requestPreview;
+      if (item.responseRaw.analysisRun?.execution?.jsonRecovery) {
+        delete (item.responseRaw.analysisRun.execution.jsonRecovery as any).rawOutputPreview;
       }
-      if (record.analysisRun?.execution?.jsonRecovery) {
-        delete (record.analysisRun.execution.jsonRecovery as any).rawOutputPreview;
-      }
+    }
+    if (item.analysisRun?.execution?.jsonRecovery) {
+      delete (item.analysisRun.execution.jsonRecovery as any).rawOutputPreview;
+    }
+    if (item.parseDiagnostics) {
+      delete (item.parseDiagnostics as any).rawOutputPreview;
     }
     return item;
   });
