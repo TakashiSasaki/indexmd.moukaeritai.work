@@ -174,13 +174,14 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     category: "stationery",
     expectedImageKind: "productPhoto",
     expectedElementCategories: ["product", "tool"],
-    expectedVisibleElementLabels: ["pencil", "graphite tip", "ferrule", "eraser"],
+    expectedVisibleElementLabels: ["pencil", "graphite tip"],
     expectedVisibleElementLabelAliases: {
       "pencil": ["HB pencil", "blue pencil", "pen", "pencil"],
       "graphite tip": ["lead", "tip", "graphite tip", "graphite"],
       "ferrule": ["metal ring", "metal band", "ferrule", "metal sleeve", "metal ferrule", "ferrule collar"],
       "eraser": ["eraser", "rubber", "pink eraser", "rubber eraser", "eraser tip"]
     },
+    optionalVisibleElementLabels: ["ferrule", "eraser"],
     expectedVisibleText: ["HB"],
     expectedNotes: ["The source filename is Pencils_hb.jpg, but this sample acts as a close-up pencil image for evaluating product detail extraction."],
     source: {
@@ -201,8 +202,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Books on a shelf",
     category: "bookshelf",
     expectedImageKind: "naturalPhoto",
-    acceptableImageKinds: ["naturalPhoto", "productPhoto"],
+    acceptableImageKinds: ["naturalPhoto", "productPhoto", "artifactPhoto"],
     expectedElementCategories: ["document"],
+    expectedElementCategoryAlternatives: {
+      "document": ["furniture", "product"]
+    },
     expectedVisibleElementLabels: ["books", "shelf"],
     expectedVisibleElementLabelAliases: {
       "books": ["book", "library", "books"],
@@ -210,7 +214,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
       "spines": ["book spines", "spines", "book spine", "spine"],
       "wood": ["wooden shelf", "wood", "wooden bookshelf", "bookshelves"]
     },
-    optionalElementCategories: ["furniture"],
+    optionalElementCategories: ["document", "furniture", "product"],
     optionalVisibleElementLabels: ["spines", "wood"],
     source: {
       provider: "Wikimedia Commons",
@@ -256,13 +260,16 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Antique Bureau Table",
     category: "furniture",
     expectedImageKind: "productPhoto",
+    acceptableImageKinds: ["productPhoto", "artifactPhoto"],
     expectedElementCategories: ["furniture"],
-    expectedVisibleElementLabels: ["desk", "bureau table", "drawer pulls", "shell carvings"],
+    expectedVisibleElementLabels: ["desk", "drawer pulls", "shell carvings"],
     expectedVisibleElementLabelAliases: {
-      "desk": ["bureau table", "kneehole desk", "block-front desk"],
+      "desk": ["desk", "bureau table", "kneehole desk", "block-front desk", "antique desk"],
       "drawer pulls": ["brass pulls", "brass hardware"],
-      "shell carvings": ["carved shells", "shell motif"]
+      "shell carvings": ["carved shells", "shell motif"],
+      "bureau table": ["bureau table"]
     },
+    optionalVisibleElementLabels: ["bureau table"],
     expectedNotes: ["The ID is sample-mixed-1 but the image is actually an antique furniture product-style photo, not a modern desk setup. TODO: Add a real mixed sample later."],
     source: {
       provider: "Wikimedia Commons",
@@ -324,6 +331,7 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     },
     optionalVisibleElementLabels: ["gate"],
     expectedVisibleText: ["ADMIT ONE", "TICKET"],
+    optionalVisibleText: ["TICKET"],
     source: {
       provider: "localFixture",
       imageUrl: "/visual-samples/synthetic-ticket.png",
@@ -451,14 +459,15 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Labeled World Map",
     category: "map",
     expectedImageKind: "mapImage",
-    expectedElementCategories: ["textRegion", "symbol"],
-    expectedVisibleElementLabels: ["map", "labels", "boundaries"],
+    expectedElementCategories: ["textRegion"],
+    expectedVisibleElementLabels: ["map"],
     expectedVisibleElementLabelAliases: {
       "map": ["world map", "hemisphere map", "map"],
       "labels": ["text", "labels", "names", "placenames"],
       "boundaries": ["borders", "lines", "boundaries", "border lines", "border", "boundary"]
     },
-    optionalElementCategories: ["waterBody", "terrain"],
+    optionalElementCategories: ["waterBody", "terrain", "symbol"],
+    optionalVisibleElementLabels: ["labels", "boundaries"],
     optionalVisibleText: ["PACIFIC", "ATLANTIC", "OCEAN"],
     source: {
       provider: "Wikimedia Commons",

@@ -411,6 +411,7 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     invariants: validateBatchRunInvariants(reSummary),
     generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
     apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
+    comparisonFailureSummary: buildComparisonFailureSummary(normalizedItems),
     parseFailureSummary: buildParseFailureSummary(normalizedItems),
     networkFailureSummary: buildNetworkFailureSummary(normalizedItems),
     validationFailureSummary: buildValidationFailureSummary(normalizedItems),
@@ -446,6 +447,54 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
   });
 }
 
+
+function buildComparisonFailureSummary(items: PublicSampleBatchRunItem[]) {
+  const comparisonFails = items.filter(i => i.success && i.comparison?.overallStatus === 'fail');
+  const summary: any = {
+    total: comparisonFails.length,
+    byImageKindMismatch: 0,
+    byMissingCategory: 0,
+    byMissingLabel: 0,
+    byMissingVisibleText: 0,
+    representativeSamples: []
+  };
+
+  for (const item of comparisonFails) {
+    const cmp = item.comparison;
+    if (!cmp) continue;
+
+    if (cmp.imageKind?.status && cmp.imageKind.status !== 'exact' && cmp.imageKind.status !== 'acceptable') {
+      summary.byImageKindMismatch++;
+    }
+
+    if (cmp.categories?.missing && cmp.categories.missing.length > 0) {
+      summary.byMissingCategory++;
+    }
+
+    if (cmp.labels?.missing && cmp.labels.missing.length > 0) {
+      summary.byMissingLabel++;
+    }
+
+    if (cmp.visibleText?.missing && cmp.visibleText.missing.length > 0) {
+      summary.byMissingVisibleText++;
+    }
+
+    if (summary.representativeSamples.length < 10) {
+      summary.representativeSamples.push({
+        sampleId: item.sampleId,
+        title: item.title,
+        overallStatus: cmp.overallStatus,
+        reviewStatus: cmp.reviewStatus,
+        reasons: cmp.reasons || [],
+        reviewReasons: cmp.reviewReasons || [],
+        imageKind: cmp.imageKind,
+        coverageRatio: cmp.coverage?.overall?.ratio
+      });
+    }
+  }
+
+  return summary;
+}
 
 function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
   const failedItems = items.filter(isTransportOrResponseFailure);
@@ -864,14 +913,23 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let mediaResolutionHighRequested = 0;
   let mediaResolutionMediumRequested = 0;
   let mediaResolutionConfigured = 0;
+  let mediaResolutionConfiguredHigh = 0;
+  let mediaResolutionConfiguredMedium = 0;
   let mediaResolutionProviderAccepted = 0;
+  let mediaResolutionProviderAcceptedHigh = 0;
+  let mediaResolutionProviderAcceptedMedium = 0;
   let mediaResolutionApplied = 0;
+  let mediaResolutionAppliedHigh = 0;
+  let mediaResolutionAppliedMedium = 0;
   let mediaResolutionUnsupported = 0;
   let mediaResolutionFallbackUsed = 0;
   let unsupportedProviderFamilyCount = 0;
 
   let bytesIncreasedInputs = 0;
   let totalBytesIncreased = 0;
+  let bytesIncreasedFromSvgRasterization = 0;
+  let bytesIncreasedFromReencoding = 0;
+  let bytesIncreasedOther = 0;
 
   let memoryHits = 0;
   let diskHits = 0;
@@ -890,15 +948,23 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       
       if (run.generationConfig.mediaResolutionConfigured) {
         mediaResolutionConfigured++;
+        if (requested === 'HIGH') mediaResolutionConfiguredHigh++;
+        if (requested === 'MEDIUM') mediaResolutionConfiguredMedium++;
       }
       if (run.generationConfig.mediaResolutionProviderAccepted) {
         mediaResolutionProviderAccepted++;
+        if (requested === 'HIGH') mediaResolutionProviderAcceptedHigh++;
+        if (requested === 'MEDIUM') mediaResolutionProviderAcceptedMedium++;
       }
       
       const applied = run.generationConfig.mediaResolutionApplied !== undefined
         ? run.generationConfig.mediaResolutionApplied
         : (requested ? true : false);
-      if (applied) mediaResolutionApplied++;
+      if (applied) {
+        mediaResolutionApplied++;
+        if (requested === 'HIGH') mediaResolutionAppliedHigh++;
+        if (requested === 'MEDIUM') mediaResolutionAppliedMedium++;
+      }
 
       if (run.generationConfig.mediaResolutionUnsupportedReason && run.generationConfig.mediaResolutionUnsupportedReason !== "") {
         mediaResolutionUnsupported++;
@@ -932,6 +998,14 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       if (proc && orig && proc > orig) {
         bytesIncreasedInputs++;
         totalBytesIncreased += (proc - orig);
+
+        if (inputDiag.inputFormat === 'svg' || inputDiag.inputFormat === 'image/svg+xml') {
+          bytesIncreasedFromSvgRasterization++;
+        } else if (inputDiag.reencoded) {
+          bytesIncreasedFromReencoding++;
+        } else {
+          bytesIncreasedOther++;
+        }
       }
       if (inputDiag.recompressed) recompressedInputs++;
       if (inputDiag.reencoded) reencodedInputs++;
@@ -1042,10 +1116,14 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       mediumRequested: mediaResolutionMediumRequested,
       desiredHighCount: mediaResolutionHighRequested,
       desiredMediumCount: mediaResolutionMediumRequested,
-      configuredHighCount: mediaResolutionConfigured, // close enough approx
-      configuredMediumCount: mediaResolutionConfigured, // close enough approx, wait actually we can just pass them directly
+      configuredHighCount: mediaResolutionConfiguredHigh,
+      configuredMediumCount: mediaResolutionConfiguredMedium,
       configured: mediaResolutionConfigured,
+      providerAcceptedHighCount: mediaResolutionProviderAcceptedHigh,
+      providerAcceptedMediumCount: mediaResolutionProviderAcceptedMedium,
       providerAccepted: mediaResolutionProviderAccepted,
+      appliedHighCount: mediaResolutionAppliedHigh,
+      appliedMediumCount: mediaResolutionAppliedMedium,
       applied: mediaResolutionApplied,
       unsupported: mediaResolutionUnsupported,
       unsupportedProviderFamilyCount,
@@ -1054,6 +1132,9 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
     imageExpansionMetrics: {
       bytesIncreasedInputs,
       totalBytesIncreased,
+      bytesIncreasedFromSvgRasterization,
+      bytesIncreasedFromReencoding,
+      bytesIncreasedOther,
       largestExpandedInputs
     }
   };
@@ -1325,11 +1406,11 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
       getItemAnalysisRun(item)?.generationConfig?.mediaResolutionRequested ||
       "unknown";
 
-    if (mediaResolutionRequested === "HIGH") highRequested++;
-    else if (mediaResolutionRequested === "MEDIUM") mediumRequested++;
-    else unknown++;
-    
     if (coverage && coverage.expectedTotal > 0) {
+      if (mediaResolutionRequested === "HIGH") highRequested++;
+      else if (mediaResolutionRequested === "MEDIUM") mediumRequested++;
+      else unknown++;
+      
       itemsWithTextExpectation++;
       expectedVisibleTextTotal += coverage.expectedTotal;
       visibleTextCovered += coverage.covered;

@@ -104,6 +104,18 @@
       "type": "object",
       "additionalProperties": true
     },
+    "comparisonFailureSummary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "textHeavyEvaluation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "inputSizeSummary": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "mediaResolutionMetrics": {
       "type": "object",
       "additionalProperties": true
