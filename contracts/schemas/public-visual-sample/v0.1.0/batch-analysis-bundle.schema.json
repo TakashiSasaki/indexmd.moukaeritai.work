@@ -48,6 +48,10 @@
       "type": "object",
       "additionalProperties": true
     },
+    "comparisonWarningSummary": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "comparisonCoverage": {
       "type": "object",
       "additionalProperties": true

@@ -412,6 +412,7 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
     apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
     comparisonFailureSummary: buildComparisonFailureSummary(normalizedItems),
+    comparisonWarningSummary: buildComparisonWarningSummary(normalizedItems),
     parseFailureSummary: buildParseFailureSummary(normalizedItems),
     networkFailureSummary: buildNetworkFailureSummary(normalizedItems),
     validationFailureSummary: buildValidationFailureSummary(normalizedItems),
@@ -427,11 +428,14 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
         "comparisonRecordConsistency.consistent",
         "expectedComparisonFailCount",
         "reviewFailCount",
-        "textHeavyEvaluation.ratio"
+        "textHeavyEvaluation.ratio",
+        "comparisonFailureSummary",
+        "comparisonWarningSummary"
       ],
       fullJsonPolicy: "Use Full JSON only for archival replay or when canonical ImageAnalysisRecord details omitted from this bundle are required.",
       summaryPolicy: "Summary JSON is a lightweight view and is no longer required for normal ChatGPT analysis when this bundle is available.",
-      failuresPolicy: "Failures are embedded in this bundle under failures.items."
+      failuresPolicy: "Failures are embedded in this bundle under failures.items.",
+      imageExpansionPolicy: "SVG rasterization expansion is usually expected. Reencoding expansion for provider-safe JPEG/PNG is more suspicious and may indicate an optimization opportunity."
     },
     failures: {
       totalFailures: compactFailureItems.length,
@@ -465,6 +469,54 @@ function buildComparisonFailureSummary(items: PublicSampleBatchRunItem[]) {
 
     if (cmp.imageKind?.status && cmp.imageKind.status !== 'exact' && cmp.imageKind.status !== 'acceptable') {
       summary.byImageKindMismatch++;
+    }
+
+    if (cmp.categories?.missing && cmp.categories.missing.length > 0) {
+      summary.byMissingCategory++;
+    }
+
+    if (cmp.labels?.missing && cmp.labels.missing.length > 0) {
+      summary.byMissingLabel++;
+    }
+
+    if (cmp.visibleText?.missing && cmp.visibleText.missing.length > 0) {
+      summary.byMissingVisibleText++;
+    }
+
+    if (summary.representativeSamples.length < 10) {
+      summary.representativeSamples.push({
+        sampleId: item.sampleId,
+        title: item.title,
+        overallStatus: cmp.overallStatus,
+        reviewStatus: cmp.reviewStatus,
+        reasons: cmp.reasons || [],
+        reviewReasons: cmp.reviewReasons || [],
+        imageKind: cmp.imageKind,
+        coverageRatio: cmp.coverage?.overall?.ratio
+      });
+    }
+  }
+
+  return summary;
+}
+
+function buildComparisonWarningSummary(items: PublicSampleBatchRunItem[]) {
+  const comparisonWarnings = items.filter(i => i.success && i.comparison?.overallStatus === 'warning');
+  const summary: any = {
+    total: comparisonWarnings.length,
+    byImageKindWarning: 0,
+    byMissingCategory: 0,
+    byMissingLabel: 0,
+    byMissingVisibleText: 0,
+    representativeSamples: []
+  };
+
+  for (const item of comparisonWarnings) {
+    const cmp = item.comparison;
+    if (!cmp) continue;
+
+    if (cmp.imageKind?.status && cmp.imageKind.status !== 'exact' && cmp.imageKind.status !== 'acceptable') {
+      summary.byImageKindWarning++;
     }
 
     if (cmp.categories?.missing && cmp.categories.missing.length > 0) {
@@ -1453,6 +1505,9 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
     visibleTextCovered,
     textMissing,
     ratio,
+    // Note: This mediaResolution metric is strictly scoped to text-heavy
+    // items (items with a visibleText coverage expectation), distinguishing
+    // it from the global mediaResolution metrics in inputSizeSummary.
     mediaResolution: {
       highRequested,
       mediumRequested,

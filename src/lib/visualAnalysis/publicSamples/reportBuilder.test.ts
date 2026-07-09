@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import { 
   buildBatchAnalysisBundleForChat,
   buildTextHeavyEvaluationSummary,
+  buildInputSizeSummary,
   isProviderRateLimitFailure, 
   isProviderQuotaFailure,
   isProviderGenerationFailure,
@@ -44,6 +45,246 @@ describe("Visual Analysis Report Classification Helpers", () => {
 });
 
 describe('Record-centric counterConsistency and textHeavyEvaluation in reportBuilder', () => {
+  it('buildTextHeavyEvaluationSummary isolates mediaResolution counts to text-heavy items', () => {
+    const rawItems: any[] = [
+      {
+        sampleId: "item-text-heavy-high",
+        success: true,
+        record: {
+          analysisRun: {
+            metadata: {
+              generationConfig: {
+                mediaResolutionRequested: "HIGH",
+              }
+            }
+          },
+          evaluation: {
+            expectedMetadata: {
+              visibleText: ["Some expected text"]
+            }
+          }
+        },
+        comparison: {
+          coverage: {
+            visibleText: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1.0 }
+          }
+        }
+      },
+      {
+        sampleId: "item-non-text-medium",
+        success: true,
+        record: {
+          analysisRun: {
+            metadata: {
+              generationConfig: {
+                mediaResolutionRequested: "MEDIUM",
+              }
+            }
+          },
+          evaluation: {
+            expectedMetadata: {
+              visibleText: [] // Not text heavy
+            }
+          }
+        },
+        comparison: {
+          coverage: {
+            visibleText: { expectedTotal: 0, covered: 0, missing: 0, ratio: 1.0 }
+          }
+        }
+      }
+    ];
+
+    const inputSizeSummary = buildInputSizeSummary(rawItems);
+    assert.strictEqual(inputSizeSummary.mediaResolution.highRequested, 1);
+    assert.strictEqual(inputSizeSummary.mediaResolution.mediumRequested, 1);
+
+    const textHeavySummary = buildTextHeavyEvaluationSummary(rawItems);
+    assert.strictEqual(textHeavySummary.mediaResolution.highRequested, 1);
+    assert.strictEqual(textHeavySummary.mediaResolution.mediumRequested, 0); // Only counts the text-heavy item
+  });
+
+  it('buildInputSizeSummary computes media-resolution split metrics', () => {
+    const rawItems: any[] = [
+      {
+        sampleId: "item-high",
+        success: true,
+        record: {
+          analysisRun: {
+            metadata: {
+              generationConfig: {
+                mediaResolutionRequested: "HIGH",
+                mediaResolutionConfigured: true,
+                mediaResolutionProviderAccepted: true,
+                mediaResolutionApplied: true
+              }
+            }
+          },
+          diagnostics: {
+            input: { processedByteLength: 100 }
+          }
+        }
+      },
+      {
+        sampleId: "item-high-2",
+        success: true,
+        record: {
+          analysisRun: {
+            metadata: {
+              generationConfig: {
+                mediaResolutionRequested: "HIGH",
+                mediaResolutionConfigured: true,
+                mediaResolutionProviderAccepted: true,
+                mediaResolutionApplied: true
+              }
+            }
+          },
+          diagnostics: {
+            input: { processedByteLength: 100 }
+          }
+        }
+      },
+      {
+        sampleId: "item-medium",
+        success: true,
+        record: {
+          analysisRun: {
+            metadata: {
+              generationConfig: {
+                mediaResolutionRequested: "MEDIUM",
+                mediaResolutionConfigured: true,
+                mediaResolutionProviderAccepted: true,
+                mediaResolutionApplied: true
+              }
+            }
+          },
+          diagnostics: {
+            input: { processedByteLength: 100 }
+          }
+        }
+      },
+      {
+        sampleId: "item-unsupported",
+        success: true,
+        record: {
+          analysisRun: {
+            metadata: {
+              generationConfig: {
+                mediaResolutionRequested: "HIGH",
+                mediaResolutionUnsupportedReason: "providerFamilyUnsupported",
+                mediaResolutionApplied: false
+              }
+            }
+          },
+          diagnostics: {
+            input: { processedByteLength: 100 }
+          }
+        }
+      }
+    ];
+
+    const inputSizeSummary = buildInputSizeSummary(rawItems as any);
+    assert.strictEqual(inputSizeSummary.mediaResolution.highRequested, 3);
+    assert.strictEqual(inputSizeSummary.mediaResolution.mediumRequested, 1);
+    assert.strictEqual(inputSizeSummary.mediaResolution.configuredHighCount, 2);
+    assert.strictEqual(inputSizeSummary.mediaResolution.configuredMediumCount, 1);
+    assert.strictEqual(inputSizeSummary.mediaResolution.configured, 3);
+    assert.strictEqual(inputSizeSummary.mediaResolution.providerAcceptedHighCount, 2);
+    assert.strictEqual(inputSizeSummary.mediaResolution.providerAcceptedMediumCount, 1);
+    assert.strictEqual(inputSizeSummary.mediaResolution.appliedHighCount, 2);
+    assert.strictEqual(inputSizeSummary.mediaResolution.appliedMediumCount, 1);
+    assert.strictEqual(inputSizeSummary.mediaResolution.unsupported, 1);
+    assert.strictEqual(inputSizeSummary.mediaResolution.unsupportedProviderFamilyCount, 1);
+  });
+
+  const dummyBatchSummary = {
+    modelName: "gemini-3.5-flash",
+    jsonMode: "promptedJson",
+    total: 3,
+    successCount: 3,
+    failureCount: 0,
+    validCount: 3,
+    validLowQualityCount: 0,
+    invalidJsonCount: 0,
+    jobStatus: "complete" as const,
+    isComplete: true,
+    completedCount: 3,
+    pendingCount: 0,
+    processedCount: 3,
+    expectedComparisonPassCount: 0,
+    expectedComparisonWarningCount: 0,
+    expectedComparisonFailCount: 0,
+    reviewPassCount: 0,
+    reviewNeedsReviewCount: 0,
+    reviewFailCount: 0,
+    items: [] as any[]
+  };
+
+  it('buildBatchAnalysisBundleForChat includes comparisonFailureSummary and comparisonWarningSummary properly', () => {
+    const rawBatchSummary: Partial<PublicSampleBatchRunSummary> = {
+      ...dummyBatchSummary,
+      items: [
+        {
+          sampleId: "fail-image-kind",
+          title: "Fail Image Kind",
+          success: true,
+          comparison: {
+            overallStatus: 'fail',
+            reviewStatus: 'needsReview',
+            imageKind: { expected: 'naturalPhoto', detected: 'documentPhoto', status: 'fail' },
+            categories: { matched: [], missing: [], unexpected: [], acceptable: [] },
+            labels: { matched: [], missing: [], unexpected: [], acceptable: [] },
+            visibleText: { matched: [], missing: [], unexpected: [] },
+            coverage: { overall: { expectedTotal: 1, covered: 0, missing: 1, ratio: 0.0 } }
+          }
+        },
+        {
+          sampleId: "fail-missing-category",
+          title: "Fail Category",
+          success: true,
+          comparison: {
+            overallStatus: 'fail',
+            reviewStatus: 'fail',
+            imageKind: { expected: 'naturalPhoto', detected: 'naturalPhoto', status: 'exact' },
+            categories: { matched: [], missing: ['furniture'], unexpected: [], acceptable: [] },
+            labels: { matched: [], missing: [], unexpected: [], acceptable: [] },
+            visibleText: { matched: [], missing: [], unexpected: [] },
+            coverage: { overall: { expectedTotal: 1, covered: 0, missing: 1, ratio: 0.0 } }
+          }
+        },
+        {
+          sampleId: "warn-label",
+          title: "Warn Label",
+          success: true,
+          comparison: {
+            overallStatus: 'warning',
+            reviewStatus: 'needsReview',
+            imageKind: { expected: 'naturalPhoto', detected: 'naturalPhoto', status: 'exact' },
+            categories: { matched: [], missing: [], unexpected: [], acceptable: [] },
+            labels: { matched: [], missing: ['dog'], unexpected: [], acceptable: [] },
+            visibleText: { matched: [], missing: [], unexpected: [] },
+            coverage: { overall: { expectedTotal: 1, covered: 0, missing: 1, ratio: 0.0 } }
+          }
+        }
+      ] as any[]
+    };
+
+    const bundle = buildBatchAnalysisBundleForChat(rawBatchSummary as any);
+
+    assert.ok(bundle.comparisonFailureSummary);
+    assert.strictEqual(bundle.comparisonFailureSummary.total, 2);
+    assert.strictEqual(bundle.comparisonFailureSummary.byImageKindMismatch, 1);
+    assert.strictEqual(bundle.comparisonFailureSummary.byMissingCategory, 1);
+    assert.strictEqual(bundle.comparisonFailureSummary.byMissingLabel, 0);
+    assert.strictEqual(bundle.comparisonFailureSummary.representativeSamples.length, 2);
+
+    assert.ok(bundle.comparisonWarningSummary);
+    assert.strictEqual(bundle.comparisonWarningSummary.total, 1);
+    assert.strictEqual(bundle.comparisonWarningSummary.byImageKindWarning, 0);
+    assert.strictEqual(bundle.comparisonWarningSummary.byMissingLabel, 1);
+    assert.strictEqual(bundle.comparisonWarningSummary.representativeSamples.length, 1);
+  });
+
   it('buildBatchAnalysisBundleForChat includes counterConsistency, textHeavyEvaluation, and comparisonCoverage', () => {
     const dummyBatchSummary = {
       modelName: "gemini-3.5-flash",
