@@ -1,0 +1,5 @@
+{
+  "sampleId": "sample-landscape-1",
+  "modelName": "gemini-3.5-flash",
+  "includeRequestPreview": true
+}

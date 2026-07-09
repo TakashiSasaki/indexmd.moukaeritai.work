@@ -1,6 +1,18 @@
 # Summary Analysis Schema Changelog
 
 ## Unreleased
+- Type: decoupled contract separation, external API schemas versioning, and Ajv-driven validation harness
+- **Changes**:
+  - Established a dedicated, application-independent `/contracts` directory containing data exchange schema contracts, README guides, and versioned JSON schemas (`x-contract-id`, `x-contract-version`, `x-contract-status`).
+  - Created versioned schemas for all primary internal data definitions:
+    - `summary-analysis/v1.2.0-draft.2`
+    - `text-analysis-record/v0.1.0`
+    - `visual-analysis/v0.2.0-draft.1`
+    - `image-analysis-record/v0.1.0`
+    - `public-visual-sample/v0.1.0`
+  - Created versioned API exchange schemas for public visual samples under `contracts/api/v0.1.0/` (`list` and `analyze` request/response structures).
+  - Wrote robust mock payload examples for all core contracts under version-specific `/examples` subfolders.
+  - Implemented an automated verification script `scripts/validate-contracts.mjs` (registered as `npm run validate:contracts`) validating JSON syntax, schema metadata presence, folder README requirements, and native example compliance.
 - Type: record-centered contract consolidation, legacy fallback normalization, rigorous report invariants, and expectation calibration
 - **Changes**:
   - Calibrated public visual sample expectations for stable regression review.

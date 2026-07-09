@@ -1,0 +1,161 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://indexmd.moukaeritai.work/contracts/schemas/public-visual-sample/v0.1.0/public-sample.schema.json",
+  "title": "Public Visual Sample Schema",
+  "x-contract-id": "public-sample",
+  "x-contract-version": "v0.1.0",
+  "x-contract-status": "stable",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "category",
+    "expectedImageKind",
+    "expectedElementCategories",
+    "source"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "expectedImageKind": {
+      "type": "string"
+    },
+    "acceptableImageKinds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expectedElementCategories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expectedElementCategoryAlternatives": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "expectedVisibleElementLabels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expectedVisibleElementLabelAliases": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "expectedVisibleText": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expectedNotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "optionalElementCategories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "optionalVisibleElementLabels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "optionalVisibleElementLabelAliases": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "optionalVisibleText": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "provider",
+        "licenseKind",
+        "licenseName",
+        "requiresAttribution"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "pageUrl": {
+          "type": "string"
+        },
+        "imageUrl": {
+          "type": "string"
+        },
+        "thumbnailUrl": {
+          "type": "string"
+        },
+        "analysisUrl": {
+          "type": "string"
+        },
+        "licenseKind": {
+          "type": "string"
+        },
+        "licenseName": {
+          "type": "string"
+        },
+        "licenseUrl": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "requiresAttribution": {
+          "type": "boolean"
+        },
+        "attributionText": {
+          "type": "string"
+        },
+        "retrievedAt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

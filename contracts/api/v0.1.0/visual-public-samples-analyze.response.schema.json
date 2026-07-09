@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://indexmd.moukaeritai.work/contracts/api/v0.1.0/visual-public-samples-analyze.response.schema.json",
+  "title": "Visual Public Sample Analyze Response",
+  "x-contract-id": "visual-public-samples-analyze.response",
+  "x-contract-version": "v0.1.0",
+  "x-contract-status": "stable",
+  "type": "object",
+  "required": [
+    "success",
+    "record"
+  ],
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "Indicates if the model call and validation succeeded."
+    },
+    "record": {
+      "type": "object",
+      "description": "An envelope record matching image-analysis-record schema."
+    },
+    "error": {
+      "type": "string",
+      "description": "Optional top-level error message if global validation or connection fails."
+    },
+    "failureKind": {
+      "type": "string",
+      "description": "The category of failure (e.g. schemaValidationError, providerRateLimited)."
+    },
+    "requestPreview": {
+      "type": "object",
+      "description": "Included if requested and available. Highlights the raw inputs fed to Gemini."
+    }
+  },
+  "additionalProperties": false
+}

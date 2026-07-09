@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "image-analysis-record.v0.1.0",
+  "status": {
+    "success": false,
+    "error": "The Gemini API request timed out after 30 seconds of inactivity.",
+    "failureKind": "providerRateLimited"
+  },
+  "assetMetadata": {
+    "assetId": "asset-broken-image-002",
+    "title": "Large Panorama Photo",
+    "category": "landscapePhoto",
+    "sourceKind": "googleDrive",
+    "fileId": "drive-file-id-xyz-987"
+  }
+}

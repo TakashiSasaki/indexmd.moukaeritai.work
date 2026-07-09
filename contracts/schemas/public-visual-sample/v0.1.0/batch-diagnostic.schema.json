@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://indexmd.moukaeritai.work/contracts/schemas/public-visual-sample/v0.1.0/batch-diagnostic.schema.json",
+  "title": "Public Visual Sample Batch Diagnostic Schema",
+  "x-contract-id": "batch-diagnostic",
+  "x-contract-version": "v0.1.0",
+  "x-contract-status": "stable",
+  "type": "object",
+  "properties": {
+    "sourceKind": {
+      "type": "string"
+    },
+    "sampleId": {
+      "type": "string"
+    },
+    "mimeType": {
+      "type": "string"
+    },
+    "byteLength": {
+      "type": "number"
+    },
+    "base64Length": {
+      "type": "number"
+    },
+    "imageVariant": {
+      "type": "string"
+    },
+    "analysisSourceUrlKind": {
+      "type": "string"
+    },
+    "inputSizeWarning": {
+      "type": "string"
+    },
+    "cacheLayer": {
+      "type": "string"
+    },
+    "cacheKey": {
+      "type": "string"
+    },
+    "cachePolicyVersion": {
+      "type": "string"
+    },
+    "cacheStored": {
+      "type": "boolean"
+    },
+    "cacheReadError": {
+      "type": "string"
+    },
+    "cacheWriteError": {
+      "type": "string"
+    },
+    "cacheSharedInFlight": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

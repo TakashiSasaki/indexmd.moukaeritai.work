@@ -20,12 +20,12 @@ The application operates across distinct, strictly bounded schema layers:
                                  │
                                  ▼
                     [ Validation & Sanitization ]
-            (schemas/ & src/lib/privacyAndCache.ts)
+   (contracts/schemas/ & src/lib/privacyAndCache.ts)
              ┌───────────────────┴───────────────────┐
              ▼                                       ▼
     [ AI Summary Indexing ]                [ Visual Analysis Experiment ]
   Summary Analysis Schema v1.2            Visual Analysis Schema v0.2
- (schemas/summary-analysis.v1.2.0)       (schemas/visual-analysis.v0.2.0)
+ (contracts/schemas/summary-analysis)    (contracts/schemas/visual-analysis)
              │                                       │
              ▼                                       ▼
   [ Firestore Persistence ]                [ Transient Evaluation Only ]
@@ -37,8 +37,8 @@ The application operates across distinct, strictly bounded schema layers:
      (Client-side preview)
 ```
 
-1.  **Summary Analysis Schema (v1.2.0-draft.2)**: Established as the **Source of Truth** for document indexing. Governed by `/schemas/summary-analysis.v1.2.0-draft.2.schema.json`. Instantiated inside Firestore as `FileSummaryMetadata` documents.
-2.  **Visual Analysis Schema (v0.2.0-draft.1)**: Experimental layout for visual indexing and OCR analysis. Governed by `/schemas/visual-analysis.v0.2.0-draft.1.schema.json`. Kept completely transient during this phase; no raw visual data or image bytes are stored in the database.
+1.  **Summary Analysis Schema (v1.2.0-draft.2)**: Established as the **Source of Truth** for document indexing. Governed by the versioned data exchange contract `contracts/schemas/summary-analysis/v1.2.0-draft.2/schema.json` (mirrored internally in `/schemas/`). Instantiated inside Firestore as `FileSummaryMetadata` documents.
+2.  **Visual Analysis Schema (v0.2.0-draft.1)**: Experimental layout for visual indexing and OCR analysis. Governed by the versioned data exchange contract `contracts/schemas/visual-analysis/v0.2.0-draft.1/schema.json` (mirrored internally in `/schemas/`). Kept completely transient during this phase; no raw visual data or image bytes are stored in the database.
 3.  **Local Cache Layers**: `.gitignore`d folder caches at `cache/` to speed up operations and respect provider rate/quota limits.
 4.  **Audit Logs**: Structured histories kept locally or written to Firestore under strict privacy filters.
 
