@@ -73,6 +73,51 @@ describe('Public Visual Sample Registry', () => {
     }
   });
 
+  it('no overlap between required and optional expectations', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (sample.expectedVisibleText && sample.optionalVisibleText) {
+        for (const text of sample.expectedVisibleText) {
+          assert.ok(!sample.optionalVisibleText.includes(text), `Text "${text}" is both expected and optional in ${sample.id}`);
+        }
+      }
+      if (sample.expectedElementCategories && sample.optionalElementCategories) {
+        for (const category of sample.expectedElementCategories) {
+          assert.ok(!sample.optionalElementCategories.includes(category), `Category "${category}" is both expected and optional in ${sample.id}`);
+        }
+      }
+      if (sample.expectedVisibleElementLabels && sample.optionalVisibleElementLabels) {
+        for (const label of sample.expectedVisibleElementLabels) {
+          assert.ok(!sample.optionalVisibleElementLabels.includes(label), `Label "${label}" is both expected and optional in ${sample.id}`);
+        }
+      }
+    }
+  });
+
+  it('no duplicates within expectation lists', () => {
+    const samples = getAllPublicSamples();
+    for (const sample of samples) {
+      if (sample.expectedVisibleText) {
+        assert.strictEqual(new Set(sample.expectedVisibleText).size, sample.expectedVisibleText.length, `Duplicate in expectedVisibleText for ${sample.id}`);
+      }
+      if (sample.optionalVisibleText) {
+        assert.strictEqual(new Set(sample.optionalVisibleText).size, sample.optionalVisibleText.length, `Duplicate in optionalVisibleText for ${sample.id}`);
+      }
+      if (sample.expectedElementCategories) {
+        assert.strictEqual(new Set(sample.expectedElementCategories).size, sample.expectedElementCategories.length, `Duplicate in expectedElementCategories for ${sample.id}`);
+      }
+      if (sample.optionalElementCategories) {
+        assert.strictEqual(new Set(sample.optionalElementCategories).size, sample.optionalElementCategories.length, `Duplicate in optionalElementCategories for ${sample.id}`);
+      }
+      if (sample.expectedVisibleElementLabels) {
+        assert.strictEqual(new Set(sample.expectedVisibleElementLabels).size, sample.expectedVisibleElementLabels.length, `Duplicate in expectedVisibleElementLabels for ${sample.id}`);
+      }
+      if (sample.optionalVisibleElementLabels) {
+        assert.strictEqual(new Set(sample.optionalVisibleElementLabels).size, sample.optionalVisibleElementLabels.length, `Duplicate in optionalVisibleElementLabels for ${sample.id}`);
+      }
+    }
+  });
+
   it('expected labels are non-empty where applicable', () => {
     const samples = getAllPublicSamples();
     for (const sample of samples) {
