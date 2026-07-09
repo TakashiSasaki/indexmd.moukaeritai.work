@@ -6,12 +6,16 @@ This document outlines the operational design, roles, and validation procedures 
 
 ## 🌿 Architectural Roles of Branches
 
-1. **`main` (Source of Truth)**
+1. **`main` (Source of Truth for Google AI Studio)**
    - Owned and operated directly by **Google AI Studio** and associated automated code agents.
    - All browser-based prompt generations, edits, and deployments are written and pushed directly to `main`.
    - **Never rename or delete this branch.**
 
-2. **`jules/integration` (Jules Workspace & Integration Target)**
+2. **`chatgpt` (Durable Working Branch for ChatGPT-Authored Changes)**
+   - The primary durable working branch for ChatGPT-authored changes in this project.
+   - Use `chatgpt` as the target branch for repository edits unless the user or project instructions explicitly dictate otherwise.
+
+3. **`jules/integration` (Jules Workspace & Integration Target)**
    - Owned and operated by **Jules** for localized development, external merges, and full-stack integration tests.
    - Automatically synchronized from `main` to ensure Jules' changes always build on top of Google AI Studio's latest generations.
    - **Important Constraint**: This branch is **never** reset or force-pushed by automation, preserving Jules' unpushed history.
