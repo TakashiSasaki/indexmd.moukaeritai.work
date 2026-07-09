@@ -4,16 +4,16 @@ import { Code, FileJson, BookOpen, ChevronRight, FileText } from 'lucide-react';
 
 // Vite raw imports for documentation and schemas
 import schemaDoc from '../../docs/schema-documentation.md?raw';
-import summarySchemaV1 from '../../schemas/summary-analysis.v1.2.0-draft.1.schema.json?raw';
-import summarySchemaV2 from '../../schemas/summary-analysis.v1.2.0-draft.2.schema.json?raw';
-import visualSchemaV1 from '../../schemas/visual-analysis.v0.1.0-draft.1.schema.json?raw';
-import visualSchemaV2 from '../../schemas/visual-analysis.v0.2.0-draft.1.schema.json?raw';
+import summarySchema from '../../contracts/schemas/summary-analysis/v1.2.0-draft.2/schema.json?raw';
+import textRecordSchema from '../../contracts/schemas/text-analysis-record/v0.1.0/schema.json?raw';
+import visualSchema from '../../contracts/schemas/visual-analysis/v0.2.0-draft.1/schema.json?raw';
+import imageRecordSchema from '../../contracts/schemas/image-analysis-record/v0.1.0/schema.json?raw';
 
 const schemas = [
-  { id: 'summary-v1', name: 'Summary Analysis v1.2.0-draft.1', content: summarySchemaV1 },
-  { id: 'summary-v2', name: 'Summary Analysis v1.2.0-draft.2', content: summarySchemaV2 },
-  { id: 'visual-v1', name: 'Visual Analysis v0.1.0-draft.1', content: visualSchemaV1 },
-  { id: 'visual-v2', name: 'Visual Analysis v0.2.0-draft.1', content: visualSchemaV2 },
+  { id: 'summary-analysis', name: 'Summary Analysis v1.2.0-draft.2', content: summarySchema },
+  { id: 'text-analysis-record', name: 'Text Analysis Record v0.1.0', content: textRecordSchema },
+  { id: 'visual-analysis', name: 'Visual Analysis v0.2.0-draft.1', content: visualSchema },
+  { id: 'image-analysis-record', name: 'Image Analysis Record v0.1.0', content: imageRecordSchema },
 ];
 
 export default function DeveloperDocs() {

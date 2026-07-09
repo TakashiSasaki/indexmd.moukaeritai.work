@@ -4,7 +4,7 @@ This document specifies the Summary Analysis Schema v1.2.0-draft.2, a repository
 
 ## 🎯 JSON Schema as Source of Truth
 The schema's formal definition resides exclusively in:
-`/schemas/summary-analysis.v1.2.0-draft.2.schema.json`
+`contracts/schemas/summary-analysis/v1.2.0-draft.2/schema.json`
 
 **TypeScript interfaces, comments, and helper functions are downstream consumers.** The JSON Schema document itself must be treated as the ultimate reference of correctness for any data exchange.
 

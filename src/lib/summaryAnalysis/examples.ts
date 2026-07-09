@@ -1,5 +1,5 @@
-import minimalExample from "../../../schemas/examples/summary-analysis.v1.2.0-draft.2.minimal.json";
-import japaneseMixedExample from "../../../schemas/examples/summary-analysis.v1.2.0-draft.2.japanese-mixed.json";
+import minimalExample from "../../../contracts/schemas/summary-analysis/v1.2.0-draft.2/examples/minimal.json";
+import japaneseMixedExample from "../../../contracts/schemas/summary-analysis/v1.2.0-draft.2/examples/japanese-mixed.json";
 
 export {
   minimalExample,

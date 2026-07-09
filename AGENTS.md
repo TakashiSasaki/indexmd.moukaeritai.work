@@ -60,7 +60,7 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - `src/lib/cacheMetrics.ts`: Server-side process-local cache metrics and filesystem inventory helpers.
 - `src/lib/visualAnalysis/`: Visual Analysis schema, provider schema, canonicalization, validation, prompts, model output parsing, and provider failure handling.
 - `src/lib/visualAnalysis/publicSamples/`: Public sample registry, sample fetching, batch report builders, comparison artifacts, and image validation.
-- `schemas/`: JSON schemas used by runtime validators and prompts.
+- `contracts/`: Data exchange contracts, versioned schemas, vocabularies, and conformance vectors.
 - `docs/maintenance/repository-health.md`: Canonical repository health maintenance instructions.
 - `skills/`: Workspace-local agent skills.
 
