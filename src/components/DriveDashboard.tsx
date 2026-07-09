@@ -119,6 +119,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
   // Debugger specific states
   const debugAbortControllerRef = useRef<AbortController | null>(null);
   const isManualCancelRef = useRef<boolean>(false);
+  const hasLoggedInitialSyncRef = useRef<boolean>(false);
   const cancelDebugScan = () => {
     if (debugAbortControllerRef.current) {
       isManualCancelRef.current = true;
@@ -349,6 +350,8 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
       onAddLog("info", "Firestore データベースに接続しています。フォルダ構造のリアルタイム同期を開始しました...");
     }, 0);
     
+    hasLoggedInitialSyncRef.current = false;
+
     // Fallback timer to prevent getting stuck in "Syncing..." loading state
     const fallbackTimer = setTimeout(() => {
       setLoading((prevLoading) => {
@@ -373,7 +376,7 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
       onAddLog("error", `❌ [Firestore初期化] ユーザーID不一致を検出しました。Path UID: ${userId}, Auth UID: ${currentUser.uid}`);
     }
 
-    const unsubscribe = onSnapshot(dirsRef, { includeMetadataChanges: true }, (snap) => {
+    const unsubscribe = onSnapshot(dirsRef, (snap) => {
       // Direct high-performance mapping from snap.docs ensures we are always 100% in sync
       // with Cloud Firestore records, eliminating any partial event state-drifts or complex
       // local map retention issues.
@@ -405,12 +408,15 @@ export default function DriveDashboard({ userId, token, config, onUpdateConfig, 
       setSyncProgress({ current: count, lastPath: lastProcessedPath });
       
       setTimeout(() => {
-        if (isCache) {
-          onAddLog("info", `[データベース同期進捗] キャッシュ同期中: ${count} 件のフォルダ情報を読み込みました。 (最新フォルダ: ${lastProcessedPath || "なし"})`);
-        } else {
-          onAddLog("success", `[データベース同期完了] Firestore サーバーと完全に同期しました。登録フォルダ件数: ${count} 件`);
-          if (lastProcessedPath) {
-            onAddLog("info", `[最新同期フォルダ] 最終同期パス: ${lastProcessedPath}`);
+        if (!hasLoggedInitialSyncRef.current) {
+          hasLoggedInitialSyncRef.current = true;
+          if (isCache) {
+            onAddLog("info", `[データベース同期進捗] キャッシュ同期中: ${count} 件のフォルダ情報を読み込みました。 (最新フォルダ: ${lastProcessedPath || "なし"})`);
+          } else {
+            onAddLog("success", `[データベース同期完了] Firestore サーバーと完全に同期しました。登録フォルダ件数: ${count} 件`);
+            if (lastProcessedPath) {
+              onAddLog("info", `[最新同期フォルダ] 最終同期パス: ${lastProcessedPath}`);
+            }
           }
         }
       }, 0);
