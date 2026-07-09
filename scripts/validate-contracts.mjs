@@ -97,6 +97,117 @@ function runValidation() {
   }
   console.log('');
 
+  // 3.1 Verify README.md existence in versioned API folders
+  console.log('Checking for README.md in versioned API contract directories...');
+  const apiBaseDir = path.join(contractsDir, 'api');
+  if (fs.existsSync(apiBaseDir)) {
+    const apiSubdirs = fs.readdirSync(apiBaseDir);
+    for (const subdir of apiSubdirs) {
+      const subdirPath = path.join(apiBaseDir, subdir);
+      if (!fs.statSync(subdirPath).isDirectory()) continue;
+      
+      const readmePath = path.join(subdirPath, 'README.md');
+      if (!fs.existsSync(readmePath)) {
+        console.error(`❌ Missing README.md in API contract version: contracts/api/${subdir}`);
+        process.exit(1);
+      }
+      console.log(`[OK] README.md exists for contracts/api/${subdir}`);
+    }
+  }
+  console.log('');
+
+  // 3.2 Verify vocabulary contracts
+  console.log('Validating vocabulary contracts...');
+  const vocabulariesDir = path.join(contractsDir, 'vocabularies');
+  
+  // Verify vocabularies/README.md exists
+  const vocabReadmePath = path.join(vocabulariesDir, 'README.md');
+  if (!fs.existsSync(vocabReadmePath)) {
+    console.error(`❌ Missing README.md in vocabularies directory: contracts/vocabularies/README.md`);
+    process.exit(1);
+  }
+  console.log(`[OK] README.md exists for contracts/vocabularies`);
+
+  const vocabFiles = walkDir(vocabulariesDir, (p) => p.endsWith('.json'));
+  for (const file of vocabFiles) {
+    const relativePath = path.relative(process.cwd(), file);
+    const content = JSON.parse(fs.readFileSync(file, 'utf8'));
+    
+    if (typeof content.vocabularyId !== 'string' || !content.vocabularyId) {
+      console.error(`❌ Vocabulary file missing or invalid "vocabularyId": ${relativePath}`);
+      process.exit(1);
+    }
+    
+    if (typeof content.version !== 'string' || !content.version) {
+      console.error(`❌ Vocabulary file missing or invalid "version": ${relativePath}`);
+      process.exit(1);
+    }
+    
+    if (content.vocabularyId === 'extraction-role-categories') {
+      const subLists = ['temporalRoleCategories', 'partyKinds', 'partyRoleCategories', 'monetaryRoleCategories'];
+      let totalTerms = 0;
+      for (const listName of subLists) {
+        if (!Array.isArray(content[listName])) {
+          console.error(`❌ Vocabulary file "${listName}" must be an array: ${relativePath}`);
+          process.exit(1);
+        }
+        for (let i = 0; i < content[listName].length; i++) {
+          const term = content[listName][i];
+          if (typeof term !== 'object' || term === null || typeof term.value !== 'string' || !term.value) {
+            console.error(`❌ Vocabulary file contains term without valid string value at index ${i} in "${listName}": ${relativePath}`);
+            process.exit(1);
+          }
+        }
+        totalTerms += content[listName].length;
+      }
+      console.log(`[OK] Vocabulary valid: ${relativePath} (${content.vocabularyId}@${content.version}, ${totalTerms} terms across ${subLists.length} groups)`);
+    } else {
+      if (!Array.isArray(content.terms)) {
+        console.error(`❌ Vocabulary file "terms" must be an array: ${relativePath}`);
+        process.exit(1);
+      }
+      
+      for (let i = 0; i < content.terms.length; i++) {
+        const term = content.terms[i];
+        if (typeof term !== 'object' || term === null || typeof term.value !== 'string' || !term.value) {
+          console.error(`❌ Vocabulary file contains term without valid string value at index ${i}: ${relativePath}`);
+          process.exit(1);
+        }
+      }
+      console.log(`[OK] Vocabulary valid: ${relativePath} (${content.vocabularyId}@${content.version}, ${content.terms.length} terms)`);
+    }
+  }
+  console.log('');
+
+  // 3.3 Verify referenced examples in READMEs actually exist
+  console.log('Verifying examples referenced in README.md files actually exist...');
+  const allReadmeFiles = walkDir(contractsDir, (p) => p.endsWith('README.md'));
+  for (const readmeFile of allReadmeFiles) {
+    const relativeReadmePath = path.relative(process.cwd(), readmeFile);
+    const readmeContent = fs.readFileSync(readmeFile, 'utf8');
+    const folder = path.dirname(readmeFile);
+    
+    // Find references of the form examples/something.json
+    const exampleRegex = /examples\/[a-zA-Z0-9._-]+\.json/g;
+    let match;
+    const matches = [];
+    while ((match = exampleRegex.exec(readmeContent)) !== null) {
+      matches.push(match[0]);
+    }
+    
+    for (const ref of matches) {
+      const fullPath = path.join(folder, ref);
+      if (!fs.existsSync(fullPath)) {
+        console.error(`❌ Referenced example does not exist: "${ref}" (found in ${relativeReadmePath})`);
+        process.exit(1);
+      }
+    }
+    if (matches.length > 0) {
+      console.log(`[OK] Verified ${matches.length} example references in ${relativeReadmePath}`);
+    }
+  }
+  console.log('');
+
   // 4. Validate Example payloads against their respective schemas
   console.log('Validating example payloads against associated schemas...');
   for (const schemaFile of schemaFiles) {

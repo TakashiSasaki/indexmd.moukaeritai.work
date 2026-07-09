@@ -1,0 +1,16 @@
+[
+  {
+    "id": "sample-landscape-1",
+    "title": "Landscape Sunset",
+    "category": "landscape",
+    "expectedMetadata": {},
+    "source": {
+      "provider": "Wikimedia Commons",
+      "kind": "external",
+      "licenseKind": "creative-commons",
+      "licenseName": "CC-BY-SA-4.0",
+      "isSynthetic": false
+    },
+    "thumbnailRoute": "/api/visual/public-samples/sample-landscape-1/thumbnail"
+  }
+]

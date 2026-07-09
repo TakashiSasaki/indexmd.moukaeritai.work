@@ -231,101 +231,36 @@ Generates summaries and validates schema fields on raw manual text entered in th
 ### 5. `GET /api/visual/public-samples`
 Returns a list of public images and synthetic documents registered in the system for visual indexing testing.
 
+> 📝 **Canonical Exchange Schema**: This endpoint is governed by the versioned data exchange contract:  
+> `contracts/api/v0.1.0/visual-public-samples-list.response.schema.json`  
+> External consumers MUST bind to the versioned contract path. This Markdown file is explanatory documentation, not the canonical machine-readable schema.
+
 *   **Success Response** (200 OK):
-    ```json
-    [
-      {
-        "id": "string (e.g. 'starry-night')",
-        "title": "string",
-        "category": "string (e.g. 'landscape', 'document')",
-        "expectedMetadata": {
-          "imageKind": "string",
-          "acceptableImageKinds": ["string"],
-          "elementCategories": ["string"],
-          "elementCategoryAlternatives": { "string": ["string"] },
-          "visibleElementLabels": ["string"],
-          "visibleElementLabelAliases": { "string": ["string"] },
-          "visibleText": ["string"],
-          "notes": ["string"],
-          "optionalElementCategories": ["string"],
-          "optionalVisibleElementLabels": ["string"],
-          "optionalVisibleElementLabelAliases": { "string": ["string"] },
-          "optionalVisibleText": ["string"]
-        },
-        "source": {
-          "provider": "string",
-          "kind": "string",
-          "licenseKind": "string",
-          "licenseName": "string",
-          "attributionText": "string",
-          "pageUrl": "string",
-          "isSynthetic": "boolean"
-        },
-        "thumbnailRoute": "string (URL to fetch image thumbnail)"
-      }
-    ]
-    ```
+    *   Refer to the canonical exchange schema: `contracts/api/v0.1.0/visual-public-samples-list.response.schema.json`
+    *   Example payload: `contracts/api/v0.1.0/examples/visual-public-samples-list.response.minimal.json`
 
 ---
 
 ### 6. `POST /api/visual/public-samples/analyze`
 Dispatches a visual analysis on a public sample to extract visual features, elements, and text according to the Visual Analysis Schema (`v0.2.0-draft.1`).
 
+> 📝 **Canonical Exchange Schemas**:  
+> - **Request Schema**: `contracts/api/v0.1.0/visual-public-samples-analyze.request.schema.json`  
+> - **Response Schema**: `contracts/api/v0.1.0/visual-public-samples-analyze.response.schema.json`  
+> External consumers MUST bind to these versioned contract paths. This Markdown file is explanatory documentation, not the canonical machine-readable schema.
+
 *   **Request Body**:
-    ```json
-    {
-      "sampleId": "string (required)",
-      "modelName": "string (optional, default: 'gemini-3.5-flash')",
-      "jsonMode": "string (optional, 'prompt_only' | 'native_schema')",
-      "customInstruction": "string (optional)",
-      "includeRequestPreview": "boolean (optional, default: false)"
-    }
-    ```
+    *   Refer to the canonical request schema: `contracts/api/v0.1.0/visual-public-samples-analyze.request.schema.json`
+    *   Example: `contracts/api/v0.1.0/examples/visual-public-samples-analyze.request.minimal.json`
+
 *   **Success Response** (200 OK):
-    ```json
-    {
-      "success": true,
-      "record": {
-        "schemaVersion": "image-analysis-record.v0.1.0",
-        "status": {
-          "success": true
-        },
-        "assetMetadata": {
-           "assetId": "string",
-           "sourceProvider": "publicSamples"
-        },
-        "technicalMetadata": {
-           "mimeType": "image/jpeg",
-           "originalByteLength": 12345
-        },
-        "visualAnalysis": {
-          "schemaVersion": "visual-analysis.v0.2.0-draft.1",
-          "summary": {},
-          "visualInfo": {}
-        },
-        "analysisRun": {
-          "metadata": {},
-          "execution": {}
-        },
-        "evaluation": {
-          "expectedMetadata": {},
-          "qualityStatus": "excellent",
-          "qualityScore": 100,
-          "qualityIssues": []
-        },
-        "diagnostics": {
-          "input": {},
-          "parse": {},
-          "generation": {},
-          "normalization": {}
-        }
-      },
-      "requestPreview": {}
-    }
-    ```
+    *   Refer to the canonical response schema: `contracts/api/v0.1.0/visual-public-samples-analyze.response.schema.json`
+    *   Example payloads:
+        *   `contracts/api/v0.1.0/examples/visual-public-samples-analyze.response.success.json`
+        *   `contracts/api/v0.1.0/examples/visual-public-samples-analyze.response.failure.json`
 
 *   **Notes**:
-    *   The API returns a canonical `ImageAnalysisRecord` shape for all responses (success, generation failure, parse failure, or schema validation failure).
+    *   The API returns a canonical `ImageAnalysisRecord` envelope shape for all responses (success, generation failure, parse failure, or schema validation failure).
     *   `record.visualAnalysis` contains the actual extracted visual content.
     *   `record.evaluation.expectedMetadata` contains the benchmark ground-truth expectations.
     *   `record.evaluation` contains the quality gate evaluation (`qualityStatus`, `qualityScore`, `qualityIssues`).
