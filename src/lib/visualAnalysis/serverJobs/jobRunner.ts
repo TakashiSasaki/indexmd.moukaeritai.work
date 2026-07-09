@@ -261,7 +261,7 @@ export async function startVisualBatchJob(
         qualityScore: finalData.qualityScore,
         qualityIssues: finalData.qualityIssues,
         record: finalData.record || finalData,
-        responseRaw: finalData, 
+        responseRaw: finalData,
         responseDiagnostics: finalData.responseDiagnostics,
         retryDiagnostics: finalData.retryDiagnostics,
         generationDiagnostics: finalData.generationDiagnostics,

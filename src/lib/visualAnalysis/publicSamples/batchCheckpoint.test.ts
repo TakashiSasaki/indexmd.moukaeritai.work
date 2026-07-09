@@ -9,7 +9,7 @@ import {
 import { PublicSampleBatchRunItem } from './batchTypes';
 
 describe('Public Sample Batch Checkpoint', () => {
-  const dummyItem: PublicSampleBatchRunItem = {
+  const dummyItem: any = {
     sampleId: 'sample-1',
     title: 'sample-1',
     success: true,

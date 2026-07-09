@@ -126,8 +126,8 @@ export function buildBatchComparisonReportForChat(runs: PublicSampleBatchRunSumm
         const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === item.sampleId);
         const category = item.category ||
                          matchedSample?.category ||
-                         (item.responseRaw?.sampleMetadata as any)?.category || 
-                         (item.comparison as any)?.category || 
+                         (item.responseRaw?.sampleMetadata as any)?.category ||
+                         (item.comparison as any)?.category ||
                          "unknown";
         sampleMetadataMap.set(item.sampleId, {
           title: item.title,
