@@ -19,6 +19,12 @@ export interface GenerationAttemptDiagnostic {
   retryAfterMs?: number;
   retryReason?: string;
   providerFailureKind?: string;
+  quotaMetric?: string;
+  quotaId?: string;
+  quotaValue?: string | number;
+  quotaDimensions?: Record<string, string>;
+  quotaClassification?: string;
+  errorFingerprint?: string;
   notRetriedReason?: string;
 }
 
@@ -47,6 +53,12 @@ export interface GenerationDiagnostics {
   rateLimited?: boolean;
   retryAfterMs?: number;
   retryAfterReason?: string;
+  quotaMetric?: string;
+  quotaId?: string;
+  quotaValue?: string | number;
+  quotaDimensions?: Record<string, string>;
+  quotaClassification?: string;
+  errorFingerprint?: string;
   retryPolicy?: ProviderGenerationRetryPolicy;
   notRetriedReason?: string;
 }

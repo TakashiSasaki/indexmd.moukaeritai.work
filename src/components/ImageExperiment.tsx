@@ -35,7 +35,6 @@ import {
   buildLocalJobBackupMetadata
 } from '../lib/visualAnalysis/serverJobs/localJobBackup';
 
-
 interface ImageExperimentProps {
   token: string;
   config: AppConfig;
@@ -189,7 +188,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [serverJobList, setServerJobList] = useState<any[]>([]);
   const [localJobBackups, setLocalJobBackups] = useState<LocalJobBackup[]>([]);
   const fetchedBundlesRef = React.useRef<Set<string>>(new Set());
-
 
   // Batch evaluation state
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
@@ -902,7 +900,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
-
   const reloadLocalBackups = () => {
     setLocalJobBackups(listLocalJobBackups());
   };
@@ -912,7 +909,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       reloadLocalBackups();
     }
   }, [showServerSideJob]);
-
   const handleRefreshServerJob = async (isManual = false, overrideJobId?: string) => {
     const targetJobId = overrideJobId || serverJobId;
     if (!targetJobId) return;
@@ -926,8 +922,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         setServerJobStatus(data.job);
         setServerJobComputedState(data.computedState ?? null);
         setServerJobItemsPreview(data.itemsPreview ?? []);
-      } else {
-        // If refreshing a non-selected job, we just fetch it to save backup
       }
 
       // Check for backup save logic
@@ -960,7 +954,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
            }
         }
       }
-
     } catch (e: any) {
       if (isManual) onAddLog("error", `Refresh failed: ${e.message}`);
     } finally {
@@ -969,8 +962,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       }
     }
   };
-  
-  
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (showServerSideJob && serverJobId && serverJobStatus && (serverJobStatus.status === 'running' || serverJobStatus.status === 'queued' || serverJobStatus.status === 'canceling')) {
@@ -1008,6 +1000,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   useEffect(() => {
     if (showServerSideJob) {
       loadServerJobs();
+      reloadLocalBackups();
     }
   }, [showServerSideJob]);
 
@@ -4207,4 +4200,3 @@ function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-

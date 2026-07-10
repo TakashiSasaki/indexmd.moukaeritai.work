@@ -439,7 +439,6 @@ export default function App() {
                             </div>
                           ) : null}
                         </div>
-
                         <button
                           onClick={() => {
                             handleLogout();

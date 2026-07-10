@@ -10,14 +10,30 @@ export function jobToSummary(job: VisualBatchJob) {
     error: item.error,
     failureKind: item.failureKind,
     record: item.record,
+    attempts: item.attempts,
+    retryHistory: item.retryHistory,
   })) as any[];
 
+  const blockedCount = job.blockedSampleIds?.length || job.items.filter(i => i.status === 'blockedByQuota').length;
+  const terminalStatuses = new Set(['completed', 'canceled', 'failed', 'partiallyCompleted']);
   return {
+    bundleSchemaVersion: "0.2.0",
+    jobId: job.jobId,
+    jobRevision: job.revision || 0,
     jobStatus: job.status,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    canceledAt: job.canceledAt,
+    isTerminal: terminalStatuses.has(job.status),
+    pendingSampleIds: job.pendingSampleIds || [],
+    blockedSampleIds: job.blockedSampleIds || [],
+    blockedCount,
+    blockedReason: job.blockedReason,
+    resumeAfter: job.resumeAfter,
     completedCount: job.counters.successCount + job.counters.failureCount,
-    pendingCount: Math.max(job.counters.total - (job.counters.successCount + job.counters.failureCount), 0),
+    pendingCount: (job.pendingSampleIds || []).length,
     processedCount: job.counters.successCount + job.counters.failureCount,
-    isComplete: job.status === 'completed' || job.status === 'canceled' || job.status === 'failed',
+    isComplete: job.status === 'completed' || job.status === 'canceled' || job.status === 'failed' || job.status === 'partiallyCompleted',
     startedAt: job.startedAt,
     completedAt: job.completedAt,
     durationMs: job.durationMs,

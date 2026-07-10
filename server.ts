@@ -4,7 +4,6 @@ import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
 import { startVisualBatchJob, activeRunners } from './src/lib/visualAnalysis/serverJobs/jobRunner';
 import { VisualBatchJob } from './src/lib/visualAnalysis/publicSamples/batchTypes';
 import { fnv1a32 } from './src/lib/visualAnalysis/publicSamples/artifactUtils';
-import { getGeminiKeyInfo } from "./src/lib/runtime/geminiKeyInfo";
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -57,6 +56,7 @@ import {
 } from './src/lib/visualAnalysis/publicSamples/reportBuilder';
 import { buildPublicSampleExpectedMetadata } from './src/lib/visualAnalysis/publicSamples/expectedMetadata';
 import { jobToSummary } from './src/lib/visualAnalysis/serverJobs/jobAdapters';
+import { getGeminiKeyInfo } from "./src/lib/runtime/geminiKeyInfo";
 
 dotenv.config();
 
@@ -443,6 +443,19 @@ app.get("/api/runtime/gemini-key-info", (req, res) => {
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// Runtime Gemini Key info endpoint
+app.get("/api/runtime/gemini-key-info", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const info = getGeminiKeyInfo(process.env.GEMINI_API_KEY);
+    res.json(info);
+  } catch (err: any) {
+    res.status(500).json({
+      error: "APIキー情報を取得できませんでした"
+    });
+  }
 });
 
 // API to fetch history
@@ -3203,5 +3216,4 @@ async function startServer() {
 if (process.env.NODE_ENV !== "test") {
   startServer();
 }
-
 
