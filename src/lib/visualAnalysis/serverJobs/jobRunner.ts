@@ -364,15 +364,7 @@ export async function startVisualBatchJob(
       const nowTime = new Date().getTime();
       const startTime = finalJob.startedAt ? new Date(finalJob.startedAt).getTime() : nowTime;
 
-      if (finalJob.status === 'blockedByQuota') {
-        const processed = new Set([...(finalJob.completedSampleIds || []), ...(finalJob.failedSampleIds || []), ...(finalJob.blockedSampleIds || [])]);
-        const remaining = finalJob.targetSampleIds.filter(id => !processed.has(id));
-        jobStore.updateJob(jobId, {
-          pendingSampleIds: remaining,
-          blockedSampleIds: Array.from(new Set([...(finalJob.blockedSampleIds || []), ...remaining])),
-          lastEvent: finalJob.lastEvent
-        });
-      } else if (finalJob.status === 'running') {
+      if (finalJob.status === 'running') {
         const completedAt = nowStr;
         const durationMs = nowTime - startTime;
         const processed = (finalJob.completedSampleIds?.length || 0) + (finalJob.failedSampleIds?.length || 0);
