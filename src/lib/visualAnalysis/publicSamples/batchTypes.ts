@@ -43,9 +43,16 @@ export interface PublicSampleBatchRunItem {
     error?: string;
     delayBeforeNextAttemptMs?: number;
     nextRetryAt?: string;
+    quotaClassification?: string;
+    retryAfterReason?: string;
   }>;
   nextRetryAt?: string;
   retryExhausted?: boolean;
+  resumeAfter?: string;
+  pauseReason?: "pausedForRateLimit";
+  blockedReason?: "blockedByQuota";
+  affectedSampleIds?: string[];
+  attemptState?: any;
 
   error?: string;
   failureKind?: string;
@@ -160,9 +167,16 @@ export interface VisualBatchJobItem {
     error?: string;
     delayBeforeNextAttemptMs?: number;
     nextRetryAt?: string;
+    quotaClassification?: string;
+    retryAfterReason?: string;
   }>;
   nextRetryAt?: string;
   retryExhausted?: boolean;
+  resumeAfter?: string;
+  pauseReason?: "pausedForRateLimit";
+  blockedReason?: "blockedByQuota";
+  affectedSampleIds?: string[];
+  attemptState?: any;
   error?: string;
   failureKind?: string;
   
@@ -226,6 +240,11 @@ export interface VisualBatchJob {
   lastCheckpointSavedAt?: string;
   lastError?: string;
   lastFailureKind?: string;
+  resumeAfter?: string;
+  pauseReason?: "pausedForRateLimit";
+  blockedReason?: "blockedByQuota";
+  affectedSampleIds?: string[];
+  attemptState?: any;
 
   items: VisualBatchJobItem[];
 }

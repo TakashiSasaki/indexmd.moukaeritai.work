@@ -2,6 +2,75 @@ import { jobStore } from './jobStore';
 import { VisualBatchJob, VisualBatchJobItem } from '../publicSamples/batchTypes';
 import { evaluateSampleComparison } from '../publicSamples/compare';
 
+const SHORT_RETRY_DELAY_MS = 5 * 60_000;
+const DEFAULT_RATE_LIMIT_PAUSE_MS = 60_000;
+
+function getHeaderValue(headers: any, name: string): string | undefined {
+  if (!headers) return undefined;
+  if (typeof headers.get === 'function') return headers.get(name) || headers.get(name.toLowerCase()) || undefined;
+  return headers[name] || headers[name.toLowerCase()];
+}
+
+function extractRetryDelayMs(finalData: any): { retryAfterMs?: number; retryAfterReason?: string } {
+  const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
+  if (typeof generationDiagnostics?.retryAfterMs === 'number') {
+    return { retryAfterMs: generationDiagnostics.retryAfterMs, retryAfterReason: generationDiagnostics.retryAfterReason };
+  }
+
+  const retryAfterStr = getHeaderValue(finalData?.responseDiagnostics?.headers, 'retry-after');
+  if (retryAfterStr) {
+    const parsed = parseFloat(retryAfterStr);
+    if (!Number.isNaN(parsed) && parsed > 0) return { retryAfterMs: parsed * 1000, retryAfterReason: 'HTTP retry-after header' };
+    const dateDelay = Date.parse(retryAfterStr) - Date.now();
+    if (!Number.isNaN(dateDelay) && dateDelay > 0) return { retryAfterMs: dateDelay, retryAfterReason: 'HTTP retry-after date header' };
+  }
+
+  return {};
+}
+
+export function classifyJobQuotaInterruption(finalData: any, status?: number): {
+  isQuotaOrRateLimit: boolean;
+  action?: 'blockedByQuota' | 'pausedForRateLimit';
+  retryAfterMs?: number;
+  retryAfterReason?: string;
+  quotaClassification?: string;
+} {
+  const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
+  const quotaClassification = finalData?.quotaClassification ?? generationDiagnostics?.quotaClassification;
+  const providerStatus = generationDiagnostics?.providerStatus;
+  const failureKind = finalData?.failureKind;
+  const { retryAfterMs, retryAfterReason } = extractRetryDelayMs(finalData);
+
+  if (quotaClassification === 'dailyQuotaExhausted') {
+    return { isQuotaOrRateLimit: true, action: 'blockedByQuota', retryAfterMs, retryAfterReason, quotaClassification };
+  }
+
+  if (
+    quotaClassification === 'transientThrottle' ||
+    (retryAfterReason?.includes('RetryInfo') && retryAfterMs !== undefined && retryAfterMs <= SHORT_RETRY_DELAY_MS)
+  ) {
+    return { isQuotaOrRateLimit: true, action: 'pausedForRateLimit', retryAfterMs, retryAfterReason, quotaClassification };
+  }
+
+  const genericQuotaOrRateLimit =
+    failureKind === 'providerQuotaExceeded' ||
+    failureKind === 'providerRateLimited' ||
+    failureKind === 'rateLimited' ||
+    providerStatus === 'RESOURCE_EXHAUSTED' ||
+    providerStatus === 'QUOTA_EXCEEDED' ||
+    status === 429;
+
+  if (!genericQuotaOrRateLimit) return { isQuotaOrRateLimit: false };
+
+  return {
+    isQuotaOrRateLimit: true,
+    action: failureKind === 'providerQuotaExceeded' && status !== 429 ? 'blockedByQuota' : 'pausedForRateLimit',
+    retryAfterMs,
+    retryAfterReason,
+    quotaClassification
+  };
+}
+
 export const activeRunners = new Map<string, { startedAt: string; abortController?: AbortController }>();
 
 export function isRunnerActive(jobId: string) {
@@ -31,6 +100,11 @@ export async function startVisualBatchJob(
     jobStore.updateJob(jobId, { 
     status: 'running', 
     startedAt: new Date().toISOString(),
+    resumeAfter: undefined,
+    pauseReason: undefined,
+    blockedReason: undefined,
+    affectedSampleIds: undefined,
+    attemptState: undefined,
     lastEvent: {
       type: 'jobStarted',
       timestamp: new Date().toISOString(),
@@ -166,35 +240,50 @@ export async function startVisualBatchJob(
       }
 
       // Check if we should retry
-      const failureKind = finalData?.failureKind;
-      const generationDiagnostics =
-        finalData?.record?.diagnostics?.generation ??
-        finalData?.generationDiagnostics;
-
-      const providerStatus = generationDiagnostics?.providerStatus;
-      const isQuotaError = 
-        failureKind === 'providerQuotaExceeded' || 
-        failureKind === 'providerRateLimited' ||
-        failureKind === 'rateLimited' ||
-        providerStatus === 'RESOURCE_EXHAUSTED' ||
-        providerStatus === 'QUOTA_EXCEEDED' ||
-        res?.status === 429;
+      const quotaInterruption = classifyJobQuotaInterruption(finalData, res?.status);
+      const isQuotaError = quotaInterruption.isQuotaOrRateLimit;
       
       const attemptCompletedAt = new Date();
       const attemptDurationMs = attemptCompletedAt.getTime() - attemptStartedAtDate.getTime();
 
+      if (quotaInterruption.action === 'blockedByQuota') {
+        const resumeAfter = new Date(Date.now() + (quotaInterruption.retryAfterMs ?? 24 * 60 * 60_000)).toISOString();
+        item.blockedReason = 'blockedByQuota';
+        item.resumeAfter = resumeAfter;
+        item.affectedSampleIds = [sampleId];
+        item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: false };
+        item.retryHistory = item.retryHistory || [];
+        item.retryHistory.push({
+          attempt,
+          startedAt: attemptStartedAtDate.toISOString(),
+          completedAt: attemptCompletedAt.toISOString(),
+          durationMs: attemptDurationMs,
+          failureKind: finalData?.failureKind,
+          error: finalData?.error,
+          nextRetryAt: resumeAfter,
+          quotaClassification: quotaInterruption.quotaClassification,
+          retryAfterReason: quotaInterruption.retryAfterReason
+        });
+        jobStore.appendItem(jobId, item);
+        jobStore.updateJob(jobId, {
+          status: 'paused',
+          resumeAfter,
+          blockedReason: 'blockedByQuota',
+          affectedSampleIds: [sampleId],
+          attemptState: item.attemptState,
+          lastEvent: { type: 'jobPaused', timestamp: new Date().toISOString(), sampleId, message: `Daily quota exhausted while processing ${sampleTitle}` },
+          lastFailureKind: finalData?.failureKind,
+          lastError: finalData?.error,
+          lastHeartbeatAt: new Date().toISOString()
+        });
+        break;
+      }
+
       if (isQuotaError && attempt < maxAttemptsPerSample) {
-        // We will retry
-        let delayMs = 60_000;
-        const retryAfterStr = finalData?.responseDiagnostics?.headers?.['retry-after'];
-        if (retryAfterStr) {
-          const parsed = parseInt(retryAfterStr, 10);
-          if (!isNaN(parsed) && parsed > 0) {
-             delayMs = parsed * 1000;
-          }
-        }
+        // We will retry bounded transient 429/rate-limit responses, but daily quota exhaustion pauses the job.
+        let delayMs = quotaInterruption.retryAfterMs ?? DEFAULT_RATE_LIMIT_PAUSE_MS;
         // Cap delay to 5 minutes
-        if (delayMs > 5 * 60_000) delayMs = 5 * 60_000;
+        if (delayMs > SHORT_RETRY_DELAY_MS) delayMs = SHORT_RETRY_DELAY_MS;
 
         const nextRetryAtDate = new Date(Date.now() + delayMs);
         const nextRetryAt = nextRetryAtDate.toISOString();
@@ -208,12 +297,22 @@ export async function startVisualBatchJob(
           failureKind: finalData?.failureKind,
           error: finalData?.error,
           delayBeforeNextAttemptMs: delayMs,
-          nextRetryAt
+          nextRetryAt,
+          quotaClassification: quotaInterruption.quotaClassification,
+          retryAfterReason: quotaInterruption.retryAfterReason
         });
         
         item.nextRetryAt = nextRetryAt;
+        item.resumeAfter = nextRetryAt;
+        item.pauseReason = 'pausedForRateLimit';
+        item.affectedSampleIds = [sampleId];
+        item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: false };
 
         jobStore.updateJob(jobId, {
+          resumeAfter: nextRetryAt,
+          pauseReason: 'pausedForRateLimit',
+          affectedSampleIds: [sampleId],
+          attemptState: item.attemptState,
           lastEvent: {
             type: 'quotaBackoffWaiting',
             timestamp: new Date().toISOString(),
@@ -240,18 +339,44 @@ export async function startVisualBatchJob(
              error: finalData?.error
            });
            if (retryExhausted) {
-             jobStore.updateJob(jobId, {
-               lastEvent: {
-                 type: 'sampleRetryExhausted',
-                 timestamp: new Date().toISOString(),
-                 sampleId: sampleId,
-                 message: `Retry exhausted for ${sampleTitle}`
-               }
-             });
+             if (isQuotaError && quotaInterruption.action === 'pausedForRateLimit') {
+               const delayMs = Math.min(quotaInterruption.retryAfterMs ?? DEFAULT_RATE_LIMIT_PAUSE_MS, SHORT_RETRY_DELAY_MS);
+               const resumeAfter = new Date(Date.now() + delayMs).toISOString();
+               item.resumeAfter = resumeAfter;
+               item.pauseReason = 'pausedForRateLimit';
+               item.affectedSampleIds = [sampleId];
+               item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: true };
+               jobStore.appendItem(jobId, item);
+               jobStore.updateJob(jobId, {
+                 status: 'paused',
+                 resumeAfter,
+                 pauseReason: 'pausedForRateLimit',
+                 affectedSampleIds: [sampleId],
+                 attemptState: item.attemptState,
+                 lastEvent: { type: 'jobPaused', timestamp: new Date().toISOString(), sampleId, message: `Rate limit pause scheduled for ${sampleTitle}` },
+                 lastFailureKind: finalData?.failureKind,
+                 lastError: finalData?.error,
+                 lastHeartbeatAt: new Date().toISOString()
+               });
+             } else {
+               jobStore.updateJob(jobId, {
+                 lastEvent: {
+                   type: 'sampleRetryExhausted',
+                   timestamp: new Date().toISOString(),
+                   sampleId: sampleId,
+                   message: `Retry exhausted for ${sampleTitle}`
+                 }
+               });
+             }
            }
         }
         break;
       }
+    }
+
+    const pausedAfterQuotaOrRateLimit = jobStore.getJob(jobId)?.status === 'paused';
+    if (pausedAfterQuotaOrRateLimit) {
+      break;
     }
 
     // Now record the final result of the item
@@ -294,6 +419,11 @@ export async function startVisualBatchJob(
         completedSampleIds,
         pendingSampleIds,
         counters,
+        resumeAfter: undefined,
+        pauseReason: undefined,
+        blockedReason: undefined,
+        affectedSampleIds: undefined,
+        attemptState: undefined,
         lastEvent: {
           type: 'sampleSucceeded',
           timestamp: new Date().toISOString(),
@@ -334,6 +464,11 @@ export async function startVisualBatchJob(
         failedSampleIds,
         pendingSampleIds,
         counters,
+        resumeAfter: undefined,
+        pauseReason: undefined,
+        blockedReason: undefined,
+        affectedSampleIds: undefined,
+        attemptState: undefined,
         lastEvent: {
           type: 'sampleFailed',
           timestamp: new Date().toISOString(),
