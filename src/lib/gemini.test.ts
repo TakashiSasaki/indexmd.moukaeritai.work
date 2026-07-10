@@ -4,6 +4,8 @@ import {
   extractProviderErrorDetails,
   classifyProviderFailureKind,
   extractRetryDelay,
+  parseGoogleRpcDurationMs,
+  extractStructuredProviderError,
   ProviderError
 } from "./gemini";
 
@@ -187,5 +189,86 @@ describe("Gemini Error Classification and Parsing", () => {
     assert.strictEqual(err.rateLimited, true);
     assert.strictEqual(err.retryAfterMs, 4500);
     assert.strictEqual(err.retryAfterReason, "google.rpc.RetryInfo");
+  });
+
+  it("parses Google RPC duration seconds, milliseconds, and fractional milliseconds without truncating positive values to zero", () => {
+    assert.strictEqual(parseGoogleRpcDurationMs("2s"), 2000);
+    assert.strictEqual(parseGoogleRpcDurationMs("660ms"), 660);
+    assert.strictEqual(parseGoogleRpcDurationMs("0.088ms"), 1);
+    assert.strictEqual(parseGoogleRpcDurationMs("0.660088668s"), 661);
+    assert.strictEqual(parseGoogleRpcDurationMs({ seconds: 1, nanos: 500_000 }), 1001);
+  });
+
+  it("safely ignores absent or malformed RetryInfo", () => {
+    assert.strictEqual(extractRetryDelay({ error: { details: [] } }, "").retryAfterMs, undefined);
+    assert.strictEqual(extractRetryDelay({ error: { details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "soon" }] } }, "").retryAfterMs, undefined);
+  });
+
+  it("extracts QuotaFailure without RetryInfo", () => {
+    const structured = extractStructuredProviderError({
+      status: 429,
+      error: {
+        status: "RESOURCE_EXHAUSTED",
+        details: [{
+          "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+          violations: [{
+            quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+            quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            quotaValue: "20",
+            quotaDimensions: { model: "gemini-test", location: "global", credential: "secret" }
+          }]
+        }]
+      },
+      message: "quota exhausted"
+    });
+    assert.strictEqual(structured.quotaClassification, "dailyQuotaExhausted");
+    assert.strictEqual(structured.providerFailureKind, "providerQuotaExceeded");
+    assert.strictEqual(structured.quotaMetric, "generativelanguage.googleapis.com/generate_content_free_tier_requests");
+    assert.strictEqual(structured.quotaId, "GenerateRequestsPerDayPerProjectPerModel-FreeTier");
+    assert.deepStrictEqual(structured.quotaDimensions, { model: "gemini-test", location: "global" });
+    assert.strictEqual(structured.retryAfterMs, undefined);
+  });
+
+  it("extracts RetryInfo without QuotaFailure and keeps it transient", () => {
+    const structured = extractStructuredProviderError({
+      status: 429,
+      error: {
+        status: "RESOURCE_EXHAUSTED",
+        details: [{
+          "@type": "type.googleapis.com/google.rpc.RetryInfo",
+          retryDelay: "660.088668ms"
+        }]
+      },
+      message: "rate limit"
+    });
+    assert.strictEqual(structured.retryAfterMs, 661);
+    assert.strictEqual(structured.quotaClassification, "generic429");
+  });
+
+  it("handles multiple Google RPC details in one response", () => {
+    const structured = extractStructuredProviderError({
+      response: {
+        status: 429,
+        error: {
+          status: "RESOURCE_EXHAUSTED",
+          details: [
+            { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: { seconds: 3, nanos: 250_000_000 } },
+            { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: "requests_per_minute", quotaId: "GenerateRequestsPerMinute", quotaDimensions: { model: "gemini-test" } }] }
+          ]
+        }
+      },
+      message: "RESOURCE_EXHAUSTED"
+    });
+    assert.strictEqual(structured.retryAfterMs, 3250);
+    assert.strictEqual(structured.quotaId, "GenerateRequestsPerMinute");
+    assert.strictEqual(structured.quotaClassification, "transientThrottle");
+    assert.ok(structured.errorFingerprint);
+  });
+
+  it("falls back safely when provider error shape changes", () => {
+    const structured = extractStructuredProviderError({ nope: true, message: "unexpected provider failure" });
+    assert.strictEqual(structured.providerStatus, "UNKNOWN");
+    assert.strictEqual(structured.providerFailureKind, "providerGenerationError");
+    assert.ok(structured.errorFingerprint);
   });
 });

@@ -55,7 +55,19 @@ export interface PublicSampleBatchRunItem {
 }
 
 export interface PublicSampleBatchRunSummary {
+  bundleSchemaVersion?: string;
+  jobId?: string;
+  jobRevision?: number;
   jobStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  canceledAt?: string;
+  isTerminal?: boolean;
+  pendingSampleIds?: string[];
+  blockedSampleIds?: string[];
+  blockedCount?: number;
+  blockedReason?: string;
+  resumeAfter?: string;
   completedCount?: number;
   pendingCount?: number;
   processedCount?: number;
@@ -89,9 +101,11 @@ export type VisualBatchJobStatus =
   | "running"
   | "canceling"
   | "paused"
+  | "pausedForRateLimit"
+  | "blockedByQuota"
+  | "partiallyCompleted"
   | "interrupted"
   | "failed"
-  | "blockedByQuota"
   | "completed"
   | "canceled";
 
@@ -101,7 +115,9 @@ export type VisualBatchJobItemStatus =
   | "succeeded"
   | "failed"
   | "skipped"
-  | "canceled";
+  | "canceled"
+  | "blockedByQuota"
+  | "deferred";
 
 export interface VisualBatchJobEvent {
   type:
@@ -125,6 +141,7 @@ export interface VisualBatchJobEvent {
     | "sampleRetryScheduled"
     | "sampleRetryStarted"
     | "quotaBackoffWaiting"
+    | "quotaCircuitBreakerTripped"
     | "sampleRetryExhausted"
     | "jobFailed"
     | "jobBlockedByQuota"
@@ -205,6 +222,9 @@ export interface VisualBatchJob {
   pendingSampleIds: string[];
   failedSampleIds: string[];
   blockedSampleIds?: string[];
+  revision?: number;
+  blockedReason?: string;
+  resumeAfter?: string;
 
   currentSampleId?: string;
   currentSampleTitle?: string;
@@ -283,4 +303,3 @@ export interface PublicSampleBatchAnalysisBundleReport {
     endSentinel: string;
   };
 }
-

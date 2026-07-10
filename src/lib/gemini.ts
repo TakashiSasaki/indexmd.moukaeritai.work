@@ -30,6 +30,12 @@ export class ProviderError extends Error {
   rateLimited?: boolean;
   retryAfterMs?: number;
   retryAfterReason?: string;
+  quotaMetric?: string;
+  quotaId?: string;
+  quotaValue?: string | number;
+  quotaDimensions?: Record<string, string>;
+  quotaClassification?: "transientThrottle" | "dailyQuotaExhausted" | "providerUnavailable" | "generic429" | "unknown";
+  errorFingerprint?: string;
   retryPolicy?: ProviderGenerationRetryPolicy;
   notRetriedReason?: string;
   errorName?: string;
@@ -46,6 +52,134 @@ export class ProviderError extends Error {
     this.providerStatus = providerStatus;
     this.rawMessageSummary = rawMessageSummary;
   }
+}
+
+function stableHash(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function collectGoogleRpcDetails(err: any, rawMessage = ""): any[] {
+  const details: any[] = [];
+  const add = (value: any) => {
+    if (Array.isArray(value)) details.push(...value.filter(Boolean));
+  };
+  add(err?.response?.error?.details);
+  add(err?.error?.details);
+  add(err?.details);
+  if (rawMessage) {
+    try {
+      const parsed = JSON.parse(rawMessage);
+      add(parsed?.error?.details);
+      add(parsed?.details);
+    } catch {}
+  }
+  return details;
+}
+
+export function parseGoogleRpcDurationMs(duration: unknown): number | undefined {
+  if (typeof duration === "string") {
+    const trimmed = duration.trim();
+    const match = trimmed.match(/^(\d+(?:\.\d+)?)(s|ms)$/);
+    if (!match) return undefined;
+    const value = Number(match[1]);
+    if (!Number.isFinite(value) || value < 0) return undefined;
+    const ms = match[2] === "s" ? value * 1000 : value;
+    return ms > 0 && ms < 1 ? 1 : Math.ceil(ms);
+  }
+  if (duration && typeof duration === "object") {
+    const seconds = Number((duration as any).seconds ?? 0);
+    const nanos = Number((duration as any).nanos ?? 0);
+    if (!Number.isFinite(seconds) || !Number.isFinite(nanos) || seconds < 0 || nanos < 0) return undefined;
+    const ms = seconds * 1000 + nanos / 1e6;
+    return ms > 0 && ms < 1 ? 1 : Math.ceil(ms);
+  }
+  return undefined;
+}
+
+export function extractStructuredProviderError(err: any): {
+  statusCode?: number;
+  providerStatus: string;
+  rawMessage: string;
+  providerFailureKind: ProviderError["providerFailureKind"];
+  quotaExceeded: boolean;
+  rateLimited: boolean;
+  quotaMetric?: string;
+  quotaId?: string;
+  quotaValue?: string | number;
+  quotaDimensions?: Record<string, string>;
+  retryAfterMs?: number;
+  retryAfterReason?: string;
+  quotaClassification: "transientThrottle" | "dailyQuotaExhausted" | "providerUnavailable" | "generic429" | "unknown";
+  errorFingerprint: string;
+} {
+  const { statusCode, providerStatus, rawMessage } = extractProviderErrorDetails(err);
+  const details = collectGoogleRpcDetails(err, rawMessage);
+  let quotaMetric: string | undefined;
+  let quotaId: string | undefined;
+  let quotaValue: string | number | undefined;
+  const quotaDimensions: Record<string, string> = {};
+  let retryAfterMs: number | undefined;
+  let retryAfterReason: string | undefined;
+
+  for (const detail of details) {
+    const type = detail?.["@type"] || detail?.type;
+    if (type === "type.googleapis.com/google.rpc.RetryInfo" || detail?.retryDelay) {
+      const parsed = parseGoogleRpcDurationMs(detail.retryDelay);
+      if (parsed !== undefined) {
+        retryAfterMs = parsed;
+        retryAfterReason = "google.rpc.RetryInfo";
+      }
+    }
+    if (type === "type.googleapis.com/google.rpc.QuotaFailure" || Array.isArray(detail?.violations)) {
+      for (const violation of detail.violations || []) {
+        quotaMetric ||= violation.quotaMetric || violation.metric;
+        quotaId ||= violation.quotaId || violation.quota_id;
+        quotaValue ||= violation.quotaValue || violation.quota_value;
+        const dims = violation.quotaDimensions || violation.dimensions || {};
+        for (const [key, value] of Object.entries(dims)) {
+          if (["model", "location", "quota_location", "service"].includes(key) && typeof value === "string") {
+            quotaDimensions[key] = value;
+          }
+        }
+      }
+    }
+  }
+
+  const retry = extractRetryDelay(err, rawMessage);
+  retryAfterMs ??= retry.retryAfterMs;
+  retryAfterReason ??= retry.retryAfterReason;
+
+  const base = classifyProviderFailureKind(statusCode, providerStatus, rawMessage);
+  const quotaText = `${quotaMetric || ""} ${quotaId || ""} ${rawMessage}`.toLowerCase();
+  let quotaClassification: "transientThrottle" | "dailyQuotaExhausted" | "providerUnavailable" | "generic429" | "unknown" = "unknown";
+  if (base.providerFailureKind === "providerUnavailable") quotaClassification = "providerUnavailable";
+  else if (quotaText.includes("perday") || quotaText.includes("per_day") || quotaText.includes("daily") || quotaText.includes("free_tier_requests")) quotaClassification = "dailyQuotaExhausted";
+  else if (quotaMetric || quotaId) quotaClassification = "transientThrottle";
+  else if (statusCode === 429) quotaClassification = "generic429";
+
+  const providerFailureKind = quotaClassification === "dailyQuotaExhausted" ? "providerQuotaExceeded" : base.providerFailureKind;
+  const fingerprint = stableHash(JSON.stringify({ statusCode, providerStatus, providerFailureKind, quotaMetric, quotaId, quotaValue, quotaDimensions }));
+  return {
+    statusCode,
+    providerStatus,
+    rawMessage,
+    providerFailureKind,
+    quotaExceeded: base.quotaExceeded || quotaClassification === "dailyQuotaExhausted",
+    rateLimited: base.rateLimited || statusCode === 429,
+    quotaMetric,
+    quotaId,
+    quotaValue,
+    quotaDimensions: Object.keys(quotaDimensions).length ? quotaDimensions : undefined,
+    retryAfterMs,
+    retryAfterReason,
+    quotaClassification,
+    errorFingerprint: fingerprint,
+  };
 }
 
 export function extractProviderErrorDetails(err: any): {
@@ -171,17 +305,16 @@ export function extractRetryDelay(err: any, rawMessage: string): { retryAfterMs?
     for (const detail of details) {
       if (detail && (detail["@type"] === "type.googleapis.com/google.rpc.RetryInfo" || detail.retryDelay)) {
         const delay = detail.retryDelay;
-        if (typeof delay === "string" && delay.endsWith("s")) {
-          const secs = parseFloat(delay.slice(0, -1));
-          if (!isNaN(secs)) {
-            retryAfterMs = secs * 1000;
+        if (typeof delay === "string") {
+          const parsed = parseGoogleRpcDurationMs(delay);
+          if (parsed !== undefined) {
+            retryAfterMs = parsed;
             retryAfterReason = "google.rpc.RetryInfo";
           }
         } else if (delay && typeof delay === "object") {
-          const seconds = parseFloat(delay.seconds);
-          const nanos = parseFloat(delay.nanos || 0);
-          if (!isNaN(seconds)) {
-            retryAfterMs = seconds * 1000 + (nanos / 1e6);
+          const parsed = parseGoogleRpcDurationMs(delay);
+          if (parsed !== undefined) {
+            retryAfterMs = parsed;
             retryAfterReason = "google.rpc.RetryInfo (object)";
           }
         }
@@ -315,9 +448,8 @@ export async function generateContentWithRetry(
 
       return await client.models.generateContent(callParams);
     } catch (err: any) {
-      const { statusCode, providerStatus, rawMessage } = extractProviderErrorDetails(err);
-      const { providerFailureKind, quotaExceeded, rateLimited } = classifyProviderFailureKind(statusCode, providerStatus, rawMessage);
-      const { retryAfterMs, retryAfterReason } = extractRetryDelay(err, rawMessage);
+      const structuredError = extractStructuredProviderError(err);
+      const { statusCode, providerStatus, rawMessage, providerFailureKind, quotaExceeded, rateLimited, retryAfterMs, retryAfterReason } = structuredError;
 
       const isQuotaExceeded = statusCode === 429 || quotaExceeded || rateLimited;
       const isNotFound = statusCode === 404;
@@ -390,6 +522,12 @@ export async function generateContentWithRetry(
         retryAfterMs,
         retryReason: retryAfterReason,
         providerFailureKind,
+        quotaClassification: structuredError.quotaClassification,
+        quotaMetric: structuredError.quotaMetric,
+        quotaId: structuredError.quotaId,
+        quotaValue: structuredError.quotaValue,
+        quotaDimensions: structuredError.quotaDimensions,
+        errorFingerprint: structuredError.errorFingerprint,
         notRetriedReason
       });
       
@@ -408,6 +546,12 @@ export async function generateContentWithRetry(
       lastError.rateLimited = rateLimited;
       lastError.retryAfterMs = retryAfterMs;
       lastError.retryAfterReason = retryAfterReason;
+      lastError.quotaMetric = structuredError.quotaMetric;
+      lastError.quotaId = structuredError.quotaId;
+      lastError.quotaValue = structuredError.quotaValue;
+      lastError.quotaDimensions = structuredError.quotaDimensions;
+      lastError.quotaClassification = structuredError.quotaClassification;
+      lastError.errorFingerprint = structuredError.errorFingerprint;
       lastError.retryPolicy = policy;
       lastError.notRetriedReason = notRetriedReason;
       

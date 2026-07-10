@@ -22,3 +22,7 @@ External integrators and developers modifying the evaluation suite must keep the
 - **Sample-Specific Calibration**: The field `acceptableImageKinds` specifies sample-specific calibration rules. For example, a stylized sketch may be classified as either a `diagram`, a `handwrittenNote`, or an `artworkPhoto` depending on model variations.
 - **OCR Sentinel**: The `expectedVisibleText` lists serve as regression OCR sentinels. A major drop in detecting these specific textual nodes indicates parsing or vision resolution regression.
 - **Comparison & Validation Health Diagnostics**: Metrics and assertions like `comparisonCoverage`, `comparisonRecordConsistency`, and standard schema invariants serve as *report health diagnostics* validating that the evaluation harness itself is running correctly and producing consistent records.
+
+## Analysis Bundle lifecycle and quota reporting notes
+
+`batch-analysis-bundle.schema.json` now allows explicit server job lifecycle metadata (`bundleSchemaVersion`, `job`, `snapshot`) and stage-specific aggregates (`execution`, `validation`, `comparison`, `review`). Provider quota blocks are represented as execution blocks rather than visual comparison failures. Full item records remain in the canonical `items` collection; `failures.itemRefs` is a lightweight reference list and repeated provider errors are deduplicated in `errorCatalog`.

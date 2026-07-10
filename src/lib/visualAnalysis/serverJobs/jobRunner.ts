@@ -47,7 +47,8 @@ function isHardQuotaBlock(finalData: any) {
     providerFailureKind === 'providerQuotaExceeded' ||
     generationDiagnostics?.quotaExceeded === true ||
     generationDiagnostics?.providerStatus === 'RESOURCE_EXHAUSTED' ||
-    generationDiagnostics?.providerStatus === 'QUOTA_EXCEEDED';
+    generationDiagnostics?.providerStatus === 'QUOTA_EXCEEDED' ||
+    generationDiagnostics?.quotaClassification === 'dailyQuotaExhausted';
 
   return hasQuotaDiagnostics && (
     finalData?.retryable === false ||
@@ -84,6 +85,7 @@ export async function startVisualBatchJob(
   let hardQuotaBlocked = false;
   let hardQuotaError: string | undefined;
   let hardQuotaFailureKind: string | undefined;
+  let hardQuotaResumeAfter: string | undefined;
 
   const isProcessed = (currentJob: VisualBatchJob, sampleId: string) =>
     currentJob.completedSampleIds.includes(sampleId) ||
@@ -96,6 +98,8 @@ export async function startVisualBatchJob(
       status: 'blockedByQuota',
       pendingSampleIds: blockedSampleIds,
       blockedSampleIds,
+      blockedReason: 'Provider daily/project/model quota exhausted',
+      resumeAfter: hardQuotaResumeAfter,
       lastError: hardQuotaError,
       lastFailureKind: hardQuotaFailureKind,
       lastEvent: {
@@ -123,7 +127,7 @@ export async function startVisualBatchJob(
       });
       return;
     }
-    if (currentBeforeStart.status === 'canceled' || currentBeforeStart.status === 'paused') return;
+    if (currentBeforeStart.status === 'canceled' || currentBeforeStart.status === 'paused' || currentBeforeStart.status === 'pausedForRateLimit') return;
 
     let sampleTitle = sampleId;
     let sampleMeta = null;
@@ -225,6 +229,12 @@ export async function startVisualBatchJob(
       hardQuotaBlocked = true;
       hardQuotaError = finalData?.error;
       hardQuotaFailureKind = finalData?.failureKind;
+      const generationDiagnostics =
+        finalData?.record?.diagnostics?.generation ??
+        finalData?.generationDiagnostics;
+      hardQuotaResumeAfter = generationDiagnostics?.retryAfterMs
+        ? new Date(Date.now() + generationDiagnostics.retryAfterMs).toISOString()
+        : undefined;
     }
 
     if (!success) {
@@ -350,17 +360,24 @@ export async function startVisualBatchJob(
 
     const finalJob = jobStore.getJob(jobId);
     if (finalJob) {
-      let completedAt = finalJob.completedAt;
-      let durationMs = finalJob.durationMs;
       const nowStr = new Date().toISOString();
       const nowTime = new Date().getTime();
       const startTime = finalJob.startedAt ? new Date(finalJob.startedAt).getTime() : nowTime;
-      
-      if (finalJob.status === 'running') {
-        completedAt = nowStr;
-        durationMs = nowTime - startTime;
+
+      if (finalJob.status === 'blockedByQuota') {
+        const processed = new Set([...(finalJob.completedSampleIds || []), ...(finalJob.failedSampleIds || []), ...(finalJob.blockedSampleIds || [])]);
+        const remaining = finalJob.targetSampleIds.filter(id => !processed.has(id));
         jobStore.updateJob(jobId, {
-          status: 'completed',
+          pendingSampleIds: remaining,
+          blockedSampleIds: Array.from(new Set([...(finalJob.blockedSampleIds || []), ...remaining])),
+          lastEvent: finalJob.lastEvent
+        });
+      } else if (finalJob.status === 'running') {
+        const completedAt = nowStr;
+        const durationMs = nowTime - startTime;
+        const processed = (finalJob.completedSampleIds?.length || 0) + (finalJob.failedSampleIds?.length || 0);
+        jobStore.updateJob(jobId, {
+          status: processed < finalJob.targetSampleIds.length ? 'partiallyCompleted' : 'completed',
           completedAt,
           durationMs,
           lastEvent: {
@@ -370,8 +387,8 @@ export async function startVisualBatchJob(
           }
         });
       } else if (finalJob.status === 'canceled' && !finalJob.durationMs) {
-        completedAt = finalJob.canceledAt || nowStr;
-        durationMs = new Date(completedAt).getTime() - startTime;
+        const completedAt = finalJob.canceledAt || nowStr;
+        const durationMs = new Date(completedAt).getTime() - startTime;
         jobStore.updateJob(jobId, { durationMs });
       }
     }
