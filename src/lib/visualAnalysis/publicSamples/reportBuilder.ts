@@ -459,7 +459,7 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     expectedComparisonFailCount: batchSummary.expectedComparisonFailCount,
     reviewPassCount: batchSummary.reviewPassCount,
     reviewNeedsReviewCount: batchSummary.reviewNeedsReviewCount,
-    reviewFailCount: batchSummary.reviewFailCount,
+    reviewFailCount: reviewCounts.reviewFailCount,
     counterConsistency: {
       expectedComparison: {
         declared: {
@@ -490,7 +490,11 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     },
     comparisonCoverage: buildComparisonCoverage(normalizedItems),
     comparisonRecordConsistency: buildComparisonRecordConsistency(normalizedItems),
-    invariants: validateBatchRunInvariants(reSummary),
+    invariants: {
+      ...validateBatchRunInvariants(reSummary),
+      valid: validateBatchRunInvariants(reSummary).valid && expectedConsistent && reviewConsistent,
+      counterConsistency: expectedConsistent && reviewConsistent
+    },
     generationFailureSummary: buildGenerationFailureSummary(normalizedItems),
     apiResponseFailureSummary: buildApiResponseFailureSummary(normalizedItems),
     comparisonFailureSummary: buildComparisonFailureSummary(normalizedItems),
@@ -505,14 +509,14 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     analysisGuidance: {
       intendedUse: "Primary single-file artifact for ChatGPT-assisted analysis of visual public sample batch regressions.",
       recommendedFirstChecks: [
-        "invariants.valid",
-        "comparisonCoverage.consistent",
-        "comparisonRecordConsistency.consistent",
-        "expectedComparisonFailCount",
-        "reviewFailCount",
-        "textHeavyEvaluation.ratio",
-        "comparisonFailureSummary",
-        "comparisonWarningSummary"
+        "artifactIntegrity.valid",
+        "counterConsistency",
+        "execution",
+        "validation",
+        "comparison",
+        "review",
+        "generationFailureSummary",
+        "textHeavyEvaluation"
       ],
       fullJsonPolicy: "Use Full JSON only for archival replay or when canonical ImageAnalysisRecord details omitted from this bundle are required.",
       summaryPolicy: "Summary JSON is a lightweight view and is no longer required for normal ChatGPT analysis when this bundle is available.",
