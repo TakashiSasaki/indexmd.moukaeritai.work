@@ -84,6 +84,27 @@ export function classifyJobQuotaInterruption(finalData: any, status?: number): {
   };
 }
 
+export function classifyProviderAvailability(finalData: any, status?: number): {
+  isUnavailable: boolean;
+  retryAfterMs?: number;
+} {
+  const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
+  const providerStatus = generationDiagnostics?.providerStatus;
+  const failureKind = finalData?.failureKind || generationDiagnostics?.providerFailureKind;
+  
+  const isUnav =
+    status === 503 ||
+    status === 504 ||
+    providerStatus === 'UNAVAILABLE' ||
+    failureKind === 'providerUnavailable' ||
+    failureKind === 'providerUnavailable';
+    
+  if (isUnav) {
+    return { isUnavailable: true, retryAfterMs: 5 * 60 * 1000 }; // 5 minutes default
+  }
+  return { isUnavailable: false };
+}
+
 export const activeRunners = new Map<string, { startedAt: string; abortController?: AbortController }>();
 
 export function isRunnerActive(jobId: string) {
@@ -137,7 +158,7 @@ export async function startVisualBatchJob(
       });
       break;
     }
-    if (currentJob?.status === 'canceled' || currentJob?.status === 'paused' || currentJob?.status === 'pausedForRateLimit' || currentJob?.status === 'blockedByQuota') {
+    if (currentJob?.status === 'canceled' || currentJob?.status === 'paused' || currentJob?.status === 'pausedForRateLimit' || currentJob?.status === 'blockedByQuota' || currentJob?.status === 'pausedForProviderUnavailable') {
       break;
     }
 
@@ -265,6 +286,39 @@ export async function startVisualBatchJob(
             timestamp: new Date().toISOString(),
             message: `Job failed due to deterministic configuration error on ${sampleTitle}`
           }
+        });
+        break;
+      }
+
+      const providerUnav = classifyProviderAvailability(finalData, res?.status);
+      if (providerUnav.isUnavailable) {
+        const delayMs = providerUnav.retryAfterMs ?? 5 * 60_000;
+        const resumeAfter = new Date(Date.now() + delayMs).toISOString();
+        item.status = 'pausedForProviderUnavailable';
+        item.error = finalData?.error || "Provider Unavailable";
+        item.failureKind = finalData?.failureKind || 'providerUnavailable';
+        item.resumeAfter = resumeAfter;
+        item.pauseReason = 'pausedForProviderUnavailable';
+        item.affectedSampleIds = [sampleId];
+        item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: false };
+        if (finalData?.record) item.record = finalData.record;
+        
+        jobStore.appendItem(jobId, item);
+        jobStore.updateJob(jobId, {
+          status: 'pausedForProviderUnavailable',
+          resumeAfter,
+          pauseReason: 'pausedForProviderUnavailable',
+          affectedSampleIds: [sampleId],
+          attemptState: item.attemptState,
+          lastEvent: {
+            type: 'jobPaused',
+            timestamp: new Date().toISOString(),
+            sampleId,
+            message: `Provider unavailable while processing ${sampleTitle}. Pausing job.`
+          },
+          lastFailureKind: item.failureKind,
+          lastError: item.error,
+          lastHeartbeatAt: new Date().toISOString()
         });
         break;
       }
@@ -411,7 +465,7 @@ export async function startVisualBatchJob(
     }
 
     const jobAfterItem = jobStore.getJob(jobId);
-    const pausedAfterQuotaOrRateLimit = jobAfterItem?.status === 'blockedByQuota' || jobAfterItem?.status === 'pausedForRateLimit';
+    const pausedAfterQuotaOrRateLimit = jobAfterItem?.status === 'blockedByQuota' || jobAfterItem?.status === 'pausedForRateLimit' || jobAfterItem?.status === 'pausedForProviderUnavailable';
     if (pausedAfterQuotaOrRateLimit) {
       break;
     }
@@ -495,7 +549,6 @@ export async function startVisualBatchJob(
       counters.total = job.targetSampleIds.length;
       if (!isBlockedItem) {
         counters.failureCount++;
-        counters.reviewFailCount++;
       }
       if (item.failureKind === 'jsonParseError' || item.failureKind === 'schemaValidationError') {
         counters.invalidJsonCount++;
@@ -537,7 +590,7 @@ export async function startVisualBatchJob(
     const nowTime = new Date().getTime();
     const startTime = finalJob.startedAt ? new Date(finalJob.startedAt).getTime() : nowTime;
     
-    if (finalJob.status === 'blockedByQuota' || finalJob.status === 'pausedForRateLimit') {
+    if (finalJob.status === 'blockedByQuota' || finalJob.status === 'pausedForRateLimit' || finalJob.status === 'pausedForProviderUnavailable') {
        const processed = new Set([...(finalJob.completedSampleIds || []), ...(finalJob.failedSampleIds || [])]);
        const remaining = finalJob.targetSampleIds.filter(id => !processed.has(id));
        jobStore.updateJob(jobId, {

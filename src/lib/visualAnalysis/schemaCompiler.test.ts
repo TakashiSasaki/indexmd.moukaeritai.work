@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { compileProviderSchema, assertNoForbiddenKeys } from './schemaCompiler';
+import { VISUAL_ANALYSIS_SCHEMA } from './schema';
 
 test('Schema Compiler', async (t) => {
-  await t.test('compiles canonical schema', () => {
+  await t.test('compiles toy schema successfully', () => {
     const input = {
       $schema: "http://json-schema.org/draft-07/schema#",
       title: "Test",
@@ -20,9 +21,8 @@ test('Schema Compiler', async (t) => {
 
     const result = compileProviderSchema(input);
     assert.strictEqual(result.compilerName, "RecursiveAllowlistCompiler");
-    console.log(JSON.stringify(result.schema, null, 2));
+    assert.strictEqual(result.compilerVersion, "1.1.0");
 
-    
     // Check forbidden keys
     assert.strictEqual(result.schema.$schema, undefined);
     assert.strictEqual(result.schema.title, undefined);
@@ -98,5 +98,116 @@ test('Schema Compiler', async (t) => {
     const result = compileProviderSchema(input);
     assert.strictEqual(result.schema.properties.tags.type, "ARRAY");
     assert.strictEqual(result.schema.properties.tags.items.type, "STRING");
+  });
+
+  await t.test('tests actual VISUAL_ANALYSIS_SCHEMA compilation', () => {
+    // 1. The current canonical schema compiles
+    const sourceSchemaCopy = JSON.parse(JSON.stringify(VISUAL_ANALYSIS_SCHEMA));
+    const result = compileProviderSchema(VISUAL_ANALYSIS_SCHEMA);
+    
+    assert.ok(result.schema);
+    assert.strictEqual(result.compilerName, "RecursiveAllowlistCompiler");
+    assert.strictEqual(result.compilerVersion, "1.1.0");
+
+    // 2. Source schema is unchanged (no mutation)
+    assert.deepStrictEqual(VISUAL_ANALYSIS_SCHEMA, sourceSchemaCopy);
+
+    // 3. Output is deterministic
+    const secondResult = compileProviderSchema(VISUAL_ANALYSIS_SCHEMA);
+    assert.deepStrictEqual(result.schema, secondResult.schema);
+
+    // 4. No forbidden keys remain
+    assert.strictEqual(result.schema.$schema, undefined);
+    assert.strictEqual(result.schema.$id, undefined);
+    assert.strictEqual(result.schema.title, undefined);
+    assert.strictEqual(result.schema.contractStatus, undefined);
+    
+    // Recursive check for "x-" keys
+    const traverseAndCheck = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      for (const key of Object.keys(node)) {
+        assert.ok(!key.startsWith("x-"), `x- prefixed key found: ${key}`);
+        traverseAndCheck(node[key]);
+      }
+    };
+    traverseAndCheck(result.schema);
+
+    // 5. All required properties survive
+    assert.strictEqual(result.schema.type, "OBJECT");
+    assert.ok(Array.isArray(result.schema.required));
+    assert.ok(result.schema.required.includes("schemaVersion"));
+    assert.ok(result.schema.required.includes("summary"));
+    assert.ok(result.schema.required.includes("visualInfo"));
+
+    // 6. Nested arrays and objects survive
+    assert.strictEqual(result.schema.properties.visualInfo.type, "OBJECT");
+    assert.strictEqual(result.schema.properties.visualInfo.properties.visibleElements.type, "ARRAY");
+    assert.strictEqual(result.schema.properties.visualInfo.properties.visibleElements.items.type, "OBJECT");
+
+    // 7. Nullable forms are correct (sceneContext is not nullable but rather optional in canonical schema)
+    assert.strictEqual(result.schema.properties.visualInfo.properties.sceneContext.nullable, undefined);
+  });
+
+  await t.test('unsafe composition fails compilation locally', () => {
+    // oneOf fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: {
+            oneOf: [{ type: "string" }, { type: "number" }]
+          }
+        }
+      });
+    }, /unsupported keyword 'oneOf'/);
+
+    // allOf fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: {
+            allOf: [{ type: "string" }]
+          }
+        }
+      });
+    }, /unsupported keyword 'allOf'/);
+
+    // $ref fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: {
+            $ref: "#/definitions/Foo"
+          }
+        }
+      });
+    }, /unsupported keyword '\$ref'/);
+
+    // heterogeneous tuple items fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: {
+            type: "array",
+            items: [{ type: "string" }, { type: "number" }]
+          }
+        }
+      });
+    }, /heterogeneous tuple 'items'/);
+
+    // multi-branch anyOf fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: {
+            anyOf: [{ type: "string" }, { type: "number" }]
+          }
+        }
+      });
+    }, /multi-branch non-null 'anyOf'/);
   });
 });
