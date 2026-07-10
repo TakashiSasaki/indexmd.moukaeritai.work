@@ -258,7 +258,7 @@ export async function startVisualBatchJob(
 
       if (quotaInterruption.action === 'blockedByQuota') {
         const resumeAfter = new Date(Date.now() + (quotaInterruption.retryAfterMs ?? 24 * 60 * 60_000)).toISOString();
-        item.status = 'failed';
+        item.status = 'blockedByQuota';
         item.error = finalData?.error;
         item.failureKind = finalData?.failureKind || 'providerQuotaExceeded';
         if (finalData?.record) item.record = finalData.record;
@@ -280,7 +280,7 @@ export async function startVisualBatchJob(
         });
         jobStore.appendItem(jobId, item);
         jobStore.updateJob(jobId, {
-          status: 'paused',
+          status: 'blockedByQuota',
           resumeAfter,
           blockedReason: 'blockedByQuota',
           affectedSampleIds: [sampleId],
@@ -356,7 +356,7 @@ export async function startVisualBatchJob(
              if (isQuotaError && quotaInterruption.action === 'pausedForRateLimit') {
                const delayMs = Math.min(quotaInterruption.retryAfterMs ?? DEFAULT_RATE_LIMIT_PAUSE_MS, SHORT_RETRY_DELAY_MS);
                const resumeAfter = new Date(Date.now() + delayMs).toISOString();
-               item.status = 'failed';
+               item.status = 'pausedForRateLimit';
                item.error = finalData?.error;
                item.failureKind = finalData?.failureKind || 'providerRateLimited';
                item.resumeAfter = resumeAfter;
@@ -365,7 +365,7 @@ export async function startVisualBatchJob(
                item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: true };
                jobStore.appendItem(jobId, item);
                jobStore.updateJob(jobId, {
-                 status: 'paused',
+                 status: 'pausedForRateLimit',
                  resumeAfter,
                  pauseReason: 'pausedForRateLimit',
                  affectedSampleIds: [sampleId],
@@ -391,7 +391,8 @@ export async function startVisualBatchJob(
       }
     }
 
-    const pausedAfterQuotaOrRateLimit = jobStore.getJob(jobId)?.status === 'paused';
+    const jobAfterItem = jobStore.getJob(jobId);
+    const pausedAfterQuotaOrRateLimit = jobAfterItem?.status === 'blockedByQuota' || jobAfterItem?.status === 'pausedForRateLimit';
     if (pausedAfterQuotaOrRateLimit) {
       break;
     }
@@ -517,12 +518,12 @@ export async function startVisualBatchJob(
     const nowTime = new Date().getTime();
     const startTime = finalJob.startedAt ? new Date(finalJob.startedAt).getTime() : nowTime;
     
-    if (finalJob.status === 'blockedByQuota') {
-       const processed = new Set([...(finalJob.completedSampleIds || []), ...(finalJob.failedSampleIds || []), ...(finalJob.blockedSampleIds || [])]);
+    if (finalJob.status === 'blockedByQuota' || finalJob.status === 'pausedForRateLimit') {
+       const processed = new Set([...(finalJob.completedSampleIds || []), ...(finalJob.failedSampleIds || [])]);
        const remaining = finalJob.targetSampleIds.filter(id => !processed.has(id));
        jobStore.updateJob(jobId, {
          pendingSampleIds: remaining,
-         blockedSampleIds: Array.from(new Set([...(finalJob.blockedSampleIds || []), ...remaining])),
+         blockedSampleIds: Array.from(new Set([...(finalJob.blockedSampleIds || [])])),
          lastEvent: finalJob.lastEvent
        });
     } else if (finalJob.status === 'running') {

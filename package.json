@@ -12,8 +12,8 @@
     "validate:contracts": "node scripts/validate-contracts.mjs",
     "verify:no-schema-mirror": "node scripts/verifyNoSchemaMirror.mjs",
     "validate:public-samples:images": "node --import tsx scripts/validatePublicSamples.ts",
-    "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
-    "test:coverage": "node --experimental-test-coverage --import tsx --test \"src/**/*.test.ts\""
+    "test:unit": "node scripts/test-runner.js",
+    "test:coverage": "COVERAGE=1 node scripts/test-runner.js"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

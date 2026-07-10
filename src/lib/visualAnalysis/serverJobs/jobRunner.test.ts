@@ -113,13 +113,13 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   await runner;
 
   const blockedJob = jobStore.getJob(jobId)! as VisualBatchJob & { blockedSampleIds?: string[] };
-  // Since sample-B returned daily quota block, the job is paused and blockedByQuota is preserved
-  assert.equal(blockedJob.status, 'paused');
+  // Since sample-B returned daily quota block, the job is blockedByQuota and blockedReason is preserved
+  assert.equal(blockedJob.status, 'blockedByQuota');
   assert.equal(blockedJob.blockedReason, 'blockedByQuota');
   assert.deepEqual(calls, ['sample-A', 'sample-B']);
   assert.ok(blockedJob.completedSampleIds.includes('sample-A'));
   assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-A')?.status, 'succeeded');
-  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-B')?.status, 'failed');
+  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-B')?.status, 'blockedByQuota');
   assert.deepEqual(blockedJob.pendingSampleIds.sort(), ['sample-B', 'sample-C', 'sample-D']);
   assert.deepEqual(blockedJob.blockedSampleIds?.sort(), ['sample-B']);
 
@@ -278,13 +278,13 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
 
   const persisted = JSON.parse(fs.readFileSync(jobPath, 'utf-8')) as VisualBatchJob;
   assert.strictEqual(calls, 2);
-  assert.strictEqual(persisted.status, 'paused');
+  assert.strictEqual(persisted.status, 'pausedForRateLimit');
   assert.strictEqual(persisted.pauseReason, 'pausedForRateLimit');
   assert.strictEqual(persisted.blockedReason, undefined);
   assert.deepStrictEqual(persisted.affectedSampleIds, ['sample-transient']);
   assert.deepStrictEqual(persisted.attemptState, { attempt: 2, maxAttempts: 2, retryExhausted: true });
   assert.ok(persisted.resumeAfter);
-  assert.strictEqual(persisted.items[0]?.status, 'failed');
+  assert.strictEqual(persisted.items[0]?.status, 'pausedForRateLimit');
   assert.strictEqual(persisted.items[0]?.failureKind, 'providerRateLimited');
   assert.strictEqual(persisted.items[0]?.error, 'per-minute throttle');
   assert.strictEqual(persisted.items[0]?.pauseReason, 'pausedForRateLimit');

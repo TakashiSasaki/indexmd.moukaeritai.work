@@ -124,7 +124,8 @@ export type VisualBatchJobItemStatus =
   | "skipped"
   | "canceled"
   | "blockedByQuota"
-  | "deferred";
+  | "deferred"
+  | "pausedForRateLimit";
 
 export interface VisualBatchJobEvent {
   type:
