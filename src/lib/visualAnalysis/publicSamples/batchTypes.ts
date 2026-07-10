@@ -263,9 +263,7 @@ export interface VisualBatchJob {
   lastCheckpointSavedAt?: string;
   lastError?: string;
   lastFailureKind?: string;
-  resumeAfter?: string;
   pauseReason?: "pausedForRateLimit";
-  blockedReason?: "blockedByQuota";
   affectedSampleIds?: string[];
   attemptState?: any;
 
