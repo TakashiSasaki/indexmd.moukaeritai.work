@@ -12,6 +12,7 @@
     "validate:contracts": "node scripts/validate-contracts.mjs",
     "verify:no-schema-mirror": "node scripts/verifyNoSchemaMirror.mjs",
     "validate:public-samples:images": "node --import tsx scripts/validatePublicSamples.ts",
+    "generate:efu": "tsx scripts/generate-efu.ts",
     "test:unit": "node scripts/test-runner.js",
     "test:coverage": "COVERAGE=1 node scripts/test-runner.js"
   },
