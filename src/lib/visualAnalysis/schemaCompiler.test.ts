@@ -21,7 +21,7 @@ test('Schema Compiler', async (t) => {
 
     const result = compileProviderSchema(input);
     assert.strictEqual(result.compilerName, "RecursiveAllowlistCompiler");
-    assert.strictEqual(result.compilerVersion, "1.1.0");
+    assert.strictEqual(result.compilerVersion, "1.2.0");
 
     // Check forbidden keys
     assert.strictEqual(result.schema.$schema, undefined);
@@ -107,7 +107,7 @@ test('Schema Compiler', async (t) => {
     
     assert.ok(result.schema);
     assert.strictEqual(result.compilerName, "RecursiveAllowlistCompiler");
-    assert.strictEqual(result.compilerVersion, "1.1.0");
+    assert.strictEqual(result.compilerVersion, "1.2.0");
 
     // 2. Source schema is unchanged (no mutation)
     assert.deepStrictEqual(VISUAL_ANALYSIS_SCHEMA, sourceSchemaCopy);
@@ -209,5 +209,56 @@ test('Schema Compiler', async (t) => {
         }
       });
     }, /multi-branch non-null 'anyOf'/);
+
+    // unknown types fail
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: { type: "super-string" }
+        }
+      });
+    }, /unknown type name/);
+
+    // empty tuple items fail
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: { type: "array", items: [] }
+        }
+      });
+    }, /empty tuple items/);
+
+    // required not in properties fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: { type: "string" }
+        },
+        required: ["bar"]
+      });
+    }, /required property 'bar' is not present in properties/);
+
+    // null-only anyOf fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: { anyOf: [{ type: "null" }] }
+        }
+      });
+    }, /null-only anyOf/);
+
+    // semantics-changing pattern constraint fails
+    assert.throws(() => {
+      compileProviderSchema({
+        type: "object",
+        properties: {
+          foo: { type: "string", pattern: "^[a-z]+$" }
+        }
+      });
+    }, /unsupported keyword 'pattern'/);
   });
 });

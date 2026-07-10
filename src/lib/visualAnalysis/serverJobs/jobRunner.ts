@@ -229,7 +229,7 @@ export async function startVisualBatchJob(
           jsonMode: job.jsonMode,
           customInstruction: job.executionPrivate?.customInstruction || job.customInstructionPreview,
           providerRetryPolicy: {
-            maxAttempts: 2,
+            maxAttempts: 1,
             retryInternalErrors: false,
             retryQuotaOrRateLimit: true,
             retryUnavailable: true,

@@ -57,6 +57,8 @@ import {
 import { buildPublicSampleExpectedMetadata } from './src/lib/visualAnalysis/publicSamples/expectedMetadata';
 import { jobToSummary } from './src/lib/visualAnalysis/serverJobs/jobAdapters';
 import { getGeminiKeyInfo } from "./src/lib/runtime/geminiKeyInfo";
+import { preflightVisualExecution, PreflightError } from "./src/lib/visualAnalysis/preflight";
+import { GeminiSdkProviderTransport } from "./src/lib/visualAnalysis/providerTransport";
 
 dotenv.config();
 
@@ -1783,6 +1785,27 @@ export async function analyzePublicSample(options: {
 
     if (!sampleId) return { status: 400, body: { error: "sampleId is required" } };
 
+    // 1. Run Preflight Validation
+    let preparedExecution;
+    try {
+      preparedExecution = preflightVisualExecution({
+        modelId: modelName,
+        executionMode: jsonMode === "prompt_only" ? "prompt_only" : "native_schema",
+        sampleIds: [sampleId],
+        systemInstruction: customInstruction ? `User Instruction: ${customInstruction}` : undefined,
+        maxOutputTokens: 8192,
+        temperature: 0.1,
+      });
+    } catch (err: any) {
+      if (err instanceof PreflightError) {
+        return {
+          status: 400,
+          body: err.toResponse()
+        };
+      }
+      throw err;
+    }
+
     const sample = getPublicSampleById(sampleId);
     if (!sample) return { status: 404, body: { error: "Sample not found" } };
 
@@ -1802,229 +1825,121 @@ export async function analyzePublicSample(options: {
     }
 
     // Prepare Prompt & Options
-    const modelCap = getModelCapability(modelName);
-    if (!modelCap.executionAllowed) {
-      return { 
-        status: 400, 
-        body: { 
-          success: false,
-          error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.`,
-          providerFailure: "unsupportedModel"
-        } 
-      };
-    }
-
-    const visualCap = getVisualModelCapability(modelName);
-    if (visualCap.recommendation === "unsupported") {
-      return { status: 400, body: { error: `Model ${modelName} is not supported for visual analysis.` } };
-    }
-
-    const targetModel = modelName;
-    const isGemma = visualCap.providerFamily === "gemma";
-    let mode = getStructuredExecutionMode(targetModel);
-    
-    if (jsonMode === "prompt_only" && mode === "nativeSchema") mode = "promptedJson";
-    if (jsonMode === "native_schema" && getModelCapability(targetModel).supportsNativeResponseSchema) mode = "nativeSchema";
-
-    let extractedSchema = null;
-    let extractedCustomSchema = false;
-    const cap = getModelCapability(targetModel);
-    if (cap.supportsNativeResponseSchema && customInstruction) {
-      const rawSchema = extractJsonSchemaFromText(customInstruction);
-      if (rawSchema) {
-        extractedSchema = normalizeSchemaForGemini(rawSchema);
-        mode = "nativeSchema";
-        extractedCustomSchema = true;
-      }
-    }
-
-    const isPromptedJson = mode === "promptedJson";
-
-    const systemInstruction = buildVisualAnalysisSystemInstruction();
-    const taskPrompt = buildVisualAnalysisTaskPrompt(isPromptedJson) + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
-
-    // media resolution policy based on input sample
-    // media resolution policy based on input sample
-    let mediaResolutionRequested: string | undefined;
-    let mediaResolutionConfigured: boolean = false;
-    let mediaResolutionProviderAccepted: boolean = false;
-    let mediaResolutionApplied: boolean = false;
-    let mediaResolutionReason: string | undefined;
-    let mediaResolutionUnsupportedReason: string | undefined;
-    let mediaResolutionFallbackUsed: boolean = false;
-    let mediaResolutionProviderField: string | undefined;
-
-    if (isGemma) {
-      mediaResolutionUnsupportedReason = "providerFamilyUnsupported";
-    } else {
-      if (
-        sample && (
-          sample.expectedImageKind === "chartOrTable" ||
-          sample.expectedImageKind === "mapImage" ||
-          sample.expectedImageKind === "documentPhoto" ||
-          sample.expectedImageKind === "receiptPhoto" ||
-          sample.expectedImageKind === "handwrittenNote" ||
-          sample.expectedImageKind === "whiteboardPhoto" ||
-          sample.expectedImageKind === "screenshot" ||
-          sample.expectedImageKind === "packageImage"
-        )
-      ) {
-        mediaResolutionRequested = "HIGH";
-        mediaResolutionReason = "Detail-heavy image kind";
-      } else if (sample && sample.expectedVisibleText && sample.expectedVisibleText.length > 0) {
-        mediaResolutionRequested = "HIGH";
-        mediaResolutionReason = "Expected visible text exists";
-      } else {
-        mediaResolutionRequested = "MEDIUM";
-        mediaResolutionReason = "Simple image kind";
-      }
-      mediaResolutionConfigured = true;
-      mediaResolutionProviderField = mediaResolutionRequested === "HIGH" ? "MEDIA_RESOLUTION_HIGH" : "MEDIA_RESOLUTION_MEDIUM";
-    }
-
-    let configOption: any = {
-      ...VISUAL_ANALYSIS_GENERATION_CONFIG,
-      systemInstruction,
-      ...(mediaResolutionRequested ? { mediaResolution: mediaResolutionRequested } : {}),
-      ...(providerRetryPolicy ? { retryPolicy: providerRetryPolicy } : {})
-    };
-
-    if (mode === "nativeSchema") {
-      configOption.responseMimeType = "application/json";
-      configOption.responseSchema = extractedSchema || compileProviderSchema(VISUAL_ANALYSIS_SCHEMA).schema;
-    }
+    const systemInstruction = buildVisualAnalysisSystemInstruction() + (customInstruction ? `\n\nUser Instruction: ${customInstruction}` : "");
 
     const requestPreview = includeRequestPreview ? {
-      model: targetModel,
+      model: preparedExecution.canonicalModelId,
       outputMode: "structured",
-      taskPrompt,
+      taskPrompt: "Analyze this image and return structured JSON conforming to the schema.",
       systemInstruction,
       mimeType: mimeType,
       binaryInlineDataUsed: true,
-      generationConfig: buildVisualAnalysisRequestPreviewConfig(configOption, mode, extractedCustomSchema)
+      generationConfig: {
+        temperature: preparedExecution.generationConfiguration.temperature,
+        topP: preparedExecution.generationConfiguration.topP,
+        topK: preparedExecution.generationConfiguration.topK,
+        responseSchemaIncluded: preparedExecution.resolvedExecutionMode === "nativeSchema",
+        customSchemaUsed: preparedExecution.customSchemaUsed,
+        providerResponseSchemaName: preparedExecution.resolvedExecutionMode === "nativeSchema" ? (preparedExecution.customSchemaUsed ? "custom" : "compiledProviderSchema") : undefined,
+        providerResponseSchemaVersion: preparedExecution.resolvedExecutionMode === "nativeSchema" && !preparedExecution.customSchemaUsed ? VISUAL_ANALYSIS_SCHEMA_VERSION : undefined,
+      }
     } : undefined;
 
-    // Call Model
-    let aiRes;
-    try {
-      aiRes = await generateContentWithRetry(targetModel, [
-        { inlineData: { data: base64Data, mimeType: mimeType } },
-        { text: taskPrompt }
-      ], 4, configOption);
-      
-      if (mediaResolutionConfigured) {
-        mediaResolutionProviderAccepted = true;
-        mediaResolutionApplied = true;
-      }
-    } catch (err: any) {
-      const errMsg = err?.message || "";
-      if (mediaResolutionConfigured && errMsg.includes("INVALID_ARGUMENT") && (errMsg.includes("mediaResolution") || errMsg.includes("media_resolution"))) {
-        console.warn(`[public-sample] mediaResolution configuration was rejected by provider. Retrying without mediaResolution fallback.`);
-        mediaResolutionFallbackUsed = true;
-        mediaResolutionUnsupportedReason = "rejectedByProvider";
-        
-        try {
-          const fallbackConfig = { ...configOption };
-          delete fallbackConfig.mediaResolution;
-          
-          aiRes = await generateContentWithRetry(targetModel, [
-            { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: taskPrompt }
-          ], 2, fallbackConfig);
-          
-          mediaResolutionProviderAccepted = false;
-          mediaResolutionApplied = false;
-        } catch (fallbackErr: any) {
-          err = fallbackErr;
-        }
-      }
-      
-      if (!aiRes) {
-        const failRunMetadata = buildVisualAnalysisRunMetadata({
-          targetModel,
-          providerFamily: isGemma ? "gemma" : "gemini",
-          visualRecommendation: visualCap.recommendation,
-          mode,
-          jsonMode,
-          customInstructionUsed: !!customInstruction,
-          customSchemaUsed: extractedCustomSchema,
-          requestPreviewIncluded: includeRequestPreview,
-          sourceKind: "publicSample",
-          sampleId: sample.id,
-          mimeType: mimeType,
-          byteLength: buffer.length,
-          base64Length: base64Data.length,
-          mediaResolutionRequested,
-          mediaResolutionConfigured,
-          mediaResolutionProviderAccepted,
-          mediaResolutionApplied,
-          mediaResolutionReason,
-          mediaResolutionUnsupportedReason,
-          mediaResolutionFallbackUsed,
-          mediaResolutionProviderField
-        });
-
-        const failRes = buildGenerationFailureResponse({
-          err,
-          targetModel,
-          providerFamily: isGemma ? "gemma" : "gemini",
-          runMetadata: failRunMetadata,
-          sampleMetadata: {
-            id: sample.id,
-            title: sample.title,
-            category: sample.category,
-            licenseKind: sample.source.licenseKind,
-            licenseName: sample.source.licenseName,
-            attributionText: sample.source.attributionText,
-            sourcePageUrl: sample.source.pageUrl
-          },
-          expectedMetadata: buildPublicSampleExpectedMetadata(sample),
-          requestPreview,
-          inputDiagnostics: {
-            imageVariant: "analysis",
-            analysisSourceUrlKind: sourceUrlKind,
-            inputSizeWarning,
-            ...inputDiagnostics,
-            cacheLayer: fetchResult.cacheLayer,
-            cacheKey: fetchResult.cacheKey,
-            cachePolicyVersion: fetchResult.cachePolicyVersion,
-            cacheStored: fetchResult.cacheStored,
-            cacheReadError: fetchResult.cacheReadError,
-            cacheWriteError: fetchResult.cacheWriteError,
-            cacheSharedInFlight: fetchResult.cacheSharedInFlight
-          }
-        });
-        return { status: 200, body: failRes };
-      }
-    }
-
+    // Use prepared preflight details to construct metadata
     const runMetadata = buildVisualAnalysisRunMetadata({
-      targetModel,
-      providerFamily: isGemma ? "gemma" : "gemini",
-      visualRecommendation: visualCap.recommendation,
-      mode,
+      targetModel: preparedExecution.canonicalModelId,
+      providerFamily: preparedExecution.providerFamily,
+      visualRecommendation: getVisualModelCapability(preparedExecution.canonicalModelId).recommendation,
+      mode: preparedExecution.resolvedExecutionMode,
       jsonMode,
       customInstructionUsed: !!customInstruction,
-      customSchemaUsed: extractedCustomSchema,
+      customSchemaUsed: preparedExecution.customSchemaUsed,
       requestPreviewIncluded: includeRequestPreview,
       sourceKind: "publicSample",
       sampleId: sample.id,
       mimeType: mimeType,
       byteLength: buffer.length,
       base64Length: base64Data.length,
-      mediaResolutionRequested,
-      mediaResolutionConfigured,
-      mediaResolutionProviderAccepted,
-      mediaResolutionApplied,
-      mediaResolutionReason,
-      mediaResolutionUnsupportedReason,
-      mediaResolutionFallbackUsed,
-      mediaResolutionProviderField
+      mediaResolutionRequested: preparedExecution.mediaResolutionConfiguration.requested,
+      mediaResolutionConfigured: preparedExecution.mediaResolutionConfiguration.configured,
+      mediaResolutionProviderAccepted: preparedExecution.mediaResolutionConfiguration.configured,
+      mediaResolutionApplied: preparedExecution.mediaResolutionConfiguration.configured,
+      mediaResolutionReason: "Detail-heavy image kind",
+      mediaResolutionUnsupportedReason: undefined,
+      mediaResolutionFallbackUsed: false,
+      mediaResolutionProviderField: preparedExecution.mediaResolutionConfiguration.requested === "HIGH" ? "MEDIA_RESOLUTION_HIGH" : "MEDIA_RESOLUTION_MEDIUM"
     });
 
-    let outputText = aiRes.text?.trim() || "{}";
+    const fullInputDiagnostics = {
+      sourceKind: runMetadata.input.sourceKind,
+      sampleId: runMetadata.input.sampleId,
+      mimeType: runMetadata.input.mimeType,
+      byteLength: runMetadata.input.byteLength,
+      base64Length: runMetadata.input.base64Length,
+      imageVariant: "analysis",
+      analysisSourceUrlKind: sourceUrlKind,
+      inputSizeWarning,
+      ...inputDiagnostics,
+      cacheLayer: fetchResult.cacheLayer,
+      cacheKey: fetchResult.cacheKey,
+      cachePolicyVersion: fetchResult.cachePolicyVersion,
+      cacheStored: fetchResult.cacheStored,
+      cacheReadError: fetchResult.cacheReadError,
+      cacheWriteError: fetchResult.cacheWriteError,
+      cacheSharedInFlight: fetchResult.cacheSharedInFlight
+    };
 
-    // Parse and Validate
+    // 2. Invoke the provider transport boundary
+    const transport = new GeminiSdkProviderTransport();
+    const transportSample = {
+      sampleId,
+      mimeType,
+      data: buffer
+    };
+
+    const response = await transport.executeSingleRequest({
+      preparedExecution,
+      sample: transportSample,
+      systemInstruction
+    });
+
+    if (!response.success) {
+      const failRes = buildGenerationFailureResponse({
+        err: response.error,
+        targetModel: preparedExecution.canonicalModelId,
+        providerFamily: preparedExecution.providerFamily,
+        runMetadata,
+        sampleMetadata: {
+          id: sample.id,
+          title: sample.title,
+          category: sample.category,
+          licenseKind: sample.source.licenseKind,
+          licenseName: sample.source.licenseName,
+          attributionText: sample.source.attributionText,
+          sourcePageUrl: sample.source.pageUrl
+        },
+        expectedMetadata: buildPublicSampleExpectedMetadata(sample),
+        requestPreview,
+        inputDiagnostics: {
+          imageVariant: "analysis",
+          analysisSourceUrlKind: sourceUrlKind,
+          inputSizeWarning,
+          ...inputDiagnostics,
+          cacheLayer: fetchResult.cacheLayer,
+          cacheKey: fetchResult.cacheKey,
+          cachePolicyVersion: fetchResult.cachePolicyVersion,
+          cacheStored: fetchResult.cacheStored,
+          cacheReadError: fetchResult.cacheReadError,
+          cacheWriteError: fetchResult.cacheWriteError,
+          cacheSharedInFlight: fetchResult.cacheSharedInFlight
+        }
+      });
+      return { status: 200, body: failRes };
+    }
+
+    let outputText = response.text?.trim() || "{}";
+
+    // 3. Parse and Validate
     let parseRes = parseModelJsonOutput(outputText, 1);
     let retryCount = 0;
     
@@ -2037,7 +1952,7 @@ export async function analyzePublicSample(options: {
     let modelRetryAttempted = false;
     let modelRetrySucceeded = false;
 
-    if (!parseRes.ok && mode === "promptedJson") {
+    if (!parseRes.ok && preparedExecution.resolvedExecutionMode === "promptedJson") {
       console.warn(`[public-sample] Initial parse failed for ${sample.id}. Attempting JSON-only retry.`);
       modelRetryAttempted = true;
       
@@ -2048,34 +1963,22 @@ export async function analyzePublicSample(options: {
       const retryPrompt = `The previous output was invalid JSON. Error: ${parseRes.diagnostics.parseErrorMessage || "Syntax error"}\n\nOriginal invalid output (excerpt):\n${excerpt}\n\nOutput only one valid JSON object. Do not include any markdown fences (like \`\`\`json), explanations, or trailing text. Preserve all of the parsed analysis content accurately.`;
       
       try {
-        const retryConfig = {
-          ...configOption,
-          temperature: 0.1, // lower temp for retry
-        };
-        delete retryConfig.responseMimeType;
-        delete retryConfig.responseSchema;
-        
-        const retryAiRes = await generateContentWithRetry(
-          targetModel,
-          [
-            { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: retryPrompt }
-          ],
-          1,
-          retryConfig
-        );
+        const retryResponse = await transport.executeSingleRequest({
+          preparedExecution,
+          sample: transportSample,
+          systemInstruction: systemInstruction + `\n\n${retryPrompt}`
+        });
         
         retryCount++;
-        const retryOutputText = retryAiRes.text?.trim() || "{}";
-        
+        const retryOutputText = retryResponse.text?.trim() || "{}";
         const retryParseRes = parseModelJsonOutput(retryOutputText, 2);
         
-        // Append previous attempts to diagnostics
         retryParseRes.diagnostics.attempts = [...parseRes.diagnostics.attempts, ...retryParseRes.diagnostics.attempts];
         parseRes = retryParseRes;
         
         if (parseRes.ok) {
           modelRetrySucceeded = true;
+          outputText = retryOutputText;
         }
       } catch (retryErr) {
         console.error(`[public-sample] JSON-only retry failed for ${sample.id}`, retryErr);
@@ -2109,25 +2012,6 @@ export async function analyzePublicSample(options: {
       schemaValidationRetryCount: 0,
       schemaValidationRetryParseSucceeded: false,
       schemaValidationRetryValidationErrors: []
-    };
-
-    const fullInputDiagnostics = {
-        sourceKind: runMetadata.input.sourceKind,
-        sampleId: runMetadata.input.sampleId,
-        mimeType: runMetadata.input.mimeType,
-        byteLength: runMetadata.input.byteLength,
-        base64Length: runMetadata.input.base64Length,
-        imageVariant: "analysis",
-        analysisSourceUrlKind: sourceUrlKind,
-        inputSizeWarning,
-        ...inputDiagnostics,
-        cacheLayer: fetchResult.cacheLayer,
-        cacheKey: fetchResult.cacheKey,
-        cachePolicyVersion: fetchResult.cachePolicyVersion,
-        cacheStored: fetchResult.cacheStored,
-        cacheReadError: fetchResult.cacheReadError,
-        cacheWriteError: fetchResult.cacheWriteError,
-        cacheSharedInFlight: fetchResult.cacheSharedInFlight
     };
 
     if (!parseRes.ok) {
@@ -2194,7 +2078,7 @@ export async function analyzePublicSample(options: {
       ...(includeRequestPreview ? { rawOutputPreview: parseRes.diagnostics.rawOutputPreview } : {})
     };
 
-    if (extractedCustomSchema) {
+    if (preparedExecution.customSchemaUsed) {
       const body: any = {
         success: true,
         record: {
@@ -2258,9 +2142,9 @@ export async function analyzePublicSample(options: {
     }
 
     let canonicalization = canonicalizeVisualAnalysisProviderOutput(parsed, {
-      providerFamily: isGemma ? "gemma" : "gemini",
-      modelName: targetModel,
-      structuredExecutionMode: mode,
+      providerFamily: preparedExecution.providerFamily,
+      modelName: preparedExecution.canonicalModelId,
+      structuredExecutionMode: preparedExecution.resolvedExecutionMode,
       jsonMode
     });
     let normalized = canonicalization.result;
@@ -2272,13 +2156,11 @@ export async function analyzePublicSample(options: {
     let schemaValidationRetryParseSucceeded = false;
     let schemaValidationRetryValidationErrors: string[] = [];
 
-    if (!validation.isValid && mode === "promptedJson") {
+    if (!validation.isValid && preparedExecution.resolvedExecutionMode === "promptedJson") {
       schemaValidationRecoveryAttempted = true;
       console.warn(`[public-sample] Initial validation failed for ${sample.id}. Attempting schema-validation retry.`);
       
       const errorsList = validation.errors.join("\n- ");
-      
-      // 5. Use compact/excerpt JSON preview (limit size to ~3000 chars)
       const originalJsonStr = JSON.stringify(parsed, null, 2);
       let excerptJson = originalJsonStr;
       if (originalJsonStr.length > 3000) {
@@ -2288,36 +2170,24 @@ export async function analyzePublicSample(options: {
       const retryPrompt = `The previous output was valid JSON but failed canonical schema validation with the following errors:\n- ${errorsList}\n\nOriginal JSON output (excerpt):\n${excerptJson}\n\nPlease analyze the image again and output only one valid JSON object that exactly matches the canonical schema.\n\nCRITICAL CONSTRAINTS:\n1. Use only canonical fields:\n   - schemaVersion\n   - summary\n   - visualInfo\n   - indexing\n   - quality\n2. DO NOT use "visual_elements", "layout", or other non-canonical top-level fields.\n3. Make sure to fill "visualInfo.sceneDescription".\n4. Put UI/form/layout elements under "visualInfo.visibleElements".\n5. Put all OCR text under "visualInfo.visibleText".\n\nOutput only valid JSON. Do not include markdown fences, explanations, or trailing text.`;
 
       try {
-        const retryConfig = {
-          ...configOption,
-          temperature: 0.1,
-        };
-        delete retryConfig.responseMimeType;
-        delete retryConfig.responseSchema;
-
-        const retryAiRes = await generateContentWithRetry(
-          targetModel,
-          [
-            { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: retryPrompt }
-          ],
-          1,
-          retryConfig
-        );
+        const retryResponse = await transport.executeSingleRequest({
+          preparedExecution,
+          sample: transportSample,
+          systemInstruction: systemInstruction + `\n\n${retryPrompt}`
+        });
 
         schemaValidationRetryCount++;
-        const retryOutputText = retryAiRes.text?.trim() || "{}";
+        const retryOutputText = retryResponse.text?.trim() || "{}";
         const retryParseRes = parseModelJsonOutput(retryOutputText, 3);
         
-        // Append retry's parse attempts to final parseDiagnostics
         parseRes.diagnostics.attempts.push(...retryParseRes.diagnostics.attempts);
         
         if (retryParseRes.ok) {
           schemaValidationRetryParseSucceeded = true;
           const retryCanonicalization = canonicalizeVisualAnalysisProviderOutput(retryParseRes.parsed, {
-            providerFamily: isGemma ? "gemma" : "gemini",
-            modelName: targetModel,
-            structuredExecutionMode: mode,
+            providerFamily: preparedExecution.providerFamily,
+            modelName: preparedExecution.canonicalModelId,
+            structuredExecutionMode: preparedExecution.resolvedExecutionMode,
             jsonMode
           });
           const retryValidation = validateVisualAnalysis(retryCanonicalization.result);
@@ -2354,14 +2224,14 @@ export async function analyzePublicSample(options: {
     let qualityStatus = "invalid";
     let qualityScore = 0;
     let qualityIssues = validation.errors.map(err => ({ code: "SCHEMA_ERROR", message: err, severity: "blocking" }));
-    let isExperimental = mode === "promptedJson";
+    let isExperimental = preparedExecution.resolvedExecutionMode === "promptedJson";
 
     if (validation.isValid) {
       const qReport = evaluateVisualAnalysisQuality(normalized, {
-        modelName: targetModel,
-        providerFamily: isGemma ? "gemma" : "gemini",
-        effectiveStructuredExecutionMode: mode,
-        visualRecommendation: getVisualModelCapability(targetModel).recommendation
+        modelName: preparedExecution.canonicalModelId,
+        providerFamily: preparedExecution.providerFamily,
+        effectiveStructuredExecutionMode: preparedExecution.resolvedExecutionMode,
+        visualRecommendation: getVisualModelCapability(preparedExecution.canonicalModelId).recommendation
       });
       qualityStatus = qReport.status;
       qualityScore = qReport.score;

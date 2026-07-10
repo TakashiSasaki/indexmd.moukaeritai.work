@@ -300,3 +300,39 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
 
   fs.rmSync(jobPath, { force: true });
 });
+
+test('startVisualBatchJob transition running -> pausedForProviderUnavailable on HTTP 503', async () => {
+  const jobId = `job-runner-unav-${Date.now()}`;
+  const jobPath = path.join(process.cwd(), 'cache', 'visual-batch-jobs', `${jobId}.json`);
+  jobStore.createJob(makeJob(jobId));
+
+  let calls = 0;
+  await startVisualBatchJob(jobId, {
+    getSampleMetadata: async (sampleId: string) => ({ id: sampleId, title: 'Unavailable sample' }),
+    analyzeFn: async () => {
+      calls += 1;
+      return {
+        status: 503,
+        body: {
+          success: false,
+          error: 'service unavailable',
+          failureKind: 'providerUnavailable',
+          generationDiagnostics: {
+            statusCode: 503,
+            providerStatus: 'UNAVAILABLE',
+            providerFailureKind: 'providerUnavailable'
+          },
+        },
+      };
+    },
+  });
+
+  const persisted = JSON.parse(fs.readFileSync(jobPath, 'utf-8')) as VisualBatchJob;
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(persisted.status, 'pausedForProviderUnavailable');
+  assert.strictEqual(persisted.pauseReason, 'pausedForProviderUnavailable');
+  assert.deepStrictEqual(persisted.affectedSampleIds, ['sample-transient']);
+
+  fs.rmSync(jobPath, { force: true });
+});
+
