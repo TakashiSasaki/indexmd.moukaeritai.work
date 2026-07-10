@@ -28,13 +28,6 @@ function extractRetryDelayMs(finalData: any): { retryAfterMs?: number; retryAfte
   return {};
 }
 
-export function classifyJobConfigurationError(finalData: any, status?: number): boolean {
-  const isModelDiscontinued = finalData?.errorType === "modelDiscontinued" || String(finalData?.error || "").includes("discontinued");
-  // Provider bad request with schema-related errors
-  const isSchemaRejection = status === 400 && String(finalData?.error || "").toLowerCase().includes("schema");
-  return Boolean(isModelDiscontinued || isSchemaRejection);
-}
-
 export function classifyJobQuotaInterruption(finalData: any, status?: number): {
   isQuotaOrRateLimit: boolean;
   action?: 'blockedByQuota' | 'pausedForRateLimit';
@@ -144,7 +137,7 @@ export async function startVisualBatchJob(
       });
       break;
     }
-    if (currentJob?.status === 'canceled' || currentJob?.status === 'paused' || currentJob?.status === 'pausedForRateLimit' || currentJob?.status === 'blockedByQuota' || currentJob?.status === 'blockedByConfigurationError') {
+    if (currentJob?.status === 'canceled' || currentJob?.status === 'paused' || currentJob?.status === 'pausedForRateLimit' || currentJob?.status === 'blockedByQuota') {
       break;
     }
 
@@ -215,10 +208,10 @@ export async function startVisualBatchJob(
           jsonMode: job.jsonMode,
           customInstruction: job.executionPrivate?.customInstruction || job.customInstructionPreview,
           providerRetryPolicy: {
-            maxAttempts: 1,
+            maxAttempts: 2,
             retryInternalErrors: false,
-            retryQuotaOrRateLimit: false,
-            retryUnavailable: false,
+            retryQuotaOrRateLimit: true,
+            retryUnavailable: true,
             retryInvalidArgument: false,
           }
         });
@@ -257,37 +250,30 @@ export async function startVisualBatchJob(
       }
 
       // Check if we should retry
-      const isConfigurationError = classifyJobConfigurationError(finalData, res?.status);
+      const isConfigurationFailure = finalData?.failureKind === "providerInvalidArgument" || res?.status === 400 || finalData?.error?.includes("schema");
+      if (isConfigurationFailure) {
+        item.status = "failed";
+        item.error = finalData?.error || "Configuration Error";
+        item.failureKind = "providerInvalidArgument";
+        jobStore.appendItem(jobId, item);
+        jobStore.updateJob(jobId, {
+          status: "failed",
+          lastError: item.error,
+          lastFailureKind: item.failureKind,
+          lastEvent: {
+            type: "jobFailed",
+            timestamp: new Date().toISOString(),
+            message: `Job failed due to deterministic configuration error on ${sampleTitle}`
+          }
+        });
+        break;
+      }
+
       const quotaInterruption = classifyJobQuotaInterruption(finalData, res?.status);
       const isQuotaError = quotaInterruption.isQuotaOrRateLimit;
       
       const attemptCompletedAt = new Date();
       const attemptDurationMs = attemptCompletedAt.getTime() - attemptStartedAtDate.getTime();
-
-      if (isConfigurationError) {
-        item.status = 'blockedByConfigurationError';
-        item.error = finalData?.error;
-        item.failureKind = finalData?.failureKind || 'configurationError';
-        item.blockedReason = 'blockedByConfigurationError';
-        item.affectedSampleIds = [sampleId];
-        
-        jobStore.appendItem(jobId, item);
-        jobStore.updateJob(jobId, {
-          status: 'blockedByConfigurationError',
-          blockedReason: 'blockedByConfigurationError',
-          affectedSampleIds: [sampleId],
-          blockedSampleIds: Array.from(new Set([...(jobStore.getJob(jobId)?.blockedSampleIds || []), sampleId])),
-          failedSampleIds: Array.from(new Set([...(jobStore.getJob(jobId)?.failedSampleIds || []), sampleId])),
-          lastEvent: {
-            type: 'jobBlockedByConfigurationError',
-            timestamp: new Date().toISOString(),
-            sampleId,
-            message: `Job blocked by deterministic configuration error: ${item.error}`
-          }
-        });
-        
-        return; // Abort job immediately
-      }
 
       if (quotaInterruption.action === 'blockedByQuota') {
         const resumeAfter = new Date(Date.now() + (quotaInterruption.retryAfterMs ?? 24 * 60 * 60_000)).toISOString();
@@ -425,7 +411,7 @@ export async function startVisualBatchJob(
     }
 
     const jobAfterItem = jobStore.getJob(jobId);
-    const pausedAfterQuotaOrRateLimit = jobAfterItem?.status === 'blockedByQuota' || jobAfterItem?.status === 'pausedForRateLimit' || jobAfterItem?.status === 'blockedByConfigurationError';
+    const pausedAfterQuotaOrRateLimit = jobAfterItem?.status === 'blockedByQuota' || jobAfterItem?.status === 'pausedForRateLimit';
     if (pausedAfterQuotaOrRateLimit) {
       break;
     }
@@ -459,6 +445,7 @@ export async function startVisualBatchJob(
         if (comparison.overallStatus === 'fail') counters.expectedComparisonFailCount++;
         if (comparison.reviewStatus === 'pass') counters.reviewPassCount++;
         if (comparison.reviewStatus === 'needsReview') counters.reviewNeedsReviewCount++;
+        if (comparison.reviewStatus === 'fail') counters.reviewFailCount++;
       }
       
       const completedSampleIds = [...(jobStore.getJob(jobId)?.completedSampleIds || []), sampleId];
@@ -508,6 +495,7 @@ export async function startVisualBatchJob(
       counters.total = job.targetSampleIds.length;
       if (!isBlockedItem) {
         counters.failureCount++;
+        counters.reviewFailCount++;
       }
       if (item.failureKind === 'jsonParseError' || item.failureKind === 'schemaValidationError') {
         counters.invalidJsonCount++;
@@ -549,7 +537,7 @@ export async function startVisualBatchJob(
     const nowTime = new Date().getTime();
     const startTime = finalJob.startedAt ? new Date(finalJob.startedAt).getTime() : nowTime;
     
-    if (finalJob.status === 'blockedByQuota' || finalJob.status === 'pausedForRateLimit' || finalJob.status === 'blockedByConfigurationError') {
+    if (finalJob.status === 'blockedByQuota' || finalJob.status === 'pausedForRateLimit') {
        const processed = new Set([...(finalJob.completedSampleIds || []), ...(finalJob.failedSampleIds || [])]);
        const remaining = finalJob.targetSampleIds.filter(id => !processed.has(id));
        jobStore.updateJob(jobId, {

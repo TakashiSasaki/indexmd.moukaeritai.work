@@ -1,4 +1,5 @@
 const LOCAL_STORAGE_KEY_PREFIX = 'visual_analysis_server_job_backup_';
+const LOCAL_STORAGE_BUNDLE_KEY_PREFIX = 'visual_analysis_server_job_bundle_';
 const MAX_BACKUPS = 10;
 const MAX_BUNDLE_SIZE_BYTES = 4.5 * 1024 * 1024; // 4.5 MB, leaving some room for overhead
 
@@ -23,10 +24,7 @@ export interface LocalJobBackup {
   bundleStored: boolean;
   notStoredReason?: string;
   bundle?: any;
-  jobRevision?: number;
-  jobStatusAtBackup?: string;
-  processedAtBackup?: number;
-  terminalDateAtBackup?: string;
+  sourceRevision?: string;
 }
 
 export interface StorageAdapter {
@@ -75,6 +73,7 @@ export function buildLocalJobBackupMetadata(job: any, options?: { savedAt?: stri
   const completedAt = job.completedAt;
   const canceledAt = job.canceledAt;
   const terminalDate = completedAt || canceledAt || '';
+  const sourceRevision = `${job.jobId}_${status}_${processed}_${terminalDate}`;
 
   return {
     jobId: job.jobId,
@@ -95,17 +94,16 @@ export function buildLocalJobBackupMetadata(job: any, options?: { savedAt?: stri
     total: total,
     savedAt: options?.savedAt || new Date().toISOString(),
     bundleStored: false,
-    jobRevision: job.revision,
-    jobStatusAtBackup: status,
-    processedAtBackup: processed,
-    terminalDateAtBackup: terminalDate
+    sourceRevision
   };
 }
 
 export function sanitizeBundle(obj: any): any {
   if (obj === null || typeof obj !== 'object') {
-    if (typeof obj === 'string' && obj.toLowerCase().startsWith('bearer ')) {
-      return '[REDACTED]';
+    if (typeof obj === 'string') {
+      if (obj.toLowerCase().startsWith('bearer ')) return '[REDACTED]';
+      if (/AIzaSy[a-zA-Z0-9_-]{33}/.test(obj)) return '[REDACTED_API_KEY]';
+      if (/(ya29|1\/\/[0-9a-zA-Z_-]+)/.test(obj)) return '[REDACTED_OAUTH_TOKEN]';
     }
     return obj;
   }
@@ -151,66 +149,52 @@ export function saveLocalJobBackup(job: any, bundle?: any) {
   if (!storage) return false;
 
   const backup = buildLocalJobBackupMetadata(job);
+  const metadataKey = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
+  const bundleKey = `${LOCAL_STORAGE_BUNDLE_KEY_PREFIX}${job.jobId}`;
 
   if (!bundle) {
-    // If saving metadata only, try to preserve any existing bundle
     try {
-      const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
-      const existing = storage.getItem(key);
+      const existing = storage.getItem(metadataKey);
       if (existing) {
         const parsed = JSON.parse(existing);
-        if (parsed && parsed.bundleStored && parsed.bundle) {
+        if (parsed && parsed.bundleStored) {
           backup.bundleStored = true;
-          backup.bundle = parsed.bundle;
+          // check if bundle is still inline (migration case)
+          if (parsed.bundle) {
+            storage.setItem(bundleKey, JSON.stringify(parsed.bundle));
+          }
         }
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
   }
 
   if (bundle) {
     let safeBundle;
-    try {
-      safeBundle = sanitizeBundle(bundle);
-    } catch (e) {
-      backup.notStoredReason = 'sanitizationError';
-    }
-
+    try { safeBundle = sanitizeBundle(bundle); } catch (e) { backup.notStoredReason = 'sanitizationError'; }
     if (safeBundle) {
       try {
         const bundleStr = JSON.stringify(safeBundle);
         if (bundleStr.length <= MAX_BUNDLE_SIZE_BYTES) {
            backup.bundleStored = true;
-           backup.bundle = safeBundle;
+           storage.setItem(bundleKey, bundleStr);
         } else {
            backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
         }
-      } catch (e) {
-        backup.notStoredReason = 'serializationError';
-      }
+      } catch (e) { backup.notStoredReason = 'serializationError'; }
     }
   }
 
   try {
-    const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
-    storage.setItem(key, JSON.stringify(backup));
+    storage.setItem(metadataKey, JSON.stringify(backup));
     enforceMaxBackups();
     return true;
   } catch (e) {
     console.warn('Failed to save local job backup', e);
-
     if (backup.bundleStored) {
       backup.bundleStored = false;
-      delete backup.bundle;
+      storage.removeItem(bundleKey);
       backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
-      try {
-        const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
-        storage.setItem(key, JSON.stringify(backup));
-        return true;
-      } catch (e2) {
-        console.warn('Failed to save even metadata backup', e2);
-      }
+      try { storage.setItem(metadataKey, JSON.stringify(backup)); return true; } catch (e2) {}
     }
     return false;
   }
@@ -230,15 +214,19 @@ export function listLocalJobBackups(): LocalJobBackup[] {
           const backup = JSON.parse(value) as LocalJobBackup;
           if (backup && backup.jobId) {
              const { bundle, ...meta } = backup;
+             if (bundle) {
+               // Migrate inline bundle to separate key
+               try {
+                 storage.setItem(`${LOCAL_STORAGE_BUNDLE_KEY_PREFIX}${backup.jobId}`, JSON.stringify(bundle));
+                 storage.setItem(key, JSON.stringify(meta));
+               } catch (e) { }
+             }
              backups.push(meta);
           }
         }
-      } catch (e) {
-        // ignore malformed
-      }
+      } catch (e) { }
     }
   }
-
   return backups.sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
 }
 
@@ -247,22 +235,29 @@ export function getLocalJobBackup(jobId: string): LocalJobBackup | null {
   if (!storage) return null;
 
   const key = `${LOCAL_STORAGE_KEY_PREFIX}${jobId}`;
+  const bundleKey = `${LOCAL_STORAGE_BUNDLE_KEY_PREFIX}${jobId}`;
   try {
     const value = storage.getItem(key);
     if (value) {
-      return JSON.parse(value) as LocalJobBackup;
+      const parsed = JSON.parse(value) as LocalJobBackup;
+      if (parsed.bundleStored && !parsed.bundle) {
+         const bundleStr = storage.getItem(bundleKey);
+         if (bundleStr) {
+           parsed.bundle = JSON.parse(bundleStr);
+         }
+      }
+      return parsed;
     }
-  } catch (e) {
-    // ignore
-  }
+  } catch (e) { }
   return null;
 }
 
 export function removeLocalJobBackup(jobId: string) {
   const storage = getStorage();
   if (!storage) return;
-  const key = `${LOCAL_STORAGE_KEY_PREFIX}${jobId}`;
-  storage.removeItem(key);
+
+  storage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}${jobId}`);
+  storage.removeItem(`${LOCAL_STORAGE_BUNDLE_KEY_PREFIX}${jobId}`);
 }
 
 function enforceMaxBackups() {

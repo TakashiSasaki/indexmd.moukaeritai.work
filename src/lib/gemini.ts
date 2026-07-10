@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { ProviderFailureKind } from "./visualAnalysis/types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
@@ -25,7 +26,7 @@ export class ProviderError extends Error {
   attempts?: any[];
   retryable?: boolean;
   apiRetryCount?: number;
-  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError";
+  providerFailureKind?: ProviderFailureKind;
   quotaExceeded?: boolean;
   rateLimited?: boolean;
   retryAfterMs?: number;
@@ -245,11 +246,11 @@ export function classifyProviderFailureKind(
   providerStatus: string,
   rawMessage: string
 ): {
-  providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError";
+  providerFailureKind: ProviderFailureKind;
   quotaExceeded: boolean;
   rateLimited: boolean;
 } {
-  let providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError" = "providerGenerationError";
+  let providerFailureKind: ProviderFailureKind = "providerGenerationError";
   let quotaExceeded = false;
   let rateLimited = false;
 

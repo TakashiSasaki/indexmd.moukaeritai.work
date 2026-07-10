@@ -1,3 +1,13 @@
+export type ProviderFailureKind =
+  | "providerRateLimited"
+  | "providerQuotaExceeded"
+  | "providerUnavailable"
+  | "providerInvalidArgument"
+  | "providerAuthenticationRequired"
+  | "providerAuthorizationDenied"
+  | "providerGenerationError"
+  | "providerInternalError";
+
 import { 
   ImageKind, 
   VisibleElementCategory,
@@ -128,7 +138,7 @@ export interface VisualAnalysisResultV2 {
 export interface ImageAnalysisStatus {
   success: boolean;
   error?: string;
-  failureKind?: string;
+  failureKind?: ProviderFailureKind | string;
 }
 
 export interface ImageAssetMetadata {

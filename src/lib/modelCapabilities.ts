@@ -1,63 +1,186 @@
-/**
- * Model Capabilities Registry
- * 
- * Defines how different AI models interact with structured output.
- * 
- * - Gemini Models (gemini-*): Use `nativeSchema` (structuredExecutionMode). 
- *   They support passing a JSON schema natively to the API (`responseSchema`), 
- *   ensuring strict conformity to the requested structure.
- * 
- * - Gemma Models (gemma-*): Use `promptedJson`.
- *   They do NOT reliably support the native `responseSchema` property.
- *   Passing `responseSchema` to a Gemma model often causes generation failures
- *   or severe hallucinations. Therefore, Gemma models must be prompted to output
- *   JSON via text instructions, and we parse the raw output block.
- */
+export type ModelLifecycleClass = 
+  | "stable" 
+  | "preview" 
+  | "rolling-alias" 
+  | "experimental" 
+  | "discontinued" 
+  | "historical-read-only" 
+  | "unsupported";
+
+export type ProviderFamily = "google-gemini" | "google-gemma" | "unknown";
 export type StructuredExecutionMode = "nativeSchema" | "promptedJson" | "textOnly";
 
 export interface ModelCapability {
-  modelNamePattern: RegExp;
-  providerFamily: "google-gemini" | "google-gemma" | "unknown";
-  structuredExecutionMode: StructuredExecutionMode;
+  canonicalModelId: string;
+  providerFamily: ProviderFamily;
+  lifecycleClass: ModelLifecycleClass;
+  executionAllowed: boolean;
+  historicalReadingAllowed: boolean;
   supportsNativeResponseSchema: boolean;
   supportsPromptedJson: boolean;
-  preferredStructuredFallbacks?: string[];
-  notes?: string;
+  preferredUiLabel: string;
+  replacementModel?: string;
+  deprecationNote?: string;
 }
 
-const REGISTRY: ModelCapability[] = [
-  {
-    modelNamePattern: /gemini.*(?:flash|pro)/i,
+export const MODEL_REGISTRY: Record<string, ModelCapability> = {
+  "gemini-3.5-flash": {
+    canonicalModelId: "gemini-3.5-flash",
     providerFamily: "google-gemini",
-    structuredExecutionMode: "nativeSchema",
+    lifecycleClass: "stable",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
     supportsNativeResponseSchema: true,
     supportsPromptedJson: true,
-    preferredStructuredFallbacks: ["gemini-3.1-flash-lite", "gemini-2.5-flash-lite"],
+    preferredUiLabel: "Gemini 3.5 Flash",
   },
-  {
-    modelNamePattern: /gemma/i,
+  "gemini-2.5-flash": {
+    canonicalModelId: "gemini-2.5-flash",
+    providerFamily: "google-gemini",
+    lifecycleClass: "stable",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: true,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemini 2.5 Flash",
+  },
+  "gemini-3.1-flash-lite": {
+    canonicalModelId: "gemini-3.1-flash-lite",
+    providerFamily: "google-gemini",
+    lifecycleClass: "stable",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: true,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemini 3.1 Flash Lite",
+  },
+  "gemini-2.5-flash-lite": {
+    canonicalModelId: "gemini-2.5-flash-lite",
+    providerFamily: "google-gemini",
+    lifecycleClass: "stable",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: true,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemini 2.5 Flash Lite",
+  },
+  "gemini-3.1-pro-preview": {
+    canonicalModelId: "gemini-3.1-pro-preview",
+    providerFamily: "google-gemini",
+    lifecycleClass: "preview",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: true,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemini 3.1 Pro (Preview)",
+  },
+  "gemini-flash-latest": {
+    canonicalModelId: "gemini-flash-latest",
+    providerFamily: "google-gemini",
+    lifecycleClass: "rolling-alias",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: true,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemini Flash Latest (Rolling)",
+  },
+  "gemini-1.5-pro": {
+    canonicalModelId: "gemini-1.5-pro",
+    providerFamily: "google-gemini",
+    lifecycleClass: "discontinued",
+    executionAllowed: false,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: true,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemini 1.5 Pro (Discontinued)",
+    replacementModel: "gemini-3.5-flash",
+    deprecationNote: "Gemini 1.5 Pro is discontinued. Use Gemini 3.5 Flash or newer."
+  },
+  "gemini-1.5-flash": {
+    canonicalModelId: "gemini-1.5-flash",
+    providerFamily: "google-gemini",
+    lifecycleClass: "discontinued",
+    executionAllowed: false,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: true,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemini 1.5 Flash (Discontinued)",
+    replacementModel: "gemini-3.5-flash",
+    deprecationNote: "Gemini 1.5 Flash is discontinued. Use Gemini 3.5 Flash or newer."
+  },
+  "gemma-4-31b-it": {
+    canonicalModelId: "gemma-4-31b-it",
     providerFamily: "google-gemma",
-    structuredExecutionMode: "promptedJson",
+    lifecycleClass: "experimental",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
     supportsNativeResponseSchema: false,
     supportsPromptedJson: true,
-    preferredStructuredFallbacks: ["gemini-3.1-flash-lite"],
-    notes: "Gemma models fail with native responseSchema, use prompted JSON"
+    preferredUiLabel: "Gemma 4 31B IT",
+  },
+  "gemma-4-9b-it": {
+    canonicalModelId: "gemma-4-9b-it",
+    providerFamily: "google-gemma",
+    lifecycleClass: "experimental",
+    executionAllowed: true,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: false,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Gemma 4 9B IT",
+  },
+  "unknown-model-xyz": {
+    canonicalModelId: "unknown-model-xyz",
+    providerFamily: "unknown",
+    lifecycleClass: "unsupported",
+    executionAllowed: false,
+    historicalReadingAllowed: true,
+    supportsNativeResponseSchema: false,
+    supportsPromptedJson: true,
+    preferredUiLabel: "Unknown Model",
   }
-];
+};
 
 export function getModelCapability(modelName: string): ModelCapability {
-  for (const cap of REGISTRY) {
-    if (cap.modelNamePattern.test(modelName)) {
-      return cap;
-    }
+  const cap = MODEL_REGISTRY[modelName];
+  if (cap) {
+    return cap;
   }
+  
+  // Try regex match for other models
+  if (/gemma/i.test(modelName)) {
+    return {
+      canonicalModelId: modelName,
+      providerFamily: "google-gemma",
+      lifecycleClass: "experimental",
+      executionAllowed: true,
+      historicalReadingAllowed: true,
+      supportsNativeResponseSchema: false,
+      supportsPromptedJson: true,
+      preferredUiLabel: modelName,
+    };
+  }
+  if (/gemini.*(?:flash|pro)/i.test(modelName)) {
+    return {
+      canonicalModelId: modelName,
+      providerFamily: "google-gemini",
+      lifecycleClass: "preview",
+      executionAllowed: true,
+      historicalReadingAllowed: true,
+      supportsNativeResponseSchema: true,
+      supportsPromptedJson: true,
+      preferredUiLabel: modelName,
+    };
+  }
+
   return {
-    modelNamePattern: /.*/,
+    canonicalModelId: modelName,
     providerFamily: "unknown",
-    structuredExecutionMode: "promptedJson",
+    lifecycleClass: "unsupported",
+    executionAllowed: false,
+    historicalReadingAllowed: true,
     supportsNativeResponseSchema: false,
     supportsPromptedJson: true,
-    preferredStructuredFallbacks: ["gemini-3.1-flash-lite"]
+    preferredUiLabel: modelName,
   };
 }
 
@@ -66,67 +189,36 @@ export function shouldUseNativeResponseSchema(modelName: string): boolean {
 }
 
 export function getStructuredExecutionMode(modelName: string): StructuredExecutionMode {
-  return getModelCapability(modelName).structuredExecutionMode;
+  return getModelCapability(modelName).supportsNativeResponseSchema ? "nativeSchema" : "promptedJson";
 }
 
-export type VisualModelRecommendation = "recommended" | "experimental" | "unsupported" | "discontinued";
-export type ModelExecutionPolicy = "supported" | "experimental" | "unsupported" | "discontinued" | "historical-read-only";
-
-export function getModelExecutionPolicy(modelName: string): ModelExecutionPolicy {
-  if (!modelName) return "unsupported";
-  const nameLower = modelName.toLowerCase();
-  
-  if (nameLower.includes("gemini-1.5") || nameLower === "gemini-flash-latest") {
-    return "discontinued";
-  }
-  
-  if (
-    nameLower === "gemini-3.5-flash" || 
-    nameLower === "gemini-3.5-pro" || 
-    nameLower === "gemini-3.1-pro-preview" || 
-    nameLower === "gemini-3.1-flash-lite" || 
-    nameLower === "gemini-2.5-pro" || 
-    nameLower === "gemini-2.5-flash" || 
-    nameLower === "gemini-2.5-flash-lite" || 
-    nameLower === "gemini-2.5-flash-lite-preview-09-2025"
-  ) {
-    return "supported";
-  }
-  
-  if (
-    nameLower === "gemini-3-flash-preview" || 
-    nameLower.includes("gemma")
-  ) {
-    return "experimental";
-  }
-  
-  return "unsupported";
-}
-
-export function validateModelExecution(modelName: string): { allowed: boolean; error?: "modelDiscontinued" | "modelUnsupported" } {
-  const policy = getModelExecutionPolicy(modelName);
-  if (policy === "discontinued" || policy === "historical-read-only") {
-    return { allowed: false, error: "modelDiscontinued" };
-  }
-  if (policy === "unsupported") {
-    return { allowed: false, error: "modelUnsupported" };
-  }
-  return { allowed: true };
-}
+export type VisualModelRecommendation = "recommended" | "experimental" | "unsupported";
 
 export function getVisualModelCapability(modelName: string): { recommendation: VisualModelRecommendation; providerFamily: string } {
   const cap = getModelCapability(modelName);
-  const policy = getModelExecutionPolicy(modelName);
   
-  let recommendation: VisualModelRecommendation = "unsupported";
-  if (policy === "supported") recommendation = "recommended";
-  else if (policy === "experimental") recommendation = "experimental";
-  else if (policy === "discontinued" || policy === "historical-read-only") recommendation = "discontinued";
+  if (!cap.executionAllowed) {
+      return { recommendation: "unsupported", providerFamily: cap.providerFamily === "unknown" ? "unknown" : cap.providerFamily === "google-gemma" ? "gemma" : "gemini" };
+  }
   
-  let providerFamily = "unknown";
-  if (cap.providerFamily === "google-gemini") providerFamily = "gemini";
-  else if (cap.providerFamily === "google-gemma") providerFamily = "gemma";
+  if (modelName.toLowerCase().includes("flash")) {
+    return { recommendation: "recommended", providerFamily: "gemini" };
+  }
   
-  return { recommendation, providerFamily };
+  if (cap.providerFamily === "google-gemma") {
+    return { recommendation: "experimental", providerFamily: "gemma" };
+  }
+  
+  if (cap.providerFamily === "google-gemini") {
+    return { recommendation: "experimental", providerFamily: "gemini" };
+  }
+  return { recommendation: "unsupported", providerFamily: "unknown" };
 }
 
+export function getExecutableModels(): ModelCapability[] {
+  return Object.values(MODEL_REGISTRY).filter(m => m.executionAllowed);
+}
+
+export function getModelRegistry(): Record<string, ModelCapability> {
+  return MODEL_REGISTRY;
+}

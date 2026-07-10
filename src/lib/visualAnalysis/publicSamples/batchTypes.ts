@@ -50,7 +50,7 @@ export interface PublicSampleBatchRunItem {
   retryExhausted?: boolean;
   resumeAfter?: string;
   pauseReason?: "pausedForRateLimit";
-  blockedReason?: "blockedByQuota" | "blockedByConfigurationError";
+  blockedReason?: "blockedByQuota";
   affectedSampleIds?: string[];
   attemptState?: any;
 
@@ -110,7 +110,6 @@ export type VisualBatchJobStatus =
   | "paused"
   | "pausedForRateLimit"
   | "blockedByQuota"
-  | "blockedByConfigurationError"
   | "partiallyCompleted"
   | "interrupted"
   | "failed"
@@ -125,7 +124,6 @@ export type VisualBatchJobItemStatus =
   | "skipped"
   | "canceled"
   | "blockedByQuota"
-  | "blockedByConfigurationError"
   | "deferred"
   | "pausedForRateLimit";
 
@@ -155,7 +153,6 @@ export interface VisualBatchJobEvent {
     | "sampleRetryExhausted"
     | "jobFailed"
     | "jobBlockedByQuota"
-    | "jobBlockedByConfigurationError"
     | "jobCompleted"
     | "jobForceCanceled"
     // 既存のイベント名との互換性
@@ -197,7 +194,7 @@ export interface VisualBatchJobItem {
   retryExhausted?: boolean;
   resumeAfter?: string;
   pauseReason?: "pausedForRateLimit";
-  blockedReason?: "blockedByQuota" | "blockedByConfigurationError";
+  blockedReason?: "blockedByQuota";
   affectedSampleIds?: string[];
   attemptState?: any;
   error?: string;

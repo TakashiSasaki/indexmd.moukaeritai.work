@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { getModelCapability, shouldUseNativeResponseSchema, getStructuredExecutionMode, getModelExecutionPolicy, validateModelExecution } from './modelCapabilities';
+import { getModelCapability, shouldUseNativeResponseSchema, getStructuredExecutionMode } from './modelCapabilities';
 
 test('Model Capabilities Registry', async (t) => {
   await t.test('gemini-3.5-flash uses nativeSchema', () => {
@@ -33,23 +33,4 @@ test('Model Capabilities Registry', async (t) => {
     assert.strictEqual(getStructuredExecutionMode('unknown-model-xyz'), 'promptedJson');
     assert.strictEqual(shouldUseNativeResponseSchema('unknown-model-xyz'), false);
   });
-
-  await t.test('model execution policy classification', () => {
-    assert.strictEqual(getModelExecutionPolicy('gemini-3.5-flash'), 'supported');
-    assert.strictEqual(getModelExecutionPolicy('gemini-3.1-flash-lite'), 'supported');
-    assert.strictEqual(getModelExecutionPolicy('gemini-1.5-flash'), 'discontinued');
-    assert.strictEqual(getModelExecutionPolicy('gemini-1.5-pro'), 'discontinued');
-    assert.strictEqual(getModelExecutionPolicy('gemini-flash-latest'), 'discontinued');
-    assert.strictEqual(getModelExecutionPolicy('gemini-3-flash-preview'), 'experimental');
-    assert.strictEqual(getModelExecutionPolicy('gemma-4-31b-it'), 'experimental');
-    assert.strictEqual(getModelExecutionPolicy('unknown-model'), 'unsupported');
-  });
-
-  await t.test('validateModelExecution validation behavior', () => {
-    assert.deepStrictEqual(validateModelExecution('gemini-3.5-flash'), { allowed: true });
-    assert.deepStrictEqual(validateModelExecution('gemini-1.5-flash'), { allowed: false, error: 'modelDiscontinued' });
-    assert.deepStrictEqual(validateModelExecution('gemini-flash-latest'), { allowed: false, error: 'modelDiscontinued' });
-    assert.deepStrictEqual(validateModelExecution('unknown-model'), { allowed: false, error: 'modelUnsupported' });
-  });
 });
-

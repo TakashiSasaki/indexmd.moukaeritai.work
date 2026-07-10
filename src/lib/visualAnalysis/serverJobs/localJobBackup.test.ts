@@ -42,7 +42,7 @@ test('localJobBackup tests', async (t) => {
     assert.strictEqual(meta.counters.failure, 2);
     assert.strictEqual(meta.counters.processed, 7);
     assert.strictEqual(meta.counters.total, 10);
-    assert.strictEqual(meta.jobStatusAtBackup, 'completed');
+    assert.strictEqual(meta.sourceRevision, 'job1_completed_7_');
   });
 
   await t.test('buildLocalJobBackupMetadata handles list summary fallback (canonical items)', () => {

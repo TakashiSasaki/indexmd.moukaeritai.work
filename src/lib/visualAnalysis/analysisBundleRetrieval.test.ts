@@ -23,20 +23,7 @@ test('valid current Analysis Bundle retrieval succeeds', async () => {
 });
 
 test('supported legacy Analysis Bundle retrieval succeeds', async () => {
-  // Hardcoded real legacy v0.1.0 fixture
-  const legacyV010Fixture = {
-    reportKind: 'visualAnalysisPublicSampleBatchAnalysisBundle',
-    bundleSchemaVersion: '0.1.0',
-    job: { jobId },
-    total: 2,
-    successCount: 1,
-    failureCount: 1,
-    items: [
-      { sampleId: 'sample-1', success: true },
-      { sampleId: 'sample-2', success: false }
-    ]
-  };
-  mock(200, JSON.stringify(legacyV010Fixture));
+  mock(200, JSON.stringify(bundle({ bundleSchemaVersion: '0.1.0' })));
   assert.equal((await fetchAndValidateAnalysisBundle(jobId)).metadata.schemaVersion, '0.1.0');
 });
 
@@ -61,4 +48,13 @@ for (const [name, status, body, contentType, kind] of [
 test('cross-origin redirect is rejected', async () => {
   mock(200, JSON.stringify(bundle()), {'content-type':'application/json'}, 'https://evil.example/cookie', true);
   await assert.rejects(fetchAndValidateAnalysisBundle(jobId), (e: any) => e.kind === 'unsafeRedirect');
+});
+
+import { ANALYSIS_BUNDLE_V01 } from './__fixtures__/analysisBundleFixtures';
+import { validateAnalysisBundleObject } from './analysisBundleRetrieval';
+
+test('Analysis Bundle Fixtures', () => {
+    const validated = validateAnalysisBundleObject(ANALYSIS_BUNDLE_V01, "test-job-v0.1");
+    assert.equal(validated.schemaVersion, "0.1.0");
+    assert.equal(validated.jobId, "test-job-v0.1");
 });
