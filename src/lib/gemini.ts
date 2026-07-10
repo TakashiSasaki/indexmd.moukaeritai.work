@@ -25,7 +25,7 @@ export class ProviderError extends Error {
   attempts?: any[];
   retryable?: boolean;
   apiRetryCount?: number;
-  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError";
+  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError";
   quotaExceeded?: boolean;
   rateLimited?: boolean;
   retryAfterMs?: number;
@@ -245,11 +245,11 @@ export function classifyProviderFailureKind(
   providerStatus: string,
   rawMessage: string
 ): {
-  providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError";
+  providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError";
   quotaExceeded: boolean;
   rateLimited: boolean;
 } {
-  let providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError" = "providerGenerationError";
+  let providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError" = "providerGenerationError";
   let quotaExceeded = false;
   let rateLimited = false;
 
@@ -283,10 +283,18 @@ export function classifyProviderFailureKind(
     }
   }
 
-  if (isTransientTransport) {
+  if (statusCode === 401 || providerStatus === "UNAUTHENTICATED" || upperMsgStr.includes("UNAUTHENTICATED")) {
+    providerFailureKind = "providerAuthenticationRequired";
+  } else if (providerStatus === "PERMISSION_DENIED" || upperMsgStr.includes("PERMISSION_DENIED")) {
+    providerFailureKind = "providerAuthorizationDenied";
+  } else if (isTransientTransport) {
     providerFailureKind = "providerUnavailable";
   } else if (statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || upperMsgStr.includes("UNAVAILABLE")) {
     providerFailureKind = "providerUnavailable";
+  }
+
+  if (statusCode === 500 || providerStatus === "INTERNAL" || upperMsgStr.includes("INTERNAL")) {
+    providerFailureKind = "providerInternalError";
   }
 
   if (statusCode === 400 || providerStatus === "INVALID_ARGUMENT" || upperMsgStr.includes("INVALID_ARGUMENT")) {
@@ -457,7 +465,7 @@ export async function generateContentWithRetry(
       // Determine retry eligibility based on policy
       let isRetryable = false;
       const isQuota = statusCode === 429 || quotaExceeded || rateLimited || providerFailureKind === "providerRateLimited" || providerFailureKind === "providerQuotaExceeded";
-      const isInternal = statusCode === 500 || providerStatus === "INTERNAL" || providerFailureKind === "providerGenerationError";
+      const isInternal = statusCode === 500 || providerStatus === "INTERNAL" || providerFailureKind === "providerInternalError";
       const isUnavailable = statusCode === 503 || statusCode === 504 || providerStatus === "UNAVAILABLE" || providerFailureKind === "providerUnavailable";
       const isInvalidArgument = statusCode === 400 || providerStatus === "INVALID_ARGUMENT" || providerFailureKind === "providerInvalidArgument";
 
@@ -467,7 +475,7 @@ export async function generateContentWithRetry(
           isRetryable = policy.retryQuotaOrRateLimit !== false;
           if (!isRetryable) notRetriedReason = "retryQuotaOrRateLimit=false";
         } else if (isInternal) {
-          isRetryable = policy.retryInternalErrors === true;
+          isRetryable = policy.retryInternalErrors !== false;
           if (!isRetryable) notRetriedReason = "retryInternalErrors=false";
         } else if (isUnavailable) {
           isRetryable = policy.retryUnavailable !== false;
@@ -481,8 +489,7 @@ export async function generateContentWithRetry(
         }
       } else {
         if (isInternal) {
-          isRetryable = false;
-          notRetriedReason = "retryInternalErrors=false";
+          isRetryable = true;
         } else if (isQuota || isUnavailable || statusCode === 503 || statusCode === 429 || quotaExceeded) {
           isRetryable = true;
         } else {

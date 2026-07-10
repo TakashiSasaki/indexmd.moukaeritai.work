@@ -1,0 +1,23 @@
+diff a/src/lib/visualAnalysis/serverJobs/jobRunner.ts b/src/lib/visualAnalysis/serverJobs/jobRunner.ts	(rejected hunks)
+@@ -248,6 +254,10 @@ export async function startVisualBatchJob(
+ 
+       if (quotaInterruption.action === 'blockedByQuota') {
+         const resumeAfter = new Date(Date.now() + (quotaInterruption.retryAfterMs ?? 24 * 60 * 60_000)).toISOString();
++        item.status = 'failed';
++        item.error = finalData?.error;
++        item.failureKind = finalData?.failureKind || 'providerQuotaExceeded';
++        if (finalData?.record) item.record = finalData.record;
+         item.blockedReason = 'blockedByQuota';
+         item.resumeAfter = resumeAfter;
+         item.affectedSampleIds = [sampleId];
+@@ -342,6 +352,10 @@ export async function startVisualBatchJob(
+              if (isQuotaError && quotaInterruption.action === 'pausedForRateLimit') {
+                const delayMs = Math.min(quotaInterruption.retryAfterMs ?? DEFAULT_RATE_LIMIT_PAUSE_MS, SHORT_RETRY_DELAY_MS);
+                const resumeAfter = new Date(Date.now() + delayMs).toISOString();
++               item.status = 'failed';
++               item.error = finalData?.error;
++               item.failureKind = finalData?.failureKind || 'providerRateLimited';
++               if (finalData?.record) item.record = finalData.record;
+                item.resumeAfter = resumeAfter;
+                item.pauseReason = 'pausedForRateLimit';
+                item.affectedSampleIds = [sampleId];

@@ -1,0 +1,9 @@
+diff a/src/components/ImageExperiment.tsx b/src/components/ImageExperiment.tsx	(rejected hunks)
+@@ -25,6 +25,7 @@ import { buildFullItemReport, buildBatchAnalysisBundleForChat } from '../lib/vis
+ import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
+ import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
+ import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
++import { fetchAndValidateAnalysisBundle, formatAnalysisBundleRetrievalError, sanitizedAnalysisBundleFilename } from '../lib/visualAnalysis/analysisBundleRetrieval';
+ 
+ interface ImageExperimentProps {
+   token: string;

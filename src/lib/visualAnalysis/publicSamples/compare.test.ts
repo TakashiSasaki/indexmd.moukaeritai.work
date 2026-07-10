@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { evaluateSampleComparison, summarizeExpectedComparisonCounts, summarizeReviewCounts } from './compare';
+import { evaluateSampleComparison, summarizeExpectedComparisonCounts, summarizeReviewCounts, compareExpectedLabels } from './compare';
 
 describe('evaluateSampleComparison', () => {
   test('should pass for exact match', () => {
@@ -545,4 +545,14 @@ describe('evaluateSampleComparison record-aware structures', () => {
     assert.strictEqual(summary.reviewStatus, "fail");
     assert.ok(summary.reasons.some(r => r.includes("missing expected visible text")));
   });
+});
+
+test('package alias does not match product name text on one generic token', () => {
+  const result = compareExpectedLabels({ expectedVisibleElementLabels: ['package'], expectedVisibleElementLabelAliases: { package: ['product package'] } }, ['product name text']);
+  assert.deepEqual(result.missing, ['package']);
+});
+
+test('head noun label substring matches remain acceptable', () => {
+  assert.deepEqual(compareExpectedLabels({ expectedVisibleElementLabels: ['desk'] }, ['antique wooden desk']).acceptable, ['desk']);
+  assert.deepEqual(compareExpectedLabels({ expectedVisibleElementLabels: ['drawer pulls'] }, ['brass drawer pulls']).acceptable, ['drawer pulls']);
 });
