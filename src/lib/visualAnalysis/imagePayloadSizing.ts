@@ -33,6 +33,7 @@ export interface ImageProcessingDiagnostics {
   quality: number;
   analysisSizingPolicy: AnalysisSizingPolicy;
   analysisTargetLongEdge: number;
+  analysisMaxLongEdge: number;
   analysisTargetBytes: number;
   analysisHardCapBytes: number;
   analysisSizeReductionRatio: number;
@@ -82,6 +83,37 @@ export async function optimizeImageForAnalysis(
   }
   
   let resized = false;
+  const providerSafeInput = metadata.format === 'jpeg' || metadata.format === 'png' || metadata.format === 'webp';
+  const currentLongEdge = currentDimensions ? Math.max(currentDimensions.width, currentDimensions.height) : undefined;
+  if (providerSafeInput && metadata.format !== 'svg' && originalByteLength <= policy.targetBytes && (!currentLongEdge || currentLongEdge <= policy.targetLongEdge)) {
+    const fmt = metadata.format as "jpeg" | "png" | "webp";
+    return {
+      buffer: inputBuffer,
+      mimeType: fmt === 'jpeg' ? 'image/jpeg' : fmt === 'png' ? 'image/png' : 'image/webp',
+      diagnostics: {
+        originalDimensions,
+        dimensions: originalDimensions,
+        originalByteLength,
+        processedByteLength: originalByteLength,
+        resized: false,
+        recompressed: false,
+        reencoded: false,
+        outputFormat: fmt,
+        quality: fmt === 'jpeg' ? 85 : 90,
+        analysisSizingPolicy: policyName,
+        analysisTargetLongEdge: policy.targetLongEdge,
+        analysisMaxLongEdge: policy.targetLongEdge,
+        analysisTargetBytes: policy.targetBytes,
+        analysisHardCapBytes: policy.hardCapBytes,
+        analysisSizeReductionRatio: 1,
+        targetExceededButAccepted: false,
+        hardCapExceeded: false,
+        minQualityReached: false,
+        inputFormat: metadata.format,
+        providerSafeMimeType: true
+      }
+    };
+  }
   
   if (currentDimensions) {
     const longEdge = Math.max(currentDimensions.width, currentDimensions.height);
@@ -188,6 +220,7 @@ export async function optimizeImageForAnalysis(
       quality,
       analysisSizingPolicy: policyName,
       analysisTargetLongEdge: policy.targetLongEdge,
+      analysisMaxLongEdge: policy.targetLongEdge,
       analysisTargetBytes: policy.targetBytes,
       analysisHardCapBytes: policy.hardCapBytes,
       analysisSizeReductionRatio,

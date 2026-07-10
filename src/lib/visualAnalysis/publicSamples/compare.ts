@@ -204,6 +204,7 @@ export function compareExpectedLabels(
     detected: string;
     status: "exact" | "acceptable";
     method: "exact" | "alias" | "aliasSubstring" | "aliasTokenOverlap" | "substring" | "tokenOverlap" | "keyword" | "visibleText";
+    confidence?: "strong" | "medium" | "weak";
     source?: "visibleElementLabel" | "visibleElementAttribute" | "keyword" | "visibleText";
   }>;
 } {
@@ -215,6 +216,7 @@ export function compareExpectedLabels(
     detected: string;
     status: "exact" | "acceptable";
     method: "exact" | "alias" | "aliasSubstring" | "aliasTokenOverlap" | "substring" | "tokenOverlap" | "keyword" | "visibleText";
+    confidence?: "strong" | "medium" | "weak";
     source?: "visibleElementLabel" | "visibleElementAttribute" | "keyword" | "visibleText";
   }> = [];
 
@@ -320,33 +322,38 @@ export function compareExpectedLabels(
     };
   });
 
+  const GENERIC_TOKENS = new Set(["product", "object", "item", "image", "photo", "text", "region"]);
+
+  function meaningfulTokens(tokens: string[]): string[] {
+    return tokens.filter(t => t.length > 2 && !GENERIC_TOKENS.has(t));
+  }
+
   function isAcceptableLabelMatch(
     expectedNorm: string,
     expectedTokens: string[],
     candidateNorm: string,
     candidateTokens: string[]
-  ): { matched: boolean; method: "substring" | "tokenOverlap" } | null {
+  ): { matched: boolean; method: "substring" | "tokenOverlap"; confidence: "strong" | "medium" } | null {
     if (expectedNorm.length > 2 && candidateNorm.length > 2) {
       const escapedExpected = expectedNorm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       const regex1 = new RegExp(`\\b${escapedExpected}\\b`);
-      if (regex1.test(candidateNorm)) {
-        return { matched: true, method: "substring" };
-      }
-      
+      if (regex1.test(candidateNorm)) return { matched: true, method: "substring", confidence: "strong" };
+
       const escapedCandidate = candidateNorm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       const regex2 = new RegExp(`\\b${escapedCandidate}\\b`);
-      if (regex2.test(expectedNorm)) {
-        return { matched: true, method: "substring" };
-      }
+      if (regex2.test(expectedNorm)) return { matched: true, method: "substring", confidence: "medium" };
     }
 
-    if (expectedTokens.length > 0 && candidateTokens.length > 0) {
-      const overlap = expectedTokens.some(et => candidateTokens.includes(et));
-      if (overlap) {
-        return { matched: true, method: "tokenOverlap" };
+    const expectedMeaningful = meaningfulTokens(expectedTokens);
+    const candidateMeaningful = meaningfulTokens(candidateTokens);
+    if (expectedMeaningful.length > 0 && candidateMeaningful.length > 0) {
+      const expectedHead = [...expectedMeaningful].reverse()[0];
+      const overlap = expectedMeaningful.filter(et => candidateMeaningful.includes(et));
+      if (expectedHead && candidateMeaningful.includes(expectedHead)) {
+        return { matched: true, method: "tokenOverlap", confidence: expectedMeaningful.length === 1 ? "strong" : "medium" };
       }
+      if (overlap.length >= 2) return { matched: true, method: "tokenOverlap", confidence: "medium" };
     }
-
     return null;
   }
 
@@ -427,7 +434,7 @@ export function compareExpectedLabels(
       if (cand.consumed) continue;
 
       const normalizedConceptMatch = normalizeControlledConcept(item.normalized) === normalizeControlledConcept(cand.normalized);
-      const matchRes = normalizedConceptMatch ? { matched: true, method: "substring" as const } : isAcceptableLabelMatch(
+      const matchRes = normalizedConceptMatch ? { matched: true, method: "substring" as const, confidence: "strong" as const } : isAcceptableLabelMatch(
         item.normalized,
         item.tokens,
         cand.normalized,
@@ -442,6 +449,7 @@ export function compareExpectedLabels(
           detected: cand.original,
           status: "acceptable",
           method: matchRes.method,
+          confidence: matchRes.confidence,
           source: "visibleElementLabel"
         });
         foundMatch = true;
@@ -483,7 +491,7 @@ export function compareExpectedLabels(
         }
 
       const normalizedConceptMatch = normalizeControlledConcept(aliasNorm) === normalizeControlledConcept(cand.normalized);
-      const matchRes = normalizedConceptMatch ? { matched: true, method: "substring" as const } : isAcceptableLabelMatch(
+      const matchRes = normalizedConceptMatch ? { matched: true, method: "substring" as const, confidence: "strong" as const } : isAcceptableLabelMatch(
           aliasNorm,
           aliasTokens,
           cand.normalized,
@@ -498,6 +506,7 @@ export function compareExpectedLabels(
             detected: cand.original,
             status: "acceptable",
             method: matchRes.method === "substring" ? "aliasSubstring" : "aliasTokenOverlap",
+            confidence: matchRes.confidence,
             source: "visibleElementLabel"
           });
           foundMatch = true;
@@ -555,6 +564,7 @@ export function compareExpectedLabels(
           detected: cand.original,
           status: "acceptable",
           method: cand.source === "visibleText" ? "visibleText" : (cand.source === "keyword" ? "keyword" : matchRes.method),
+          confidence: matchRes.confidence,
           source: cand.source
         });
         foundMatch = true;
@@ -583,7 +593,7 @@ export function compareExpectedLabels(
         const aliasConceptMatch = normalizeControlledConcept(aliasNorm) === normalizeControlledConcept(cand.normalized);
         const aliasHead = headToken(aliasTokens);
         const aliasMatchRes = aliasConceptMatch
-          ? { matched: true, method: "aliasTokenOverlap" as const }
+          ? { matched: true, method: "aliasTokenOverlap" as const, confidence: "strong" as const }
           : (cand.source === "visibleElementAttribute" && aliasHead && !cand.tokens.includes(aliasHead))
             ? null
             : isAcceptableLabelMatch(
@@ -600,6 +610,7 @@ export function compareExpectedLabels(
             detected: cand.original,
             status: "acceptable",
             method: cand.source === "visibleText" ? "visibleText" : (cand.source === "keyword" ? "keyword" : (aliasMatchRes.method === "substring" ? "aliasSubstring" : "aliasTokenOverlap")),
+            confidence: aliasMatchRes.confidence,
             source: cand.source
           });
           foundAliasMatch = true;

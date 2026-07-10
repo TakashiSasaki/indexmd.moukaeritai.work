@@ -260,7 +260,7 @@ export async function startVisualBatchJob(
         customInstruction: baseJob.executionPrivate?.customInstruction || baseJob.customInstructionPreview,
         providerRetryPolicy: {
           maxAttempts: 2,
-          retryInternalErrors: false,
+          retryInternalErrors: true,
           retryQuotaOrRateLimit: true,
           retryUnavailable: true,
           retryInvalidArgument: false,

@@ -864,3 +864,25 @@ it('derives failure item error refs when generation diagnostics do not include a
   assert.strictEqual(bundle.failures.itemRefs[0].errorRef, 'providerRateLimited:429:RESOURCE_EXHAUSTED');
   assert.strictEqual(bundle.errorCatalog[0].errorRef, 'providerRateLimited:429:RESOURCE_EXHAUSTED');
 });
+
+it('analysis bundle review counters treat generation failures as notApplicable and invalidate inconsistent counters', () => {
+  const summary: any = {
+    runId: 'run-counter', timestamp: 'now', modelName: 'model', jsonMode: 'prompted_json', total: 3,
+    successCount: 2, failureCount: 1, validCount: 2, validLowQualityCount: 0, invalidJsonCount: 0,
+    expectedComparisonPassCount: 2, expectedComparisonWarningCount: 0, expectedComparisonFailCount: 0,
+    reviewPassCount: 2, reviewNeedsReviewCount: 0, reviewFailCount: 1,
+    jobStatus: 'completed', isComplete: true, completedCount: 3, pendingCount: 0, processedCount: 3,
+    items: [
+      { sampleId: 'a', title: 'a', success: true, record: { evaluation: { qualityStatus: 'valid' } }, comparison: { overallStatus: 'pass', reviewStatus: 'pass' } },
+      { sampleId: 'b', title: 'b', success: true, record: { evaluation: { qualityStatus: 'valid' } }, comparison: { overallStatus: 'pass', reviewStatus: 'pass' } },
+      { sampleId: 'c', title: 'c', success: false, failureKind: 'generationError' }
+    ]
+  };
+  const bundle = buildBatchAnalysisBundleForChat(summary);
+  assert.equal(bundle.review.fail, 0);
+  assert.equal(bundle.review.notApplicable, 1);
+  assert.equal(bundle.reviewFailCount, 0);
+  assert.equal(bundle.counterConsistency.review.consistent, false);
+  assert.equal(bundle.invariants.valid, false);
+  assert.deepEqual(bundle.analysisGuidance.recommendedFirstChecks.slice(0, 3), ['artifactIntegrity.valid', 'counterConsistency', 'execution']);
+});

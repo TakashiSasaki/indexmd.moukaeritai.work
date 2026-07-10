@@ -20,7 +20,7 @@ You must always classify the "imageKind" and enumerate "visibleElements".
 - Landscape Photo: List scene elements such as sky, mountains, water, vegetation, roads, buildings, weather.
 - Document Photo: Prioritize visible text, document layout, stamps, signatures, QR codes, tables.
 - Screenshot: Prioritize UI elements, visible messages, buttons, tabs, error states.
-- Product/Package Photo: Prioritize product, package, labels, visible brand text, background objects.
+- Product/Package Photo: Prioritize product, package, labels, visible brand text, background objects. Always include the primary whole object as a visible element. For product packaging, include the complete package, bottle, pouch, bag, box, or container separately from labels, logos, text regions, barcodes, and decorative elements.
 - Map Image: List map elements such as labels, boundaries, regions, routes, icons.
 - Medical Image: Focus on clinical scan elements, anatomical structures, grayscale properties, or annotations. Do not make diagnostic claims.
 - Space Photo: List cosmic or space objects like stars, planets, spacecraft, Earth visible from space, or deep space phenomena.
