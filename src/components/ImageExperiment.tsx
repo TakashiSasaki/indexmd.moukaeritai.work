@@ -25,6 +25,15 @@ import { buildFullItemReport, buildBatchAnalysisBundleForChat } from '../lib/vis
 import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
+import ServerJobRecovery from './visualAnalysis/ServerJobRecovery';
+import {
+  LocalJobBackup,
+  listLocalJobBackups,
+  saveLocalJobBackup,
+  removeLocalJobBackup,
+  getLocalJobBackup,
+  buildLocalJobBackupMetadata
+} from '../lib/visualAnalysis/serverJobs/localJobBackup';
 
 interface ImageExperimentProps {
   token: string;
@@ -177,6 +186,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [isStartingServerJob, setIsStartingServerJob] = useState(false);
   const [isRefreshingServerJob, setIsRefreshingServerJob] = useState(false);
   const [serverJobList, setServerJobList] = useState<any[]>([]);
+  const [localJobBackups, setLocalJobBackups] = useState<LocalJobBackup[]>([]);
+  const fetchedBundlesRef = React.useRef<Set<string>>(new Set());
 
   // Batch evaluation state
   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
@@ -889,16 +900,51 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
-  const handleRefreshServerJob = async (isManual = false) => {
-    if (!serverJobId) return;
+  const handleRefreshServerJob = async (isManual = false, overrideJobId?: string) => {
+    const targetJobId = overrideJobId || serverJobId;
+    if (!targetJobId) return;
     if (isManual) setIsRefreshingServerJob(true);
     try {
-      const res = await fetch(`/api/visual/batch-jobs/${serverJobId}`);
+      const res = await fetch(`/api/visual/batch-jobs/${targetJobId}`);
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const data = await res.json();
-      setServerJobStatus(data.job);
-      setServerJobComputedState(data.computedState ?? null);
-      setServerJobItemsPreview(data.itemsPreview ?? []);
+
+      if (targetJobId === serverJobId || overrideJobId) {
+        setServerJobStatus(data.job);
+        setServerJobComputedState(data.computedState ?? null);
+        setServerJobItemsPreview(data.itemsPreview ?? []);
+      }
+
+      // Check for backup save logic
+      const meta = buildLocalJobBackupMetadata(data.job);
+      if (meta.processedCount > 0) {
+        // Save metadata at minimum
+        saveLocalJobBackup(data.job);
+        reloadLocalBackups();
+
+        const isTerminal = ['completed', 'failed', 'canceled'].includes(data.job.status);
+        if (isTerminal) {
+           const rev = meta.sourceRevision || '';
+           const existing = getLocalJobBackup(targetJobId);
+           const isAlreadyStored = existing && existing.bundleStored && existing.sourceRevision === rev;
+           const inflightKey = `${targetJobId}_${rev}`;
+
+           if (!isAlreadyStored && !fetchedBundlesRef.current.has(inflightKey)) {
+             fetchedBundlesRef.current.add(inflightKey);
+             // Fetch bundle
+             try {
+               const bRes = await fetch(`/api/visual/batch-jobs/${targetJobId}/reports/analysis-bundle`);
+               if (bRes.ok) {
+                 const bundle = await bRes.json();
+                 saveLocalJobBackup(data.job, bundle);
+                 reloadLocalBackups();
+               }
+             } catch (err) {
+               console.warn("Auto bundle backup fetch failed", err);
+             }
+           }
+        }
+      }
     } catch (e: any) {
       if (isManual) onAddLog("error", `Refresh failed: ${e.message}`);
     } finally {
@@ -906,6 +952,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         setIsRefreshingServerJob(false);
       }
     }
+  };
+
+  const reloadLocalBackups = () => {
+    setLocalJobBackups(listLocalJobBackups());
   };
   
   
@@ -934,7 +984,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           const activeJob = jobs.find((j: any) => j.status === 'queued' || j.status === 'running' || j.status === 'canceling');
           if (activeJob) {
             setServerJobId(activeJob.jobId);
-            setServerJobStatus(activeJob);
+            handleRefreshServerJob(false, activeJob.jobId);
           }
         }
       }
@@ -946,6 +996,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   useEffect(() => {
     if (showServerSideJob) {
       loadServerJobs();
+      reloadLocalBackups();
     }
   }, [showServerSideJob]);
 
@@ -2476,28 +2527,79 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
             )}
             
-            {serverJobList.length > 0 && !serverJobStatus && (
-              <div className="pt-2 border-t border-slate-100">
-                <h4 className="text-xs font-bold text-slate-700 mb-2">Recent Server Jobs</h4>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {serverJobList.slice().reverse().map((job, i) => (
-                    <button 
-                      key={job.jobId + "-" + i}
-                      onClick={() => {
-                        setServerJobId(job.jobId);
-                        setServerJobStatus(job);
-                      }}
-                      className="w-full text-left text-xs p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 flex justify-between"
-                    >
-                      <span>{new Date(job.createdAt).toLocaleString()}</span>
-                      <span className={`font-medium ${job.status === 'completed' ? 'text-emerald-600' : job.status === 'failed' ? 'text-red-600' : job.status === 'running' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
-                        {job.status} ({job.counters?.successCount}/{job.counters?.total})
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <ServerJobRecovery
+              serverJobs={serverJobList}
+              localBackups={localJobBackups}
+              selectedJobId={serverJobId}
+              onSelectJob={(jobId) => {
+                setServerJobId(jobId);
+                handleRefreshServerJob(true, jobId);
+              }}
+              onRefreshJob={(jobId) => handleRefreshServerJob(true, jobId)}
+              onCopyBundle={async (jobId, fromBackup) => {
+                try {
+                  if (fromBackup) {
+                    const backup = getLocalJobBackup(jobId);
+                    if (backup?.bundle) {
+                      await navigator.clipboard.writeText(JSON.stringify(backup.bundle, null, 2));
+                      onAddLog("success", "Copied bundle from backup");
+                      return;
+                    }
+                  }
+                  const bRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
+                  if (bRes.ok) {
+                    const bundle = await bRes.json();
+                    await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+                    onAddLog("success", "Copied bundle from server");
+                  }
+                } catch (e: any) {
+                  onAddLog("error", "Copy failed", e.message);
+                }
+              }}
+              onDownloadBundle={async (jobId, fromBackup) => {
+                try {
+                  if (fromBackup) {
+                    const backup = getLocalJobBackup(jobId);
+                    if (backup?.bundle) {
+                      downloadJsonArtifact(JSON.stringify(backup.bundle, null, 2), `visual-analysis-analysis-bundle-${jobId}.json`);
+                      return;
+                    }
+                  }
+                  window.location.href = `/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`;
+                } catch (e: any) {
+                  onAddLog("error", "Download failed", e.message);
+                }
+              }}
+              onImportStats={(jobId) => {
+                 setServerJobId(jobId);
+                 handleImportServerJob();
+              }}
+              onSaveBackup={async (jobId) => {
+                try {
+                  const jobRes = await fetch(`/api/visual/batch-jobs/${jobId}`);
+                  if (!jobRes.ok) return;
+                  const data = await jobRes.json();
+                  const bundleRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
+                  if (bundleRes.ok) {
+                    const bundle = await bundleRes.json();
+                    saveLocalJobBackup(data.job, bundle);
+                    reloadLocalBackups();
+                    onAddLog("success", "Saved local backup");
+                  } else {
+                    saveLocalJobBackup(data.job);
+                    reloadLocalBackups();
+                    onAddLog("warn", "Saved metadata backup only (bundle failed)");
+                  }
+                } catch (e: any) {
+                  onAddLog("error", "Backup failed", e.message);
+                }
+              }}
+              onRemoveBackup={(jobId) => {
+                removeLocalJobBackup(jobId);
+                reloadLocalBackups();
+                onAddLog("info", "Removed local backup");
+              }}
+            />
           </div>
         </div>
       )}

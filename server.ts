@@ -56,6 +56,7 @@ import {
 } from './src/lib/visualAnalysis/publicSamples/reportBuilder';
 import { buildPublicSampleExpectedMetadata } from './src/lib/visualAnalysis/publicSamples/expectedMetadata';
 import { jobToSummary } from './src/lib/visualAnalysis/serverJobs/jobAdapters';
+import { getGeminiKeyInfo } from "./src/lib/runtime/geminiKeyInfo";
 
 dotenv.config();
 
@@ -429,6 +430,16 @@ app.use(express.json());
 // 1. Health check endpoint
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// Runtime Gemini Key info endpoint
+app.get("/api/runtime/gemini-key-info", (req, res) => {
+  try {
+    const info = getGeminiKeyInfo(process.env.GEMINI_API_KEY);
+    res.json(info);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // API to fetch history

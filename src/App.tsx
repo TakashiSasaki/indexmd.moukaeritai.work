@@ -30,6 +30,7 @@ import {
 import { AppConfig, DriveLog } from "./types";
 import defaultAppConfig from "./config.json";
 import { VALID_TAB_IDS, resolveActiveTab, AppTabId } from "./lib/appTabs";
+import { GeminiKeyInfo } from "./lib/runtime/geminiKeyInfo";
 
 import DriveDashboard from "./components/DriveDashboard";
 import DriveLogs from "./components/DriveLogs";
@@ -63,6 +64,7 @@ export default function App() {
   const [logs, setLogs] = useState<DriveLog[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
+  const [geminiKeyInfo, setGeminiKeyInfo] = useState<GeminiKeyInfo | null>(null);
 
   const validTabs = VALID_TAB_IDS;
   const activeTab = resolveActiveTab(location.pathname);
@@ -92,8 +94,21 @@ export default function App() {
     navigate(`/${tab}`);
   };
 
+  const fetchGeminiKeyInfo = async () => {
+    try {
+      const res = await fetch("/api/runtime/gemini-key-info");
+      if (res.ok) {
+        const data = await res.json();
+        setGeminiKeyInfo(data);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch gemini key info", e);
+    }
+  };
+
   // Monitor auth state
   useEffect(() => {
+    fetchGeminiKeyInfo();
     const state = loadDriveTokenState();
     if (state && !isDriveTokenLikelyExpired(state)) {
       setGoogleAccessToken(state.accessToken);
@@ -329,6 +344,19 @@ export default function App() {
                           <p className="text-xs font-bold text-slate-800 truncate">{user.displayName || user.email || "user"}</p>
                           <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
                         </div>
+                        {geminiKeyInfo && (
+                           <div className="px-4 py-2 border-b border-slate-100 bg-indigo-50/30">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-tighter">Gemini API Key</span>
+                                <span className="text-[9px] font-mono font-bold text-indigo-600 bg-white px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
+                                  {geminiKeyInfo.fingerprint}
+                                </span>
+                              </div>
+                              <p className="text-[8px] text-indigo-400 font-medium leading-tight mt-1">
+                                {geminiKeyInfo.envVarName} ({geminiKeyInfo.isConfigured ? 'Live' : 'Missing'})
+                              </p>
+                           </div>
+                        )}
                         <button
                           onClick={() => {
                             handleLogout();
