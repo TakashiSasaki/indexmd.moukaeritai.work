@@ -1,6 +1,11 @@
 import test, { describe } from "node:test";
 import assert from "node:assert";
 import { getGeminiKeyInfo } from "./geminiKeyInfo";
+import { createHash } from "node:crypto";
+
+function sha256_12(val: string): string {
+  return createHash("sha256").update(val).digest("hex").slice(0, 12).toLowerCase();
+}
 
 describe("getGeminiKeyInfo", () => {
   test("returns not configured for undefined", () => {
@@ -26,8 +31,8 @@ describe("getGeminiKeyInfo", () => {
     assert.equal(result.source, "GEMINI_API_KEY");
     assert.equal(result.maskedKey, "AIza…h123");
     assert.equal(result.fingerprint?.length, 12);
-    assert.equal(result.fingerprintAlgorithm, "derivedHex");
-    assert.equal(result.fingerprint, "8e300277e0b8");
+    assert.equal(result.fingerprintAlgorithm, "sha256");
+    assert.equal(result.fingerprint, sha256_12(key));
   });
 
   test("returns configured with generic mask for short key", () => {
@@ -36,6 +41,8 @@ describe("getGeminiKeyInfo", () => {
     assert.equal(result.configured, true);
     assert.equal(result.maskedKey, "configured");
     assert.equal(result.fingerprint?.length, 12);
+    assert.equal(result.fingerprintAlgorithm, "sha256");
+    assert.equal(result.fingerprint, sha256_12(key));
   });
 
   test("fingerprint is deterministic", () => {

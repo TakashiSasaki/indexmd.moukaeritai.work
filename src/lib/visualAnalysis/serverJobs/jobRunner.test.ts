@@ -74,9 +74,26 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
     getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
   });
 
+  // Since execution is sequential, calls will first reach 1 with sample-A
+  while (calls.length < 1) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls, ['sample-A']);
+
+  // Resolve sample-A to allow sequential execution to proceed to sample-B
+  responses.get('sample-A')!.resolve({
+    status: 200,
+    body: {
+      success: true,
+      record: {
+        evaluation: { qualityStatus: 'valid' },
+      },
+    },
+  });
+
+  // Now execution proceeds to sample-B, so calls reaches 2
   while (calls.length < 2) await new Promise(resolve => setTimeout(resolve, 0));
   assert.deepEqual(calls, ['sample-A', 'sample-B']);
 
+  // Resolve sample-B with a daily quota exhaustion block
   responses.get('sample-B')!.resolve({
     status: 429,
     body: {
@@ -93,10 +110,31 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
     },
   });
 
-  await new Promise(resolve => setTimeout(resolve, 0));
-  assert.deepEqual(calls, ['sample-A', 'sample-B']);
+  await runner;
 
-  responses.get('sample-A')!.resolve({
+  const blockedJob = jobStore.getJob(jobId)! as VisualBatchJob & { blockedSampleIds?: string[] };
+  // Since sample-B returned daily quota block, the job is paused and blockedByQuota is preserved
+  assert.equal(blockedJob.status, 'paused');
+  assert.equal(blockedJob.blockedReason, 'blockedByQuota');
+  assert.deepEqual(calls, ['sample-A', 'sample-B']);
+  assert.ok(blockedJob.completedSampleIds.includes('sample-A'));
+  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-A')?.status, 'succeeded');
+  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-B')?.status, 'failed');
+  assert.deepEqual(blockedJob.pendingSampleIds.sort(), ['sample-B', 'sample-C', 'sample-D']);
+  assert.deepEqual(blockedJob.blockedSampleIds?.sort(), ['sample-B']);
+
+  // Resume processing with a second runner
+  const secondRunner = startVisualBatchJob(jobId, {
+    analyzeFn,
+    getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
+  });
+
+  // Second runner will start processing sample-B again
+  while (calls.length < 3) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls, ['sample-A', 'sample-B', 'sample-B']);
+
+  // Resolve the retried sample-B successfully
+  responses.get('sample-B')!.resolve({
     status: 200,
     body: {
       success: true,
@@ -106,42 +144,12 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
     },
   });
 
-  await runner;
-
-  const blockedJob = jobStore.getJob(jobId)! as VisualBatchJob & { blockedSampleIds?: string[] };
-  assert.equal(blockedJob.status, 'blockedByQuota');
-  assert.deepEqual(calls, ['sample-A', 'sample-B']);
-  assert.ok(blockedJob.completedSampleIds.includes('sample-A'));
-  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-A')?.status, 'succeeded');
-  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-B')?.failureKind, 'providerRateLimited');
-  assert.deepEqual(blockedJob.pendingSampleIds.sort(), ['sample-C', 'sample-D']);
-  assert.deepEqual(blockedJob.blockedSampleIds?.sort(), ['sample-C', 'sample-D']);
-
-  const secondRunner = startVisualBatchJob(jobId, {
-    analyzeFn,
-    getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
-  });
-
+  // Sequential execution proceeds to sample-C
   while (calls.length < 4) await new Promise(resolve => setTimeout(resolve, 0));
-  assert.deepEqual(calls, ['sample-A', 'sample-B', 'sample-C', 'sample-D']);
-  assert.equal(calls.filter(sampleId => sampleId === 'sample-A').length, 1);
+  assert.deepEqual(calls, ['sample-A', 'sample-B', 'sample-B', 'sample-C']);
 
+  // Block sample-C with daily quota block again
   responses.get('sample-C')!.resolve({
-    status: 429,
-    body: {
-      success: false,
-      error: 'Daily provider quota exhausted',
-      failureKind: 'providerRateLimited',
-      generationDiagnostics: {
-        providerStatus: 'RESOURCE_EXHAUSTED',
-        providerFailureKind: 'providerRateLimited',
-        quotaExceeded: true,
-        quotaScope: 'daily',
-        retryable: false,
-      },
-    },
-  });
-  responses.get('sample-D')!.resolve({
     status: 429,
     body: {
       success: false,

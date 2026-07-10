@@ -2569,12 +2569,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       return;
                     }
                   }
-                  const bRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
-                  if (bRes.ok) {
-                    const bundle = await bRes.json();
-                    await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
-                    onAddLog("success", "Copied bundle from server");
-                  }
+                  const { jsonText, metadata } = await fetchAndValidateAnalysisBundle(jobId);
+                  await navigator.clipboard.writeText(jsonText);
+                  onAddLog("success", `Copied validated bundle for job ${metadata.jobId}`);
                 } catch (e: any) {
                   onAddLog("error", "Copy failed", e.message);
                 }
@@ -2588,7 +2585,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       return;
                     }
                   }
-                  window.location.href = `/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`;
+                  const { jsonText, metadata } = await fetchAndValidateAnalysisBundle(jobId);
+                  const blob = new Blob([jsonText], { type: 'application/json' });
+                  const objectUrl = URL.createObjectURL(blob);
+                  const anchor = document.createElement('a');
+                  anchor.href = objectUrl;
+                  anchor.download = sanitizedAnalysisBundleFilename(metadata.jobId);
+                  document.body.appendChild(anchor);
+                  anchor.click();
+                  anchor.remove();
+                  URL.revokeObjectURL(objectUrl);
+                  onAddLog("success", `Downloaded validated bundle for job ${metadata.jobId}`);
                 } catch (e: any) {
                   onAddLog("error", "Download failed", e.message);
                 }
@@ -2602,13 +2609,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   const jobRes = await fetch(`/api/visual/batch-jobs/${jobId}`);
                   if (!jobRes.ok) return;
                   const data = await jobRes.json();
-                  const bundleRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
-                  if (bundleRes.ok) {
-                    const bundle = await bundleRes.json();
+                  try {
+                    const { bundle } = await fetchAndValidateAnalysisBundle(jobId);
                     saveLocalJobBackup(data.job, bundle);
                     reloadLocalBackups();
                     onAddLog("success", "Saved local backup");
-                  } else {
+                  } catch (bundleErr) {
                     saveLocalJobBackup(data.job);
                     reloadLocalBackups();
                     onAddLog("warn", "Saved metadata backup only (bundle failed)");
