@@ -23,71 +23,185 @@ export interface LocalJobBackup {
   bundleStored: boolean;
   notStoredReason?: string;
   bundle?: any;
+  sourceRevision?: string;
+}
+
+export interface StorageAdapter {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+  key(index: number): string | null;
+  length: number;
+}
+
+let activeStorage: StorageAdapter | null = null;
+
+export function getStorage(): StorageAdapter | null {
+  if (activeStorage) return activeStorage;
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+  return null;
+}
+
+export function setStorageAdapter(adapter: StorageAdapter | null) {
+  activeStorage = adapter;
+}
+
+export function buildLocalJobBackupMetadata(job: any, options?: { savedAt?: string }): LocalJobBackup {
+  let success = 0;
+  let failure = 0;
+  let total = 0;
+  let processed = 0;
+
+  if (job.counters && typeof job.counters.successCount === 'number') {
+    success = job.counters.successCount;
+    failure = job.counters.failureCount || 0;
+    total = job.counters.total || job.targetSampleIds?.length || 0;
+    processed = success + failure;
+  } else if (job.items && Array.isArray(job.items)) {
+    success = job.items.filter((i: any) => i.status === 'succeeded' || i.status === 'success').length;
+    failure = job.items.filter((i: any) => i.status === 'failed' || i.status === 'error' || i.status === 'failure').length;
+    total = job.counters?.total || job.targetSampleIds?.length || 0;
+    processed = success + failure;
+  } else {
+    total = job.targetSampleIds?.length || 0;
+  }
+
+  const status = job.status || 'unknown';
+  const completedAt = job.completedAt;
+  const canceledAt = job.canceledAt;
+  const terminalDate = completedAt || canceledAt || '';
+  const sourceRevision = `${job.jobId}_${status}_${processed}_${terminalDate}`;
+
+  return {
+    jobId: job.jobId,
+    status: status,
+    modelName: job.modelName || job.model || 'unknown',
+    jsonMode: job.jsonMode || 'json_object',
+    createdAt: job.createdAt || new Date().toISOString(),
+    startedAt: job.startedAt,
+    completedAt: completedAt,
+    canceledAt: canceledAt,
+    counters: {
+      total,
+      processed,
+      success,
+      failure
+    },
+    processedCount: processed,
+    total: total,
+    savedAt: options?.savedAt || new Date().toISOString(),
+    bundleStored: false,
+    sourceRevision
+  };
+}
+
+export function sanitizeBundle(obj: any): any {
+  if (obj === null || typeof obj !== 'object') {
+    if (typeof obj === 'string' && obj.toLowerCase().startsWith('bearer ')) {
+      return '[REDACTED]';
+    }
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeBundle(item));
+  }
+
+  const sanitized: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const lowerKey = key.toLowerCase();
+    const isSensitiveKey =
+      lowerKey === 'executionprivate' ||
+      lowerKey === 'authorization' ||
+      lowerKey === 'proxyauthorization' ||
+      lowerKey === 'apikey' ||
+      lowerKey === 'accesstoken' ||
+      lowerKey === 'refreshtoken' ||
+      lowerKey === 'idtoken' ||
+      lowerKey === 'credential' ||
+      lowerKey === 'credentials' ||
+      lowerKey === 'cookie' ||
+      lowerKey === 'setcookie' ||
+      lowerKey === 'requestheaders' ||
+      lowerKey === 'headers' ||
+      lowerKey === 'requestpreview' ||
+      lowerKey === 'rawrequest' ||
+      lowerKey === 'rawrequestbody' ||
+      lowerKey === 'rawresponse' ||
+      lowerKey === 'responseraw' ||
+      lowerKey === 'rawoutputpreview';
+
+    if (isSensitiveKey) {
+      continue;
+    }
+    sanitized[key] = sanitizeBundle(value);
+  }
+  return sanitized;
 }
 
 export function saveLocalJobBackup(job: any, bundle?: any) {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return false;
-  }
+  const storage = getStorage();
+  if (!storage) return false;
 
-  const backup: LocalJobBackup = {
-    jobId: job.jobId,
-    status: job.status,
-    modelName: job.modelName || job.model,
-    jsonMode: job.jsonMode || 'json_object',
-    createdAt: job.createdAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
-    canceledAt: job.canceledAt,
-    counters: job.counters || {
-       total: job.targetSampleIds?.length || 0,
-       processed: job.items?.length || 0,
-       success: job.items?.filter((i: any) => i.status === 'success').length || 0,
-       failure: job.items?.filter((i: any) => i.status === 'error').length || 0
-    },
-    processedCount: job.counters?.processed || job.items?.length || 0,
-    total: job.counters?.total || job.targetSampleIds?.length || 0,
-    savedAt: new Date().toISOString(),
-    bundleStored: false
-  };
+  const backup = buildLocalJobBackupMetadata(job);
 
-  if (bundle) {
-    // Strip executionPrivate if present
-    const safeBundle = { ...bundle };
-    if (safeBundle.executionPrivate) {
-      delete safeBundle.executionPrivate;
-    }
-
-    // Check size limit
+  if (!bundle) {
+    // If saving metadata only, try to preserve any existing bundle
     try {
-      const bundleStr = JSON.stringify(safeBundle);
-      if (bundleStr.length <= MAX_BUNDLE_SIZE_BYTES) {
-         backup.bundleStored = true;
-         backup.bundle = safeBundle;
-      } else {
-         backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
+      const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
+      const existing = storage.getItem(key);
+      if (existing) {
+        const parsed = JSON.parse(existing);
+        if (parsed && parsed.bundleStored && parsed.bundle) {
+          backup.bundleStored = true;
+          backup.bundle = parsed.bundle;
+        }
       }
     } catch (e) {
-      backup.notStoredReason = 'serializationError';
+      // ignore
+    }
+  }
+
+  if (bundle) {
+    let safeBundle;
+    try {
+      safeBundle = sanitizeBundle(bundle);
+    } catch (e) {
+      backup.notStoredReason = 'sanitizationError';
+    }
+
+    if (safeBundle) {
+      try {
+        const bundleStr = JSON.stringify(safeBundle);
+        if (bundleStr.length <= MAX_BUNDLE_SIZE_BYTES) {
+           backup.bundleStored = true;
+           backup.bundle = safeBundle;
+        } else {
+           backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
+        }
+      } catch (e) {
+        backup.notStoredReason = 'serializationError';
+      }
     }
   }
 
   try {
     const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
-    localStorage.setItem(key, JSON.stringify(backup));
+    storage.setItem(key, JSON.stringify(backup));
     enforceMaxBackups();
     return true;
   } catch (e) {
     console.warn('Failed to save local job backup', e);
 
-    // If it was a quota error with a bundle, try saving just metadata
     if (backup.bundleStored) {
       backup.bundleStored = false;
       delete backup.bundle;
       backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
       try {
         const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
-        localStorage.setItem(key, JSON.stringify(backup));
+        storage.setItem(key, JSON.stringify(backup));
         return true;
       } catch (e2) {
         console.warn('Failed to save even metadata backup', e2);
@@ -98,20 +212,18 @@ export function saveLocalJobBackup(job: any, bundle?: any) {
 }
 
 export function listLocalJobBackups(): LocalJobBackup[] {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return [];
-  }
+  const storage = getStorage();
+  if (!storage) return [];
 
   const backups: LocalJobBackup[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
     if (key && key.startsWith(LOCAL_STORAGE_KEY_PREFIX)) {
       try {
-        const value = localStorage.getItem(key);
+        const value = storage.getItem(key);
         if (value) {
           const backup = JSON.parse(value) as LocalJobBackup;
           if (backup && backup.jobId) {
-             // Return without full bundle in list for performance
              const { bundle, ...meta } = backup;
              backups.push(meta);
           }
@@ -126,13 +238,12 @@ export function listLocalJobBackups(): LocalJobBackup[] {
 }
 
 export function getLocalJobBackup(jobId: string): LocalJobBackup | null {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return null;
-  }
+  const storage = getStorage();
+  if (!storage) return null;
 
   const key = `${LOCAL_STORAGE_KEY_PREFIX}${jobId}`;
   try {
-    const value = localStorage.getItem(key);
+    const value = storage.getItem(key);
     if (value) {
       return JSON.parse(value) as LocalJobBackup;
     }
@@ -143,15 +254,15 @@ export function getLocalJobBackup(jobId: string): LocalJobBackup | null {
 }
 
 export function removeLocalJobBackup(jobId: string) {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return;
-  }
+  const storage = getStorage();
+  if (!storage) return;
   const key = `${LOCAL_STORAGE_KEY_PREFIX}${jobId}`;
-  localStorage.removeItem(key);
+  storage.removeItem(key);
 }
 
 function enforceMaxBackups() {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+  const storage = getStorage();
+  if (!storage) return;
 
   const backups = listLocalJobBackups();
   if (backups.length > MAX_BACKUPS) {
