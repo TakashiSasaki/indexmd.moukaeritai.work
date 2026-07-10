@@ -922,7 +922,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const data = await res.json();
 
-      if (targetJobId === serverJobId) {
+      if (targetJobId === serverJobId || overrideJobId) {
         setServerJobStatus(data.job);
         setServerJobComputedState(data.computedState ?? null);
         setServerJobItemsPreview(data.itemsPreview ?? []);
@@ -2573,7 +2573,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   if (fromBackup) {
                     const backup = getLocalJobBackup(jobId);
                     if (backup?.bundle) {
-                      downloadJsonArtifact(`visual-analysis-analysis-bundle-${jobId}.json`, JSON.stringify(backup.bundle, null, 2));
+                      downloadJsonArtifact(JSON.stringify(backup.bundle, null, 2), `visual-analysis-analysis-bundle-${jobId}.json`);
                       return;
                     }
                   }
