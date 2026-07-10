@@ -502,7 +502,11 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     },
     failures: {
       totalFailures: compactFailureItems.length,
-      itemRefs: compactFailureItems.map(item => ({ sampleId: item.sampleId, failureKind: item.failureKind, errorRef: item.generationDiagnostics?.errorFingerprint }))
+      itemRefs: compactFailureItems.map(item => ({
+        sampleId: item.sampleId,
+        failureKind: item.failureKind,
+        errorRef: deriveErrorCatalogRef(item)
+      }))
     },
     errorCatalog,
     items: compactItems
@@ -830,7 +834,7 @@ function buildErrorCatalog(items: PublicSampleBatchRunItem[]) {
   for (const item of items) {
     if (item.success) continue;
     const diag: any = getItemGenerationDiagnostics(item) || {};
-    const fingerprint = diag.errorFingerprint || `${item.failureKind || "generationError"}:${diag.statusCode || "unknown"}:${diag.providerStatus || "UNKNOWN"}`;
+    const fingerprint = deriveErrorCatalogRef(item);
     if (!catalog[fingerprint]) {
       catalog[fingerprint] = {
         errorRef: fingerprint,
@@ -851,6 +855,11 @@ function buildErrorCatalog(items: PublicSampleBatchRunItem[]) {
     catalog[fingerprint].sampleIds.push(item.sampleId);
   }
   return Object.values(catalog);
+}
+
+function deriveErrorCatalogRef(item: any): string {
+  const diag: any = item?.generationDiagnostics || item?.record?.diagnostics?.generation || {};
+  return diag.errorFingerprint || `${item?.failureKind || "generationError"}:${diag.statusCode || "unknown"}:${diag.providerStatus || "UNKNOWN"}`;
 }
 
 function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {

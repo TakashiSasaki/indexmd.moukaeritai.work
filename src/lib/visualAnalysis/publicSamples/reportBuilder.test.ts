@@ -825,3 +825,42 @@ it('marks text-heavy evaluation as notEvaluated with null ratio when no comparab
   assert.strictEqual(textSummary.comparableTextItems, 0);
   assert.strictEqual(textSummary.skippedDueToProviderQuota, 1);
 });
+
+it('derives failure item error refs when generation diagnostics do not include a fingerprint', () => {
+  const bundle: any = buildBatchAnalysisBundleForChat({
+    runId: 'fallback-ref',
+    timestamp: '2026-07-10T00:00:00.000Z',
+    modelName: 'gemini-test',
+    jsonMode: 'native_schema',
+    total: 1,
+    successCount: 0,
+    failureCount: 1,
+    validCount: 0,
+    validLowQualityCount: 0,
+    invalidJsonCount: 0,
+    expectedComparisonPassCount: 0,
+    expectedComparisonWarningCount: 0,
+    expectedComparisonFailCount: 0,
+    reviewPassCount: 0,
+    reviewNeedsReviewCount: 0,
+    reviewFailCount: 0,
+    items: [{
+      sampleId: 'quota-no-fingerprint',
+      title: 'quota no fingerprint',
+      success: false,
+      failureKind: 'providerRateLimited',
+      record: {
+        diagnostics: {
+          generation: {
+            providerFailureKind: 'providerRateLimited',
+            statusCode: 429,
+            providerStatus: 'RESOURCE_EXHAUSTED'
+          }
+        }
+      }
+    }]
+  } as any);
+
+  assert.strictEqual(bundle.failures.itemRefs[0].errorRef, 'providerRateLimited:429:RESOURCE_EXHAUSTED');
+  assert.strictEqual(bundle.errorCatalog[0].errorRef, 'providerRateLimited:429:RESOURCE_EXHAUSTED');
+});
