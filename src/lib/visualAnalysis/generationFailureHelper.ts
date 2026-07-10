@@ -45,6 +45,12 @@ export function buildGenerationFailureResponse(args: {
     diagnostics.rateLimited = err.rateLimited;
     diagnostics.retryAfterMs = err.retryAfterMs;
     diagnostics.retryAfterReason = err.retryAfterReason;
+    diagnostics.quotaMetric = err.quotaMetric;
+    diagnostics.quotaId = err.quotaId;
+    diagnostics.quotaValue = err.quotaValue;
+    diagnostics.quotaDimensions = err.quotaDimensions;
+    diagnostics.quotaClassification = err.quotaClassification;
+    diagnostics.errorFingerprint = err.errorFingerprint;
     diagnostics.retryPolicy = err.retryPolicy;
     diagnostics.notRetriedReason = err.notRetriedReason;
     diagnostics.errorName = err.errorName;
