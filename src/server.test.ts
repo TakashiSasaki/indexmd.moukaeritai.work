@@ -1,6 +1,10 @@
-import { describe, it, after } from 'node:test';
+import { describe, it, after, before } from 'node:test';
 import assert from 'node:assert';
 import request from 'supertest';
+import { createApp } from './app';
+import { FakeProviderTransport } from './lib/visualAnalysis/fakeProviderTransport';
+import { defaultSampleResolver } from './lib/visualAnalysis/preflight';
+import { jobStore } from './lib/visualAnalysis/serverJobs/jobStore';
 
 // Mock global fetch
 const originalFetch = global.fetch;
@@ -8,15 +12,22 @@ const originalFetch = global.fetch;
 describe('Analyze Image Endpoint', () => {
   let app: any;
 
+  before(() => {
+    process.env.NODE_ENV = 'test';
+    const fakeTransport = new FakeProviderTransport();
+    const result = createApp({
+      providerTransport: fakeTransport,
+      sampleResolver: defaultSampleResolver,
+      jobStore: jobStore
+    });
+    app = result.app;
+  });
+
   after(() => {
     global.fetch = originalFetch;
   });
 
   it('should return 401 if Authorization header is missing', async () => {
-    process.env.NODE_ENV = 'test';
-    const serverModule = await import('../server');
-    app = serverModule.app;
-
     const res = await request(app)
       .post('/api/drive/debug/analyze-image')
       .send({ fileId: '123' });
@@ -37,15 +48,16 @@ describe('Analyze Image Endpoint', () => {
 
   it('should return 400 if model is unsupported', async () => {
     // Mock fetch for metadata and media
-    global.fetch = async (url: string) => {
-      if (url.includes('alt=media')) {
+    global.fetch = async (url: string | URL | Request) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('alt=media')) {
         return {
           ok: true,
           status: 200,
           arrayBuffer: async () => new ArrayBuffer(8)
         } as any;
       }
-      if (url.includes('googleapis.com/drive/v3/files/123')) {
+      if (urlStr.includes('googleapis.com/drive/v3/files/123')) {
         return {
           ok: true,
           status: 200,
@@ -66,21 +78,31 @@ describe('Analyze Image Endpoint', () => {
 });
 
 describe('Batch Jobs Model Gating', () => {
-  it('should reject execution-disallowed models and return structured failure classification', async () => {
-    process.env.NODE_ENV = 'test';
-    const serverModule = await import('../server');
-    const app = serverModule.app;
+  let app: any;
 
+  before(() => {
+    process.env.NODE_ENV = 'test';
+    const fakeTransport = new FakeProviderTransport();
+    const result = createApp({
+      providerTransport: fakeTransport,
+      sampleResolver: defaultSampleResolver,
+      jobStore: jobStore
+    });
+    app = result.app;
+  });
+
+  it('should reject execution-disallowed models and return structured failure classification', async () => {
     const res = await request(app)
       .post('/api/visual/batch-jobs')
       .send({
         modelName: 'gemini-1.5-pro',
-        targetSampleIds: ['sample_layout_broken_1']
+        targetSampleIds: ['sample-landscape-1'],
+        jsonMode: 'native_schema'
       });
 
     assert.strictEqual(res.status, 400);
     assert.strictEqual(res.body.success, false);
-    assert.strictEqual(res.body.providerFailure, 'unsupportedModel');
+    assert.strictEqual(res.body.errorType, 'modelDiscontinued');
     assert.strictEqual(res.body.jobId, undefined);
   });
 });

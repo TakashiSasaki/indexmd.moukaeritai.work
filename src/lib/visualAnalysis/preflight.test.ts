@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { preflightVisualExecution, PreflightError } from './preflight';
+import { preflightVisualExecution, PreflightError, SampleResolver } from './preflight';
+
+const mockResolver: SampleResolver = {
+  hasSample: () => true,
+  isExternalDescriptor: () => false
+};
 
 test('Preflight Visual Execution', async (t) => {
   await t.test('accepts valid request', () => {
@@ -8,8 +13,7 @@ test('Preflight Visual Execution', async (t) => {
       modelId: 'gemini-3.5-flash',
       executionMode: 'native_schema',
       sampleIds: ['sample1'],
-    });
-
+    }, { sampleResolver: mockResolver });
     assert.strictEqual(result.resolvedExecutionMode, 'nativeSchema');
     assert.strictEqual(result.providerFamily, 'google-gemini');
     assert.ok(result.compiledProviderSchema);
@@ -22,7 +26,7 @@ test('Preflight Visual Execution', async (t) => {
         modelId: 'gemini-1.5-pro',
         executionMode: 'native_schema',
         sampleIds: ['sample1'],
-      });
+      }, { sampleResolver: mockResolver });
       assert.fail("Should have thrown PreflightError");
     } catch (err: any) {
       assert.ok(err instanceof PreflightError);
@@ -37,7 +41,7 @@ test('Preflight Visual Execution', async (t) => {
         modelId: 'gemma-4-31b-it',
         executionMode: 'native_schema',
         sampleIds: ['sample1'],
-      });
+      }, { sampleResolver: mockResolver });
       assert.fail("Should have thrown PreflightError");
     } catch (err: any) {
       assert.ok(err instanceof PreflightError);
@@ -52,7 +56,7 @@ test('Preflight Visual Execution', async (t) => {
         modelId: 'gemini-3.5-flash',
         executionMode: 'native_schema',
         sampleIds: ['sample1', 'sample1'],
-      });
+      }, { sampleResolver: mockResolver });
       assert.fail("Should have thrown PreflightError");
     } catch (err: any) {
       assert.ok(err instanceof PreflightError);
@@ -66,7 +70,7 @@ test('Preflight Visual Execution', async (t) => {
         modelId: 'gemini-3.5-flash',
         executionMode: 'native_schema',
         sampleIds: Array.from({ length: 51 }, (_, i) => `sample-${i + 1}`),
-      });
+      }, { sampleResolver: mockResolver });
       assert.fail("Should have thrown PreflightError");
     } catch (err: any) {
       assert.ok(err instanceof PreflightError);
@@ -81,7 +85,7 @@ test('Preflight Visual Execution', async (t) => {
         executionMode: 'prompt_only',
         sampleIds: ['sample1'],
         mediaResolution: 'high',
-      });
+      }, { sampleResolver: mockResolver });
       assert.fail("Should have thrown PreflightError");
     } catch (err: any) {
       assert.ok(err instanceof PreflightError);

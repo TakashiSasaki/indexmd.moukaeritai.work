@@ -23,16 +23,6 @@ export interface ProviderTransport {
   executeSingleRequest(request: ProviderTransportRequest): Promise<ProviderTransportResponse>;
 }
 
-let activeCaptureHook: ((params: any) => void) | null = null;
-
-export function setCaptureHook(hook: ((params: any) => void) | null) {
-  activeCaptureHook = hook;
-}
-
-export function getCaptureHook(): ((params: any) => void) | null {
-  return activeCaptureHook;
-}
-
 export class GeminiSdkProviderTransport implements ProviderTransport {
   async executeSingleRequest(req: ProviderTransportRequest): Promise<ProviderTransportResponse> {
     const { preparedExecution, sample, systemInstruction } = req;
@@ -100,12 +90,6 @@ export class GeminiSdkProviderTransport implements ProviderTransport {
       }
     }
 
-    // Fire test capture hook immediately before physical invocation
-    if (activeCaptureHook) {
-      // Create a cloned/sanitized view for the hook
-      activeCaptureHook(JSON.parse(JSON.stringify(callParams)));
-    }
-
     try {
       const response = await client.models.generateContent(callParams);
       return {
@@ -121,12 +105,3 @@ export class GeminiSdkProviderTransport implements ProviderTransport {
   }
 }
 
-let currentProviderTransport: ProviderTransport = new GeminiSdkProviderTransport();
-
-export function getProviderTransport(): ProviderTransport {
-  return currentProviderTransport;
-}
-
-export function setProviderTransport(transport: ProviderTransport) {
-  currentProviderTransport = transport;
-}

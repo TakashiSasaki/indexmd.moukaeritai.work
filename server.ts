@@ -1,14 +1,14 @@
 import { createApp } from "./src/app.ts";
 import { jobStore } from "./src/lib/visualAnalysis/serverJobs/jobStore";
 import { GeminiSdkProviderTransport } from "./src/lib/visualAnalysis/providerTransport";
-import { getSampleResolver } from "./src/lib/visualAnalysis/preflight";
+import { defaultSampleResolver } from "./src/lib/visualAnalysis/preflight";
 import { fetchPublicSampleImage } from "./src/lib/visualAnalysis/publicSamples/serverFetch";
 import crypto from "crypto";
 
-const { app } = createApp({
+const { app, initializeApp } = createApp({
   jobStore,
   providerTransport: new GeminiSdkProviderTransport(),
-  sampleResolver: getSampleResolver(),
+  sampleResolver: defaultSampleResolver,
   idGenerator: () => crypto.randomUUID(),
   clock: { now: () => new Date() },
   imageFetcher: fetchPublicSampleImage,

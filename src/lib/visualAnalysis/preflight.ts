@@ -44,7 +44,7 @@ export interface SampleResolver {
 
 export class DefaultSampleResolver implements SampleResolver {
   private registeredIds = new Set(PUBLIC_VISUAL_SAMPLES.map(s => s.id));
-  private allowedPrefixes = ["drive-", "file-", "manual-", "external-", "test-", "mock-", "sample-", "sample"];
+  private allowedPrefixes = ["drive-", "file-", "manual-", "external-"];
 
   hasSample(sampleId: string): boolean {
     return this.registeredIds.has(sampleId);
@@ -55,21 +55,13 @@ export class DefaultSampleResolver implements SampleResolver {
   }
 }
 
-let activeSampleResolver: SampleResolver = new DefaultSampleResolver();
+export const defaultSampleResolver: SampleResolver = new DefaultSampleResolver();
 
-export function setSampleResolver(resolver: SampleResolver) {
-  activeSampleResolver = resolver;
-}
-
-export function getSampleResolver(): SampleResolver {
-  return activeSampleResolver;
-}
-
-function validateSampleIdExistence(sampleId: string): boolean {
-  if (activeSampleResolver.hasSample(sampleId)) {
+function validateSampleIdExistence(sampleId: string, resolver: SampleResolver): boolean {
+  if (resolver.hasSample(sampleId)) {
     return true;
   }
-  if (activeSampleResolver.isExternalDescriptor(sampleId)) {
+  if (resolver.isExternalDescriptor(sampleId)) {
     return true;
   }
   return false;
@@ -180,37 +172,34 @@ export function preflightVisualExecution(
   request: PreflightRequest,
   options?: { sampleResolver?: SampleResolver }
 ): PreparedVisualExecution {
-  const originalResolver = getSampleResolver();
-  if (options?.sampleResolver) {
-    setSampleResolver(options.sampleResolver);
+  const resolver = options?.sampleResolver ?? defaultSampleResolver;
+  
+  if (!request || typeof request !== "object") {
+    throw new PreflightError("invalidSampleSelection", "Request must be an object");
   }
-  try {
-    if (!request || typeof request !== "object") {
-      throw new PreflightError("invalidSampleSelection", "Request must be an object");
-    }
 
-    // Validate sampleIds
-    if (!request.sampleIds || !Array.isArray(request.sampleIds) || request.sampleIds.length === 0) {
-      throw new PreflightError("invalidSampleSelection", "No sample IDs provided");
-    }
+  // Validate sampleIds
+  if (!request.sampleIds || !Array.isArray(request.sampleIds) || request.sampleIds.length === 0) {
+    throw new PreflightError("invalidSampleSelection", "No sample IDs provided");
+  }
 
-    // Validate sample count limit
-    if (request.sampleIds.length > 50) {
-      throw new PreflightError("sampleLimitExceeded", "Sample selection exceeds maximum limit of 50");
-    }
+  // Validate sample count limit
+  if (request.sampleIds.length > 50) {
+    throw new PreflightError("sampleLimitExceeded", "Sample selection exceeds maximum limit of 50");
+  }
 
-    // Validate duplicate samples
-    const sampleSet = new Set(request.sampleIds);
-    if (sampleSet.size < request.sampleIds.length) {
-      throw new PreflightError("duplicateSampleSelection", "Duplicate sample IDs are not allowed");
-    }
+  // Validate duplicate samples
+  const sampleSet = new Set(request.sampleIds);
+  if (sampleSet.size < request.sampleIds.length) {
+    throw new PreflightError("duplicateSampleSelection", "Duplicate sample IDs are not allowed");
+  }
 
-    // Validate sample ID existence
-    for (const sampleId of request.sampleIds) {
-      if (typeof sampleId !== "string" || !validateSampleIdExistence(sampleId)) {
-        throw new PreflightError("invalidSampleSelection", `Sample ID does not exist or is invalid: ${sampleId}`);
-      }
+  // Validate sample ID existence
+  for (const sampleId of request.sampleIds) {
+    if (typeof sampleId !== "string" || !validateSampleIdExistence(sampleId, resolver)) {
+      throw new PreflightError("invalidSampleSelection", `Sample ID does not exist or is invalid: ${sampleId}`);
     }
+  }
 
     // Validate modelId
     if (!request.modelId || typeof request.modelId !== "string") {
@@ -364,36 +353,31 @@ export function preflightVisualExecution(
     schemaHash,
   };
 
-    return {
-      canonicalModelId: modelPolicy.canonicalModelId,
-      lifecycleMetadata: {
-        lifecycleClass: modelPolicy.lifecycleClass,
-        executionAllowed: modelPolicy.executionAllowed,
-        deprecationNote: modelPolicy.deprecationNote,
-        preferredUiLabel: modelPolicy.preferredUiLabel,
-      },
-      providerFamily: modelPolicy.providerFamily,
-      resolvedExecutionMode,
-      compiledProviderSchema,
-      schemaCompilerName,
-      schemaCompilerVersion,
-      customSchemaUsed,
-      customSchemaIdentity,
-      generationConfiguration: safeGenerationConfiguration,
-      mediaResolutionConfiguration,
-      retryPolicy: {
-        maxAttempts,
-        initialDelayMs,
-      },
-      normalizedSampleIdentities: request.sampleIds,
-      instructionHash,
-      sampleSelectionHash,
-      schemaHash,
-      runFingerprint,
-    };
-  } finally {
-    if (options?.sampleResolver) {
-      setSampleResolver(originalResolver);
-    }
-  }
+  return {
+    canonicalModelId: modelPolicy.canonicalModelId,
+    lifecycleMetadata: {
+      lifecycleClass: modelPolicy.lifecycleClass,
+      executionAllowed: modelPolicy.executionAllowed,
+      deprecationNote: modelPolicy.deprecationNote,
+      preferredUiLabel: modelPolicy.preferredUiLabel,
+    },
+    providerFamily: modelPolicy.providerFamily,
+    resolvedExecutionMode,
+    compiledProviderSchema,
+    schemaCompilerName,
+    schemaCompilerVersion,
+    customSchemaUsed,
+    customSchemaIdentity,
+    generationConfiguration: safeGenerationConfiguration,
+    mediaResolutionConfiguration,
+    retryPolicy: {
+      maxAttempts,
+      initialDelayMs,
+    },
+    normalizedSampleIdentities: request.sampleIds,
+    instructionHash,
+    sampleSelectionHash,
+    schemaHash,
+    runFingerprint,
+  };
 }
