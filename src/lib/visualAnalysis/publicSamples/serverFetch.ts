@@ -474,7 +474,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
     throw new Error(`Host not allowed: ${parsedUrl.hostname}`);
   }
 
-  const isWikimedia = parsedUrl.hostname.includes('wikimedia.org');
+  const isWikimedia = parsedUrl.hostname === 'commons.wikimedia.org' || parsedUrl.hostname === 'upload.wikimedia.org';
   if (isWikimedia) {
     await acquireWikimediaSlot();
   }
