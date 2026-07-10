@@ -43,9 +43,16 @@ export interface PublicSampleBatchRunItem {
     error?: string;
     delayBeforeNextAttemptMs?: number;
     nextRetryAt?: string;
+    quotaClassification?: string;
+    retryAfterReason?: string;
   }>;
   nextRetryAt?: string;
   retryExhausted?: boolean;
+  resumeAfter?: string;
+  pauseReason?: "pausedForRateLimit";
+  blockedReason?: "blockedByQuota";
+  affectedSampleIds?: string[];
+  attemptState?: any;
 
   error?: string;
   failureKind?: string;
@@ -144,6 +151,7 @@ export interface VisualBatchJobEvent {
     | "quotaCircuitBreakerTripped"
     | "sampleRetryExhausted"
     | "jobFailed"
+    | "jobBlockedByQuota"
     | "jobCompleted"
     | "jobForceCanceled"
     // 既存のイベント名との互換性
@@ -178,9 +186,16 @@ export interface VisualBatchJobItem {
     error?: string;
     delayBeforeNextAttemptMs?: number;
     nextRetryAt?: string;
+    quotaClassification?: string;
+    retryAfterReason?: string;
   }>;
   nextRetryAt?: string;
   retryExhausted?: boolean;
+  resumeAfter?: string;
+  pauseReason?: "pausedForRateLimit";
+  blockedReason?: "blockedByQuota";
+  affectedSampleIds?: string[];
+  attemptState?: any;
   error?: string;
   failureKind?: string;
   
@@ -248,6 +263,9 @@ export interface VisualBatchJob {
   lastCheckpointSavedAt?: string;
   lastError?: string;
   lastFailureKind?: string;
+  pauseReason?: "pausedForRateLimit";
+  affectedSampleIds?: string[];
+  attemptState?: any;
 
   items: VisualBatchJobItem[];
 }
