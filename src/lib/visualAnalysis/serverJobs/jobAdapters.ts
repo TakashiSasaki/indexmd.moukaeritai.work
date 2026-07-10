@@ -12,6 +12,13 @@ export function jobToSummary(job: VisualBatchJob) {
     record: item.record,
     attempts: item.attempts,
     retryHistory: item.retryHistory,
+    nextRetryAt: item.nextRetryAt,
+    retryExhausted: item.retryExhausted,
+    resumeAfter: item.resumeAfter,
+    pauseReason: item.pauseReason,
+    blockedReason: item.blockedReason,
+    affectedSampleIds: item.affectedSampleIds,
+    attemptState: item.attemptState,
   })) as any[];
 
   const blockedCount = job.blockedSampleIds?.length || job.items.filter(i => i.status === 'blockedByQuota').length;

@@ -26,8 +26,8 @@ describe("getGeminiKeyInfo", () => {
     assert.equal(result.source, "GEMINI_API_KEY");
     assert.equal(result.maskedKey, "AIza…h123");
     assert.equal(result.fingerprint?.length, 12);
-    assert.equal(result.fingerprintAlgorithm, "sha256");
-    assert.equal(result.fingerprint, "42189b7de5ae");
+    assert.equal(result.fingerprintAlgorithm, "derivedHex");
+    assert.equal(result.fingerprint, "8e300277e0b8");
   });
 
   test("returns configured with generic mask for short key", () => {
