@@ -60,6 +60,12 @@ describe('buildGenerationFailureResponse', () => {
     const err = new ProviderError("Quota limit reached", 403, "RESOURCE_EXHAUSTED", "RESOURCE_EXHAUSTED");
     err.providerFailureKind = "providerQuotaExceeded";
     err.quotaExceeded = true;
+    err.quotaMetric = "generativelanguage.googleapis.com/generate_content_free_tier_requests";
+    err.quotaId = "GenerateRequestsPerDayPerProjectPerModel-FreeTier";
+    err.quotaValue = "20";
+    err.quotaDimensions = { model: "gemini-test", location: "global" };
+    err.quotaClassification = "dailyQuotaExhausted";
+    err.errorFingerprint = "quota-fingerprint";
     
     const response = buildGenerationFailureResponse({
       err,
@@ -72,6 +78,12 @@ describe('buildGenerationFailureResponse', () => {
     assert.strictEqual(response.failureKind, "providerQuotaExceeded");
     assert.strictEqual(response.record.diagnostics.generation.providerFailureKind, "providerQuotaExceeded");
     assert.strictEqual(response.record.diagnostics.generation.quotaExceeded, true);
+    assert.strictEqual(response.record.diagnostics.generation.quotaMetric, "generativelanguage.googleapis.com/generate_content_free_tier_requests");
+    assert.strictEqual(response.record.diagnostics.generation.quotaId, "GenerateRequestsPerDayPerProjectPerModel-FreeTier");
+    assert.strictEqual(response.record.diagnostics.generation.quotaValue, "20");
+    assert.deepEqual(response.record.diagnostics.generation.quotaDimensions, { model: "gemini-test", location: "global" });
+    assert.strictEqual(response.record.diagnostics.generation.quotaClassification, "dailyQuotaExhausted");
+    assert.strictEqual(response.record.diagnostics.generation.errorFingerprint, "quota-fingerprint");
   });
 
   test('should handle generic Error', () => {

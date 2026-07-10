@@ -70,7 +70,21 @@
     },
     "failures": {
       "type": "object",
-      "additionalProperties": true
+      "description": "Lightweight failure references; full canonical records live in items.",
+      "additionalProperties": true,
+      "properties": {
+        "totalFailures": {
+          "type": "number"
+        },
+        "itemRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Failure reference",
+            "additionalProperties": true
+          }
+        }
+      }
     },
     "items": {
       "type": "array",
@@ -123,6 +137,52 @@
     "mediaResolutionMetrics": {
       "type": "object",
       "additionalProperties": true
+    },
+    "bundleSchemaVersion": {
+      "type": "string",
+      "description": "Analysis Bundle schema version."
+    },
+    "snapshot": {
+      "type": "object",
+      "description": "Snapshot generation metadata, including generatedAt and terminal state.",
+      "additionalProperties": true
+    },
+    "job": {
+      "type": "object",
+      "description": "Server batch job identity, lifecycle timestamps, revision, and pending/blocked sample IDs.",
+      "additionalProperties": true
+    },
+    "execution": {
+      "type": "object",
+      "description": "Execution-stage counters partitioning succeeded, terminal failed, quota blocked, and pending items.",
+      "additionalProperties": true
+    },
+    "validation": {
+      "type": "object",
+      "description": "Validation-stage counters scoped to generated records.",
+      "additionalProperties": true
+    },
+    "comparison": {
+      "type": "object",
+      "description": "Comparison-stage counters scoped to comparable outputs plus explicit not-comparable reasons.",
+      "additionalProperties": true
+    },
+    "review": {
+      "type": "object",
+      "description": "Human-review-stage counters scoped independently from execution failures.",
+      "additionalProperties": true
+    },
+    "errorCatalog": {
+      "type": "array",
+      "description": "Deduplicated safe provider error catalog referenced by items/failure refs.",
+      "items": {
+        "type": "object",
+        "description": "Safe deduplicated error entry.",
+        "additionalProperties": true
+      }
+    },
+    "notComparableDefinition": {
+      "type": "string"
     }
   }
 }

@@ -16,7 +16,6 @@ export function summarizeExpectedComparisonCounts(items: any[]) {
     if (status === "pass") expectedComparisonPassCount++;
     else if (status === "warning") expectedComparisonWarningCount++;
     else if (status === "fail") expectedComparisonFailCount++;
-    else if (!item.success) expectedComparisonFailCount++;
   }
 
   return { expectedComparisonPassCount, expectedComparisonWarningCount, expectedComparisonFailCount };
@@ -32,7 +31,6 @@ export function summarizeReviewCounts(items: any[]) {
     if (status === "pass") reviewPassCount++;
     else if (status === "needsReview") reviewNeedsReviewCount++;
     else if (status === "fail") reviewFailCount++;
-    else if (!item.success) reviewFailCount++;
   }
 
   return { reviewPassCount, reviewNeedsReviewCount, reviewFailCount };
@@ -245,6 +243,16 @@ export function compareExpectedLabels(
     return w;
   }
 
+  function normalizeControlledConcept(text: string): string {
+    const norm = cleanAndNormalize(text);
+    if (["cloud", "clouds", "cloudy", "partly cloudy"].includes(norm)) return "clouds";
+    return norm;
+  }
+
+  function headToken(tokens: string[]): string | undefined {
+    return tokens[tokens.length - 1];
+  }
+
   let labels: string[] = [];
   let attributes: string[] = [];
   let keywords: string[] = [];
@@ -418,7 +426,8 @@ export function compareExpectedLabels(
     for (const cand of labelCandidates) {
       if (cand.consumed) continue;
 
-      const matchRes = isAcceptableLabelMatch(
+      const normalizedConceptMatch = normalizeControlledConcept(item.normalized) === normalizeControlledConcept(cand.normalized);
+      const matchRes = normalizedConceptMatch ? { matched: true, method: "substring" as const } : isAcceptableLabelMatch(
         item.normalized,
         item.tokens,
         cand.normalized,
@@ -473,7 +482,8 @@ export function compareExpectedLabels(
           break;
         }
 
-        const matchRes = isAcceptableLabelMatch(
+      const normalizedConceptMatch = normalizeControlledConcept(aliasNorm) === normalizeControlledConcept(cand.normalized);
+      const matchRes = normalizedConceptMatch ? { matched: true, method: "substring" as const } : isAcceptableLabelMatch(
           aliasNorm,
           aliasTokens,
           cand.normalized,
@@ -529,7 +539,9 @@ export function compareExpectedLabels(
         break;
       }
 
-      const matchRes = isAcceptableLabelMatch(
+      const matchRes = (cand.source === "visibleElementAttribute" && headToken(item.tokens) && !cand.tokens.includes(headToken(item.tokens)!))
+        ? null
+        : isAcceptableLabelMatch(
         item.normalized,
         item.tokens,
         cand.normalized,
@@ -568,7 +580,13 @@ export function compareExpectedLabels(
           break;
         }
 
-        const aliasMatchRes = isAcceptableLabelMatch(
+        const aliasConceptMatch = normalizeControlledConcept(aliasNorm) === normalizeControlledConcept(cand.normalized);
+        const aliasHead = headToken(aliasTokens);
+        const aliasMatchRes = aliasConceptMatch
+          ? { matched: true, method: "aliasTokenOverlap" as const }
+          : (cand.source === "visibleElementAttribute" && aliasHead && !cand.tokens.includes(aliasHead))
+            ? null
+            : isAcceptableLabelMatch(
           aliasNorm,
           aliasTokens,
           cand.normalized,

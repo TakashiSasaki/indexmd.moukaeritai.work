@@ -349,11 +349,69 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
   const comparisonEligibleCount = normalizedItems.filter(i => i.success).length;
   const comparisonOnlyFailCount = normalizedItems.filter(i => i.success && i.comparison?.overallStatus === 'fail').length;
   const successfulWithoutComparisonCount = normalizedItems.filter(i => i.success && !i.comparison).length;
-  const notComparableCount = successfulWithoutComparisonCount;
+  const quotaBlockedItemCount = normalizedItems.filter(isProviderQuotaOrRateLimitFailure).length;
+  const quotaBlockedCount = Math.max(quotaBlockedItemCount, (batchSummary as any).blockedCount || 0);
+  const terminalGenerationFailures = normalizedItems.filter(i => !i.success && !isProviderQuotaOrRateLimitFailure(i)).length;
+  const pendingCount = (batchSummary as any).pendingCount ?? Math.max(batchSummary.total - normalizedItems.length, 0);
+  const notComparableDueToGenerationFailure = terminalGenerationFailures;
+  const notComparableDueToQuota = quotaBlockedCount;
+  const notComparableDueToPending = pendingCount;
+  const notComparableCount = successfulWithoutComparisonCount + notComparableDueToGenerationFailure + notComparableDueToQuota + notComparableDueToPending;
+  const errorCatalog = buildErrorCatalog(normalizedItems);
+  const execution = {
+    total: batchSummary.total,
+    succeeded: batchSummary.successCount,
+    failed: terminalGenerationFailures,
+    blockedByQuota: quotaBlockedCount,
+    pending: pendingCount
+  };
+  const validation = {
+    eligible: comparisonEligibleCount,
+    valid: batchSummary.validCount + batchSummary.validLowQualityCount,
+    invalid: batchSummary.invalidJsonCount,
+    notRun: Math.max(0, batchSummary.total - comparisonEligibleCount)
+  };
+  const comparison = {
+    eligible: comparisonEligibleCount,
+    pass: expectedCounts.expectedComparisonPassCount,
+    warning: expectedCounts.expectedComparisonWarningCount,
+    fail: comparisonOnlyFailCount,
+    notComparableDueToGenerationFailure,
+    notComparableDueToQuota,
+    notComparableDueToPending,
+    notComparableDueToMissingExpectation: successfulWithoutComparisonCount
+  };
+  const review = {
+    eligible: comparisonEligibleCount,
+    pass: reviewCounts.reviewPassCount,
+    needsReview: reviewCounts.reviewNeedsReviewCount,
+    fail: reviewCounts.reviewFailCount,
+    notApplicable: Math.max(0, batchSummary.total - comparisonEligibleCount)
+  };
 
   const report = {
     reportKind: "visualAnalysisPublicSampleBatchAnalysisBundle" as const,
+    bundleSchemaVersion: (batchSummary as any).bundleSchemaVersion || "0.2.0",
     generatedAt: new Date().toISOString(),
+    snapshot: {
+      generatedAt: new Date().toISOString(),
+      terminal: Boolean((batchSummary as any).isTerminal || batchSummary.isComplete)
+    },
+    job: {
+      jobId: (batchSummary as any).jobId || batchSummary.runId,
+      status: batchSummary.jobStatus,
+      revision: (batchSummary as any).jobRevision ?? 0,
+      createdAt: (batchSummary as any).createdAt || batchSummary.timestamp,
+      startedAt: batchSummary.startedAt,
+      updatedAt: (batchSummary as any).updatedAt,
+      completedAt: batchSummary.completedAt,
+      canceledAt: (batchSummary as any).canceledAt,
+      terminal: Boolean((batchSummary as any).isTerminal || batchSummary.isComplete),
+      pendingSampleIds: (batchSummary as any).pendingSampleIds || [],
+      blockedSampleIds: (batchSummary as any).blockedSampleIds || [],
+      blockedReason: (batchSummary as any).blockedReason,
+      resumeAfter: (batchSummary as any).resumeAfter
+    },
     modelName: batchSummary.modelName,
     jsonMode: batchSummary.jsonMode,
     total: batchSummary.total,
@@ -367,6 +425,11 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
     comparisonOnlyFailCount,
     successfulWithoutComparisonCount,
     notComparableCount,
+    notComparableDefinition: "Items that cannot enter visual comparison: successful items lacking comparison data plus terminal generation failures, provider quota blocks, and pending work.",
+    execution,
+    validation,
+    comparison,
+    review,
     jobStatus: batchSummary.jobStatus,
     isComplete: batchSummary.isComplete,
     completedCount: batchSummary.completedCount,
@@ -434,13 +497,18 @@ export function buildBatchAnalysisBundleForChat(batchSummary: PublicSampleBatchR
       ],
       fullJsonPolicy: "Use Full JSON only for archival replay or when canonical ImageAnalysisRecord details omitted from this bundle are required.",
       summaryPolicy: "Summary JSON is a lightweight view and is no longer required for normal ChatGPT analysis when this bundle is available.",
-      failuresPolicy: "Failures are embedded in this bundle under failures.items.",
+      failuresPolicy: "Canonical records are in items. failures.itemRefs contains lightweight references only; provider errors are deduplicated in errorCatalog.",
       imageExpansionPolicy: "SVG rasterization expansion is usually expected. Reencoding expansion for provider-safe JPEG/PNG is more suspicious and may indicate an optimization opportunity."
     },
     failures: {
       totalFailures: compactFailureItems.length,
-      items: compactFailureItems
+      itemRefs: compactFailureItems.map(item => ({
+        sampleId: item.sampleId,
+        failureKind: item.failureKind,
+        errorRef: deriveErrorCatalogRef(item)
+      }))
     },
+    errorCatalog,
     items: compactItems
   };
 
@@ -703,7 +771,12 @@ function buildProviderQuotaSummary(items: PublicSampleBatchRunItem[]) {
     failureKind: string;
     statusCode?: number;
     providerStatus?: string;
-    rawMessageSummary?: string;
+    quotaMetric?: string;
+    quotaId?: string;
+    quotaValue?: string | number;
+    quotaDimensions?: Record<string, string>;
+    quotaClassification?: string;
+    errorFingerprint?: string;
     apiRetryCount?: number;
     retryAfterMs?: number;
     retryAfterReason?: string;
@@ -733,7 +806,12 @@ function buildProviderQuotaSummary(items: PublicSampleBatchRunItem[]) {
       failureKind: item.failureKind || "providerRateLimited",
       statusCode: diag?.statusCode,
       providerStatus: diag?.providerStatus,
-      rawMessageSummary: diag?.rawMessageSummary,
+      quotaMetric: (diag as any)?.quotaMetric,
+      quotaId: (diag as any)?.quotaId,
+      quotaValue: (diag as any)?.quotaValue,
+      quotaDimensions: (diag as any)?.quotaDimensions,
+      quotaClassification: (diag as any)?.quotaClassification,
+      errorFingerprint: (diag as any)?.errorFingerprint,
       apiRetryCount: diag?.apiRetryCount,
       retryAfterMs: diag?.retryAfterMs,
       retryAfterReason: diag?.retryAfterReason,
@@ -749,6 +827,39 @@ function buildProviderQuotaSummary(items: PublicSampleBatchRunItem[]) {
     byModelName,
     samples
   };
+}
+
+function buildErrorCatalog(items: PublicSampleBatchRunItem[]) {
+  const catalog: Record<string, any> = {};
+  for (const item of items) {
+    if (item.success) continue;
+    const diag: any = getItemGenerationDiagnostics(item) || {};
+    const fingerprint = deriveErrorCatalogRef(item);
+    if (!catalog[fingerprint]) {
+      catalog[fingerprint] = {
+        errorRef: fingerprint,
+        failureKind: item.failureKind || diag.providerFailureKind || "generationError",
+        providerFailureKind: diag.providerFailureKind,
+        statusCode: diag.statusCode,
+        providerStatus: diag.providerStatus,
+        quotaMetric: diag.quotaMetric,
+        quotaId: diag.quotaId,
+        quotaValue: diag.quotaValue,
+        quotaDimensions: diag.quotaDimensions,
+        quotaClassification: diag.quotaClassification,
+        retryAfterMs: diag.retryAfterMs,
+        retryAfterReason: diag.retryAfterReason,
+        sampleIds: []
+      };
+    }
+    catalog[fingerprint].sampleIds.push(item.sampleId);
+  }
+  return Object.values(catalog);
+}
+
+function deriveErrorCatalogRef(item: any): string {
+  const diag: any = item?.generationDiagnostics || item?.record?.diagnostics?.generation || {};
+  return diag.errorFingerprint || `${item?.failureKind || "generationError"}:${diag.statusCode || "unknown"}:${diag.providerStatus || "UNKNOWN"}`;
 }
 
 function buildParseFailureSummary(items: PublicSampleBatchRunItem[]) {
@@ -976,6 +1087,8 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
   let mediaResolutionUnsupported = 0;
   let mediaResolutionFallbackUsed = 0;
   let unsupportedProviderFamilyCount = 0;
+  let mediaResolutionUnknownDueToGenerationFailure = 0;
+  let mediaResolutionNotSent = 0;
 
   let bytesIncreasedInputs = 0;
   let totalBytesIncreased = 0;
@@ -1027,6 +1140,10 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       if (run.generationConfig.mediaResolutionFallbackUsed) {
         mediaResolutionFallbackUsed++;
       }
+    } else if (!item.success) {
+      mediaResolutionUnknownDueToGenerationFailure++;
+    } else {
+      mediaResolutionNotSent++;
     }
 
     const inputDiag = getItemInputDiagnostics(item) as any;
@@ -1178,6 +1295,10 @@ export function buildInputSizeSummary(items: PublicSampleBatchRunItem[]) {
       appliedMediumCount: mediaResolutionAppliedMedium,
       applied: mediaResolutionApplied,
       unsupported: mediaResolutionUnsupported,
+      unknownDueToGenerationFailure: mediaResolutionUnknownDueToGenerationFailure,
+      notSent: mediaResolutionNotSent,
+      observableProviderAcceptance: mediaResolutionProviderAccepted + mediaResolutionUnsupported,
+      unobservableProviderAcceptance: mediaResolutionUnknownDueToGenerationFailure + mediaResolutionNotSent,
       unsupportedProviderFamilyCount,
       fallbackUsed: mediaResolutionFallbackUsed
     },
@@ -1285,7 +1406,12 @@ function buildCompactItem(item: PublicSampleBatchRunItem) {
   }
 
   if (getItemGenerationDiagnostics(item)) {
-    compact.generationDiagnostics = { ...getItemGenerationDiagnostics(item) };
+    const gd: any = { ...getItemGenerationDiagnostics(item) };
+    delete gd.rawMessageSummary;
+    delete gd.errorMessageSummary;
+    delete gd.rawProviderResponse;
+    delete gd.requestPreview;
+    compact.generationDiagnostics = gd;
   }
 
   if (getItemInputDiagnostics(item)) {
@@ -1435,6 +1561,9 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
 
   let expectedMetadataTextItems = 0;
   let comparisonTextCoverageItems = 0;
+  let skippedDueToGenerationFailure = 0;
+  let skippedDueToProviderQuota = 0;
+  let skippedDueToPending = 0;
 
   const samples = [];
   
@@ -1444,6 +1573,10 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
     const visibleTextArray = item.record?.evaluation?.expectedMetadata?.visibleText;
     if (Array.isArray(visibleTextArray) && visibleTextArray.length > 0) {
       expectedMetadataTextItems++;
+      if (!item.success) {
+        if (isProviderQuotaOrRateLimitFailure(item)) skippedDueToProviderQuota++;
+        else skippedDueToGenerationFailure++;
+      }
     }
 
     if (coverage && coverage.expectedTotal > 0) {
@@ -1496,11 +1629,17 @@ export function buildTextHeavyEvaluationSummary(items: any[]) {
     }
   }
 
-  const ratio = expectedVisibleTextTotal > 0 ? parseFloat((visibleTextCovered / expectedVisibleTextTotal).toFixed(2)) : 1.0;
+  const ratio = expectedVisibleTextTotal > 0 ? parseFloat((visibleTextCovered / expectedVisibleTextTotal).toFixed(2)) : null;
   const textComparisonMissingCount = Math.max(0, expectedMetadataTextItems - comparisonTextCoverageItems);
 
   return {
+    status: expectedVisibleTextTotal > 0 ? "evaluated" : "notEvaluated",
     itemsWithTextExpectation,
+    allItemsWithTextExpectation: expectedMetadataTextItems,
+    comparableTextItems: comparisonTextCoverageItems,
+    skippedDueToGenerationFailure,
+    skippedDueToProviderQuota,
+    skippedDueToPending,
     expectedVisibleTextTotal,
     visibleTextCovered,
     textMissing,
@@ -1642,8 +1781,8 @@ export function validateBatchRunInvariants(batchSummary: PublicSampleBatchRunSum
     issues.push(`TextHeavy visible text missing mismatch: expected ${recomputedMissing}, got ${textHeavy.textMissing}`);
   }
 
-  const recomputedRatio = recomputedExpectedTotal > 0 ? parseFloat((recomputedCovered / recomputedExpectedTotal).toFixed(2)) : 1.0;
-  if (Math.abs(textHeavy.ratio - recomputedRatio) > 0.001) {
+  const recomputedRatio = recomputedExpectedTotal > 0 ? parseFloat((recomputedCovered / recomputedExpectedTotal).toFixed(2)) : null;
+  if (recomputedRatio === null ? textHeavy.ratio !== null : Math.abs(textHeavy.ratio - recomputedRatio) > 0.001) {
     issues.push(`TextHeavy ratio mismatch: expected ${recomputedRatio}, got ${textHeavy.ratio}`);
   }
 
