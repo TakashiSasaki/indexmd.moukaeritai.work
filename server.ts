@@ -4,6 +4,7 @@ import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
 import { startVisualBatchJob, activeRunners } from './src/lib/visualAnalysis/serverJobs/jobRunner';
 import { VisualBatchJob } from './src/lib/visualAnalysis/publicSamples/batchTypes';
 import { fnv1a32 } from './src/lib/visualAnalysis/publicSamples/artifactUtils';
+import { getGeminiKeyInfo } from "./src/lib/runtime/geminiKeyInfo";
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -428,6 +429,19 @@ app.use(express.json());
 
 
 // 1. Health check endpoint
+
+app.get("/api/runtime/gemini-key-info", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const info = getGeminiKeyInfo(process.env.GEMINI_API_KEY);
+    res.json(info);
+  } catch (err: any) {
+    res.status(500).json({
+      error: "APIキー情報を取得できませんでした"
+    });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
 });
