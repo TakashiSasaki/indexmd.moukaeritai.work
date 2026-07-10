@@ -272,3 +272,25 @@ describe("Gemini Error Classification and Parsing", () => {
     assert.ok(structured.errorFingerprint);
   });
 });
+
+it('auth and permission provider errors are classified separately and not retried as internal', async () => {
+  const geminiModule = await import('./gemini.ts');
+  const realAi = geminiModule.getGeminiClient("model");
+  const originalGenerateContent = realAi.models.generateContent;
+  let calls = 0;
+  realAi.models.generateContent = async () => {
+    calls++;
+    const err = new Error("UNAUTHENTICATED") as any;
+    err.status = 401;
+    throw err;
+  };
+  try {
+    await assert.rejects(
+      geminiModule.generateContentWithRetry("model", "prompt", 3, { retryPolicy: { maxAttempts: 3, retryInternalErrors: true, baseDelayMs: 1 } }),
+      (e: any) => e.providerFailureKind === 'providerAuthenticationRequired' && e.retryable === false && e.attempts.length === 1
+    );
+    assert.equal(calls, 1);
+  } finally {
+    realAi.models.generateContent = originalGenerateContent;
+  }
+});

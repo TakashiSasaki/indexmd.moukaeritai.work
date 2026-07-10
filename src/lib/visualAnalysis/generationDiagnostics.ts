@@ -48,7 +48,7 @@ export interface GenerationDiagnostics {
   apiRetryCount?: number;
   attemptedModels?: string[];
   attempts?: GenerationAttemptDiagnostic[];
-  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerGenerationError" | "providerInternalError";
+  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError";
   quotaExceeded?: boolean;
   rateLimited?: boolean;
   retryAfterMs?: number;
