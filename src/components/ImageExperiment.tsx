@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Image as ImageIcon, AlertCircle, AlertTriangle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play, RotateCw, XCircle, Loader2 } from 'lucide-react';
 import { AppConfig } from '../types';
-import { getVisualModelCapability } from '../lib/modelCapabilities';
+import { getVisualModelCapability, getExecutableModels, getModelCapability, getModelRegistry } from '../lib/modelCapabilities';
 import { 
   compareExpectedImageKind, 
   compareExpectedCategories, 
@@ -350,18 +350,53 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   }, [pastBatchRuns]);
 
-  const MATRIX_COLUMNS = [
-    { model: "gemini-3.5-flash", mode: "native_schema", label: "G3.5 Flash (Native)" },
-    { model: "gemini-3.5-flash", mode: "prompt_only", label: "G3.5 Flash (Prompt)" },
-    { model: "gemini-flash-latest", mode: "native_schema", label: "G Flash Lat (Native)" },
-    { model: "gemini-flash-latest", mode: "prompt_only", label: "G Flash Lat (Prompt)" },
-    { model: "gemini-3.1-flash-lite", mode: "native_schema", label: "G3.1 Lite (Native)" },
-    { model: "gemini-3.1-flash-lite", mode: "prompt_only", label: "G3.1 Lite (Prompt)" },
-    { model: "gemini-1.5-pro", mode: "native_schema", label: "G1.5 Pro (Native)" },
-    { model: "gemini-1.5-pro", mode: "prompt_only", label: "G1.5 Pro (Prompt)" },
-    { model: "gemma-4-31b-it", mode: "prompt_only", label: "Gemma4 31B (Prompt)" },
-    { model: "gemma-4-26b-a4b-it", mode: "prompt_only", label: "Gemma4 26B (Prompt)" },
-  ];
+  const MATRIX_COLUMNS = useMemo(() => {
+    const registry = getModelRegistry();
+    return Object.values(registry)
+      .filter(m => m.executionAllowed || m.historicalReadingAllowed)
+      .flatMap(m => {
+        const cols = [];
+        if (m.supportsNativeResponseSchema) {
+          cols.push({
+            model: m.canonicalModelId,
+            mode: "native_schema",
+            label: `${m.preferredUiLabel} (Native)`,
+            executionAllowed: m.executionAllowed
+          });
+        }
+        if (m.supportsPromptedJson) {
+          cols.push({
+            model: m.canonicalModelId,
+            mode: "prompt_only",
+            label: `${m.preferredUiLabel} (Prompt)`,
+            executionAllowed: m.executionAllowed
+          });
+        }
+        return cols;
+      });
+  }, []);
+
+  const dynamicModelOptions = useMemo(() => {
+    return getExecutableModels().flatMap(m => {
+      const opts = [];
+      const visCap = getVisualModelCapability(m.canonicalModelId);
+      const recIcon = visCap.recommendation === 'recommended' ? '⭐️' : visCap.recommendation === 'experimental' ? '🧪' : '⚠️';
+      
+      if (m.supportsNativeResponseSchema) {
+        opts.push({
+          value: `${m.canonicalModelId}|native_schema`,
+          label: `${recIcon} ⚡️ ${m.preferredUiLabel}`
+        });
+      }
+      if (m.supportsPromptedJson) {
+        opts.push({
+          value: `${m.canonicalModelId}|prompt_only`,
+          label: `${recIcon} 📝 ${m.preferredUiLabel}`
+        });
+      }
+      return opts;
+    });
+  }, []);
 
   const [selectedMatrixCell, setSelectedMatrixCell] = useState<{
     sampleId: string;
@@ -375,6 +410,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const handleRunSingleCell = async (sampleId: string, modelName: string, jsonMode: string) => {
     const key = `${sampleId}|${modelName}|${jsonMode}`;
     if (runningCellKey) return;
+
+    const mCap = getModelCapability(modelName);
+    if (!mCap.executionAllowed) {
+      onAddLog("error", `[Matrix Run] Execution not allowed for discontinued or unsupported model: ${modelName}`);
+      alert(`Execution not allowed for model: ${modelName}. This model has been discontinued.`);
+      return;
+    }
+
     setRunningCellKey(key);
     onAddLog("info", `[Matrix Run] Running single cell test: ${sampleId} with ${modelName} (${jsonMode})...`);
     
@@ -1154,6 +1197,18 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           setActiveCheckpoint(checkpointRef.current);
        }
     }, 10000);
+
+    const isResuming = resumeMode && !!activeCheckpoint;
+    const activeModel = isResuming && activeCheckpoint ? activeCheckpoint.modelName : modelName;
+    const mCap = getModelCapability(activeModel);
+    if (!mCap.executionAllowed) {
+      clearInterval(heartbeatTimer);
+      onAddLog("error", `[Batch Run] Execution not allowed for discontinued/unsupported model: ${activeModel}`);
+      alert(`Execution not allowed for model: ${activeModel}. This model has been discontinued.`);
+      setIsBatchRunning(false);
+      return;
+    }
+
     try {
     let targetSamples = samples.filter(s => selectedSampleIds[s.id]);
     
@@ -2301,16 +2356,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     onChange={(e) => setModelSelection(e.target.value)}
                     className={`w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 min-w-[220px] h-[38px] ${visualCap.recommendation === 'experimental' ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
                   >
-                    <option value="gemini-3.5-flash|native_schema">⭐️ ⚡️ Gemini 3.5 Flash</option>
-                    <option value="gemini-3.5-flash|prompt_only">⭐️ 📝 Gemini 3.5 Flash</option>
-                    <option value="gemini-flash-latest|native_schema">⚡️ Gemini Flash Latest</option>
-                    <option value="gemini-flash-latest|prompt_only">📝 Gemini Flash Latest</option>
-                    <option value="gemini-3.1-flash-lite|native_schema">⭐️ ⚡️ Gemini 3.1 Flash Lite</option>
-                    <option value="gemini-3.1-flash-lite|prompt_only">⭐️ 📝 Gemini 3.1 Flash Lite</option>
-                    <option value="gemini-1.5-pro|native_schema">🧪 ⚡️ Gemini 1.5 Pro</option>
-                    <option value="gemini-1.5-pro|prompt_only">🧪 📝 Gemini 1.5 Pro</option>
-                    <option value="gemma-4-31b-it|prompt_only">⚠️ 📝 Gemma 4 31B IT</option>
-                    <option value="gemma-4-26b-a4b-it|prompt_only">⚠️ 📝 Gemma 4 26B</option>
+                    {dynamicModelOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 mt-1 text-[10px] text-slate-500 font-medium">
                     <span className="flex items-center gap-0.5">⭐️推奨</span>

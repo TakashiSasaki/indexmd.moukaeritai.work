@@ -3,7 +3,7 @@ import { getSummaryAnalysisV12ValidationErrors, isControlledVocabularyValidation
 import { normalizeAndRepairSummaryAnalysisV12 } from "./repair";
 import { SummaryAnalysisResultV12 } from "./types";
 import { generateContentWithRetry } from "../gemini";
-import { getModelCapability } from "../modelCapabilities";
+import { getModelCapability, getStructuredExecutionMode } from "../modelCapabilities";
 import { evaluateStructuredSummaryQuality } from "./qualityGate";
 
 async function repairOutputWithLLM(
@@ -72,10 +72,10 @@ export async function processStructuredSummaryOutput(
   const result: any = {
     schemaVersion: SCHEMA_VERSION_V12,
     rawText: summaryText,
-    effectiveStructuredExecutionMode: configOption?.effectiveStructuredExecutionMode || cap.structuredExecutionMode,
+    effectiveStructuredExecutionMode: configOption?.effectiveStructuredExecutionMode || getStructuredExecutionMode(targetModel),
     supportsNativeResponseSchema: configOption?.supportsNativeResponseSchema !== undefined ? configOption.supportsNativeResponseSchema : cap.supportsNativeResponseSchema,
     providerFamily: configOption?.providerFamily || cap.providerFamily,
-    responseSchemaEnabled: configOption?.responseSchemaEnabled !== undefined ? configOption.responseSchemaEnabled : (cap.structuredExecutionMode === "nativeSchema")
+    responseSchemaEnabled: configOption?.responseSchemaEnabled !== undefined ? configOption.responseSchemaEnabled : (getStructuredExecutionMode(targetModel) === "nativeSchema")
   };
 
   const trimmed = (summaryText || "").trim();

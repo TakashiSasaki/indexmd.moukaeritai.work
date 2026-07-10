@@ -1802,6 +1802,11 @@ export async function analyzePublicSample(options: {
     }
 
     // Prepare Prompt & Options
+    const modelCap = getModelCapability(modelName);
+    if (!modelCap.executionAllowed) {
+      return { status: 400, body: { error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.` } };
+    }
+
     const visualCap = getVisualModelCapability(modelName);
     if (visualCap.recommendation === "unsupported") {
       return { status: 400, body: { error: `Model ${modelName} is not supported for visual analysis.` } };
@@ -2500,6 +2505,11 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     const base64Data = Buffer.from(arrBuffer).toString("base64");
 
     // 3. Prepare Prompt & Options
+    const modelCap = getModelCapability(modelName);
+    if (!modelCap.executionAllowed) {
+      return res.status(400).json({ error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.` });
+    }
+
     const visualCap = getVisualModelCapability(modelName);
     if (visualCap.recommendation === "unsupported") {
       return res.status(400).json({ error: `Model ${modelName} is not supported for visual analysis.` });
@@ -2875,6 +2885,12 @@ app.post("/api/cache/stats/reset", (req, res) => {
 app.post("/api/visual/batch-jobs", async (req, res) => {
   try {
     const { modelName = "gemini-3.5-flash", jsonMode = "json_object", customInstruction, targetSampleIds } = req.body;
+
+    const modelCap = getModelCapability(modelName);
+    if (!modelCap.executionAllowed) {
+      return res.status(400).json({ error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.` });
+    }
+
     if (!targetSampleIds || !Array.isArray(targetSampleIds) || targetSampleIds.length === 0) {
       return res.status(400).json({ error: "targetSampleIds array is required and must not be empty" });
     }
