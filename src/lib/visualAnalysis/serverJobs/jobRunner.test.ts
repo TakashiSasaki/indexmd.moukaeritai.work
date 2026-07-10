@@ -1,13 +1,61 @@
 import test from 'node:test';
-import assert from 'node:assert';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { jobStore } from './jobStore';
+import { classifyJobQuotaInterruption, startVisualBatchJob, activeRunners } from './jobRunner';
 import { jobToSummary } from './jobAdapters';
-import { classifyJobQuotaInterruption, startVisualBatchJob } from './jobRunner';
+import { jobStore } from './jobStore';
 import { VisualBatchJob } from '../publicSamples/batchTypes';
 
-function makeJob(jobId: string, sampleIds = ['sample-transient']): VisualBatchJob {
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function createJob(jobId: string): VisualBatchJob {
+  const now = new Date().toISOString();
+  return {
+    jobId,
+    status: 'queued',
+    createdAt: now,
+    updatedAt: now,
+    modelName: 'gemini-test',
+    jsonMode: 'prompt_only',
+    customInstructionPreview: '',
+    targetSampleIds: ['sample-A', 'sample-B', 'sample-C', 'sample-D'],
+    completedSampleIds: [],
+    failedSampleIds: [],
+    pendingSampleIds: ['sample-A', 'sample-B', 'sample-C', 'sample-D'],
+    counters: {
+      total: 4,
+      successCount: 0,
+      failureCount: 0,
+      validCount: 0,
+      validLowQualityCount: 0,
+      invalidJsonCount: 0,
+      expectedComparisonPassCount: 0,
+      expectedComparisonWarningCount: 0,
+      expectedComparisonFailCount: 0,
+      reviewPassCount: 0,
+      reviewNeedsReviewCount: 0,
+      reviewFailCount: 0,
+    },
+    items: [],
+  };
+}
+
+function cleanupJob(jobId: string) {
+  activeRunners.delete(jobId);
+  const filePath = path.join(process.cwd(), 'cache', 'visual-batch-jobs', `${jobId}.json`);
+  fs.rmSync(filePath, { force: true });
+}
+
+function createSingleSampleJob(jobId: string, sampleIds = ['sample-transient']): VisualBatchJob {
   return {
     jobId,
     status: 'queued',
@@ -48,8 +96,8 @@ test('classifyJobQuotaInterruption treats explicit daily quota as blocked quota'
     },
   }, 429);
 
-  assert.strictEqual(result.isQuotaOrRateLimit, true);
-  assert.strictEqual(result.action, 'blockedByQuota');
+  assert.equal(result.isQuotaOrRateLimit, true);
+  assert.equal(result.action, 'blockedByQuota');
 });
 
 test('classifyJobQuotaInterruption treats short RetryInfo throttles as rate-limit pauses', () => {
@@ -64,10 +112,9 @@ test('classifyJobQuotaInterruption treats short RetryInfo throttles as rate-limi
     },
   }, 429);
 
-  assert.strictEqual(result.isQuotaOrRateLimit, true);
-  assert.strictEqual(result.action, 'pausedForRateLimit');
+  assert.equal(result.isQuotaOrRateLimit, true);
+  assert.equal(result.action, 'pausedForRateLimit');
 });
-
 
 test('classifyJobQuotaInterruption treats capped RetryInfo as quota block', () => {
   const result = classifyJobQuotaInterruption({
@@ -81,14 +128,121 @@ test('classifyJobQuotaInterruption treats capped RetryInfo as quota block', () =
     },
   }, 429);
 
-  assert.strictEqual(result.isQuotaOrRateLimit, true);
-  assert.strictEqual(result.action, 'blockedByQuota');
+  assert.equal(result.isQuotaOrRateLimit, true);
+  assert.equal(result.action, 'blockedByQuota');
 });
 
-test('startVisualBatchJob persists transient throttle pause state without daily quota block', async () => {
+test('startVisualBatchJob blocks dispatch after daily quota while preserving in-flight success and pending samples', async () => {
+  const jobId = `job-runner-quota-${Date.now()}`;
+  cleanupJob(jobId);
+  jobStore.createJob(createJob(jobId));
+
+  const calls: string[] = [];
+  const responses = new Map<string, ReturnType<typeof deferred<{ status: number; body: any }>>>();
+  const analyzeFn = (options: { sampleId: string }) => {
+    calls.push(options.sampleId);
+    const gate = deferred<{ status: number; body: any }>();
+    responses.set(options.sampleId, gate);
+    return gate.promise;
+  };
+
+  const runner = startVisualBatchJob(jobId, {
+    analyzeFn,
+    getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
+  });
+
+  while (calls.length < 2) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls, ['sample-A', 'sample-B']);
+
+  responses.get('sample-B')!.resolve({
+    status: 429,
+    body: {
+      success: false,
+      error: 'Daily provider quota exhausted',
+      failureKind: 'providerRateLimited',
+      generationDiagnostics: {
+        providerStatus: 'RESOURCE_EXHAUSTED',
+        providerFailureKind: 'providerRateLimited',
+        quotaExceeded: true,
+        quotaScope: 'daily',
+        retryable: false,
+      },
+    },
+  });
+
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls, ['sample-A', 'sample-B']);
+
+  responses.get('sample-A')!.resolve({
+    status: 200,
+    body: {
+      success: true,
+      record: {
+        evaluation: { qualityStatus: 'valid' },
+      },
+    },
+  });
+
+  await runner;
+
+  const blockedJob = jobStore.getJob(jobId)! as VisualBatchJob & { blockedSampleIds?: string[] };
+  assert.equal(blockedJob.status, 'blockedByQuota');
+  assert.deepEqual(calls, ['sample-A', 'sample-B']);
+  assert.ok(blockedJob.completedSampleIds.includes('sample-A'));
+  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-A')?.status, 'succeeded');
+  assert.equal(blockedJob.items.find(item => item.sampleId === 'sample-B')?.failureKind, 'providerRateLimited');
+  assert.deepEqual(blockedJob.pendingSampleIds.sort(), ['sample-C', 'sample-D']);
+  assert.deepEqual(blockedJob.blockedSampleIds?.sort(), ['sample-C', 'sample-D']);
+
+  const secondRunner = startVisualBatchJob(jobId, {
+    analyzeFn,
+    getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
+  });
+
+  while (calls.length < 4) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls, ['sample-A', 'sample-B', 'sample-C', 'sample-D']);
+  assert.equal(calls.filter(sampleId => sampleId === 'sample-A').length, 1);
+
+  responses.get('sample-C')!.resolve({
+    status: 429,
+    body: {
+      success: false,
+      error: 'Daily provider quota exhausted',
+      failureKind: 'providerRateLimited',
+      generationDiagnostics: {
+        providerStatus: 'RESOURCE_EXHAUSTED',
+        providerFailureKind: 'providerRateLimited',
+        quotaExceeded: true,
+        quotaScope: 'daily',
+        retryable: false,
+      },
+    },
+  });
+  responses.get('sample-D')!.resolve({
+    status: 429,
+    body: {
+      success: false,
+      error: 'Daily provider quota exhausted',
+      failureKind: 'providerRateLimited',
+      generationDiagnostics: {
+        providerStatus: 'RESOURCE_EXHAUSTED',
+        providerFailureKind: 'providerRateLimited',
+        quotaExceeded: true,
+        quotaScope: 'daily',
+        retryable: false,
+      },
+    },
+  });
+
+  await secondRunner;
+
+  cleanupJob(jobId);
+});
+
+test('startVisualBatchJob persists transient throttle pause metadata without quota block state', async () => {
   const jobId = `job-runner-transient-${Date.now()}`;
-  const jobPath = path.join(process.cwd(), 'cache', 'visual-batch-jobs', `${jobId}.json`);
-  jobStore.createJob(makeJob(jobId));
+  cleanupJob(jobId);
+  jobStore.createJob(createSingleSampleJob(jobId));
 
   let calls = 0;
   await startVisualBatchJob(jobId, {
@@ -105,7 +259,7 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
             statusCode: 429,
             providerStatus: 'RESOURCE_EXHAUSTED',
             quotaClassification: 'transientThrottle',
-            retryAfterMs: 1,
+            retryAfterMs: 1_000,
             retryAfterReason: 'google.rpc.RetryInfo',
           },
         },
@@ -113,27 +267,27 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
     },
   });
 
-  const persisted = JSON.parse(fs.readFileSync(jobPath, 'utf-8')) as VisualBatchJob;
-  assert.strictEqual(calls, 2);
-  assert.strictEqual(persisted.status, 'paused');
-  assert.strictEqual(persisted.pauseReason, 'pausedForRateLimit');
-  assert.strictEqual(persisted.blockedReason, undefined);
-  assert.deepStrictEqual(persisted.affectedSampleIds, ['sample-transient']);
-  assert.deepStrictEqual(persisted.attemptState, { attempt: 2, maxAttempts: 2, retryExhausted: true });
+  const persisted = jobStore.getJob(jobId)!;
+  assert.equal(calls, 1);
+  assert.equal(persisted.status, 'paused');
+  assert.equal(persisted.pauseReason, 'pausedForRateLimit');
+  assert.equal(persisted.blockedReason, undefined);
+  assert.deepEqual(persisted.affectedSampleIds, ['sample-transient']);
+  assert.deepEqual(persisted.attemptState, { attempt: 1, maxAttempts: 2, retryExhausted: true });
   assert.ok(persisted.resumeAfter);
-  assert.strictEqual(persisted.items[0]?.status, 'failed');
-  assert.strictEqual(persisted.items[0]?.failureKind, 'providerRateLimited');
-  assert.strictEqual(persisted.items[0]?.error, 'per-minute throttle');
-  assert.strictEqual(persisted.items[0]?.pauseReason, 'pausedForRateLimit');
-  assert.strictEqual(persisted.items[0]?.blockedReason, undefined);
-  assert.deepStrictEqual(persisted.items[0]?.affectedSampleIds, ['sample-transient']);
-  assert.deepStrictEqual(persisted.items[0]?.attemptState, { attempt: 2, maxAttempts: 2, retryExhausted: true });
+  assert.equal(persisted.items[0]?.status, 'failed');
+  assert.equal(persisted.items[0]?.failureKind, 'providerRateLimited');
+  assert.equal(persisted.items[0]?.error, 'per-minute throttle');
+  assert.equal(persisted.items[0]?.pauseReason, 'pausedForRateLimit');
+  assert.equal(persisted.items[0]?.blockedReason, undefined);
+  assert.deepEqual(persisted.items[0]?.affectedSampleIds, ['sample-transient']);
+  assert.deepEqual(persisted.items[0]?.attemptState, { attempt: 1, maxAttempts: 2, retryExhausted: true });
 
   const summary = jobToSummary(persisted);
-  assert.strictEqual(summary.items[0]?.failureKind, 'providerRateLimited');
-  assert.strictEqual(summary.items[0]?.error, 'per-minute throttle');
-  assert.strictEqual(summary.items[0]?.pauseReason, 'pausedForRateLimit');
-  assert.deepStrictEqual(summary.items[0]?.attemptState, { attempt: 2, maxAttempts: 2, retryExhausted: true });
+  assert.equal(summary.items[0]?.failureKind, 'providerRateLimited');
+  assert.equal(summary.items[0]?.error, 'per-minute throttle');
+  assert.equal(summary.items[0]?.pauseReason, 'pausedForRateLimit');
+  assert.deepEqual(summary.items[0]?.attemptState, { attempt: 1, maxAttempts: 2, retryExhausted: true });
 
-  fs.rmSync(jobPath, { force: true });
+  cleanupJob(jobId);
 });

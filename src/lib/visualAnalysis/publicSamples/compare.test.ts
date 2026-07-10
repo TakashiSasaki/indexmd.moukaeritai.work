@@ -404,13 +404,13 @@ describe('summarizeExpectedComparisonCounts and summarizeReviewCounts', () => {
       { success: true, comparison: { overallStatus: 'pass' } },
       { success: true, comparison: { overallStatus: 'warning' } },
       { success: true, comparison: { overallStatus: 'fail' } },
-      { success: false } // implicit fail
+      { success: false } // execution failure is not a comparison failure
     ];
     const counts = summarizeExpectedComparisonCounts(items);
     assert.deepStrictEqual(counts, {
       expectedComparisonPassCount: 1,
       expectedComparisonWarningCount: 1,
-      expectedComparisonFailCount: 2
+      expectedComparisonFailCount: 1
     });
   });
 
@@ -419,13 +419,13 @@ describe('summarizeExpectedComparisonCounts and summarizeReviewCounts', () => {
       { success: true, comparison: { reviewStatus: 'pass' } },
       { success: true, comparison: { reviewStatus: 'needsReview' } },
       { success: true, comparison: { reviewStatus: 'fail' } },
-      { success: false } // implicit fail
+      { success: false } // execution failure is not a comparison failure
     ];
     const counts = summarizeReviewCounts(items);
     assert.deepStrictEqual(counts, {
       reviewPassCount: 1,
       reviewNeedsReviewCount: 1,
-      reviewFailCount: 2
+      reviewFailCount: 1
     });
   });
 });

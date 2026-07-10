@@ -69,7 +69,7 @@ export class JobStore {
     if (!this.initialized) this.loadJobsFromDisk();
     const job = this.jobs.get(jobId);
     if (!job) return;
-    const updated = { ...job, ...updates, updatedAt: new Date().toISOString() };
+    const updated = { ...job, ...updates, updatedAt: new Date().toISOString(), revision: (job.revision || 0) + 1 };
     this.jobs.set(jobId, updated);
     this.persistJob(updated);
   }
@@ -87,6 +87,7 @@ export class JobStore {
     }
     
     job.updatedAt = new Date().toISOString();
+    job.revision = (job.revision || 0) + 1;
     this.persistJob(job);
   }
 
