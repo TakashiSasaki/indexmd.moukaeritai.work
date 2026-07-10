@@ -428,19 +428,6 @@ app.use(express.json());
 
 
 // 1. Health check endpoint
-
-app.get("/api/runtime/gemini-key-info", (req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-  try {
-    const info = getGeminiKeyInfo(process.env.GEMINI_API_KEY);
-    res.json(info);
-  } catch (err: any) {
-    res.status(500).json({
-      error: "APIキー情報を取得できませんでした"
-    });
-  }
-});
-
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
 });
@@ -3216,4 +3203,5 @@ async function startServer() {
 if (process.env.NODE_ENV !== "test") {
   startServer();
 }
+
 

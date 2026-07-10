@@ -113,7 +113,7 @@ test('localJobBackup tests', async (t) => {
     assert.deepStrictEqual(backup?.bundle, bundle);
   });
 
-  await t.test('saveLocalJobBackup evicts oldest when > MAX_BACKUPS', async () => {
+  await t.test('saveLocalJobBackup evicts oldest when > MAX_BACKUPS', async (t2) => {
     for (let i = 0; i < 15; i++) {
       saveLocalJobBackup({ jobId: `job-${i}`, status: 'completed' });
       await new Promise(resolve => setTimeout(resolve, 10));
