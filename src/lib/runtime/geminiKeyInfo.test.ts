@@ -6,32 +6,32 @@ describe("getGeminiKeyInfo", () => {
   test("returns not configured for undefined", () => {
     const result = getGeminiKeyInfo(undefined);
     assert.deepEqual(result, {
-      isConfigured: false,
-      envVarName: "GEMINI_API_KEY"
+      configured: false,
+      source: "GEMINI_API_KEY"
     });
   });
 
   test("returns not configured for empty string", () => {
     const result = getGeminiKeyInfo("");
     assert.deepEqual(result, {
-      isConfigured: false,
-      envVarName: "GEMINI_API_KEY"
+      configured: false,
+      source: "GEMINI_API_KEY"
     });
   });
 
   test("returns not configured for whitespace only", () => {
     const result = getGeminiKeyInfo("   ");
     assert.deepEqual(result, {
-      isConfigured: false,
-      envVarName: "GEMINI_API_KEY"
+      configured: false,
+      source: "GEMINI_API_KEY"
     });
   });
 
   test("returns configured with mask and fingerprint for normal key", () => {
     const key = "AIzaSyFakeKeyThatIsLongEnough123";
     const result = getGeminiKeyInfo(key);
-    assert.equal(result.isConfigured, true);
-    assert.equal(result.envVarName, "GEMINI_API_KEY");
+    assert.equal(result.configured, true);
+    assert.equal(result.source, "GEMINI_API_KEY");
     assert.equal(result.maskedKey, "AIza…h123");
     assert.equal(result.fingerprint?.length, 12);
     assert.equal(result.fingerprintAlgorithm, "sha256");
@@ -41,7 +41,7 @@ describe("getGeminiKeyInfo", () => {
   test("returns configured with generic mask for short key", () => {
     const key = "ShortKey123";
     const result = getGeminiKeyInfo(key);
-    assert.equal(result.isConfigured, true);
+    assert.equal(result.configured, true);
     assert.equal(result.maskedKey, "configured");
     assert.equal(result.fingerprint?.length, 12);
   });

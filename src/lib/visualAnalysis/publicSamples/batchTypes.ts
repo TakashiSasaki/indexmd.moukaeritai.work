@@ -144,7 +144,6 @@ export interface VisualBatchJobEvent {
     | "quotaCircuitBreakerTripped"
     | "sampleRetryExhausted"
     | "jobFailed"
-    | "jobBlockedByQuota"
     | "jobCompleted"
     | "jobForceCanceled"
     // 既存のイベント名との互換性

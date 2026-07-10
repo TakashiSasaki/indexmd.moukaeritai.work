@@ -1,8 +1,8 @@
 import crypto from "crypto";
 
 export interface GeminiKeyInfo {
-  isConfigured: boolean;
-  envVarName: "GEMINI_API_KEY";
+  configured: boolean;
+  source: "GEMINI_API_KEY";
   maskedKey?: string;
   fingerprint?: string;
   fingerprintAlgorithm?: "sha256";
@@ -11,8 +11,8 @@ export interface GeminiKeyInfo {
 export function getGeminiKeyInfo(apiKey: string | undefined): GeminiKeyInfo {
   if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
     return {
-      isConfigured: false,
-      envVarName: "GEMINI_API_KEY"
+      configured: false,
+      source: "GEMINI_API_KEY"
     };
   }
 
@@ -25,8 +25,8 @@ export function getGeminiKeyInfo(apiKey: string | undefined): GeminiKeyInfo {
   }
 
   return {
-    isConfigured: true,
-    envVarName: "GEMINI_API_KEY",
+    configured: true,
+    source: "GEMINI_API_KEY",
     maskedKey,
     fingerprint,
     fingerprintAlgorithm: "sha256"

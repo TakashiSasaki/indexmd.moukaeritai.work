@@ -434,11 +434,14 @@ app.get("/api/health", (req, res) => {
 
 // Runtime Gemini Key info endpoint
 app.get("/api/runtime/gemini-key-info", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const info = getGeminiKeyInfo(process.env.GEMINI_API_KEY);
     res.json(info);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: "APIキー情報を取得できませんでした"
+    });
   }
 });
 
