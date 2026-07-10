@@ -1,0 +1,1361 @@
+From b1223e44005c5c5a247310b917d0a27635b4e73f Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Fri, 10 Jul 2026 01:28:40 +0000
+Subject: [PATCH 1/3] feat(visual-analysis): wire server batch recovery
+
+- connected local server-job backup helper to the Visual Analysis server batch UI
+- normalized server job counters for backup metadata
+- added automatic metadata and Analysis Bundle backup on refresh/terminal states
+- added persistent server job recovery and browser backup UI
+- added safe localStorage fallback, eviction, malformed-data handling, and secret stripping
+- added unit tests for backup helper behavior
+- preserved existing partial/canceled bundle workflows
+
+Co-authored-by: TakashiSasaki <556958+TakashiSasaki@users.noreply.github.com>
+---
+ src/components/ImageExperiment.tsx            | 172 ++++++++++++---
+ .../visualAnalysis/ServerJobRecovery.tsx      | 203 ++++++++++++++++++
+ .../serverJobs/localJobBackup.test.ts         | 138 ++++++++++++
+ .../serverJobs/localJobBackup.ts              | 196 ++++++++++++-----
+ 4 files changed, 629 insertions(+), 80 deletions(-)
+ create mode 100644 src/components/visualAnalysis/ServerJobRecovery.tsx
+ create mode 100644 src/lib/visualAnalysis/serverJobs/localJobBackup.test.ts
+
+diff --git a/src/components/ImageExperiment.tsx b/src/components/ImageExperiment.tsx
+index 7cb5706..a63e99b 100644
+--- a/src/components/ImageExperiment.tsx
++++ b/src/components/ImageExperiment.tsx
+@@ -25,6 +25,16 @@ import { buildFullItemReport, buildBatchAnalysisBundleForChat } from '../lib/vis
+ import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
+ import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
+ import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
++import ServerJobRecovery from './visualAnalysis/ServerJobRecovery';
++import {
++  LocalJobBackup,
++  listLocalJobBackups,
++  saveLocalJobBackup,
++  removeLocalJobBackup,
++  getLocalJobBackup,
++  buildLocalJobBackupMetadata
++} from '../lib/visualAnalysis/serverJobs/localJobBackup';
++
+ 
+ interface ImageExperimentProps {
+   token: string;
+@@ -177,6 +187,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
+   const [isStartingServerJob, setIsStartingServerJob] = useState(false);
+   const [isRefreshingServerJob, setIsRefreshingServerJob] = useState(false);
+   const [serverJobList, setServerJobList] = useState<any[]>([]);
++  const [localJobBackups, setLocalJobBackups] = useState<LocalJobBackup[]>([]);
++  const fetchedBundlesRef = React.useRef<Set<string>>(new Set());
++
+ 
+   // Batch evaluation state
+   const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
+@@ -889,16 +902,65 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
+     }
+   };
+ 
+-  const handleRefreshServerJob = async (isManual = false) => {
+-    if (!serverJobId) return;
++
++  const reloadLocalBackups = () => {
++    setLocalJobBackups(listLocalJobBackups());
++  };
++
++  useEffect(() => {
++    if (showServerSideJob) {
++      reloadLocalBackups();
++    }
++  }, [showServerSideJob]);
++
++  const handleRefreshServerJob = async (isManual = false, overrideJobId?: string) => {
++    const targetJobId = overrideJobId || serverJobId;
++    if (!targetJobId) return;
+     if (isManual) setIsRefreshingServerJob(true);
+     try {
+-      const res = await fetch(`/api/visual/batch-jobs/${serverJobId}`);
++      const res = await fetch(`/api/visual/batch-jobs/${targetJobId}`);
+       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+       const data = await res.json();
+-      setServerJobStatus(data.job);
+-      setServerJobComputedState(data.computedState ?? null);
+-      setServerJobItemsPreview(data.itemsPreview ?? []);
++
++      if (targetJobId === serverJobId) {
++        setServerJobStatus(data.job);
++        setServerJobComputedState(data.computedState ?? null);
++        setServerJobItemsPreview(data.itemsPreview ?? []);
++      } else {
++        // If refreshing a non-selected job, we just fetch it to save backup
++      }
++
++      // Check for backup save logic
++      const meta = buildLocalJobBackupMetadata(data.job);
++      if (meta.processedCount > 0) {
++        // Save metadata at minimum
++        saveLocalJobBackup(data.job);
++        reloadLocalBackups();
++
++        const isTerminal = ['completed', 'failed', 'canceled'].includes(data.job.status);
++        if (isTerminal) {
++           const rev = meta.sourceRevision || '';
++           const existing = getLocalJobBackup(targetJobId);
++           const isAlreadyStored = existing && existing.bundleStored && existing.sourceRevision === rev;
++           const inflightKey = `${targetJobId}_${rev}`;
++
++           if (!isAlreadyStored && !fetchedBundlesRef.current.has(inflightKey)) {
++             fetchedBundlesRef.current.add(inflightKey);
++             // Fetch bundle
++             try {
++               const bRes = await fetch(`/api/visual/batch-jobs/${targetJobId}/reports/analysis-bundle`);
++               if (bRes.ok) {
++                 const bundle = await bRes.json();
++                 saveLocalJobBackup(data.job, bundle);
++                 reloadLocalBackups();
++               }
++             } catch (err) {
++               console.warn("Auto bundle backup fetch failed", err);
++             }
++           }
++        }
++      }
++
+     } catch (e: any) {
+       if (isManual) onAddLog("error", `Refresh failed: ${e.message}`);
+     } finally {
+@@ -934,7 +996,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
+           const activeJob = jobs.find((j: any) => j.status === 'queued' || j.status === 'running' || j.status === 'canceling');
+           if (activeJob) {
+             setServerJobId(activeJob.jobId);
+-            setServerJobStatus(activeJob);
++            handleRefreshServerJob(false, activeJob.jobId);
+           }
+         }
+       }
+@@ -949,6 +1011,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
+     }
+   }, [showServerSideJob]);
+ 
++
+   
+   const handleCopyServerJobBundle = async (jobId: string) => {
+     try {
+@@ -2476,28 +2539,79 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
+               </div>
+             )}
+             
+-            {serverJobList.length > 0 && !serverJobStatus && (
+-              <div className="pt-2 border-t border-slate-100">
+-                <h4 className="text-xs font-bold text-slate-700 mb-2">Recent Server Jobs</h4>
+-                <div className="space-y-1 max-h-32 overflow-y-auto">
+-                  {serverJobList.slice().reverse().map((job, i) => (
+-                    <button 
+-                      key={job.jobId + "-" + i}
+-                      onClick={() => {
+-                        setServerJobId(job.jobId);
+-                        setServerJobStatus(job);
+-                      }}
+-                      className="w-full text-left text-xs p-2 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 flex justify-between"
+-                    >
+-                      <span>{new Date(job.createdAt).toLocaleString()}</span>
+-                      <span className={`font-medium ${job.status === 'completed' ? 'text-emerald-600' : job.status === 'failed' ? 'text-red-600' : job.status === 'running' ? 'text-indigo-600 font-bold' : 'text-slate-500'}`}>
+-                        {job.status} ({job.counters?.successCount}/{job.counters?.total})
+-                      </span>
+-                    </button>
+-                  ))}
+-                </div>
+-              </div>
+-            )}
++            <ServerJobRecovery
++              serverJobs={serverJobList}
++              localBackups={localJobBackups}
++              selectedJobId={serverJobId}
++              onSelectJob={(jobId) => {
++                setServerJobId(jobId);
++                handleRefreshServerJob(true, jobId);
++              }}
++              onRefreshJob={(jobId) => handleRefreshServerJob(true, jobId)}
++              onCopyBundle={async (jobId, fromBackup) => {
++                try {
++                  if (fromBackup) {
++                    const backup = getLocalJobBackup(jobId);
++                    if (backup?.bundle) {
++                      await navigator.clipboard.writeText(JSON.stringify(backup.bundle, null, 2));
++                      onAddLog("success", "Copied bundle from backup");
++                      return;
++                    }
++                  }
++                  const bRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
++                  if (bRes.ok) {
++                    const bundle = await bRes.json();
++                    await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
++                    onAddLog("success", "Copied bundle from server");
++                  }
++                } catch (e: any) {
++                  onAddLog("error", "Copy failed", e.message);
++                }
++              }}
++              onDownloadBundle={async (jobId, fromBackup) => {
++                try {
++                  if (fromBackup) {
++                    const backup = getLocalJobBackup(jobId);
++                    if (backup?.bundle) {
++                      downloadJsonArtifact(`visual-analysis-analysis-bundle-${jobId}.json`, JSON.stringify(backup.bundle, null, 2));
++                      return;
++                    }
++                  }
++                  window.location.href = `/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`;
++                } catch (e: any) {
++                  onAddLog("error", "Download failed", e.message);
++                }
++              }}
++              onImportStats={(jobId) => {
++                 setServerJobId(jobId);
++                 handleImportServerJob();
++              }}
++              onSaveBackup={async (jobId) => {
++                try {
++                  const jobRes = await fetch(`/api/visual/batch-jobs/${jobId}`);
++                  if (!jobRes.ok) return;
++                  const data = await jobRes.json();
++                  const bundleRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
++                  if (bundleRes.ok) {
++                    const bundle = await bundleRes.json();
++                    saveLocalJobBackup(data.job, bundle);
++                    reloadLocalBackups();
++                    onAddLog("success", "Saved local backup");
++                  } else {
++                    saveLocalJobBackup(data.job);
++                    reloadLocalBackups();
++                    onAddLog("warn", "Saved metadata backup only (bundle failed)");
++                  }
++                } catch (e: any) {
++                  onAddLog("error", "Backup failed", e.message);
++                }
++              }}
++              onRemoveBackup={(jobId) => {
++                removeLocalJobBackup(jobId);
++                reloadLocalBackups();
++                onAddLog("info", "Removed local backup");
++              }}
++            />
+           </div>
+         </div>
+       )}
+diff --git a/src/components/visualAnalysis/ServerJobRecovery.tsx b/src/components/visualAnalysis/ServerJobRecovery.tsx
+new file mode 100644
+index 0000000..3cc26c9
+--- /dev/null
++++ b/src/components/visualAnalysis/ServerJobRecovery.tsx
+@@ -0,0 +1,203 @@
++import React from 'react';
++import { Download, Copy, RefreshCw, Archive, Trash2, ArrowRight } from 'lucide-react';
++import { LocalJobBackup } from '../../lib/visualAnalysis/serverJobs/localJobBackup';
++import { VisualBatchJob } from '../../lib/visualAnalysis/publicSamples/batchTypes';
++
++interface ServerJobRecoveryProps {
++  serverJobs: Partial<VisualBatchJob>[];
++  localBackups: LocalJobBackup[];
++  selectedJobId: string | null;
++  onSelectJob: (jobId: string) => void;
++  onRefreshJob: (jobId: string) => void;
++  onCopyBundle: (jobId: string, fromBackup?: boolean) => void;
++  onDownloadBundle: (jobId: string, fromBackup?: boolean) => void;
++  onImportStats: (jobId: string) => void;
++  onSaveBackup: (jobId: string) => void;
++  onRemoveBackup: (jobId: string) => void;
++}
++
++export default function ServerJobRecovery({
++  serverJobs,
++  localBackups,
++  selectedJobId,
++  onSelectJob,
++  onRefreshJob,
++  onCopyBundle,
++  onDownloadBundle,
++  onImportStats,
++  onSaveBackup,
++  onRemoveBackup
++}: ServerJobRecoveryProps) {
++  if (serverJobs.length === 0 && localBackups.length === 0) {
++    return null;
++  }
++
++  const renderStatus = (status: string) => {
++    switch(status) {
++      case 'completed': return <span className="text-green-600 font-medium">Completed</span>;
++      case 'failed': return <span className="text-red-600 font-medium">Failed</span>;
++      case 'canceled': return <span className="text-amber-600 font-medium">Canceled</span>;
++      case 'running': return <span className="text-blue-600 font-medium animate-pulse">Running</span>;
++      default: return <span className="text-slate-600 font-medium capitalize">{status}</span>;
++    }
++  };
++
++  return (
++    <div className="mt-8 space-y-6 border-t border-slate-200 pt-6">
++
++      {serverJobs.length > 0 && (
++        <section>
++          <h3 className="text-lg font-semibold text-slate-800 mb-2">Saved Server Jobs</h3>
++          <p className="text-sm text-slate-500 mb-4">
++            Server jobs are stored in local disk cache and survive process restarts only if the cache directory is preserved.
++          </p>
++          <div className="space-y-3">
++            {serverJobs.map((job, idx) => (
++              <div
++                key={job.jobId || idx}
++                className={`p-4 rounded-lg border transition-colors ${selectedJobId === job.jobId ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300'}`}
++              >
++                <div className="flex flex-wrap items-center justify-between gap-4">
++                  <div className="space-y-1">
++                    <div className="flex items-center space-x-2">
++                      <span className="font-mono text-sm font-medium text-slate-700">{job.jobId?.slice(0, 8)}...</span>
++                      {renderStatus(job.status || 'unknown')}
++                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{job.modelName}</span>
++                    </div>
++                    <div className="text-sm text-slate-500 flex items-center space-x-4">
++                      <span>Processed: {(job.counters?.successCount || 0) + (job.counters?.failureCount || 0)}/{job.counters?.total || 0}</span>
++                      {job.counters?.successCount !== undefined && (
++                        <span>Success: {job.counters.successCount} | Fail: {job.counters.failureCount || 0}</span>
++                      )}
++                      <span>Started: {new Date(job.startedAt || job.createdAt || '').toLocaleString()}</span>
++                    </div>
++                  </div>
++
++                  <div className="flex flex-wrap gap-2 items-center">
++                    {job.jobId && selectedJobId !== job.jobId && (
++                      <button
++                        onClick={() => onSelectJob(job.jobId!)}
++                        className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100"
++                      >
++                        <ArrowRight className="w-4 h-4" />
++                        <span>Restore</span>
++                      </button>
++                    )}
++                    {job.jobId && (
++                      <>
++                        <button
++                          onClick={() => onRefreshJob(job.jobId!)}
++                          className="flex items-center space-x-1 p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded"
++                          title="Fetch Fresh Detail"
++                        >
++                          <RefreshCw className="w-4 h-4" />
++                        </button>
++                        <button
++                          onClick={() => onCopyBundle(job.jobId!)}
++                          className="flex items-center space-x-1 p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded"
++                          title="Copy Bundle"
++                        >
++                          <Copy className="w-4 h-4" />
++                        </button>
++                        <button
++                          onClick={() => onDownloadBundle(job.jobId!)}
++                          className="flex items-center space-x-1 p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded"
++                          title="Download Bundle"
++                        >
++                          <Download className="w-4 h-4" />
++                        </button>
++                        <button
++                          onClick={() => onImportStats(job.jobId!)}
++                          className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded hover:bg-slate-200"
++                        >
++                          Import Stats
++                        </button>
++                        <button
++                          onClick={() => onSaveBackup(job.jobId!)}
++                          className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-teal-700 bg-teal-50 rounded hover:bg-teal-100"
++                        >
++                          <Archive className="w-4 h-4" />
++                          <span>Save Local Backup</span>
++                        </button>
++                      </>
++                    )}
++                  </div>
++                </div>
++              </div>
++            ))}
++          </div>
++        </section>
++      )}
++
++      {localBackups.length > 0 && (
++        <section>
++          <h3 className="text-lg font-semibold text-slate-800 mb-2">Browser Backups</h3>
++          <p className="text-sm text-slate-500 mb-4">
++            Browser backups are best-effort and limited by localStorage quota. Important bundles should be downloaded for long-term archival.
++          </p>
++          <div className="space-y-3">
++            {localBackups.map(backup => (
++              <div
++                key={backup.jobId}
++                className="p-4 rounded-lg border border-slate-200 bg-slate-50"
++              >
++                <div className="flex flex-wrap items-center justify-between gap-4">
++                  <div className="space-y-1">
++                    <div className="flex items-center space-x-2">
++                      <span className="font-mono text-sm font-medium text-slate-700">{backup.jobId.slice(0, 8)}...</span>
++                      {renderStatus(backup.status)}
++                      <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded">{backup.modelName}</span>
++                    </div>
++                    <div className="text-sm text-slate-500 flex items-center space-x-4">
++                      <span>Processed: {backup.counters.processed}/{backup.counters.total}</span>
++                      <span>Saved: {new Date(backup.savedAt).toLocaleString()}</span>
++                      {backup.bundleStored ? (
++                        <span className="text-teal-600 font-medium text-xs border border-teal-200 bg-teal-50 px-2 py-0.5 rounded">Bundle Stored</span>
++                      ) : (
++                        <span className="text-amber-600 font-medium text-xs border border-amber-200 bg-amber-50 px-2 py-0.5 rounded" title={backup.notStoredReason}>Metadata Only</span>
++                      )}
++                    </div>
++                  </div>
++
++                  <div className="flex items-center space-x-2">
++                    <button
++                      onClick={() => onRefreshJob(backup.jobId)}
++                      className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100"
++                    >
++                      Fetch Server Result
++                    </button>
++                    {backup.bundleStored && (
++                      <>
++                        <button
++                          onClick={() => onCopyBundle(backup.jobId, true)}
++                          className="flex items-center space-x-1 p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded"
++                          title="Copy Saved Bundle"
++                        >
++                          <Copy className="w-4 h-4" />
++                        </button>
++                        <button
++                          onClick={() => onDownloadBundle(backup.jobId, true)}
++                          className="flex items-center space-x-1 p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded"
++                          title="Download Saved Bundle"
++                        >
++                          <Download className="w-4 h-4" />
++                        </button>
++                      </>
++                    )}
++                    <button
++                      onClick={() => onRemoveBackup(backup.jobId)}
++                      className="flex items-center space-x-1 p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
++                      title="Remove Backup"
++                    >
++                      <Trash2 className="w-4 h-4" />
++                    </button>
++                  </div>
++                </div>
++              </div>
++            ))}
++          </div>
++        </section>
++      )}
++    </div>
++  );
++}
+diff --git a/src/lib/visualAnalysis/serverJobs/localJobBackup.test.ts b/src/lib/visualAnalysis/serverJobs/localJobBackup.test.ts
+new file mode 100644
+index 0000000..d242b7d
+--- /dev/null
++++ b/src/lib/visualAnalysis/serverJobs/localJobBackup.test.ts
+@@ -0,0 +1,138 @@
++import test from 'node:test';
++import assert from 'node:assert';
++import {
++  buildLocalJobBackupMetadata,
++  sanitizeBundle,
++  saveLocalJobBackup,
++  listLocalJobBackups,
++  getLocalJobBackup,
++  removeLocalJobBackup,
++  setStorageAdapter,
++  StorageAdapter
++} from './localJobBackup';
++
++class MockStorage implements StorageAdapter {
++  store = new Map<string, string>();
++  getItem(key: string) { return this.store.get(key) || null; }
++  setItem(key: string, value: string) { this.store.set(key, value); }
++  removeItem(key: string) { this.store.delete(key); }
++  key(index: number) { return Array.from(this.store.keys())[index] || null; }
++  get length() { return this.store.size; }
++  clear() { this.store.clear(); }
++}
++
++test('localJobBackup tests', async (t) => {
++  let storage: MockStorage;
++
++  t.beforeEach(() => {
++    storage = new MockStorage();
++    setStorageAdapter(storage);
++  });
++
++  await t.test('buildLocalJobBackupMetadata handles full job counters', () => {
++    const job = {
++      jobId: 'job1',
++      status: 'completed',
++      modelName: 'test-model',
++      counters: { successCount: 5, failureCount: 2, total: 10 },
++      targetSampleIds: new Array(10)
++    };
++    const meta = buildLocalJobBackupMetadata(job);
++    assert.strictEqual(meta.counters.success, 5);
++    assert.strictEqual(meta.counters.failure, 2);
++    assert.strictEqual(meta.counters.processed, 7);
++    assert.strictEqual(meta.counters.total, 10);
++    assert.strictEqual(meta.sourceRevision, 'job1_completed_7_');
++  });
++
++  await t.test('buildLocalJobBackupMetadata handles list summary fallback (canonical items)', () => {
++    const job = {
++      jobId: 'job2',
++      status: 'failed',
++      items: [
++        { status: 'succeeded' },
++        { status: 'failed' },
++        { status: 'succeeded' }
++      ],
++      targetSampleIds: new Array(5)
++    };
++    const meta = buildLocalJobBackupMetadata(job);
++    assert.strictEqual(meta.counters.success, 2);
++    assert.strictEqual(meta.counters.failure, 1);
++    assert.strictEqual(meta.counters.processed, 3);
++    assert.strictEqual(meta.counters.total, 5);
++  });
++
++  await t.test('buildLocalJobBackupMetadata handles legacy items', () => {
++    const job = {
++      jobId: 'job3',
++      status: 'running',
++      items: [
++        { status: 'success' },
++        { status: 'error' },
++        { status: 'failure' }
++      ]
++    };
++    const meta = buildLocalJobBackupMetadata(job);
++    assert.strictEqual(meta.counters.success, 1);
++    assert.strictEqual(meta.counters.failure, 2);
++    assert.strictEqual(meta.counters.processed, 3);
++  });
++
++  await t.test('sanitizeBundle strips sensitive keys and bearers', () => {
++    const bundle = {
++      normalKey: 'value',
++      executionPrivate: { secret: 123 },
++      authorization: 'Bearer token123',
++      nested: {
++        apiKey: 'secretKey',
++        cookie: 'session=1'
++      },
++      array: [
++        { headers: { authorization: 'Bearer token456' } },
++        'Bearer leaked'
++      ]
++    };
++    const safe = sanitizeBundle(bundle);
++    assert.strictEqual(safe.normalKey, 'value');
++    assert.strictEqual(safe.executionPrivate, undefined);
++    assert.strictEqual(safe.authorization, undefined);
++    assert.strictEqual(safe.nested.apiKey, undefined);
++    assert.strictEqual(safe.nested.cookie, undefined);
++    assert.strictEqual(safe.array[0].headers, undefined);
++    assert.strictEqual(safe.array[1], '[REDACTED]');
++  });
++
++  await t.test('saveLocalJobBackup stores bundle if small', () => {
++    const job = { jobId: 'test-small', status: 'completed' };
++    const bundle = { data: 'hello' };
++    const saved = saveLocalJobBackup(job, bundle);
++    assert.strictEqual(saved, true);
++    const backup = getLocalJobBackup('test-small');
++    assert.strictEqual(backup?.bundleStored, true);
++    assert.deepStrictEqual(backup?.bundle, bundle);
++  });
++
++  await t.test('saveLocalJobBackup evicts oldest when > MAX_BACKUPS', async () => {
++    for (let i = 0; i < 15; i++) {
++      saveLocalJobBackup({ jobId: `job-${i}`, status: 'completed' });
++      await new Promise(resolve => setTimeout(resolve, 10));
++    }
++    const backups = listLocalJobBackups();
++    assert.strictEqual(backups.length, 10);
++    const ids = backups.map(b => b.jobId);
++    assert.ok(ids.includes('job-14'));
++    assert.ok(!ids.includes('job-0'));
++  });
++
++  await t.test('malformed stored JSON does not throw', () => {
++    storage.setItem('visual_analysis_server_job_backup_bad', '{ bad json');
++    saveLocalJobBackup({ jobId: 'good' });
++    const list = listLocalJobBackups();
++    assert.strictEqual(list.length, 1);
++    assert.strictEqual(list[0].jobId, 'good');
++
++    const get = getLocalJobBackup('bad');
++    assert.strictEqual(get, null);
++  });
++});
+diff --git a/src/lib/visualAnalysis/serverJobs/localJobBackup.ts b/src/lib/visualAnalysis/serverJobs/localJobBackup.ts
+index 688a93b..40203b9 100644
+--- a/src/lib/visualAnalysis/serverJobs/localJobBackup.ts
++++ b/src/lib/visualAnalysis/serverJobs/localJobBackup.ts
+@@ -23,71 +23,168 @@ export interface LocalJobBackup {
+   bundleStored: boolean;
+   notStoredReason?: string;
+   bundle?: any;
++  sourceRevision?: string;
+ }
+ 
+-export function saveLocalJobBackup(job: any, bundle?: any) {
+-  if (typeof window === 'undefined' || !window.localStorage) {
+-    return false;
++export interface StorageAdapter {
++  getItem(key: string): string | null;
++  setItem(key: string, value: string): void;
++  removeItem(key: string): void;
++  key(index: number): string | null;
++  length: number;
++}
++
++let activeStorage: StorageAdapter | null = null;
++
++export function getStorage(): StorageAdapter | null {
++  if (activeStorage) return activeStorage;
++  if (typeof window !== 'undefined' && window.localStorage) {
++    return window.localStorage;
+   }
++  return null;
++}
++
++export function setStorageAdapter(adapter: StorageAdapter | null) {
++  activeStorage = adapter;
++}
++
++export function buildLocalJobBackupMetadata(job: any, options?: { savedAt?: string }): LocalJobBackup {
++  let success = 0;
++  let failure = 0;
++  let total = 0;
++  let processed = 0;
+ 
+-  const backup: LocalJobBackup = {
++  if (job.counters && typeof job.counters.successCount === 'number') {
++    success = job.counters.successCount;
++    failure = job.counters.failureCount || 0;
++    total = job.counters.total || job.targetSampleIds?.length || 0;
++    processed = success + failure;
++  } else if (job.items && Array.isArray(job.items)) {
++    success = job.items.filter((i: any) => i.status === 'succeeded' || i.status === 'success').length;
++    failure = job.items.filter((i: any) => i.status === 'failed' || i.status === 'error' || i.status === 'failure').length;
++    total = job.counters?.total || job.targetSampleIds?.length || 0;
++    processed = success + failure;
++  } else {
++    total = job.targetSampleIds?.length || 0;
++  }
++
++  const status = job.status || 'unknown';
++  const completedAt = job.completedAt;
++  const canceledAt = job.canceledAt;
++  const terminalDate = completedAt || canceledAt || '';
++  const sourceRevision = `${job.jobId}_${status}_${processed}_${terminalDate}`;
++
++  return {
+     jobId: job.jobId,
+-    status: job.status,
+-    modelName: job.modelName || job.model,
++    status: status,
++    modelName: job.modelName || job.model || 'unknown',
+     jsonMode: job.jsonMode || 'json_object',
+-    createdAt: job.createdAt,
++    createdAt: job.createdAt || new Date().toISOString(),
+     startedAt: job.startedAt,
+-    completedAt: job.completedAt,
+-    canceledAt: job.canceledAt,
+-    counters: job.counters || {
+-       total: job.targetSampleIds?.length || 0,
+-       processed: job.items?.length || 0,
+-       success: job.items?.filter((i: any) => i.status === 'success').length || 0,
+-       failure: job.items?.filter((i: any) => i.status === 'error').length || 0
++    completedAt: completedAt,
++    canceledAt: canceledAt,
++    counters: {
++      total,
++      processed,
++      success,
++      failure
+     },
+-    processedCount: job.counters?.processed || job.items?.length || 0,
+-    total: job.counters?.total || job.targetSampleIds?.length || 0,
+-    savedAt: new Date().toISOString(),
+-    bundleStored: false
++    processedCount: processed,
++    total: total,
++    savedAt: options?.savedAt || new Date().toISOString(),
++    bundleStored: false,
++    sourceRevision
+   };
++}
+ 
+-  if (bundle) {
+-    // Strip executionPrivate if present
+-    const safeBundle = { ...bundle };
+-    if (safeBundle.executionPrivate) {
+-      delete safeBundle.executionPrivate;
++export function sanitizeBundle(obj: any): any {
++  if (obj === null || typeof obj !== 'object') {
++    if (typeof obj === 'string' && obj.toLowerCase().startsWith('bearer ')) {
++      return '[REDACTED]';
+     }
++    return obj;
++  }
++
++  if (Array.isArray(obj)) {
++    return obj.map(item => sanitizeBundle(item));
++  }
++
++  const sanitized: any = {};
++  for (const [key, value] of Object.entries(obj)) {
++    const lowerKey = key.toLowerCase();
++    const isSensitiveKey =
++      lowerKey === 'executionprivate' ||
++      lowerKey === 'authorization' ||
++      lowerKey === 'proxyauthorization' ||
++      lowerKey === 'apikey' ||
++      lowerKey === 'accesstoken' ||
++      lowerKey === 'refreshtoken' ||
++      lowerKey === 'idtoken' ||
++      lowerKey === 'credential' ||
++      lowerKey === 'credentials' ||
++      lowerKey === 'cookie' ||
++      lowerKey === 'setcookie' ||
++      lowerKey === 'requestheaders' ||
++      lowerKey === 'headers' ||
++      lowerKey === 'requestpreview' ||
++      lowerKey === 'rawrequest' ||
++      lowerKey === 'rawrequestbody' ||
++      lowerKey === 'rawresponse' ||
++      lowerKey === 'responseraw' ||
++      lowerKey === 'rawoutputpreview';
+ 
+-    // Check size limit
++    if (isSensitiveKey) {
++      continue;
++    }
++    sanitized[key] = sanitizeBundle(value);
++  }
++  return sanitized;
++}
++
++export function saveLocalJobBackup(job: any, bundle?: any) {
++  const storage = getStorage();
++  if (!storage) return false;
++
++  const backup = buildLocalJobBackupMetadata(job);
++
++  if (bundle) {
++    let safeBundle;
+     try {
+-      const bundleStr = JSON.stringify(safeBundle);
+-      if (bundleStr.length <= MAX_BUNDLE_SIZE_BYTES) {
+-         backup.bundleStored = true;
+-         backup.bundle = safeBundle;
+-      } else {
+-         backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
+-      }
++      safeBundle = sanitizeBundle(bundle);
+     } catch (e) {
+-      backup.notStoredReason = 'serializationError';
++      backup.notStoredReason = 'sanitizationError';
++    }
++
++    if (safeBundle) {
++      try {
++        const bundleStr = JSON.stringify(safeBundle);
++        if (bundleStr.length <= MAX_BUNDLE_SIZE_BYTES) {
++           backup.bundleStored = true;
++           backup.bundle = safeBundle;
++        } else {
++           backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
++        }
++      } catch (e) {
++        backup.notStoredReason = 'serializationError';
++      }
+     }
+   }
+ 
+   try {
+     const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
+-    localStorage.setItem(key, JSON.stringify(backup));
++    storage.setItem(key, JSON.stringify(backup));
+     enforceMaxBackups();
+     return true;
+   } catch (e) {
+     console.warn('Failed to save local job backup', e);
+ 
+-    // If it was a quota error with a bundle, try saving just metadata
+     if (backup.bundleStored) {
+       backup.bundleStored = false;
+       delete backup.bundle;
+       backup.notStoredReason = 'localStorageQuotaOrSizeLimit';
+       try {
+         const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
+-        localStorage.setItem(key, JSON.stringify(backup));
++        storage.setItem(key, JSON.stringify(backup));
+         return true;
+       } catch (e2) {
+         console.warn('Failed to save even metadata backup', e2);
+@@ -98,20 +195,18 @@ export function saveLocalJobBackup(job: any, bundle?: any) {
+ }
+ 
+ export function listLocalJobBackups(): LocalJobBackup[] {
+-  if (typeof window === 'undefined' || !window.localStorage) {
+-    return [];
+-  }
++  const storage = getStorage();
++  if (!storage) return [];
+ 
+   const backups: LocalJobBackup[] = [];
+-  for (let i = 0; i < localStorage.length; i++) {
+-    const key = localStorage.key(i);
++  for (let i = 0; i < storage.length; i++) {
++    const key = storage.key(i);
+     if (key && key.startsWith(LOCAL_STORAGE_KEY_PREFIX)) {
+       try {
+-        const value = localStorage.getItem(key);
++        const value = storage.getItem(key);
+         if (value) {
+           const backup = JSON.parse(value) as LocalJobBackup;
+           if (backup && backup.jobId) {
+-             // Return without full bundle in list for performance
+              const { bundle, ...meta } = backup;
+              backups.push(meta);
+           }
+@@ -126,13 +221,12 @@ export function listLocalJobBackups(): LocalJobBackup[] {
+ }
+ 
+ export function getLocalJobBackup(jobId: string): LocalJobBackup | null {
+-  if (typeof window === 'undefined' || !window.localStorage) {
+-    return null;
+-  }
++  const storage = getStorage();
++  if (!storage) return null;
+ 
+   const key = `${LOCAL_STORAGE_KEY_PREFIX}${jobId}`;
+   try {
+-    const value = localStorage.getItem(key);
++    const value = storage.getItem(key);
+     if (value) {
+       return JSON.parse(value) as LocalJobBackup;
+     }
+@@ -143,15 +237,15 @@ export function getLocalJobBackup(jobId: string): LocalJobBackup | null {
+ }
+ 
+ export function removeLocalJobBackup(jobId: string) {
+-  if (typeof window === 'undefined' || !window.localStorage) {
+-    return;
+-  }
++  const storage = getStorage();
++  if (!storage) return;
+   const key = `${LOCAL_STORAGE_KEY_PREFIX}${jobId}`;
+-  localStorage.removeItem(key);
++  storage.removeItem(key);
+ }
+ 
+ function enforceMaxBackups() {
+-  if (typeof window === 'undefined' || !window.localStorage) return;
++  const storage = getStorage();
++  if (!storage) return;
+ 
+   const backups = listLocalJobBackups();
+   if (backups.length > MAX_BACKUPS) {
+
+From b68ec822b6184579f69548bb028d7e2e00c8c329 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Fri, 10 Jul 2026 02:18:31 +0000
+Subject: [PATCH 2/3] feat(visual-analysis): wire server batch recovery
+
+- connected local server-job backup helper to the Visual Analysis server batch UI
+- normalized server job counters for backup metadata
+- added automatic metadata and Analysis Bundle backup on refresh/terminal states
+- added persistent server job recovery and browser backup UI
+- added safe localStorage fallback, eviction, malformed-data handling, and secret stripping
+- added unit tests for backup helper behavior
+- preserved existing partial/canceled bundle workflows
+- updated active job tracking after override UI refreshes
+- preserved stored bundle data when a retry attempt falls back to writing metadata
+- passed correct parameter order when downloading artifacts from browser backup
+
+Co-authored-by: TakashiSasaki <556958+TakashiSasaki@users.noreply.github.com>
+---
+ review_fixes.cjs                              | 42 +++++++++++++++++++
+ review_fixes2.cjs                             | 34 +++++++++++++++
+ src/components/ImageExperiment.tsx            |  4 +-
+ .../serverJobs/localJobBackup.ts              | 17 ++++++++
+ 4 files changed, 95 insertions(+), 2 deletions(-)
+ create mode 100644 review_fixes.cjs
+ create mode 100644 review_fixes2.cjs
+
+diff --git a/review_fixes.cjs b/review_fixes.cjs
+new file mode 100644
+index 0000000..2d2f0e9
+--- /dev/null
++++ b/review_fixes.cjs
+@@ -0,0 +1,42 @@
++const fs = require('fs');
++
++// Fix 1: Update the selected job after override refreshes
++// Fix 3: Pass the backup bundle as the download payload in correct order
++let iePath = 'src/components/ImageExperiment.tsx';
++let ieContent = fs.readFileSync(iePath, 'utf8');
++
++const ieTarget1 = `      if (targetJobId === serverJobId) {
++        setServerJobStatus(data.job);
++        setServerJobComputedState(data.computedState ?? null);
++        setServerJobItemsPreview(data.itemsPreview ?? []);
++      } else {
++        // If refreshing a non-selected job, we just fetch it to save backup
++      }`;
++const ieRep1 = `      if (targetJobId === serverJobId || overrideJobId) {
++        setServerJobStatus(data.job);
++        setServerJobComputedState(data.computedState ?? null);
++        setServerJobItemsPreview(data.itemsPreview ?? []);
++      } else {
++        // If refreshing a non-selected job, we just fetch it to save backup
++      }`;
++ieContent = ieContent.replace(ieTarget1, ieRep1);
++
++const ieTarget3 = `downloadJsonArtifact(\`visual-analysis-analysis-bundle-\${jobId}.json\`, JSON.stringify(backup.bundle, null, 2));`;
++const ieRep3 = `downloadJsonArtifact(JSON.stringify(backup.bundle, null, 2), \`visual-analysis-analysis-bundle-\${jobId}.json\`);`;
++ieContent = ieContent.replace(ieTarget3, ieRep3);
++
++fs.writeFileSync(iePath, ieContent);
++
++// Fix 2: Preserve stored bundles until replacement succeeds
++let ljbPath = 'src/lib/visualAnalysis/serverJobs/localJobBackup.ts';
++let ljbContent = fs.readFileSync(ljbPath, 'utf8');
++
++const ljbTarget = `  const backup = buildLocalJobBackupMetadata(job);
++
++  if (bundle) {`;
++const ljbRep = `  const backup = buildLocalJobBackupMetadata(job);
++
++  if (bundle) {`;
++
++// Let's rewrite the logic inside saveLocalJobBackup to preserve existing bundle if we didn't pass one but the existing backup has one
++// Wait, if I fetch the existing backup metadata BEFORE we replace it...
+diff --git a/review_fixes2.cjs b/review_fixes2.cjs
+new file mode 100644
+index 0000000..22759fe
+--- /dev/null
++++ b/review_fixes2.cjs
+@@ -0,0 +1,34 @@
++const fs = require('fs');
++
++let ljbPath = 'src/lib/visualAnalysis/serverJobs/localJobBackup.ts';
++let ljbContent = fs.readFileSync(ljbPath, 'utf8');
++
++const toReplace = `  const backup = buildLocalJobBackupMetadata(job);
++
++  if (bundle) {
++    let safeBundle;`;
++
++const replacement = `  const backup = buildLocalJobBackupMetadata(job);
++
++  if (!bundle) {
++    // If saving metadata only, try to preserve any existing bundle
++    try {
++      const key = \`\${LOCAL_STORAGE_KEY_PREFIX}\${job.jobId}\`;
++      const existing = storage.getItem(key);
++      if (existing) {
++        const parsed = JSON.parse(existing);
++        if (parsed && parsed.bundleStored && parsed.bundle) {
++          backup.bundleStored = true;
++          backup.bundle = parsed.bundle;
++        }
++      }
++    } catch (e) {
++      // ignore
++    }
++  }
++
++  if (bundle) {
++    let safeBundle;`;
++
++ljbContent = ljbContent.replace(toReplace, replacement);
++fs.writeFileSync(ljbPath, ljbContent);
+diff --git a/src/components/ImageExperiment.tsx b/src/components/ImageExperiment.tsx
+index a63e99b..184abde 100644
+--- a/src/components/ImageExperiment.tsx
++++ b/src/components/ImageExperiment.tsx
+@@ -922,7 +922,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
+       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+       const data = await res.json();
+ 
+-      if (targetJobId === serverJobId) {
++      if (targetJobId === serverJobId || overrideJobId) {
+         setServerJobStatus(data.job);
+         setServerJobComputedState(data.computedState ?? null);
+         setServerJobItemsPreview(data.itemsPreview ?? []);
+@@ -2573,7 +2573,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
+                   if (fromBackup) {
+                     const backup = getLocalJobBackup(jobId);
+                     if (backup?.bundle) {
+-                      downloadJsonArtifact(`visual-analysis-analysis-bundle-${jobId}.json`, JSON.stringify(backup.bundle, null, 2));
++                      downloadJsonArtifact(JSON.stringify(backup.bundle, null, 2), `visual-analysis-analysis-bundle-${jobId}.json`);
+                       return;
+                     }
+                   }
+diff --git a/src/lib/visualAnalysis/serverJobs/localJobBackup.ts b/src/lib/visualAnalysis/serverJobs/localJobBackup.ts
+index 40203b9..6217c6b 100644
+--- a/src/lib/visualAnalysis/serverJobs/localJobBackup.ts
++++ b/src/lib/visualAnalysis/serverJobs/localJobBackup.ts
+@@ -147,6 +147,23 @@ export function saveLocalJobBackup(job: any, bundle?: any) {
+ 
+   const backup = buildLocalJobBackupMetadata(job);
+ 
++  if (!bundle) {
++    // If saving metadata only, try to preserve any existing bundle
++    try {
++      const key = `${LOCAL_STORAGE_KEY_PREFIX}${job.jobId}`;
++      const existing = storage.getItem(key);
++      if (existing) {
++        const parsed = JSON.parse(existing);
++        if (parsed && parsed.bundleStored && parsed.bundle) {
++          backup.bundleStored = true;
++          backup.bundle = parsed.bundle;
++        }
++      }
++    } catch (e) {
++      // ignore
++    }
++  }
++
+   if (bundle) {
+     let safeBundle;
+     try {
+
+From e4d2881082b72851f5e707b52af12935e1e18538 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Fri, 10 Jul 2026 02:30:39 +0000
+Subject: [PATCH 3/3] feat(ui): show Gemini API key fingerprint in profile menu
+
+* add a read-only runtime endpoint for Gemini API key identification;
+* expose only masked key metadata and a truncated SHA-256 fingerprint;
+* add loading, configured, unconfigured, error, and refresh states to the profile menu;
+* prevent raw API key exposure in responses, logs, browser storage, and UI;
+* add focused tests for masking and fingerprint generation;
+* preserve existing authentication and profile menu behavior.
+
+Co-authored-by: TakashiSasaki <556958+TakashiSasaki@users.noreply.github.com>
+---
+ server.ts                             |  14 ++++
+ src/App.tsx                           | 115 +++++++++++++++++++++++++-
+ src/lib/runtime/geminiKeyInfo.test.ts |  69 ++++++++++++++++
+ src/lib/runtime/geminiKeyInfo.ts      |  34 ++++++++
+ 4 files changed, 230 insertions(+), 2 deletions(-)
+ create mode 100644 src/lib/runtime/geminiKeyInfo.test.ts
+ create mode 100644 src/lib/runtime/geminiKeyInfo.ts
+
+diff --git a/server.ts b/server.ts
+index 55eb3d3..24ba404 100644
+--- a/server.ts
++++ b/server.ts
+@@ -4,6 +4,7 @@ import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
+ import { startVisualBatchJob, activeRunners } from './src/lib/visualAnalysis/serverJobs/jobRunner';
+ import { VisualBatchJob } from './src/lib/visualAnalysis/publicSamples/batchTypes';
+ import { fnv1a32 } from './src/lib/visualAnalysis/publicSamples/artifactUtils';
++import { getGeminiKeyInfo } from "./src/lib/runtime/geminiKeyInfo";
+ import express from "express";
+ import path from "path";
+ import fs from "fs";
+@@ -427,6 +428,19 @@ app.use(express.json());
+ 
+ 
+ // 1. Health check endpoint
++
++app.get("/api/runtime/gemini-key-info", (req, res) => {
++  res.setHeader("Cache-Control", "no-store");
++  try {
++    const info = getGeminiKeyInfo(process.env.GEMINI_API_KEY);
++    res.json(info);
++  } catch (err: any) {
++    res.status(500).json({
++      error: "APIキー情報を取得できませんでした"
++    });
++  }
++});
++
+ app.get("/api/health", (req, res) => {
+   res.json({ status: "ok", time: new Date().toISOString() });
+ });
+diff --git a/src/App.tsx b/src/App.tsx
+index 4657870..5ee41c7 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -47,9 +47,21 @@ import {
+   Github,
+   FolderOpen,
+   ChevronDown,
+-  Code
++  Code,
++  RefreshCcw,
++  CheckCircle2,
++  XCircle,
++  Key
+ } from "lucide-react";
+ 
++interface GeminiKeyInfo {
++  configured: boolean;
++  source: string;
++  maskedKey?: string;
++  fingerprint?: string;
++  fingerprintAlgorithm?: string;
++}
++
+ const ACTIVE_TAB_KEY = "indexmd_active_tab";
+ 
+ export default function App() {
+@@ -63,6 +75,10 @@ export default function App() {
+   const [logs, setLogs] = useState<DriveLog[]>([]);
+   const [authError, setAuthError] = useState<string | null>(null);
+   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
++  const [keyInfo, setKeyInfo] = useState<GeminiKeyInfo | null>(null);
++  const [keyInfoLoading, setKeyInfoLoading] = useState<boolean>(false);
++  const [keyInfoError, setKeyInfoError] = useState<string | null>(null);
++  const [keyInfoHasFetched, setKeyInfoHasFetched] = useState<boolean>(false);
+ 
+   const validTabs = VALID_TAB_IDS;
+   const activeTab = resolveActiveTab(location.pathname);
+@@ -92,6 +108,37 @@ export default function App() {
+     navigate(`/${tab}`);
+   };
+ 
++  const fetchKeyInfo = async (force: boolean = false, abortSignal?: AbortSignal) => {
++    if (!force && keyInfoHasFetched && !keyInfoError) return;
++    setKeyInfoLoading(true);
++    setKeyInfoError(null);
++    try {
++      const res = await fetch('/api/runtime/gemini-key-info', { signal: abortSignal });
++      if (!res.ok) {
++        throw new Error('APIキー情報を取得できませんでした');
++      }
++      const data = await res.json();
++      setKeyInfo(data);
++      setKeyInfoHasFetched(true);
++    } catch (err: any) {
++      if (err.name !== 'AbortError') {
++        setKeyInfoError('APIキー情報を取得できませんでした');
++      }
++    } finally {
++      setKeyInfoLoading(false);
++    }
++  };
++
++  useEffect(() => {
++    const controller = new AbortController();
++    if (showProfileMenu) {
++      fetchKeyInfo(false, controller.signal);
++    }
++    return () => {
++      controller.abort();
++    };
++  }, [showProfileMenu]);
++
+   // Monitor auth state
+   useEffect(() => {
+     const state = loadDriveTokenState();
+@@ -324,11 +371,75 @@ export default function App() {
+                         className="fixed inset-0 z-40" 
+                         onClick={() => setShowProfileMenu(false)}
+                       />
+-                      <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right">
++                      <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                         <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50">
+                           <p className="text-xs font-bold text-slate-800 truncate">{user.displayName || user.email || "user"}</p>
+                           <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                         </div>
++
++                        <div className="px-4 py-3 border-b border-slate-100">
++                          <div className="flex items-center justify-between mb-2">
++                            <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
++                              <Key className="w-3 h-3 text-slate-400" />
++                              Gemini API キー
++                            </span>
++                            <button
++                              onClick={() => fetchKeyInfo(true)}
++                              disabled={keyInfoLoading}
++                              title="再確認"
++                              className="text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
++                            >
++                              <RefreshCcw className={`w-3.5 h-3.5 ${keyInfoLoading ? 'animate-spin' : ''}`} />
++                            </button>
++                          </div>
++
++                          {keyInfoLoading && !keyInfo ? (
++                            <div className="text-xs text-slate-500 flex items-center gap-2">
++                              <RefreshCcw className="w-3 h-3 animate-spin" />
++                              確認中...
++                            </div>
++                          ) : keyInfoError ? (
++                            <div className="text-xs text-red-600 bg-red-50 px-2 py-1.5 rounded flex items-start justify-between">
++                              <span>APIキー情報を取得できませんでした</span>
++                              <button onClick={() => fetchKeyInfo(true)} className="underline hover:text-red-800 shrink-0 ml-2">再試行</button>
++                            </div>
++                          ) : keyInfo ? (
++                            <div className="space-y-2">
++                              <div className="flex items-center justify-between">
++                                {keyInfo.configured ? (
++                                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-200/50">
++                                    <CheckCircle2 className="w-3 h-3" />
++                                    設定済み
++                                  </span>
++                                ) : (
++                                  <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200/50">
++                                    <XCircle className="w-3 h-3" />
++                                    未設定
++                                  </span>
++                                )}
++                                <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded">{keyInfo.source}</span>
++                              </div>
++
++                              {keyInfo.configured ? (
++                                <div className="space-y-1 mt-2">
++                                  <div className="flex justify-between items-center text-[10px]">
++                                    <span className="text-slate-500">Key:</span>
++                                    <span className="font-mono text-slate-700 select-all">{keyInfo.maskedKey}</span>
++                                  </div>
++                                  <div className="flex justify-between items-center text-[10px]">
++                                    <span className="text-slate-500">Fingerprint:</span>
++                                    <span className="font-mono text-slate-700 select-all">{keyInfo.fingerprint}</span>
++                                  </div>
++                                </div>
++                              ) : (
++                                <div className="text-[10px] text-slate-500 mt-2">
++                                  GEMINI_API_KEY が設定されていません
++                                </div>
++                              )}
++                            </div>
++                          ) : null}
++                        </div>
++
+                         <button
+                           onClick={() => {
+                             handleLogout();
+diff --git a/src/lib/runtime/geminiKeyInfo.test.ts b/src/lib/runtime/geminiKeyInfo.test.ts
+new file mode 100644
+index 0000000..dc81961
+--- /dev/null
++++ b/src/lib/runtime/geminiKeyInfo.test.ts
+@@ -0,0 +1,69 @@
++import { test, describe } from "node:test";
++import assert from "node:assert/strict";
++import { getGeminiKeyInfo } from "./geminiKeyInfo";
++
++describe("getGeminiKeyInfo", () => {
++  test("returns not configured for undefined", () => {
++    const result = getGeminiKeyInfo(undefined);
++    assert.deepEqual(result, {
++      configured: false,
++      source: "GEMINI_API_KEY"
++    });
++  });
++
++  test("returns not configured for empty string", () => {
++    const result = getGeminiKeyInfo("");
++    assert.deepEqual(result, {
++      configured: false,
++      source: "GEMINI_API_KEY"
++    });
++  });
++
++  test("returns not configured for whitespace only", () => {
++    const result = getGeminiKeyInfo("   ");
++    assert.deepEqual(result, {
++      configured: false,
++      source: "GEMINI_API_KEY"
++    });
++  });
++
++  test("returns configured with mask and fingerprint for normal key", () => {
++    const key = "AIzaSyFakeKeyThatIsLongEnough123";
++    const result = getGeminiKeyInfo(key);
++    assert.equal(result.configured, true);
++    assert.equal(result.source, "GEMINI_API_KEY");
++    assert.equal(result.maskedKey, "AIza…h123");
++    assert.equal(result.fingerprint?.length, 12);
++    assert.equal(result.fingerprintAlgorithm, "sha256");
++    assert.equal(result.fingerprint, "8cc61bfb1c1e");
++  });
++
++  test("returns configured with generic mask for short key", () => {
++    const key = "ShortKey123";
++    const result = getGeminiKeyInfo(key);
++    assert.equal(result.configured, true);
++    assert.equal(result.maskedKey, "configured");
++    assert.equal(result.fingerprint?.length, 12);
++  });
++
++  test("fingerprint is deterministic", () => {
++    const key = "AIzaSyFakeKeyThatIsLongEnough123";
++    const result1 = getGeminiKeyInfo(key);
++    const result2 = getGeminiKeyInfo(key);
++    assert.equal(result1.fingerprint, result2.fingerprint);
++  });
++
++  test("different keys produce different fingerprints", () => {
++    const key1 = "AIzaSyFakeKeyThatIsLongEnough123";
++    const key2 = "AIzaSyFakeKeyThatIsLongEnough124";
++    const result1 = getGeminiKeyInfo(key1);
++    const result2 = getGeminiKeyInfo(key2);
++    assert.notEqual(result1.fingerprint, result2.fingerprint);
++  });
++
++  test("helper does not expose raw key", () => {
++    const key = "AIzaSyFakeKeyThatIsLongEnough123";
++    const result = getGeminiKeyInfo(key);
++    assert.ok(!JSON.stringify(result).includes(key));
++  });
++});
+diff --git a/src/lib/runtime/geminiKeyInfo.ts b/src/lib/runtime/geminiKeyInfo.ts
+new file mode 100644
+index 0000000..c414a26
+--- /dev/null
++++ b/src/lib/runtime/geminiKeyInfo.ts
+@@ -0,0 +1,34 @@
++import crypto from "crypto";
++
++export interface GeminiKeyInfo {
++  configured: boolean;
++  source: "GEMINI_API_KEY";
++  maskedKey?: string;
++  fingerprint?: string;
++  fingerprintAlgorithm?: "sha256";
++}
++
++export function getGeminiKeyInfo(apiKey: string | undefined): GeminiKeyInfo {
++  if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
++    return {
++      configured: false,
++      source: "GEMINI_API_KEY"
++    };
++  }
++
++  const trimmedKey = apiKey.trim();
++  const fingerprint = crypto.createHash("sha256").update(trimmedKey).digest("hex").slice(0, 12);
++
++  let maskedKey = "configured";
++  if (trimmedKey.length >= 16) {
++    maskedKey = `${trimmedKey.slice(0, 4)}…${trimmedKey.slice(-4)}`;
++  }
++
++  return {
++    configured: true,
++    source: "GEMINI_API_KEY",
++    maskedKey,
++    fingerprint,
++    fingerprintAlgorithm: "sha256"
++  };
++}
