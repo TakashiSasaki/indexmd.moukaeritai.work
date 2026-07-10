@@ -51,9 +51,28 @@ export function normalizeLegacyBatchRunItem(item: any): PublicSampleBatchRunItem
     }
   };
 
+  const responseDiagnostics = item.responseDiagnostics || finalRecord.diagnostics?.response || (responseRaw.status ? { 
+    status: responseRaw.status, 
+    statusText: responseRaw.statusText,
+    contentType: responseRaw.contentType,
+    bodyLength: responseRaw.bodyLength,
+    bodyPreview: responseRaw.bodyPreview,
+    htmlTitle: responseRaw.htmlTitle,
+    looksLikeHtml: responseRaw.looksLikeHtml
+  } : undefined);
+  
+  const retryDiagnostics = item.retryDiagnostics || finalRecord.diagnostics?.retry || (responseRaw.attempts ? {
+    attempts: responseRaw.attempts,
+    retried: responseRaw.retried,
+    finalFailureKind: responseRaw.finalFailureKind,
+    events: responseRaw.retryEvents
+  } : undefined);
+
   return {
     ...item,
-    record: finalRecord
+    record: finalRecord,
+    responseDiagnostics,
+    retryDiagnostics
   };
 }
 
@@ -631,7 +650,8 @@ function buildApiResponseFailureSummary(items: PublicSampleBatchRunItem[]) {
   }> = [];
 
   for (const item of failedItems) {
-    const diag = item.responseDiagnostics!;
+    const diag = item.responseDiagnostics;
+    if (!diag) continue;
     
     const statusStr = String(diag.status || "UNKNOWN");
     byStatus[statusStr] = (byStatus[statusStr] || 0) + 1;
