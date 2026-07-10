@@ -91,6 +91,7 @@ export type VisualBatchJobStatus =
   | "paused"
   | "interrupted"
   | "failed"
+  | "blockedByQuota"
   | "completed"
   | "canceled";
 
@@ -126,6 +127,7 @@ export interface VisualBatchJobEvent {
     | "quotaBackoffWaiting"
     | "sampleRetryExhausted"
     | "jobFailed"
+    | "jobBlockedByQuota"
     | "jobCompleted"
     | "jobForceCanceled"
     // 既存のイベント名との互換性
@@ -202,6 +204,7 @@ export interface VisualBatchJob {
   completedSampleIds: string[];
   pendingSampleIds: string[];
   failedSampleIds: string[];
+  blockedSampleIds?: string[];
 
   currentSampleId?: string;
   currentSampleTitle?: string;
