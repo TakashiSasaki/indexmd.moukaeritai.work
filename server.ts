@@ -220,33 +220,44 @@ function extractJsonSchemaFromText(text: string): any {
 
 function normalizeSchemaForGemini(schema: any): any {
   if (!schema || typeof schema !== "object") return schema;
+  if (Array.isArray(schema)) return schema.map(normalizeSchemaForGemini);
+
+  const out: any = {};
   
-  const normalized: any = { ...schema };
-  
-  if (typeof normalized.type === "string") {
-    const t = normalized.type.toUpperCase();
-    if (["OBJECT", "ARRAY", "STRING", "NUMBER", "INTEGER", "BOOLEAN", "NULL"].includes(t)) {
-      normalized.type = t;
+  if (schema.type !== undefined) {
+    if (typeof schema.type === "string") {
+      const t = schema.type.toUpperCase();
+      if (["OBJECT", "ARRAY", "STRING", "NUMBER", "INTEGER", "BOOLEAN", "NULL"].includes(t)) {
+        out.type = t;
+      } else {
+        out.type = schema.type;
+      }
+    } else {
+      out.type = schema.type;
     }
   }
+
+  if (schema.description !== undefined) out.description = schema.description;
+  if (schema.enum !== undefined) out.enum = schema.enum;
+  if (schema.required !== undefined) out.required = schema.required;
+  if (schema.nullable !== undefined) out.nullable = schema.nullable;
   
-  if (normalized.properties && typeof normalized.properties === "object") {
-    const props: any = {};
-    for (const [key, val] of Object.entries(normalized.properties)) {
-      props[key] = normalizeSchemaForGemini(val);
+  if (schema.const !== undefined) {
+    out.enum = [schema.const];
+  }
+
+  if (schema.properties && typeof schema.properties === "object") {
+    out.properties = {};
+    for (const [key, val] of Object.entries(schema.properties)) {
+      out.properties[key] = normalizeSchemaForGemini(val);
     }
-    normalized.properties = props;
   }
-  
-  if (normalized.items) {
-    normalized.items = normalizeSchemaForGemini(normalized.items);
+
+  if (schema.items) {
+    out.items = normalizeSchemaForGemini(schema.items);
   }
-  
-  delete normalized.$schema;
-  delete normalized.id;
-  delete normalized.$id;
-  
-  return normalized;
+
+  return out;
 }
 
 function configureStructuredOptions(targetModel: string, configOption: any, jsonModeOverride?: "prompt_only" | "native_schema", customInstruction?: string) {
@@ -1806,6 +1817,9 @@ export async function analyzePublicSample(options: {
     if (visualCap.recommendation === "unsupported") {
       return { status: 400, body: { error: `Model ${modelName} is not supported for visual analysis.` } };
     }
+    if (visualCap.recommendation === "discontinued") {
+      return { status: 400, body: { error: `Model ${modelName} has been discontinued and is no longer available for new executions.`, errorType: "modelDiscontinued" } };
+    }
 
     const targetModel = modelName;
     const isGemma = visualCap.providerFamily === "gemma";
@@ -2503,6 +2517,9 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     const visualCap = getVisualModelCapability(modelName);
     if (visualCap.recommendation === "unsupported") {
       return res.status(400).json({ error: `Model ${modelName} is not supported for visual analysis.` });
+    }
+    if (visualCap.recommendation === "discontinued") {
+      return res.status(400).json({ error: `Model ${modelName} has been discontinued and is no longer available for new executions.`, errorType: "modelDiscontinued" });
     }
 
     const targetModel = modelName;

@@ -1,0 +1,24 @@
+--- src/lib/visualAnalysis/analysisBundleRetrieval.test.ts
++++ src/lib/visualAnalysis/analysisBundleRetrieval.test.ts
+@@ -23,7 +23,20 @@
+ });
+ 
+ test('supported legacy Analysis Bundle retrieval succeeds', async () => {
+-  mock(200, JSON.stringify(bundle({ bundleSchemaVersion: '0.1.0' })));
++  // Hardcoded real legacy v0.1.0 fixture
++  const legacyV010Fixture = {
++    reportKind: 'visualAnalysisPublicSampleBatchAnalysisBundle',
++    bundleSchemaVersion: '0.1.0',
++    job: { jobId },
++    total: 2,
++    successCount: 1,
++    failureCount: 1,
++    items: [
++      { sampleId: 'sample-1', success: true },
++      { sampleId: 'sample-2', success: false }
++    ]
++  };
++  mock(200, JSON.stringify(legacyV010Fixture));
+   assert.equal((await fetchAndValidateAnalysisBundle(jobId)).metadata.schemaVersion, '0.1.0');
+ });
+ 

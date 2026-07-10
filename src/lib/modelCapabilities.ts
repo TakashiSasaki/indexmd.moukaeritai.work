@@ -69,10 +69,14 @@ export function getStructuredExecutionMode(modelName: string): StructuredExecuti
   return getModelCapability(modelName).structuredExecutionMode;
 }
 
-export type VisualModelRecommendation = "recommended" | "experimental" | "unsupported";
+export type VisualModelRecommendation = "recommended" | "experimental" | "unsupported" | "discontinued";
 
 export function getVisualModelCapability(modelName: string): { recommendation: VisualModelRecommendation; providerFamily: string } {
   const cap = getModelCapability(modelName);
+  
+  if (modelName.toLowerCase().includes("gemini-1.5")) {
+    return { recommendation: "discontinued", providerFamily: "gemini" };
+  }
   
   if (modelName.toLowerCase().includes("flash")) {
     return { recommendation: "recommended", providerFamily: "gemini" };

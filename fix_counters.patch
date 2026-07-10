@@ -1,0 +1,10 @@
+--- src/lib/visualAnalysis/serverJobs/jobRunner.ts
++++ src/lib/visualAnalysis/serverJobs/jobRunner.ts
+@@ -511,7 +511,6 @@
+       counters.total = job.targetSampleIds.length;
+       if (!isBlockedItem) {
+         counters.failureCount++;
+-        counters.reviewFailCount++;
+       }
+       if (item.failureKind === 'jsonParseError' || item.failureKind === 'schemaValidationError') {
+         counters.invalidJsonCount++;

@@ -23,7 +23,10 @@ export interface LocalJobBackup {
   bundleStored: boolean;
   notStoredReason?: string;
   bundle?: any;
-  sourceRevision?: string;
+  jobRevision?: number;
+  jobStatusAtBackup?: string;
+  processedAtBackup?: number;
+  terminalDateAtBackup?: string;
 }
 
 export interface StorageAdapter {
@@ -72,7 +75,6 @@ export function buildLocalJobBackupMetadata(job: any, options?: { savedAt?: stri
   const completedAt = job.completedAt;
   const canceledAt = job.canceledAt;
   const terminalDate = completedAt || canceledAt || '';
-  const sourceRevision = `${job.jobId}_${status}_${processed}_${terminalDate}`;
 
   return {
     jobId: job.jobId,
@@ -93,7 +95,10 @@ export function buildLocalJobBackupMetadata(job: any, options?: { savedAt?: stri
     total: total,
     savedAt: options?.savedAt || new Date().toISOString(),
     bundleStored: false,
-    sourceRevision
+    jobRevision: job.revision,
+    jobStatusAtBackup: status,
+    processedAtBackup: processed,
+    terminalDateAtBackup: terminalDate
   };
 }
 

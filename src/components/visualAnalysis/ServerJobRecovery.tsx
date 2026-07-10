@@ -2,6 +2,7 @@ import React from 'react';
 import { Download, Copy, RefreshCw, Archive, Trash2, ArrowRight } from 'lucide-react';
 import { LocalJobBackup } from '../../lib/visualAnalysis/serverJobs/localJobBackup';
 import { VisualBatchJob } from '../../lib/visualAnalysis/publicSamples/batchTypes';
+import { getVisualModelCapability } from '../../lib/modelCapabilities';
 
 interface ServerJobRecoveryProps {
   serverJobs: Partial<VisualBatchJob>[];
@@ -34,11 +35,16 @@ export default function ServerJobRecovery({
 
   const renderStatus = (status: string) => {
     switch(status) {
-      case 'completed': return <span className="text-green-600 font-medium">Completed</span>;
-      case 'failed': return <span className="text-red-600 font-medium">Failed</span>;
-      case 'canceled': return <span className="text-amber-600 font-medium">Canceled</span>;
-      case 'running': return <span className="text-blue-600 font-medium animate-pulse">Running</span>;
-      default: return <span className="text-slate-600 font-medium capitalize">{status}</span>;
+      case 'completed': return <span className="text-emerald-600 font-medium text-xs px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded">Completed</span>;
+      case 'failed': return <span className="text-red-600 font-medium text-xs px-2 py-0.5 bg-red-50 border border-red-200 rounded">Failed</span>;
+      case 'canceled': return <span className="text-amber-600 font-medium text-xs px-2 py-0.5 bg-amber-50 border border-amber-200 rounded">Canceled</span>;
+      case 'running': return <span className="text-blue-600 font-medium text-xs px-2 py-0.5 bg-blue-50 border border-blue-200 rounded animate-pulse">Running</span>;
+      case 'queued': return <span className="text-slate-600 font-medium text-xs px-2 py-0.5 bg-slate-100 border border-slate-300 rounded">Queued</span>;
+      case 'paused': return <span className="text-orange-600 font-medium text-xs px-2 py-0.5 bg-orange-50 border border-orange-200 rounded">Paused</span>;
+      case 'pausedForRateLimit': return <span className="text-amber-600 font-medium text-xs px-2 py-0.5 bg-amber-50 border border-amber-200 rounded" title="Paused due to Rate Limit (429)">Paused (Rate Limit)</span>;
+      case 'blockedByQuota': return <span className="text-rose-600 font-medium text-xs px-2 py-0.5 bg-rose-50 border border-rose-200 rounded" title="Blocked by Provider Quota Exhaustion">Blocked (Quota)</span>;
+      case 'blockedByConfigurationError': return <span className="text-purple-600 font-medium text-xs px-2 py-0.5 bg-purple-50 border border-purple-200 rounded" title="Blocked by Deterministic Configuration Error">Blocked (Config)</span>;
+      default: return <span className="text-slate-600 font-medium capitalize text-xs px-2 py-0.5 bg-slate-100 border border-slate-300 rounded">{status}</span>;
     }
   };
 
@@ -63,6 +69,9 @@ export default function ServerJobRecovery({
                       <span className="font-mono text-sm font-medium text-slate-700">{job.jobId?.slice(0, 8)}...</span>
                       {renderStatus(job.status || 'unknown')}
                       <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{job.modelName}</span>
+                      {job.modelName && getVisualModelCapability(job.modelName).recommendation === "discontinued" && (
+                        <span className="text-[9px] font-bold uppercase text-rose-500 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">Discontinued</span>
+                      )}
                     </div>
                     <div className="text-sm text-slate-500 flex items-center space-x-4">
                       <span>Processed: {(job.counters?.successCount || 0) + (job.counters?.failureCount || 0)}/{job.counters?.total || 0}</span>
@@ -76,8 +85,19 @@ export default function ServerJobRecovery({
                   <div className="flex flex-wrap gap-2 items-center">
                     {job.jobId && selectedJobId !== job.jobId && (
                       <button
-                        onClick={() => onSelectJob(job.jobId!)}
-                        className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100"
+                        onClick={() => {
+                          if (job.modelName && getVisualModelCapability(job.modelName).recommendation === "discontinued") {
+                            alert(`Model ${job.modelName} is discontinued. You cannot resume this job. Please create a new job with a supported model.`);
+                            return;
+                          }
+                          onSelectJob(job.jobId!);
+                        }}
+                        className={`flex items-center space-x-1 px-3 py-1.5 text-sm font-medium rounded ${
+                          job.modelName && getVisualModelCapability(job.modelName).recommendation === "discontinued"
+                            ? 'text-slate-400 bg-slate-100 cursor-not-allowed'
+                            : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100'
+                        }`}
+                        title={job.modelName && getVisualModelCapability(job.modelName).recommendation === "discontinued" ? "Cannot restore a discontinued model" : "Restore this job"}
                       >
                         <ArrowRight className="w-4 h-4" />
                         <span>Restore</span>
@@ -147,6 +167,9 @@ export default function ServerJobRecovery({
                       <span className="font-mono text-sm font-medium text-slate-700">{backup.jobId.slice(0, 8)}...</span>
                       {renderStatus(backup.status)}
                       <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded">{backup.modelName}</span>
+                      {backup.modelName && getVisualModelCapability(backup.modelName).recommendation === "discontinued" && (
+                        <span className="text-[9px] font-bold uppercase text-rose-500 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">Discontinued</span>
+                      )}
                     </div>
                     <div className="text-sm text-slate-500 flex items-center space-x-4">
                       <span>Processed: {backup.counters.processed}/{backup.counters.total}</span>

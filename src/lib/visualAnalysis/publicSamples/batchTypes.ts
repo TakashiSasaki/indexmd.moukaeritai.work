@@ -110,6 +110,7 @@ export type VisualBatchJobStatus =
   | "paused"
   | "pausedForRateLimit"
   | "blockedByQuota"
+  | "blockedByConfigurationError"
   | "partiallyCompleted"
   | "interrupted"
   | "failed"
@@ -124,6 +125,7 @@ export type VisualBatchJobItemStatus =
   | "skipped"
   | "canceled"
   | "blockedByQuota"
+  | "blockedByConfigurationError"
   | "deferred"
   | "pausedForRateLimit";
 
@@ -153,6 +155,7 @@ export interface VisualBatchJobEvent {
     | "sampleRetryExhausted"
     | "jobFailed"
     | "jobBlockedByQuota"
+    | "jobBlockedByConfigurationError"
     | "jobCompleted"
     | "jobForceCanceled"
     // 既存のイベント名との互換性

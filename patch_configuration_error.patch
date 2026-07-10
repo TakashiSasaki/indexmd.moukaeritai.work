@@ -1,0 +1,20 @@
+--- src/lib/visualAnalysis/serverJobs/jobRunner.ts
++++ src/lib/visualAnalysis/serverJobs/jobRunner.ts
+@@ -250,6 +250,17 @@
+ 
+       // Check if we should retry
+       const quotaInterruption = classifyJobQuotaInterruption(finalData, res?.status);
++      
++      const isConfigurationError = 
++        finalData?.errorType === "modelDiscontinued" || 
++        finalData?.failureKind === "schemaValidationError" ||
++        finalData?.error?.includes("schema") || // Simple heuristic for schema errors
++        finalData?.error?.includes("discontinued");
++        
++      if (isConfigurationError) {
++         // Let's break and mark as blockedByConfigurationError
++      }
++      
+       const isQuotaError = quotaInterruption.isQuotaOrRateLimit;
+       
+       const attemptCompletedAt = new Date();

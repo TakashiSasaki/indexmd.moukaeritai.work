@@ -357,8 +357,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     { model: "gemini-flash-latest", mode: "prompt_only", label: "G Flash Lat (Prompt)" },
     { model: "gemini-3.1-flash-lite", mode: "native_schema", label: "G3.1 Lite (Native)" },
     { model: "gemini-3.1-flash-lite", mode: "prompt_only", label: "G3.1 Lite (Prompt)" },
-    { model: "gemini-1.5-pro", mode: "native_schema", label: "G1.5 Pro (Native)" },
-    { model: "gemini-1.5-pro", mode: "prompt_only", label: "G1.5 Pro (Prompt)" },
     { model: "gemma-4-31b-it", mode: "prompt_only", label: "Gemma4 31B (Prompt)" },
     { model: "gemma-4-26b-a4b-it", mode: "prompt_only", label: "Gemma4 26B (Prompt)" },
   ];
@@ -925,9 +923,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
         const isTerminal = ['completed', 'failed', 'canceled'].includes(data.job.status);
         if (isTerminal) {
-           const rev = meta.sourceRevision || '';
+           const rev = String(meta.jobRevision || 0);
            const existing = getLocalJobBackup(targetJobId);
-           const isAlreadyStored = existing && existing.bundleStored && existing.sourceRevision === rev;
+           const isAlreadyStored = existing && existing.bundleStored && String(existing.jobRevision) === rev;
            const inflightKey = `${targetJobId}_${rev}`;
 
            if (!isAlreadyStored && !fetchedBundlesRef.current.has(inflightKey)) {
@@ -2310,8 +2308,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     <option value="gemini-flash-latest|prompt_only">📝 Gemini Flash Latest</option>
                     <option value="gemini-3.1-flash-lite|native_schema">⭐️ ⚡️ Gemini 3.1 Flash Lite</option>
                     <option value="gemini-3.1-flash-lite|prompt_only">⭐️ 📝 Gemini 3.1 Flash Lite</option>
-                    <option value="gemini-1.5-pro|native_schema">🧪 ⚡️ Gemini 1.5 Pro</option>
-                    <option value="gemini-1.5-pro|prompt_only">🧪 📝 Gemini 1.5 Pro</option>
                     <option value="gemma-4-31b-it|prompt_only">⚠️ 📝 Gemma 4 31B IT</option>
                     <option value="gemma-4-26b-a4b-it|prompt_only">⚠️ 📝 Gemma 4 26B</option>
                   </select>
