@@ -50,7 +50,7 @@ export interface PublicSampleBatchRunItem {
   retryExhausted?: boolean;
   resumeAfter?: string;
   pauseReason?: "pausedForRateLimit";
-  blockedReason?: "blockedByQuota";
+  blockedReason?: "blockedByQuota" | "blockedByConfigurationError";
   affectedSampleIds?: string[];
   attemptState?: any;
 
@@ -197,7 +197,7 @@ export interface VisualBatchJobItem {
   retryExhausted?: boolean;
   resumeAfter?: string;
   pauseReason?: "pausedForRateLimit";
-  blockedReason?: "blockedByQuota";
+  blockedReason?: "blockedByQuota" | "blockedByConfigurationError";
   affectedSampleIds?: string[];
   attemptState?: any;
   error?: string;

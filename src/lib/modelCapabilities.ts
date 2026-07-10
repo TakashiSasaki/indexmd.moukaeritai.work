@@ -70,25 +70,63 @@ export function getStructuredExecutionMode(modelName: string): StructuredExecuti
 }
 
 export type VisualModelRecommendation = "recommended" | "experimental" | "unsupported" | "discontinued";
+export type ModelExecutionPolicy = "supported" | "experimental" | "unsupported" | "discontinued" | "historical-read-only";
+
+export function getModelExecutionPolicy(modelName: string): ModelExecutionPolicy {
+  if (!modelName) return "unsupported";
+  const nameLower = modelName.toLowerCase();
+  
+  if (nameLower.includes("gemini-1.5") || nameLower === "gemini-flash-latest") {
+    return "discontinued";
+  }
+  
+  if (
+    nameLower === "gemini-3.5-flash" || 
+    nameLower === "gemini-3.5-pro" || 
+    nameLower === "gemini-3.1-pro-preview" || 
+    nameLower === "gemini-3.1-flash-lite" || 
+    nameLower === "gemini-2.5-pro" || 
+    nameLower === "gemini-2.5-flash" || 
+    nameLower === "gemini-2.5-flash-lite" || 
+    nameLower === "gemini-2.5-flash-lite-preview-09-2025"
+  ) {
+    return "supported";
+  }
+  
+  if (
+    nameLower === "gemini-3-flash-preview" || 
+    nameLower.includes("gemma")
+  ) {
+    return "experimental";
+  }
+  
+  return "unsupported";
+}
+
+export function validateModelExecution(modelName: string): { allowed: boolean; error?: "modelDiscontinued" | "modelUnsupported" } {
+  const policy = getModelExecutionPolicy(modelName);
+  if (policy === "discontinued" || policy === "historical-read-only") {
+    return { allowed: false, error: "modelDiscontinued" };
+  }
+  if (policy === "unsupported") {
+    return { allowed: false, error: "modelUnsupported" };
+  }
+  return { allowed: true };
+}
 
 export function getVisualModelCapability(modelName: string): { recommendation: VisualModelRecommendation; providerFamily: string } {
   const cap = getModelCapability(modelName);
+  const policy = getModelExecutionPolicy(modelName);
   
-  if (modelName.toLowerCase().includes("gemini-1.5")) {
-    return { recommendation: "discontinued", providerFamily: "gemini" };
-  }
+  let recommendation: VisualModelRecommendation = "unsupported";
+  if (policy === "supported") recommendation = "recommended";
+  else if (policy === "experimental") recommendation = "experimental";
+  else if (policy === "discontinued" || policy === "historical-read-only") recommendation = "discontinued";
   
-  if (modelName.toLowerCase().includes("flash")) {
-    return { recommendation: "recommended", providerFamily: "gemini" };
-  }
+  let providerFamily = "unknown";
+  if (cap.providerFamily === "google-gemini") providerFamily = "gemini";
+  else if (cap.providerFamily === "google-gemma") providerFamily = "gemma";
   
-  if (cap.providerFamily === "google-gemma") {
-    return { recommendation: "experimental", providerFamily: "gemma" };
-  }
-  
-  if (cap.providerFamily === "google-gemini") {
-    return { recommendation: "experimental", providerFamily: "gemini" };
-  }
-
-  return { recommendation: "unsupported", providerFamily: "unknown" };
+  return { recommendation, providerFamily };
 }
+

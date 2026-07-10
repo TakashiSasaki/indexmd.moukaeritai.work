@@ -271,21 +271,19 @@ export async function startVisualBatchJob(
         item.blockedReason = 'blockedByConfigurationError';
         item.affectedSampleIds = [sampleId];
         
-        jobStore.appendEvent(jobId, {
-          type: 'jobBlockedByConfigurationError',
-          timestamp: new Date().toISOString(),
-          sampleId,
-          error: item.error,
-          message: `Job blocked by deterministic configuration error: ${item.error}`
-        });
-        
         jobStore.appendItem(jobId, item);
         jobStore.updateJob(jobId, {
           status: 'blockedByConfigurationError',
           blockedReason: 'blockedByConfigurationError',
           affectedSampleIds: [sampleId],
           blockedSampleIds: Array.from(new Set([...(jobStore.getJob(jobId)?.blockedSampleIds || []), sampleId])),
-          failedSampleIds: Array.from(new Set([...(jobStore.getJob(jobId)?.failedSampleIds || []), sampleId]))
+          failedSampleIds: Array.from(new Set([...(jobStore.getJob(jobId)?.failedSampleIds || []), sampleId])),
+          lastEvent: {
+            type: 'jobBlockedByConfigurationError',
+            timestamp: new Date().toISOString(),
+            sampleId,
+            message: `Job blocked by deterministic configuration error: ${item.error}`
+          }
         });
         
         return; // Abort job immediately

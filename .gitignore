@@ -11,3 +11,20 @@ cache/
 # Local database/runtime state
 src/data/validation_history.json
 src/data/*_history.json
+
+# Patches, rejects, scratch files, and test output
+*.patch
+*.rej
+*scratch*
+test_out*.txt
+test_output.txt
+test_output.log
+final_test.txt
+test_log.txt
+test_debug*
+test-*.ts
+fix_server.*
+migrate.js
+wait*.sh
+new_job_id.txt
+
