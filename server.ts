@@ -4,7 +4,6 @@ import { jobStore } from './src/lib/visualAnalysis/serverJobs/jobStore';
 import { startVisualBatchJob, activeRunners } from './src/lib/visualAnalysis/serverJobs/jobRunner';
 import { VisualBatchJob } from './src/lib/visualAnalysis/publicSamples/batchTypes';
 import { fnv1a32 } from './src/lib/visualAnalysis/publicSamples/artifactUtils';
-import { getGeminiKeyInfo } from "./src/lib/runtime/geminiKeyInfo";
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -3217,5 +3216,4 @@ async function startServer() {
 if (process.env.NODE_ENV !== "test") {
   startServer();
 }
-
 
