@@ -900,6 +900,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
+  const reloadLocalBackups = () => {
+    setLocalJobBackups(listLocalJobBackups());
+  };
+
+  useEffect(() => {
+    if (showServerSideJob) {
+      reloadLocalBackups();
+    }
+  }, [showServerSideJob]);
   const handleRefreshServerJob = async (isManual = false, overrideJobId?: string) => {
     const targetJobId = overrideJobId || serverJobId;
     if (!targetJobId) return;
@@ -954,11 +963,6 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   };
 
-  const reloadLocalBackups = () => {
-    setLocalJobBackups(listLocalJobBackups());
-  };
-  
-  
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (showServerSideJob && serverJobId && serverJobStatus && (serverJobStatus.status === 'running' || serverJobStatus.status === 'queued' || serverJobStatus.status === 'canceling')) {
@@ -999,6 +1003,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       reloadLocalBackups();
     }
   }, [showServerSideJob]);
+
 
   
   const handleCopyServerJobBundle = async (jobId: string) => {
@@ -4195,4 +4200,3 @@ function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-
