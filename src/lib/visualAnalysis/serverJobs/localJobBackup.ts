@@ -23,6 +23,26 @@ export interface LocalJobBackup {
   bundleStored: boolean;
   notStoredReason?: string;
   bundle?: any;
+  bundleRevision?: number;
+}
+
+const SECRET_KEY_PATTERN = /(authorization|proxy-authorization|cookie|set-cookie|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|id[-_ ]?token|credential|request[-_ ]?headers|request[-_ ]?preview|raw[-_ ]?request|raw[-_ ]?response|bodyPreview|rawMessageSummary|errorMessageSummary)/i;
+const SECRET_VALUE_PATTERN = /(Bearer\s+[A-Za-z0-9._~+/=-]+)|([?&](key|api_key|access_token|refresh_token|id_token|token|credential|signature)=)[^&\s]+/gi;
+
+export function sanitizeForLocalJobBackup(value: any): any {
+  if (Array.isArray(value)) return value.map(v => sanitizeForLocalJobBackup(v));
+  if (value && typeof value === 'object') {
+    const out: any = {};
+    for (const [key, child] of Object.entries(value)) {
+      if (SECRET_KEY_PATTERN.test(key)) continue;
+      out[key] = sanitizeForLocalJobBackup(child);
+    }
+    return out;
+  }
+  if (typeof value === 'string') {
+    return value.replace(SECRET_VALUE_PATTERN, (_match, bearer, queryPrefix) => bearer ? '[REDACTED_BEARER]' : `${queryPrefix}[REDACTED]`);
+  }
+  return value;
 }
 
 export function saveLocalJobBackup(job: any, bundle?: any) {
@@ -50,13 +70,10 @@ export function saveLocalJobBackup(job: any, bundle?: any) {
     savedAt: new Date().toISOString(),
     bundleStored: false
   };
+  backup.bundleRevision = job.revision ?? bundle?.job?.revision;
 
   if (bundle) {
-    // Strip executionPrivate if present
-    const safeBundle = { ...bundle };
-    if (safeBundle.executionPrivate) {
-      delete safeBundle.executionPrivate;
-    }
+    const safeBundle = sanitizeForLocalJobBackup(bundle);
 
     // Check size limit
     try {

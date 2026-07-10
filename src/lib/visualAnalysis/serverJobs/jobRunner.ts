@@ -38,7 +38,9 @@ export async function startVisualBatchJob(
     }
   });
 
+  const alreadyDone = new Set([...(job.completedSampleIds || []), ...(job.failedSampleIds || [])]);
   for (const sampleId of job.targetSampleIds) {
+    if (alreadyDone.has(sampleId)) continue;
     // Check if canceled
     const currentJob = jobStore.getJob(jobId);
     if (currentJob?.status === 'canceling' || currentJob?.cancelRequestedAt) {
@@ -53,7 +55,7 @@ export async function startVisualBatchJob(
       });
       break;
     }
-    if (currentJob?.status === 'canceled' || currentJob?.status === 'paused') {
+    if (currentJob?.status === 'canceled' || currentJob?.status === 'paused' || currentJob?.status === 'pausedForRateLimit' || currentJob?.status === 'blockedByQuota') {
       break;
     }
 
@@ -172,6 +174,7 @@ export async function startVisualBatchJob(
         finalData?.generationDiagnostics;
 
       const providerStatus = generationDiagnostics?.providerStatus;
+      const quotaClassification = generationDiagnostics?.quotaClassification;
       const isQuotaError = 
         failureKind === 'providerQuotaExceeded' || 
         failureKind === 'providerRateLimited' ||
@@ -179,9 +182,41 @@ export async function startVisualBatchJob(
         providerStatus === 'RESOURCE_EXHAUSTED' ||
         providerStatus === 'QUOTA_EXCEEDED' ||
         res?.status === 429;
+      const isHardQuotaBlock = isQuotaError && (
+        quotaClassification === 'dailyQuotaExhausted' ||
+        generationDiagnostics?.providerFailureKind === 'providerQuotaExceeded' ||
+        String(generationDiagnostics?.quotaId || '').toLowerCase().includes('perday') ||
+        String(generationDiagnostics?.quotaMetric || '').toLowerCase().includes('free_tier_requests')
+      );
       
       const attemptCompletedAt = new Date();
       const attemptDurationMs = attemptCompletedAt.getTime() - attemptStartedAtDate.getTime();
+
+      if (isHardQuotaBlock) {
+        item.retryHistory = item.retryHistory || [];
+        item.retryHistory.push({
+          attempt,
+          startedAt: attemptStartedAtDate.toISOString(),
+          completedAt: attemptCompletedAt.toISOString(),
+          durationMs: attemptDurationMs,
+          failureKind: finalData?.failureKind,
+          error: finalData?.error
+        });
+        item.retryExhausted = false;
+        jobStore.updateJob(jobId, {
+          status: 'blockedByQuota',
+          blockedReason: 'Provider daily/project/model quota exhausted',
+          resumeAfter: generationDiagnostics?.retryAfterMs ? new Date(Date.now() + generationDiagnostics.retryAfterMs).toISOString() : undefined,
+          lastEvent: {
+            type: 'quotaCircuitBreakerTripped',
+            timestamp: new Date().toISOString(),
+            sampleId,
+            message: `Quota circuit breaker tripped for ${sampleTitle}; remaining samples were blocked without dispatch.`
+          },
+          lastHeartbeatAt: new Date().toISOString()
+        });
+        break;
+      }
 
       if (isQuotaError && attempt < maxAttemptsPerSample) {
         // We will retry
@@ -304,9 +339,16 @@ export async function startVisualBatchJob(
       });
     } else {
       // Failed
+      const latestForFailure = jobStore.getJob(jobId);
+      const generationDiagnostics =
+        finalData?.record?.diagnostics?.generation ??
+        finalData?.generationDiagnostics;
+      const isBlockedItem = latestForFailure?.status === 'blockedByQuota' ||
+        generationDiagnostics?.quotaClassification === 'dailyQuotaExhausted' ||
+        generationDiagnostics?.providerFailureKind === 'providerQuotaExceeded';
       item = {
         ...item,
-        status: 'failed',
+        status: isBlockedItem ? 'blockedByQuota' : 'failed',
         completedAt: itemCompletedAtDate.toISOString(),
         durationMs: itemDurationMs,
         error: finalData?.error || executionError,
@@ -319,26 +361,29 @@ export async function startVisualBatchJob(
       
       const counters = { ...(jobStore.getJob(jobId)?.counters || job.counters) };
       counters.total = job.targetSampleIds.length;
-      counters.failureCount++;
-      counters.reviewFailCount++;
-      counters.expectedComparisonFailCount++;
+      if (!isBlockedItem) {
+        counters.failureCount++;
+        counters.reviewFailCount++;
+      }
       if (item.failureKind === 'jsonParseError' || item.failureKind === 'schemaValidationError') {
         counters.invalidJsonCount++;
       }
       
-      const failedSampleIds = [...(jobStore.getJob(jobId)?.failedSampleIds || []), sampleId];
+      const failedSampleIds = isBlockedItem ? (jobStore.getJob(jobId)?.failedSampleIds || []) : [...(jobStore.getJob(jobId)?.failedSampleIds || []), sampleId];
+      const blockedSampleIds = isBlockedItem ? Array.from(new Set([...(jobStore.getJob(jobId)?.blockedSampleIds || []), sampleId])) : (jobStore.getJob(jobId)?.blockedSampleIds || []);
       const pendingSampleIds = (jobStore.getJob(jobId)?.pendingSampleIds || []).filter(id => id !== sampleId);
       
       jobStore.appendItem(jobId, item);
       jobStore.updateJob(jobId, {
         failedSampleIds,
+        blockedSampleIds,
         pendingSampleIds,
         counters,
         lastEvent: {
-          type: 'sampleFailed',
+          type: isBlockedItem ? 'quotaCircuitBreakerTripped' : 'sampleFailed',
           timestamp: new Date().toISOString(),
           sampleId: sampleId,
-          message: `Sample ${sampleTitle} failed: ${item.error || item.failureKind}`
+          message: isBlockedItem ? `Sample ${sampleTitle} blocked by provider quota` : `Sample ${sampleTitle} failed: ${item.error || item.failureKind}`
         },
         lastError: item.error,
         lastFailureKind: item.failureKind,
@@ -355,11 +400,20 @@ export async function startVisualBatchJob(
     const nowTime = new Date().getTime();
     const startTime = finalJob.startedAt ? new Date(finalJob.startedAt).getTime() : nowTime;
     
-    if (finalJob.status === 'running') {
+    if (finalJob.status === 'blockedByQuota') {
+       const processed = new Set([...(finalJob.completedSampleIds || []), ...(finalJob.failedSampleIds || []), ...(finalJob.blockedSampleIds || [])]);
+       const remaining = finalJob.targetSampleIds.filter(id => !processed.has(id));
+       jobStore.updateJob(jobId, {
+         pendingSampleIds: remaining,
+         blockedSampleIds: Array.from(new Set([...(finalJob.blockedSampleIds || []), ...remaining])),
+         lastEvent: finalJob.lastEvent
+       });
+    } else if (finalJob.status === 'running') {
        completedAt = nowStr;
        durationMs = nowTime - startTime;
+       const processed = (finalJob.completedSampleIds?.length || 0) + (finalJob.failedSampleIds?.length || 0);
        jobStore.updateJob(jobId, {
-         status: 'completed',
+         status: processed < finalJob.targetSampleIds.length ? 'partiallyCompleted' : 'completed',
          completedAt,
          durationMs,
          lastEvent: {

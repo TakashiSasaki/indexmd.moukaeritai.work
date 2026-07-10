@@ -677,8 +677,9 @@ describe("Analysis Bundle Sanitization", () => {
     assert.ok(bundle.analysisGuidance);
 
     // Failures items check: should only include failed item
-    assert.strictEqual(bundle.failures.items.length, 1);
-    assert.strictEqual(bundle.failures.items[0].sampleId, "fail-sample");
+    assert.strictEqual(bundle.failures.itemRefs.length, 1);
+    assert.strictEqual(bundle.failures.itemRefs[0].sampleId, "fail-sample");
+    assert.strictEqual((bundle.failures as any).items, undefined);
     
     // Top-level items check: shouldn't have success item details since they are filtered by default for chat
     // Actually, in buildBatchAnalysisBundleForChat, let's see what items contains. Usually we check that secrets are absent.
@@ -761,4 +762,66 @@ it('validateBatchRunInvariants ignores missing items for partial/canceled jobs',
 
   const invariants = validateBatchRunInvariants(partialSummary);
   assert.strictEqual(invariants.valid, true, `Expected valid, got issues: ${invariants.issues.join(', ')}`);
+});
+
+it('partitions quota-blocked execution separately from comparison failures and deduplicates provider errors', () => {
+  const summary: any = {
+    bundleSchemaVersion: '0.2.0',
+    jobId: 'job-quota',
+    jobRevision: 7,
+    jobStatus: 'blockedByQuota',
+    isTerminal: false,
+    createdAt: '2026-07-10T00:00:00.000Z',
+    updatedAt: '2026-07-10T00:01:00.000Z',
+    runId: 'job-quota',
+    timestamp: '2026-07-10T00:00:00.000Z',
+    modelName: 'gemini-test',
+    jsonMode: 'native_schema',
+    total: 4,
+    successCount: 1,
+    failureCount: 0,
+    blockedCount: 2,
+    pendingCount: 1,
+    pendingSampleIds: ['sample-pending'],
+    blockedSampleIds: ['sample-blocked-1', 'sample-blocked-2'],
+    validCount: 1,
+    validLowQualityCount: 0,
+    invalidJsonCount: 0,
+    expectedComparisonPassCount: 1,
+    expectedComparisonWarningCount: 0,
+    expectedComparisonFailCount: 0,
+    reviewPassCount: 1,
+    reviewNeedsReviewCount: 0,
+    reviewFailCount: 0,
+    items: [
+      { sampleId: 'sample-ok', title: 'ok', success: true, record: { evaluation: { qualityStatus: 'valid', expectedMetadata: { visibleText: ['ABC'] } } }, comparison: { overallStatus: 'pass', reviewStatus: 'pass', coverage: { visibleText: { expectedTotal: 1, covered: 1, missing: 0, ratio: 1 } } } },
+      { sampleId: 'sample-blocked-1', title: 'blocked 1', success: false, failureKind: 'providerQuotaExceeded', record: { diagnostics: { generation: { providerFailureKind: 'providerQuotaExceeded', statusCode: 429, providerStatus: 'RESOURCE_EXHAUSTED', quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests', quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaValue: '20', quotaClassification: 'dailyQuotaExhausted', errorFingerprint: 'quota-fp' } } } },
+      { sampleId: 'sample-blocked-2', title: 'blocked 2', success: false, failureKind: 'providerQuotaExceeded', record: { diagnostics: { generation: { providerFailureKind: 'providerQuotaExceeded', statusCode: 429, providerStatus: 'RESOURCE_EXHAUSTED', quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests', quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaValue: '20', quotaClassification: 'dailyQuotaExhausted', errorFingerprint: 'quota-fp' } } } }
+    ]
+  };
+  const bundle: any = buildBatchAnalysisBundleForChat(summary);
+  assert.strictEqual(bundle.job.jobId, 'job-quota');
+  assert.strictEqual(bundle.job.revision, 7);
+  assert.deepStrictEqual(bundle.job.pendingSampleIds, ['sample-pending']);
+  assert.strictEqual(bundle.execution.succeeded, 1);
+  assert.strictEqual(bundle.execution.failed, 0);
+  assert.strictEqual(bundle.execution.blockedByQuota, 2);
+  assert.strictEqual(bundle.comparison.fail, 0);
+  assert.strictEqual(bundle.comparison.notComparableDueToQuota, 2);
+  assert.strictEqual(bundle.comparison.notComparableDueToPending, 1);
+  assert.strictEqual(bundle.errorCatalog.length, 1);
+  assert.deepStrictEqual(bundle.errorCatalog[0].sampleIds, ['sample-blocked-1', 'sample-blocked-2']);
+  assert.strictEqual(bundle.failures.items, undefined);
+  assert.strictEqual(bundle.failures.itemRefs.length, 2);
+});
+
+it('marks text-heavy evaluation as notEvaluated with null ratio when no comparable text item exists', () => {
+  const textSummary = buildTextHeavyEvaluationSummary([
+    { sampleId: 'quota-text', success: false, failureKind: 'providerQuotaExceeded', record: { evaluation: { expectedMetadata: { visibleText: ['ABC'] } }, diagnostics: { generation: { providerFailureKind: 'providerQuotaExceeded' } } } }
+  ] as any);
+  assert.strictEqual(textSummary.status, 'notEvaluated');
+  assert.strictEqual(textSummary.ratio, null);
+  assert.strictEqual(textSummary.allItemsWithTextExpectation, 1);
+  assert.strictEqual(textSummary.comparableTextItems, 0);
+  assert.strictEqual(textSummary.skippedDueToProviderQuota, 1);
 });

@@ -147,6 +147,8 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
     title: "Wooden Chair",
     category: "furniture",
     expectedImageKind: "productPhoto",
+    acceptableImageKinds: ["productPhoto", "artifactPhoto"],
+    expectedNotes: ["Antique museum furniture can be reasonably classified as either a product photo or an artifact photo; artifactPhoto is accepted for this sample without broadening productPhoto globally."],
     expectedElementCategories: ["furniture"],
     expectedVisibleElementLabels: ["chair", "wood", "legs", "seat"],
     expectedVisibleElementLabelAliases: {
