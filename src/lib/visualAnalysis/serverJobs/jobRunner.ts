@@ -1,4 +1,5 @@
-import { jobStore } from './jobStore';
+import { jobStore as defaultJobStore } from './jobStore';
+let jobStore = defaultJobStore;
 import { VisualBatchJob, VisualBatchJobItem } from '../publicSamples/batchTypes';
 import { evaluateSampleComparison } from '../publicSamples/compare';
 
@@ -115,10 +116,14 @@ export async function startVisualBatchJob(
   jobId: string, 
   deps: {
     analyzeFn: (options: any) => Promise<{status: number, body: any}>,
-    getSampleMetadata: (sampleId: string) => Promise<any>
+    getSampleMetadata: (sampleId: string) => Promise<any>,
+    jobStore?: any
   }
 ) {
   const { analyzeFn, getSampleMetadata } = deps;
+  if (deps.jobStore) {
+    jobStore = deps.jobStore;
+  }
   if (activeRunners.has(jobId)) {
     console.warn(`Runner for job ${jobId} is already active.`);
     return;

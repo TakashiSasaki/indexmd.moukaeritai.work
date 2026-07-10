@@ -45,7 +45,7 @@ test("Provider Transport - exact pre-SDK assertion", async (t) => {
     const originalGenerateContent = client.models.generateContent;
 
     let calledPhysically = false;
-    client.models.generateContent = async (params: any) => {
+    (client.models as any).generateContent = async (params: any) => {
       calledPhysically = true;
       return { text: '{"schemaVersion": "visual-analysis.v0.2.0-draft.1", "summary": {"caption": "mock", "description": "mock"}}' };
     };
@@ -97,7 +97,7 @@ test("Provider Transport - exact pre-SDK assertion", async (t) => {
 
     } finally {
       // Restore physical method
-      client.models.generateContent = originalGenerateContent;
+      (client.models as any).generateContent = originalGenerateContent;
       setCaptureHook(null);
     }
   });

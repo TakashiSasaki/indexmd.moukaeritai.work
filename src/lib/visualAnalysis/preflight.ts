@@ -44,7 +44,7 @@ export interface SampleResolver {
 
 export class DefaultSampleResolver implements SampleResolver {
   private registeredIds = new Set(PUBLIC_VISUAL_SAMPLES.map(s => s.id));
-  private allowedPrefixes = ["drive-", "file-", "manual-", "external-", "test-", "mock-"];
+  private allowedPrefixes = ["drive-", "file-", "manual-", "external-", "test-", "mock-", "sample-", "sample"];
 
   hasSample(sampleId: string): boolean {
     return this.registeredIds.has(sampleId);
@@ -176,126 +176,134 @@ export function extractJsonSchemaFromText(text: string): any {
   return null;
 }
 
-export function preflightVisualExecution(request: PreflightRequest): PreparedVisualExecution {
-  if (!request || typeof request !== "object") {
-    throw new PreflightError("invalidSampleSelection", "Request must be an object");
+export function preflightVisualExecution(
+  request: PreflightRequest,
+  options?: { sampleResolver?: SampleResolver }
+): PreparedVisualExecution {
+  const originalResolver = getSampleResolver();
+  if (options?.sampleResolver) {
+    setSampleResolver(options.sampleResolver);
   }
-
-  // Validate sampleIds
-  if (!request.sampleIds || !Array.isArray(request.sampleIds) || request.sampleIds.length === 0) {
-    throw new PreflightError("invalidSampleSelection", "No sample IDs provided");
-  }
-
-  // Validate sample count limit
-  if (request.sampleIds.length > 50) {
-    throw new PreflightError("sampleLimitExceeded", "Sample selection exceeds maximum limit of 50");
-  }
-
-  // Validate duplicate samples
-  const sampleSet = new Set(request.sampleIds);
-  if (sampleSet.size < request.sampleIds.length) {
-    throw new PreflightError("duplicateSampleSelection", "Duplicate sample IDs are not allowed");
-  }
-
-  // Validate sample ID existence
-  for (const sampleId of request.sampleIds) {
-    if (typeof sampleId !== "string" || !validateSampleIdExistence(sampleId)) {
-      throw new PreflightError("invalidSampleSelection", `Sample ID does not exist or is invalid: ${sampleId}`);
+  try {
+    if (!request || typeof request !== "object") {
+      throw new PreflightError("invalidSampleSelection", "Request must be an object");
     }
-  }
 
-  // Validate modelId
-  if (!request.modelId || typeof request.modelId !== "string") {
-    throw new PreflightError("modelUnsupported", "Model ID is required");
-  }
+    // Validate sampleIds
+    if (!request.sampleIds || !Array.isArray(request.sampleIds) || request.sampleIds.length === 0) {
+      throw new PreflightError("invalidSampleSelection", "No sample IDs provided");
+    }
 
-  const modelPolicy = getModelCapability(request.modelId);
-  
-  if (modelPolicy.lifecycleClass === "unsupported") {
-    throw new PreflightError("modelUnsupported", `Model ${request.modelId} is not supported`);
-  }
+    // Validate sample count limit
+    if (request.sampleIds.length > 50) {
+      throw new PreflightError("sampleLimitExceeded", "Sample selection exceeds maximum limit of 50");
+    }
 
-  if (modelPolicy.lifecycleClass === "discontinued" || !modelPolicy.executionAllowed) {
-    throw new PreflightError("modelDiscontinued", `Model ${request.modelId} is discontinued. ${modelPolicy.deprecationNote || ""}`.trim());
-  }
+    // Validate duplicate samples
+    const sampleSet = new Set(request.sampleIds);
+    if (sampleSet.size < request.sampleIds.length) {
+      throw new PreflightError("duplicateSampleSelection", "Duplicate sample IDs are not allowed");
+    }
 
-  // Validate execution mode
-  let resolvedExecutionMode: StructuredExecutionMode;
-  if (request.executionMode === "native_schema" || request.executionMode === "nativeSchema") {
-    if (!modelPolicy.supportsNativeResponseSchema) {
-      throw new PreflightError("executionModeUnsupported", `Model ${request.modelId} does not support native schema execution`);
-    }
-    resolvedExecutionMode = "nativeSchema";
-  } else if (request.executionMode === "prompt_only" || request.executionMode === "promptedJson") {
-    if (!modelPolicy.supportsPromptedJson) {
-      throw new PreflightError("executionModeUnsupported", `Model ${request.modelId} does not support prompted JSON execution`);
-    }
-    resolvedExecutionMode = "promptedJson";
-  } else {
-    throw new PreflightError("executionModeUnsupported", `Unknown or unsupported execution mode: ${request.executionMode}`);
-  }
-
-  // Validate custom instruction size
-  if (request.systemInstruction && request.systemInstruction.length > 32000) {
-    throw new PreflightError("customInstructionTooLarge", "System instruction exceeds 32000 characters limit");
-  }
-
-  // Validate media-resolution compatibility
-  if (request.mediaResolution) {
-    if (typeof request.mediaResolution !== "string") {
-      throw new PreflightError("mediaResolutionUnsupported", "Media resolution must be a string");
-    }
-    const resLower = request.mediaResolution.toLowerCase();
-    if (resLower !== "high" && resLower !== "medium" && resLower !== "low") {
-      throw new PreflightError("mediaResolutionUnsupported", `Unknown media resolution level: ${request.mediaResolution}`);
-    }
-    if (modelPolicy.providerFamily === "google-gemma") {
-      throw new PreflightError("mediaResolutionUnsupported", `Media resolution configuration is not supported for ${modelPolicy.preferredUiLabel}`);
-    }
-  }
-
-  // Validate generation configurations
-  if (request.temperature !== undefined) {
-    if (typeof request.temperature !== "number" || request.temperature < 0.0 || request.temperature > 2.0) {
-      throw new PreflightError("invalidGenerationConfiguration", "Temperature must be a number between 0.0 and 2.0");
-    }
-  }
-  if (request.topP !== undefined) {
-    if (typeof request.topP !== "number" || request.topP < 0.0 || request.topP > 1.0) {
-      throw new PreflightError("invalidGenerationConfiguration", "topP must be a number between 0.0 and 1.0");
-    }
-  }
-  if (request.topK !== undefined) {
-    if (typeof request.topK !== "number" || request.topK < 0 || request.topK > 500) {
-      throw new PreflightError("invalidGenerationConfiguration", "topK must be an integer between 0 and 500");
-    }
-  }
-  if (request.maxOutputTokens !== undefined) {
-    if (typeof request.maxOutputTokens !== "number" || request.maxOutputTokens < 1 || request.maxOutputTokens > 128000) {
-      throw new PreflightError("invalidGenerationConfiguration", "maxOutputTokens must be an integer between 1 and 128000");
-    }
-  }
-
-  // Validate retry-policy shape
-  let maxAttempts = 3;
-  let initialDelayMs = 1000;
-  if (request.retryPolicy) {
-    if (typeof request.retryPolicy !== "object") {
-      throw new PreflightError("invalidGenerationConfiguration", "Retry policy must be an object");
-    }
-    if (request.retryPolicy.maxAttempts !== undefined) {
-      if (typeof request.retryPolicy.maxAttempts !== "number" || request.retryPolicy.maxAttempts < 1 || request.retryPolicy.maxAttempts > 10) {
-        throw new PreflightError("invalidGenerationConfiguration", "Retry policy maxAttempts must be between 1 and 10");
+    // Validate sample ID existence
+    for (const sampleId of request.sampleIds) {
+      if (typeof sampleId !== "string" || !validateSampleIdExistence(sampleId)) {
+        throw new PreflightError("invalidSampleSelection", `Sample ID does not exist or is invalid: ${sampleId}`);
       }
-      maxAttempts = request.retryPolicy.maxAttempts;
     }
-    if (request.retryPolicy.initialDelayMs !== undefined) {
-      if (typeof request.retryPolicy.initialDelayMs !== "number" || request.retryPolicy.initialDelayMs < 0 || request.retryPolicy.initialDelayMs > 60000) {
-        throw new PreflightError("invalidGenerationConfiguration", "Retry policy initialDelayMs must be between 0 and 60000");
+
+    // Validate modelId
+    if (!request.modelId || typeof request.modelId !== "string") {
+      throw new PreflightError("modelUnsupported", "Model ID is required");
+    }
+
+    const modelPolicy = getModelCapability(request.modelId);
+    
+    if (modelPolicy.lifecycleClass === "unsupported") {
+      throw new PreflightError("modelUnsupported", `Model ${request.modelId} is not supported`);
+    }
+
+    if (modelPolicy.lifecycleClass === "discontinued" || !modelPolicy.executionAllowed) {
+      throw new PreflightError("modelDiscontinued", `Model ${request.modelId} is discontinued. ${modelPolicy.deprecationNote || ""}`.trim());
+    }
+
+    // Validate execution mode
+    let resolvedExecutionMode: StructuredExecutionMode;
+    if (request.executionMode === "native_schema" || request.executionMode === "nativeSchema") {
+      if (!modelPolicy.supportsNativeResponseSchema) {
+        throw new PreflightError("executionModeUnsupported", `Model ${request.modelId} does not support native schema execution`);
       }
-      initialDelayMs = request.retryPolicy.initialDelayMs;
+      resolvedExecutionMode = "nativeSchema";
+    } else if (request.executionMode === "prompt_only" || request.executionMode === "promptedJson") {
+      if (!modelPolicy.supportsPromptedJson) {
+        throw new PreflightError("executionModeUnsupported", `Model ${request.modelId} does not support prompted JSON execution`);
+      }
+      resolvedExecutionMode = "promptedJson";
+    } else {
+      throw new PreflightError("executionModeUnsupported", `Unknown or unsupported execution mode: ${request.executionMode}`);
     }
-  }
+
+    // Validate custom instruction size
+    if (request.systemInstruction && request.systemInstruction.length > 32000) {
+      throw new PreflightError("customInstructionTooLarge", "System instruction exceeds 32000 characters limit");
+    }
+
+    // Validate media-resolution compatibility
+    if (request.mediaResolution) {
+      if (typeof request.mediaResolution !== "string") {
+        throw new PreflightError("mediaResolutionUnsupported", "Media resolution must be a string");
+      }
+      const resLower = request.mediaResolution.toLowerCase();
+      if (resLower !== "high" && resLower !== "medium" && resLower !== "low") {
+        throw new PreflightError("mediaResolutionUnsupported", `Unknown media resolution level: ${request.mediaResolution}`);
+      }
+      if (modelPolicy.providerFamily === "google-gemma") {
+        throw new PreflightError("mediaResolutionUnsupported", `Media resolution configuration is not supported for ${modelPolicy.preferredUiLabel}`);
+      }
+    }
+
+    // Validate generation configurations
+    if (request.temperature !== undefined) {
+      if (typeof request.temperature !== "number" || request.temperature < 0.0 || request.temperature > 2.0) {
+        throw new PreflightError("invalidGenerationConfiguration", "Temperature must be a number between 0.0 and 2.0");
+      }
+    }
+    if (request.topP !== undefined) {
+      if (typeof request.topP !== "number" || request.topP < 0.0 || request.topP > 1.0) {
+        throw new PreflightError("invalidGenerationConfiguration", "topP must be a number between 0.0 and 1.0");
+      }
+    }
+    if (request.topK !== undefined) {
+      if (typeof request.topK !== "number" || request.topK < 0 || request.topK > 500) {
+        throw new PreflightError("invalidGenerationConfiguration", "topK must be an integer between 0 and 500");
+      }
+    }
+    if (request.maxOutputTokens !== undefined) {
+      if (typeof request.maxOutputTokens !== "number" || request.maxOutputTokens < 1 || request.maxOutputTokens > 128000) {
+        throw new PreflightError("invalidGenerationConfiguration", "maxOutputTokens must be an integer between 1 and 128000");
+      }
+    }
+
+    // Validate retry-policy shape
+    let maxAttempts = 3;
+    let initialDelayMs = 1000;
+    if (request.retryPolicy) {
+      if (typeof request.retryPolicy !== "object") {
+        throw new PreflightError("invalidGenerationConfiguration", "Retry policy must be an object");
+      }
+      if (request.retryPolicy.maxAttempts !== undefined) {
+        if (typeof request.retryPolicy.maxAttempts !== "number" || request.retryPolicy.maxAttempts < 1 || request.retryPolicy.maxAttempts > 10) {
+          throw new PreflightError("invalidGenerationConfiguration", "Retry policy maxAttempts must be between 1 and 10");
+        }
+        maxAttempts = request.retryPolicy.maxAttempts;
+      }
+      if (request.retryPolicy.initialDelayMs !== undefined) {
+        if (typeof request.retryPolicy.initialDelayMs !== "number" || request.retryPolicy.initialDelayMs < 0 || request.retryPolicy.initialDelayMs > 60000) {
+          throw new PreflightError("invalidGenerationConfiguration", "Retry policy initialDelayMs must be between 0 and 60000");
+        }
+        initialDelayMs = request.retryPolicy.initialDelayMs;
+      }
+    }
 
   // Compile provider schema
   let compiledProviderSchema: any = null;
@@ -356,31 +364,36 @@ export function preflightVisualExecution(request: PreflightRequest): PreparedVis
     schemaHash,
   };
 
-  return {
-    canonicalModelId: modelPolicy.canonicalModelId,
-    lifecycleMetadata: {
-      lifecycleClass: modelPolicy.lifecycleClass,
-      executionAllowed: modelPolicy.executionAllowed,
-      deprecationNote: modelPolicy.deprecationNote,
-      preferredUiLabel: modelPolicy.preferredUiLabel,
-    },
-    providerFamily: modelPolicy.providerFamily,
-    resolvedExecutionMode,
-    compiledProviderSchema,
-    schemaCompilerName,
-    schemaCompilerVersion,
-    customSchemaUsed,
-    customSchemaIdentity,
-    generationConfiguration: safeGenerationConfiguration,
-    mediaResolutionConfiguration,
-    retryPolicy: {
-      maxAttempts,
-      initialDelayMs,
-    },
-    normalizedSampleIdentities: request.sampleIds,
-    instructionHash,
-    sampleSelectionHash,
-    schemaHash,
-    runFingerprint,
-  };
+    return {
+      canonicalModelId: modelPolicy.canonicalModelId,
+      lifecycleMetadata: {
+        lifecycleClass: modelPolicy.lifecycleClass,
+        executionAllowed: modelPolicy.executionAllowed,
+        deprecationNote: modelPolicy.deprecationNote,
+        preferredUiLabel: modelPolicy.preferredUiLabel,
+      },
+      providerFamily: modelPolicy.providerFamily,
+      resolvedExecutionMode,
+      compiledProviderSchema,
+      schemaCompilerName,
+      schemaCompilerVersion,
+      customSchemaUsed,
+      customSchemaIdentity,
+      generationConfiguration: safeGenerationConfiguration,
+      mediaResolutionConfiguration,
+      retryPolicy: {
+        maxAttempts,
+        initialDelayMs,
+      },
+      normalizedSampleIdentities: request.sampleIds,
+      instructionHash,
+      sampleSelectionHash,
+      schemaHash,
+      runFingerprint,
+    };
+  } finally {
+    if (options?.sampleResolver) {
+      setSampleResolver(originalResolver);
+    }
+  }
 }
