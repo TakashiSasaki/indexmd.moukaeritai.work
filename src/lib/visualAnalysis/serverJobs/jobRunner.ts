@@ -2,6 +2,80 @@ import { jobStore } from './jobStore';
 import { VisualBatchJob, VisualBatchJobItem } from '../publicSamples/batchTypes';
 import { evaluateSampleComparison } from '../publicSamples/compare';
 
+const SHORT_RETRY_DELAY_MS = 5 * 60_000;
+const DEFAULT_RATE_LIMIT_PAUSE_MS = 60_000;
+
+function getHeaderValue(headers: any, name: string): string | undefined {
+  if (!headers) return undefined;
+  if (typeof headers.get === 'function') return headers.get(name) || headers.get(name.toLowerCase()) || undefined;
+  return headers[name] || headers[name.toLowerCase()];
+}
+
+function extractRetryDelayMs(finalData: any): { retryAfterMs?: number; retryAfterReason?: string } {
+  const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
+  if (typeof generationDiagnostics?.retryAfterMs === 'number') {
+    return { retryAfterMs: generationDiagnostics.retryAfterMs, retryAfterReason: generationDiagnostics.retryAfterReason };
+  }
+
+  const retryAfterStr = getHeaderValue(finalData?.responseDiagnostics?.headers, 'retry-after');
+  if (retryAfterStr) {
+    const parsed = parseFloat(retryAfterStr);
+    if (!Number.isNaN(parsed) && parsed > 0) return { retryAfterMs: parsed * 1000, retryAfterReason: 'HTTP retry-after header' };
+    const dateDelay = Date.parse(retryAfterStr) - Date.now();
+    if (!Number.isNaN(dateDelay) && dateDelay > 0) return { retryAfterMs: dateDelay, retryAfterReason: 'HTTP retry-after date header' };
+  }
+
+  return {};
+}
+
+export function classifyJobQuotaInterruption(finalData: any, status?: number): {
+  isQuotaOrRateLimit: boolean;
+  action?: 'blockedByQuota' | 'pausedForRateLimit';
+  retryAfterMs?: number;
+  retryAfterReason?: string;
+  quotaClassification?: string;
+} {
+  const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
+  const quotaClassification = finalData?.quotaClassification ?? generationDiagnostics?.quotaClassification;
+  const providerStatus = generationDiagnostics?.providerStatus;
+  const failureKind = finalData?.failureKind;
+  const { retryAfterMs, retryAfterReason } = extractRetryDelayMs(finalData);
+
+  if (quotaClassification === 'dailyQuotaExhausted') {
+    return { isQuotaOrRateLimit: true, action: 'blockedByQuota', retryAfterMs, retryAfterReason, quotaClassification };
+  }
+
+  const hasCappedRetryInfo = retryAfterReason?.includes('RetryInfo') && retryAfterReason.includes('capped');
+  if (hasCappedRetryInfo) {
+    return { isQuotaOrRateLimit: true, action: 'blockedByQuota', retryAfterMs, retryAfterReason, quotaClassification };
+  }
+
+  if (
+    quotaClassification === 'transientThrottle' ||
+    (retryAfterReason?.includes('RetryInfo') && retryAfterMs !== undefined && retryAfterMs <= SHORT_RETRY_DELAY_MS)
+  ) {
+    return { isQuotaOrRateLimit: true, action: 'pausedForRateLimit', retryAfterMs, retryAfterReason, quotaClassification };
+  }
+
+  const genericQuotaOrRateLimit =
+    failureKind === 'providerQuotaExceeded' ||
+    failureKind === 'providerRateLimited' ||
+    failureKind === 'rateLimited' ||
+    providerStatus === 'RESOURCE_EXHAUSTED' ||
+    providerStatus === 'QUOTA_EXCEEDED' ||
+    status === 429;
+
+  if (!genericQuotaOrRateLimit) return { isQuotaOrRateLimit: false };
+
+  return {
+    isQuotaOrRateLimit: true,
+    action: failureKind === 'providerQuotaExceeded' && status !== 429 ? 'blockedByQuota' : 'pausedForRateLimit',
+    retryAfterMs,
+    retryAfterReason,
+    quotaClassification,
+  };
+}
+
 export const activeRunners = new Map<string, { startedAt: string; abortController?: AbortController }>();
 
 export function isRunnerActive(jobId: string) {
@@ -186,7 +260,7 @@ export async function startVisualBatchJob(
         customInstruction: baseJob.executionPrivate?.customInstruction || baseJob.customInstructionPreview,
         providerRetryPolicy: {
           maxAttempts: 2,
-          retryInternalErrors: false,
+          retryInternalErrors: true,
           retryQuotaOrRateLimit: true,
           retryUnavailable: true,
           retryInvalidArgument: false,
@@ -238,8 +312,21 @@ export async function startVisualBatchJob(
     }
 
     if (!success) {
+      const quotaInterruption = classifyJobQuotaInterruption(finalData, res?.status);
       const attemptCompletedAt = new Date();
+      const resumeAfter = quotaInterruption.retryAfterMs
+        ? new Date(Date.now() + Math.min(quotaInterruption.retryAfterMs, SHORT_RETRY_DELAY_MS)).toISOString()
+        : undefined;
+      const attemptState = { attempt: 1, maxAttempts: 2, retryExhausted: true };
       item.retryExhausted = true;
+      item.resumeAfter = resumeAfter;
+      item.affectedSampleIds = [sampleId];
+      item.attemptState = attemptState;
+      if (quotaInterruption.action === 'blockedByQuota') {
+        item.blockedReason = 'blockedByQuota';
+      } else if (quotaInterruption.action === 'pausedForRateLimit') {
+        item.pauseReason = 'pausedForRateLimit';
+      }
       item.retryHistory = item.retryHistory || [];
       item.retryHistory.push({
         attempt: 1,
@@ -247,8 +334,55 @@ export async function startVisualBatchJob(
         completedAt: attemptCompletedAt.toISOString(),
         durationMs: attemptCompletedAt.getTime() - attemptStartedAtDate.getTime(),
         failureKind: finalData?.failureKind,
-        error: finalData?.error
+        error: finalData?.error,
+        nextRetryAt: resumeAfter,
+        quotaClassification: quotaInterruption.quotaClassification,
+        retryAfterReason: quotaInterruption.retryAfterReason,
       });
+
+      if (quotaInterruption.action === 'pausedForRateLimit') {
+        const itemCompletedAtDate = new Date();
+        const itemDurationMs = itemCompletedAtDate.getTime() - itemStartedAtDate.getTime();
+        item = {
+          ...item,
+          status: 'failed',
+          completedAt: itemCompletedAtDate.toISOString(),
+          durationMs: itemDurationMs,
+          error: finalData?.error || executionError,
+          failureKind: finalData?.failureKind || 'providerRateLimited',
+          record: finalData?.record,
+        };
+        const latestJob = jobStore.getJob(jobId) || baseJob;
+        const counters = { ...latestJob.counters, total: baseJob.targetSampleIds.length };
+        counters.failureCount++;
+        counters.reviewFailCount++;
+        counters.expectedComparisonFailCount++;
+        if (item.failureKind === 'jsonParseError' || item.failureKind === 'schemaValidationError') counters.invalidJsonCount++;
+        const failedSampleIds = Array.from(new Set([...latestJob.failedSampleIds, sampleId]));
+        const pendingSampleIds = latestJob.pendingSampleIds.filter(id => id !== sampleId);
+        jobStore.appendItem(jobId, item);
+        jobStore.updateJob(jobId, {
+          status: 'paused',
+          failedSampleIds,
+          pendingSampleIds,
+          counters,
+          resumeAfter,
+          pauseReason: 'pausedForRateLimit',
+          blockedReason: undefined,
+          affectedSampleIds: [sampleId],
+          attemptState,
+          lastEvent: {
+            type: 'jobPaused',
+            timestamp: new Date().toISOString(),
+            sampleId,
+            message: `Rate limit pause scheduled for ${sampleTitle}`,
+          },
+          lastError: item.error,
+          lastFailureKind: item.failureKind,
+          lastHeartbeatAt: new Date().toISOString(),
+        });
+        return;
+      }
     }
 
     const itemCompletedAtDate = new Date();
@@ -335,6 +469,11 @@ export async function startVisualBatchJob(
     jobStore.updateJob(jobId, { 
       status: 'running', 
       startedAt: new Date().toISOString(),
+      resumeAfter: undefined,
+      pauseReason: undefined,
+      blockedReason: undefined,
+      affectedSampleIds: undefined,
+      attemptState: undefined,
       lastEvent: {
         type: 'jobStarted',
         timestamp: new Date().toISOString(),

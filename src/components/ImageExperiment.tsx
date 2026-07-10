@@ -25,6 +25,7 @@ import { buildFullItemReport, buildBatchAnalysisBundleForChat } from '../lib/vis
 import { buildBatchComparisonReportForChat } from '../lib/visualAnalysis/publicSamples/comparisonReport';
 import { stringifyJsonArtifact, downloadJsonArtifact, fnv1a32 } from '../lib/visualAnalysis/publicSamples/artifactUtils';
 import { safeFetch, safeFetchWithRetry, ResponseDiagnostics, SafeFetchRetryEvent } from '../lib/visualAnalysis/safeFetch';
+import { fetchAndValidateAnalysisBundle, formatAnalysisBundleRetrievalError, sanitizedAnalysisBundleFilename } from '../lib/visualAnalysis/analysisBundleRetrieval';
 import ServerJobRecovery from './visualAnalysis/ServerJobRecovery';
 import {
   LocalJobBackup,
@@ -1003,13 +1004,35 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   
   const handleCopyServerJobBundle = async (jobId: string) => {
     try {
-      const res = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
-      if (!res.ok) throw new Error('fetch failed');
-      const text = await res.text();
-      handleCopy(text, 'server-bundle-copy');
+      const { jsonText, metadata } = await fetchAndValidateAnalysisBundle(jobId);
+      handleCopy(jsonText, 'server-bundle-copy');
+      onAddLog("success", `Copied validated Analysis Bundle for job ${metadata.jobId} (schema ${metadata.schemaVersion}).`);
     } catch (e) {
-      console.error("Failed to copy bundle", e);
-      alert("Failed to fetch bundle for copying.");
+      const message = formatAnalysisBundleRetrievalError(e);
+      console.error("Failed to copy validated bundle", e);
+      onAddLog("error", `Bundle copy refused: ${message}`);
+    }
+  };
+
+  const handleDownloadServerJobBundle = async (jobId: string) => {
+    let objectUrl: string | null = null;
+    try {
+      const { jsonText, metadata } = await fetchAndValidateAnalysisBundle(jobId);
+      const blob = new Blob([jsonText], { type: 'application/json' });
+      objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = sanitizedAnalysisBundleFilename(metadata.jobId);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      onAddLog("success", `Downloaded validated Analysis Bundle for job ${metadata.jobId}.`);
+    } catch (e) {
+      const message = formatAnalysisBundleRetrievalError(e);
+      console.error("Failed to download validated bundle", e);
+      onAddLog("error", `Bundle download refused: ${message}`);
+    } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     }
   };
 
@@ -2503,14 +2526,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                           {copied === 'server-bundle-copy' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                           {copied === 'server-bundle-copy' ? "Copied" : "Copy Bundle"}
                         </button>
-                        <a
-                          href={`/api/visual/batch-jobs/${serverJobStatus.jobId}/reports/analysis-bundle`}
-                          download={`visual-analysis-analysis-bundle-${serverJobStatus.jobId}.json`}
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadServerJobBundle(serverJobStatus.jobId)}
                           className="text-[11px] font-bold text-indigo-600 hover:text-indigo-750 flex items-center justify-center gap-1.5 bg-white hover:bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-200 shadow-sm transition-colors"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>{serverJobStatus.status === 'completed' ? 'Download Bundle' : serverJobStatus.status === 'canceled' ? 'Download Canceled Bundle' : 'Download Partial Bundle'}</span>
-                        </a>
+                        </button>
                         <button onClick={handleImportServerJob} className="text-[11px] px-3 py-2 bg-emerald-100 text-emerald-800 rounded-lg font-bold hover:bg-emerald-200 transition-colors flex items-center gap-1.5">
                           <Activity className="w-3.5 h-3.5" />
                           Import Stats

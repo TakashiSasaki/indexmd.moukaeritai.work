@@ -29,8 +29,7 @@ export function evaluateVisualAnalysisQuality(
     context?.effectiveStructuredExecutionMode === "promptedJson";
 
   if (isExperimentalModel) {
-    score -= 10;
-    issues.push({ code: "EXPERIMENTAL_MODEL", message: "Experimental model or non-Gemini provider used for visual analysis.", severity: "info" });
+    issues.push({ code: "EXPERIMENTAL_MODEL", message: "Experimental model or non-Gemini provider used for visual analysis. This is support metadata and does not reduce visual output quality.", severity: "info" });
   } else if (isPromptedJsonMode) {
     score -= 10;
     issues.push({ code: "PROMPTED_JSON_MODE", message: "Prompted JSON mode used instead of native schema.", severity: "info" });
