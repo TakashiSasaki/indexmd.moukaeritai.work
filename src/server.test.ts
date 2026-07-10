@@ -64,3 +64,23 @@ describe('Analyze Image Endpoint', () => {
     assert.ok(res.body.error.includes('not supported'));
   });
 });
+
+describe('Batch Jobs Model Gating', () => {
+  it('should reject execution-disallowed models and return structured failure classification', async () => {
+    process.env.NODE_ENV = 'test';
+    const serverModule = await import('../server');
+    const app = serverModule.app;
+
+    const res = await request(app)
+      .post('/api/visual/batch-jobs')
+      .send({
+        modelName: 'gemini-1.5-pro',
+        targetSampleIds: ['sample_layout_broken_1']
+      });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.providerFailure, 'unsupportedModel');
+    assert.strictEqual(res.body.jobId, undefined);
+  });
+});

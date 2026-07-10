@@ -81,7 +81,7 @@ Filename,Size,Date Created,Date Modified,Attributes
 "firestore.rules",223,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "index.html",2669,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "metadata.json",311,2026-07-10 02:35:53,2026-07-10 02:35:53,A
-"package-lock.json",296591,2026-07-10 02:35:53,2026-07-10 11:15:08,A
+"package-lock.json",296591,2026-07-10 02:35:53,2026-07-10 11:17:08,A
 "package.json",1693,2026-07-10 02:35:53,2026-07-10 10:53:19,A
 "public/apple-touch-icon.png",37495,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "public/favicon-16x16.png",1403,2026-07-10 02:35:53,2026-07-10 02:35:53,A
@@ -121,7 +121,7 @@ Filename,Size,Date Created,Date Modified,Attributes
 "scripts/validate-contracts.mjs",24348,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "scripts/validatePublicSamples.ts",3658,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "scripts/verifyNoSchemaMirror.mjs",2952,2026-07-10 02:35:53,2026-07-10 02:35:53,A
-"server.ts",126060,2026-07-10 10:32:17,2026-07-10 11:10:47,A
+"server.ts",126343,2026-07-10 10:32:17,2026-07-10 12:27:36,A
 "skills/apply-patch/SKILL.md",3574,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "skills/generate-efu/SKILL.md",705,2026-07-10 10:53:23,2026-07-10 10:53:25,A
 "skills/local-testing/SKILL.md",2014,2026-07-10 02:35:53,2026-07-10 02:35:53,A
@@ -133,7 +133,7 @@ Filename,Size,Date Created,Date Modified,Attributes
 "src/components/DriveDashboard.tsx",102199,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/components/DriveLogs.tsx",6369,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/components/IconTestTab.tsx",18405,2026-07-10 02:35:53,2026-07-10 02:35:53,A
-"src/components/ImageExperiment.tsx",233645,2026-07-10 10:38:19,2026-07-10 11:07:16,A
+"src/components/ImageExperiment.tsx",235145,2026-07-10 10:38:19,2026-07-10 12:25:47,A
 "src/components/SavedSummariesBrowser.tsx",63838,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/components/SummaryDebugger.test.ts",648,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/components/SummaryDebugger.tsx",126221,2026-07-10 02:35:53,2026-07-10 02:35:53,A
@@ -187,8 +187,8 @@ Filename,Size,Date Created,Date Modified,Attributes
 "src/lib/indexMdPreview.test.ts",3413,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/lib/indexMdPreview.ts",3208,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/lib/logger.ts",536,2026-07-10 02:35:53,2026-07-10 02:35:53,A
-"src/lib/modelCapabilities.test.ts",1598,2026-07-10 10:27:09,2026-07-10 10:27:09,A
-"src/lib/modelCapabilities.ts",7306,2026-07-10 10:27:09,2026-07-10 10:28:26,A
+"src/lib/modelCapabilities.test.ts",3010,2026-07-10 10:27:09,2026-07-10 12:26:02,A
+"src/lib/modelCapabilities.ts",7006,2026-07-10 10:27:09,2026-07-10 12:24:09,A
 "src/lib/performanceDetector.test.ts",5212,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/lib/performanceRuntimeTracker.ts",2759,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/lib/performanceStaticAnalyzer.ts",7280,2026-07-10 02:35:53,2026-07-10 02:35:53,A
@@ -292,7 +292,7 @@ Filename,Size,Date Created,Date Modified,Attributes
 "src/lib/visualAnalysis/vocabularies.ts",3425,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/main.tsx",4858,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "src/repoHealth.test.ts",1025,2026-07-10 11:01:16,2026-07-10 11:01:17,A
-"src/server.test.ts",1970,2026-07-10 02:35:53,2026-07-10 02:35:53,A
+"src/server.test.ts",2654,2026-07-10 02:35:53,2026-07-10 12:27:52,A
 "src/types.ts",3405,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "tsconfig.json",568,2026-07-10 02:35:53,2026-07-10 02:35:53,A
 "vite.config.ts",708,2026-07-10 02:35:53,2026-07-10 02:35:53,A

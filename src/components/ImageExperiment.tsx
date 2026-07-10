@@ -356,11 +356,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       .filter(m => m.executionAllowed || m.historicalReadingAllowed)
       .flatMap(m => {
         const cols = [];
+        const modeSuffix = m.executionAllowed ? "" : " (History Only)";
         if (m.supportsNativeResponseSchema) {
           cols.push({
             model: m.canonicalModelId,
             mode: "native_schema",
-            label: `${m.preferredUiLabel} (Native)`,
+            label: `${m.preferredUiLabel}${modeSuffix} (Native)`,
             executionAllowed: m.executionAllowed
           });
         }
@@ -368,7 +369,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           cols.push({
             model: m.canonicalModelId,
             mode: "prompt_only",
-            label: `${m.preferredUiLabel} (Prompt)`,
+            label: `${m.preferredUiLabel}${modeSuffix} (Prompt)`,
             executionAllowed: m.executionAllowed
           });
         }
@@ -3889,8 +3890,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                 <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                               ) : cellIcon ? (
                                 cellIcon
-                              ) : (
+                              ) : col.executionAllowed ? (
                                 <span className="text-slate-300 group-hover:text-slate-400 font-mono text-[10px]">+</span>
+                              ) : (
+                                <span className="text-slate-300 font-mono text-[10px]">-</span>
                               )}
                             </div>
                           </td>
@@ -3904,83 +3907,127 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           </div>
 
           {/* Detailed Card for Selected Cell */}
-          {selectedMatrixCell && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm">
-                    セル詳細診断: {PUBLIC_VISUAL_SAMPLES.find(s => s.id === selectedMatrixCell.sampleId)?.title || selectedMatrixCell.sampleId}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    モデル: <span className="font-mono text-slate-600">{selectedMatrixCell.model}</span> ({selectedMatrixCell.mode === 'json_object' ? 'JSON' : 'Prompt'})
-                  </p>
+          {selectedMatrixCell && (() => {
+            const colCap = getModelCapability(selectedMatrixCell.model);
+            return (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      セル詳細診断: {PUBLIC_VISUAL_SAMPLES.find(s => s.id === selectedMatrixCell.sampleId)?.title || selectedMatrixCell.sampleId}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      モデル: <span className="font-mono text-slate-600">{selectedMatrixCell.model}</span> ({selectedMatrixCell.mode === 'json_object' ? 'JSON' : 'Prompt'})
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedMatrixCell(null)}
+                    className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
+                  >
+                    閉じる
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSelectedMatrixCell(null)}
-                  className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
-                >
-                  閉じる
-                </button>
-              </div>
 
-              {selectedMatrixCell.result ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div className="space-y-3">
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-1.5">
-                      <div className="text-slate-400 font-medium">基本メタデータ</div>
-                      <div>
-                        <strong>ステータス:</strong>{" "}
-                        <span className={`font-bold ${selectedMatrixCell.result.success ? "text-emerald-600" : "text-rose-600"}`}>
-                          {selectedMatrixCell.result.success ? "成功" : "失敗"}
-                        </span>
-                      </div>
-                      {selectedMatrixCell.result.overallStatus && (
+                {selectedMatrixCell.result ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-3">
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-1.5">
+                        <div className="text-slate-400 font-medium">基本メタデータ</div>
                         <div>
-                          <strong>評価:</strong>{" "}
-                          <span className={`font-bold uppercase ${
-                            selectedMatrixCell.result.overallStatus === 'pass' ? "text-emerald-600" : 
-                            selectedMatrixCell.result.overallStatus === 'warning' ? "text-amber-600" : "text-rose-600"
-                          }`}>
-                            {selectedMatrixCell.result.overallStatus}
+                          <strong>ステータス:</strong>{" "}
+                          <span className={`font-bold ${selectedMatrixCell.result.success ? "text-emerald-600" : "text-rose-600"}`}>
+                            {selectedMatrixCell.result.success ? "成功" : "失敗"}
                           </span>
                         </div>
+                        {selectedMatrixCell.result.overallStatus && (
+                          <div>
+                            <strong>評価:</strong>{" "}
+                            <span className={`font-bold uppercase ${
+                              selectedMatrixCell.result.overallStatus === 'pass' ? "text-emerald-600" : 
+                              selectedMatrixCell.result.overallStatus === 'warning' ? "text-amber-600" : "text-rose-600"
+                            }`}>
+                              {selectedMatrixCell.result.overallStatus}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <strong>実行手段 (Source):</strong>{" "}
+                          <span className="font-mono text-slate-600">{selectedMatrixCell.result.source}</span>
+                        </div>
+                        <div>
+                          <strong>日時:</strong>{" "}
+                          <span className="text-slate-500">{new Date(selectedMatrixCell.result.timestamp).toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      {selectedMatrixCell.result.error && (
+                        <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg text-rose-900 space-y-1">
+                          <div className="font-bold flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4 text-rose-500" />
+                            エラーメッセージ
+                          </div>
+                          <div className="font-mono text-[11px] break-all whitespace-pre-wrap">
+                            {selectedMatrixCell.result.error}
+                          </div>
+                        </div>
                       )}
-                      <div>
-                        <strong>実行手段 (Source):</strong>{" "}
-                        <span className="font-mono text-slate-600">{selectedMatrixCell.result.source}</span>
-                      </div>
-                      <div>
-                        <strong>日時:</strong>{" "}
-                        <span className="text-slate-500">{new Date(selectedMatrixCell.result.timestamp).toLocaleString()}</span>
-                      </div>
                     </div>
 
-                    {selectedMatrixCell.result.error && (
-                      <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg text-rose-900 space-y-1">
-                        <div className="font-bold flex items-center gap-1">
-                          <AlertCircle className="w-4 h-4 text-rose-500" />
-                          エラーメッセージ
-                        </div>
-                        <div className="font-mono text-[11px] break-all whitespace-pre-wrap">
-                          {selectedMatrixCell.result.error}
-                        </div>
+                    <div className="space-y-3 flex flex-col justify-between">
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex-1 space-y-1.5">
+                        <div className="text-slate-400 font-medium">クイックアクション (Quick Actions)</div>
+                        <p className="text-[11px] text-slate-500">
+                          {colCap.executionAllowed 
+                            ? "この特定のセル（モデルとサンプルの組み合わせ）に対して、今すぐクライアント（ブラウザ）経由で解析テストを実行し、マトリクスの結果をその場で更新できます。"
+                            : "このモデルは非推奨またはサポート外のため、新しい解析テストを実行できません。過去の解析結果の閲覧のみサポートされています。"}
+                        </p>
                       </div>
-                    )}
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
+                          disabled={!!runningCellKey || !colCap.executionAllowed}
+                          className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                        >
+                          {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" /> 実行中...
+                            </>
+                          ) : !colCap.executionAllowed ? (
+                            <>
+                              <XCircle className="w-4 h-4 text-slate-200" /> 実行不可（Discontinued）
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4" /> 今すぐテスト実行 (Run Test)
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(selectedMatrixCell.result, null, 2));
+                            alert("セルの詳細JSONをコピーしました！");
+                          }}
+                          className="py-2 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-1 shadow-sm"
+                          title="JSONをコピー"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="space-y-3 flex flex-col justify-between">
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex-1 space-y-1.5">
-                      <div className="text-slate-400 font-medium">クイックアクション (Quick Actions)</div>
-                      <p className="text-[11px] text-slate-500">
-                        この特定のセル（モデルとサンプルの組み合わせ）に対して、今すぐクライアント（ブラウザ）経由で解析テストを実行し、マトリクスの結果をその場で更新できます。
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2">
+                ) : (
+                  <div className="bg-slate-50 p-6 rounded-lg text-center border border-dashed text-xs text-slate-500 space-y-3">
+                    <p>
+                      {colCap.executionAllowed 
+                        ? "このセルの組み合わせ結果はまだ記録されていません。" 
+                        : "このモデルは現在非推奨またはサポート外のため、実行できません。過去の結果もありません。"}
+                    </p>
+                    {colCap.executionAllowed && (
                       <button
                         onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
                         disabled={!!runningCellKey}
-                        className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 text-xs"
                       >
                         {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
                           <>
@@ -3988,45 +4035,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                           </>
                         ) : (
                           <>
-                            <Play className="w-4 h-4" /> 今すぐテスト実行 (Run Test)
+                            <Play className="w-3.5 h-3.5" /> 今すぐテスト実行
                           </>
                         )}
                       </button>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(JSON.stringify(selectedMatrixCell.result, null, 2));
-                          alert("セルの詳細JSONをコピーしました！");
-                        }}
-                        className="py-2 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-1 shadow-sm"
-                        title="JSONをコピー"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-slate-50 p-6 rounded-lg text-center border border-dashed text-xs text-slate-500 space-y-3">
-                  <p>このセルの組み合わせ結果はまだ記録されていません。</p>
-                  <button
-                    onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
-                    disabled={!!runningCellKey}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 text-xs"
-                  >
-                    {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> 実行中...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5" /> 今すぐテスト実行
-                      </>
                     )}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

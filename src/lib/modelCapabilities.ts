@@ -127,16 +127,6 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsNativeResponseSchema: false,
     supportsPromptedJson: true,
     preferredUiLabel: "Gemma 4 9B IT",
-  },
-  "unknown-model-xyz": {
-    canonicalModelId: "unknown-model-xyz",
-    providerFamily: "unknown",
-    lifecycleClass: "unsupported",
-    executionAllowed: false,
-    historicalReadingAllowed: true,
-    supportsNativeResponseSchema: false,
-    supportsPromptedJson: true,
-    preferredUiLabel: "Unknown Model",
   }
 };
 
@@ -146,39 +136,32 @@ export function getModelCapability(modelName: string): ModelCapability {
     return cap;
   }
   
-  // Try regex match for other models
-  if (/gemma/i.test(modelName)) {
-    return {
-      canonicalModelId: modelName,
-      providerFamily: "google-gemma",
-      lifecycleClass: "experimental",
-      executionAllowed: true,
-      historicalReadingAllowed: true,
-      supportsNativeResponseSchema: false,
-      supportsPromptedJson: true,
-      preferredUiLabel: modelName,
-    };
-  }
-  if (/gemini.*(?:flash|pro)/i.test(modelName)) {
+  const nameLower = modelName.toLowerCase();
+  const isGemini15 = nameLower.startsWith("gemini-1.5-") || nameLower === "gemini-1.5-pro-latest" || nameLower === "gemini-1.5-flash-preview";
+  const isGemma = nameLower.includes("gemma");
+  const isGemini = nameLower.includes("gemini");
+  
+  if (isGemini15) {
     return {
       canonicalModelId: modelName,
       providerFamily: "google-gemini",
-      lifecycleClass: "preview",
-      executionAllowed: true,
+      lifecycleClass: "discontinued",
+      executionAllowed: false,
       historicalReadingAllowed: true,
       supportsNativeResponseSchema: true,
       supportsPromptedJson: true,
-      preferredUiLabel: modelName,
+      preferredUiLabel: `${modelName} (Discontinued)`,
+      deprecationNote: "This model version is discontinued."
     };
   }
 
   return {
     canonicalModelId: modelName,
-    providerFamily: "unknown",
+    providerFamily: isGemini ? "google-gemini" : isGemma ? "google-gemma" : "unknown",
     lifecycleClass: "unsupported",
     executionAllowed: false,
     historicalReadingAllowed: true,
-    supportsNativeResponseSchema: false,
+    supportsNativeResponseSchema: isGemini,
     supportsPromptedJson: true,
     preferredUiLabel: modelName,
   };

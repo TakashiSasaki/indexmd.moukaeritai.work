@@ -1804,7 +1804,14 @@ export async function analyzePublicSample(options: {
     // Prepare Prompt & Options
     const modelCap = getModelCapability(modelName);
     if (!modelCap.executionAllowed) {
-      return { status: 400, body: { error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.` } };
+      return { 
+        status: 400, 
+        body: { 
+          success: false,
+          error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.`,
+          providerFailure: "unsupportedModel"
+        } 
+      };
     }
 
     const visualCap = getVisualModelCapability(modelName);
@@ -2507,7 +2514,11 @@ app.post("/api/drive/debug/analyze-image", async (req, res) => {
     // 3. Prepare Prompt & Options
     const modelCap = getModelCapability(modelName);
     if (!modelCap.executionAllowed) {
-      return res.status(400).json({ error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.` });
+      return res.status(400).json({
+        success: false,
+        error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.`,
+        providerFailure: "unsupportedModel"
+      });
     }
 
     const visualCap = getVisualModelCapability(modelName);
@@ -2888,7 +2899,11 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
 
     const modelCap = getModelCapability(modelName);
     if (!modelCap.executionAllowed) {
-      return res.status(400).json({ error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.` });
+      return res.status(400).json({
+        success: false,
+        error: `Model execution is not allowed or model ${modelName} is not supported for visual analysis. It may be discontinued.`,
+        providerFailure: "unsupportedModel"
+      });
     }
 
     if (!targetSampleIds || !Array.isArray(targetSampleIds) || targetSampleIds.length === 0) {
