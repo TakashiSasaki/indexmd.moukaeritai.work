@@ -52,6 +52,9 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - **O(M*N) Nested Loops**: Avoid nested array iterations such as `.filter()` inside `.map()` in render functions. Pre-calculate data into hash maps using `useMemo` to achieve O(1) lookups.
 - **Memoizing List Items**: When mapping over frequently updated large lists in React (like terminal logs), wrap the rendered item in a `React.memo` component to drop render times for existing items from O(N) to O(1) on list append.
 
+### 6. EFU Index Maintenance
+- **index.efu Maintenance**: Whenever file structure changes (add/delete/rename), you MUST run `npm run generate:efu` to update the `index.efu` file in the repository root to ensure the 'Everything' search tool stays synchronized.
+
 ## 🎨 Design Rules
 - **Typography**: Primary font is `Inter`. Display/headings may use `Space Grotesk` or `Outfit` for a tool-oriented technical feel.
 - **Theme**: High-contrast light theme (`#F8FAFC` background) with Indigo (`#4F46E5`) as the primary brand color.

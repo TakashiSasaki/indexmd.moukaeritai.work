@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { getModelCapability, shouldUseNativeResponseSchema, getStructuredExecutionMode } from './modelCapabilities';
+import { getModelCapability, shouldUseNativeResponseSchema, getStructuredExecutionMode, getExecutableModels } from './modelCapabilities';
 
 test('Model Capabilities Registry', async (t) => {
   await t.test('gemini-3.5-flash uses nativeSchema', () => {
@@ -29,8 +29,36 @@ test('Model Capabilities Registry', async (t) => {
     assert.strictEqual(shouldUseNativeResponseSchema('gemma-4-31b-it'), false);
   });
 
-  await t.test('unknown model uses promptedJson', () => {
+  await t.test('unknown model uses promptedJson and is not executable', () => {
+    const cap = getModelCapability('unknown-model-xyz');
+    assert.strictEqual(cap.executionAllowed, false);
     assert.strictEqual(getStructuredExecutionMode('unknown-model-xyz'), 'promptedJson');
     assert.strictEqual(shouldUseNativeResponseSchema('unknown-model-xyz'), false);
+  });
+
+  await t.test('Gemini 1.5 models are discontinued and not executable', () => {
+    const proCap = getModelCapability('gemini-1.5-pro');
+    const proLatestCap = getModelCapability('gemini-1.5-pro-latest');
+    const flashCap = getModelCapability('gemini-1.5-flash');
+    const flashPreviewCap = getModelCapability('gemini-1.5-flash-preview');
+
+    assert.strictEqual(proCap.executionAllowed, false);
+    assert.strictEqual(proCap.lifecycleClass, 'discontinued');
+
+    assert.strictEqual(proLatestCap.executionAllowed, false);
+    assert.strictEqual(proLatestCap.lifecycleClass, 'discontinued');
+
+    assert.strictEqual(flashCap.executionAllowed, false);
+    assert.strictEqual(flashCap.lifecycleClass, 'discontinued');
+
+    assert.strictEqual(flashPreviewCap.executionAllowed, false);
+    assert.strictEqual(flashPreviewCap.lifecycleClass, 'discontinued');
+  });
+
+  await t.test('architecture: executable model IDs are unique and not duplicated in registry', () => {
+    const models = getExecutableModels();
+    const ids = models.map(m => m.canonicalModelId);
+    const uniqueIds = new Set(ids);
+    assert.strictEqual(ids.length, uniqueIds.size, `Duplicate executable model IDs found: ${ids.filter((item, index) => ids.indexOf(item) !== index)}`);
   });
 });

@@ -49,14 +49,14 @@ export interface PublicSampleBatchRunItem {
   nextRetryAt?: string;
   retryExhausted?: boolean;
   resumeAfter?: string;
-  pauseReason?: "pausedForRateLimit";
+  pauseReason?: "pausedForRateLimit" | "pausedForProviderUnavailable";
   blockedReason?: "blockedByQuota";
   affectedSampleIds?: string[];
   attemptState?: any;
 
   error?: string;
   failureKind?: string;
-  
+
   responseDiagnostics?: ResponseDiagnostics;
   retryDiagnostics?: SafeFetchRetryDiagnostics;
 }
@@ -109,6 +109,7 @@ export type VisualBatchJobStatus =
   | "canceling"
   | "paused"
   | "pausedForRateLimit"
+  | "pausedForProviderUnavailable"
   | "blockedByQuota"
   | "partiallyCompleted"
   | "interrupted"
@@ -124,7 +125,9 @@ export type VisualBatchJobItemStatus =
   | "skipped"
   | "canceled"
   | "blockedByQuota"
-  | "deferred";
+  | "deferred"
+  | "pausedForRateLimit"
+  | "pausedForProviderUnavailable";
 
 export interface VisualBatchJobEvent {
   type:
@@ -192,13 +195,13 @@ export interface VisualBatchJobItem {
   nextRetryAt?: string;
   retryExhausted?: boolean;
   resumeAfter?: string;
-  pauseReason?: "pausedForRateLimit";
+  pauseReason?: "pausedForRateLimit" | "pausedForProviderUnavailable";
   blockedReason?: "blockedByQuota";
   affectedSampleIds?: string[];
   attemptState?: any;
   error?: string;
   failureKind?: string;
-  
+
   record?: ImageAnalysisRecord;
   comparison?: any;
 }
@@ -263,7 +266,7 @@ export interface VisualBatchJob {
   lastCheckpointSavedAt?: string;
   lastError?: string;
   lastFailureKind?: string;
-  pauseReason?: "pausedForRateLimit";
+  pauseReason?: "pausedForRateLimit" | "pausedForProviderUnavailable";
   affectedSampleIds?: string[];
   attemptState?: any;
 
