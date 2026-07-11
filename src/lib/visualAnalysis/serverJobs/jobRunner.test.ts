@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { startVisualBatchJob, activeRunners, classifyJobQuotaInterruption } from './jobRunner';
+import { startVisualBatchJob, classifyJobQuotaInterruption } from './jobRunner';
+import { RunnerRegistry } from './runnerRegistry';
 import { jobStore } from './jobStore';
 import { jobToSummary } from './jobAdapters';
 import { VisualBatchJob } from '../publicSamples/batchTypes';
@@ -50,8 +51,7 @@ function createJob(jobId: string): VisualBatchJob {
 }
 
 function cleanupJob(jobId: string) {
-  activeRunners.delete(jobId);
-  const filePath = path.join(process.cwd(), 'cache', 'visual-batch-jobs', `${jobId}.json`);
+    const filePath = path.join(process.cwd(), 'cache', 'visual-batch-jobs', `${jobId}.json`);
   fs.rmSync(filePath, { force: true });
 }
 
@@ -70,6 +70,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   };
 
   const runner = startVisualBatchJob(jobId, {
+    runnerRegistry: new RunnerRegistry(),
     analyzeFn,
     getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
   });
@@ -125,6 +126,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
 
   // Resume processing with a second runner
   const secondRunner = startVisualBatchJob(jobId, {
+    runnerRegistry: new RunnerRegistry(),
     analyzeFn,
     getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
   });
@@ -255,6 +257,7 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
 
   let calls = 0;
   await startVisualBatchJob(jobId, {
+    runnerRegistry: new RunnerRegistry(),
     getSampleMetadata: async (sampleId: string) => ({ id: sampleId, title: 'Transient throttle sample' }),
     analyzeFn: async () => {
       calls += 1;
@@ -308,6 +311,7 @@ test('startVisualBatchJob transition running -> pausedForProviderUnavailable on 
 
   let calls = 0;
   await startVisualBatchJob(jobId, {
+    runnerRegistry: new RunnerRegistry(),
     getSampleMetadata: async (sampleId: string) => ({ id: sampleId, title: 'Unavailable sample' }),
     analyzeFn: async () => {
       calls += 1;

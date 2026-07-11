@@ -4,6 +4,7 @@ import request from "supertest";
 import { createApp } from "../../src/app";
 import { FakeProviderTransport } from "../../src/lib/visualAnalysis/fakeProviderTransport";
 import { defaultSampleResolver } from "../../src/lib/visualAnalysis/preflight";
+import { RunnerRegistry } from "../../src/lib/visualAnalysis/serverJobs/runnerRegistry";
 import { jobStore } from "../../src/lib/visualAnalysis/serverJobs/jobStore";
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -13,7 +14,8 @@ test("Isolated Public Execution Integration", async (t) => {
   const { app } = createApp({
     providerTransport: fakeTransport,
     sampleResolver: defaultSampleResolver,
-    jobStore: jobStore
+    jobStore: jobStore,
+    runnerRegistry: new RunnerRegistry()
   });
 
   await t.test("Can execute batch jobs safely through the fake transport and characterize prompt", async () => {

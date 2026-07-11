@@ -1,17 +1,21 @@
-import { createApp } from "./src/app.ts";
+import { createApp, initializeApp } from "./src/app.ts";
 import { jobStore } from "./src/lib/visualAnalysis/serverJobs/jobStore";
+import { RunnerRegistry } from "./src/lib/visualAnalysis/serverJobs/runnerRegistry";
 import { GeminiSdkProviderTransport } from "./src/lib/visualAnalysis/providerTransport";
 import { defaultSampleResolver } from "./src/lib/visualAnalysis/preflight";
 import { fetchPublicSampleImage } from "./src/lib/visualAnalysis/publicSamples/serverFetch";
 import crypto from "crypto";
 
-const { app, initializeApp } = createApp({
+initializeApp();
+
+const { app } = createApp({
   jobStore,
   providerTransport: new GeminiSdkProviderTransport(),
   sampleResolver: defaultSampleResolver,
   idGenerator: () => crypto.randomUUID(),
   clock: { now: () => new Date() },
   imageFetcher: fetchPublicSampleImage,
+  runnerRegistry: new RunnerRegistry(),
 });
 
 export { app };

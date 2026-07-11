@@ -1,8 +1,8 @@
-import { isRunnerActive } from './lib/visualAnalysis/serverJobs/jobRunner';
 
 import { jobStore as defaultJobStore } from './lib/visualAnalysis/serverJobs/jobStore';
 
-import { startVisualBatchJob, activeRunners } from './lib/visualAnalysis/serverJobs/jobRunner';
+import { startVisualBatchJob } from "./lib/visualAnalysis/serverJobs/jobRunner";
+import { RunnerRegistry } from "./lib/visualAnalysis/serverJobs/runnerRegistry";
 
 import { VisualBatchJob } from './lib/visualAnalysis/publicSamples/batchTypes';
 
@@ -100,30 +100,33 @@ import { preflightVisualExecution, PreflightError, SampleResolver } from "./lib/
 
 import { GeminiSdkProviderTransport } from "./lib/visualAnalysis/providerTransport";
 
-dotenv.config();
-
-initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory', 'publicSampleImages']);
-
-setCacheEnabled('snippets', process.env.ENABLE_DRIVE_CONTENT_CACHE === 'true');
-
-setCachePolicyVersion('publicSampleImages', PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION);
 
 const CACHE_DIR = path.join(process.cwd(), "cache", "snippets");
-
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
-
 const SUMMARIES_CACHE_DIR = path.join(process.cwd(), "cache", "summaries");
-
-if (!fs.existsSync(SUMMARIES_CACHE_DIR)) {
-  fs.mkdirSync(SUMMARIES_CACHE_DIR, { recursive: true });
-}
-
 const SCAN_CACHE_DIR = path.join(process.cwd(), "cache", "scan");
 
-if (!fs.existsSync(SCAN_CACHE_DIR)) {
-  fs.mkdirSync(SCAN_CACHE_DIR, { recursive: true });
+export function initializeApp() {
+  dotenv.config();
+
+  initCacheMetrics(['scan', 'snippets', 'summaries', 'experimentHistory', 'publicSampleImages']);
+  setCacheEnabled('snippets', process.env.ENABLE_DRIVE_CONTENT_CACHE === 'true');
+  setCachePolicyVersion('publicSampleImages', PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION);
+
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  }
+
+  if (!fs.existsSync(SUMMARIES_CACHE_DIR)) {
+    fs.mkdirSync(SUMMARIES_CACHE_DIR, { recursive: true });
+  }
+
+  if (!fs.existsSync(SCAN_CACHE_DIR)) {
+    fs.mkdirSync(SCAN_CACHE_DIR, { recursive: true });
+  }
+  
+  if (!fs.existsSync(EXPERIMENT_HISTORY_DIR)) {
+    fs.mkdirSync(EXPERIMENT_HISTORY_DIR, { recursive: true });
+  }
 }
 
 function getScanCacheKey(
@@ -225,13 +228,10 @@ const HISTORY_PATH = path.join(process.cwd(), "src/data/validation_history.json"
 
 const OLD_EXPERIMENT_HISTORY_PATH = path.join(process.cwd(), "src/data/experiment_history.json");
 
-const EXPERIMENT_HISTORY_DIR = path.join(process.cwd(), "cache", "experiment-history");
 
+const EXPERIMENT_HISTORY_DIR = path.join(process.cwd(), "cache", "experiment-history");
 const EXPERIMENT_HISTORY_PATH = path.join(EXPERIMENT_HISTORY_DIR, "experiment_history.json");
 
-if (!fs.existsSync(EXPERIMENT_HISTORY_DIR)) {
-  fs.mkdirSync(EXPERIMENT_HISTORY_DIR, { recursive: true });
-}
 
 function extractJsonSchemaFromText(text: string): any {
   if (!text) return null;
@@ -1104,9 +1104,11 @@ export interface AppDependencies {
   idGenerator?: () => string;
   clock?: { now: () => Date };
   imageFetcher?: any;
+  runnerRegistry?: RunnerRegistry;
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
+  const runnerRegistry = dependencies.runnerRegistry || new RunnerRegistry();
   const app = express();
   
   // Apply JSON parsing middleware
@@ -2808,6 +2810,8 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
     const imageFetcher = dependencies.imageFetcher;
     const idGenerator = dependencies.idGenerator || (() => crypto.randomUUID());
     const clock = dependencies.clock || { now: () => new Date() };
+    const runnerRegistry = dependencies.runnerRegistry;
+    if (!runnerRegistry) throw new Error("Missing runnerRegistry in dependencies");
 
     let preflightResult;
     try {
@@ -2845,8 +2849,8 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
         }
       });
       try {
-        activeRunners.get(activeJob.jobId)?.abortController?.abort();
-        activeRunners.delete(activeJob.jobId);
+        runnerRegistry.get(activeJob.jobId)?.abortController?.abort();
+        runnerRegistry.delete(activeJob.jobId);
       } catch(e){}
     }
 
@@ -2892,6 +2896,8 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
     
     // Start async execution
     startVisualBatchJob(jobId, {
+      clock,
+      runnerRegistry,
       analyzeFn: (opts) => analyzePublicSample({ ...opts, providerTransport: transport, sampleResolver: resolver, imageFetcher }),
       getSampleMetadata: async (id) => getPublicSampleById(id),
       jobStore: store
@@ -2927,7 +2933,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
     if (!job) return res.status(404).json({ error: "Job not found" });
 
     // computedState
-    const isActiveRunnerKnown = isRunnerActive(job.jobId);
+    const isActiveRunnerKnown = runnerRegistry.isActive(job.jobId);
     const isStale = (job.status === 'running' || job.status === 'canceling') && !isActiveRunnerKnown;
     
     const CANCELING_STALE_AFTER_MS = 120_000;
@@ -3059,7 +3065,7 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
       });
       // Best effort abort
       try {
-        activeRunners.get(job.jobId)?.abortController?.abort();
+        runnerRegistry.get(job.jobId)?.abortController?.abort();
       } catch(e){}
     }
     return res.status(200).json({ success: true, job: store.getJob(job.jobId) });
@@ -3104,8 +3110,8 @@ app.post("/api/visual/batch-jobs/:jobId/force-cancel", async (req, res) => {
        });
        
        try {
-         activeRunners.get(job.jobId)?.abortController?.abort();
-         activeRunners.delete(job.jobId);
+         runnerRegistry.get(job.jobId)?.abortController?.abort();
+         runnerRegistry.delete(job.jobId);
        } catch(e){}
     }
     
@@ -3129,5 +3135,5 @@ app.get("/api/visual/batch-jobs/:jobId/reports/analysis-bundle", async (req, res
   }
 });
 
-  return { app, initializeApp: () => { /* init side effects */ } };
+  return { app };
 }

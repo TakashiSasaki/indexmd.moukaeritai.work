@@ -16,12 +16,32 @@ function findTests(dir, fileList = []) {
   return fileList;
 }
 
-const srcTests = findTests(path.join(process.cwd(), 'src'));
-const testsTests = findTests(path.join(process.cwd(), 'tests'));
-const testFiles = [...srcTests, ...testsTests].sort();
+const argsList = process.argv.slice(2);
+const isCoverage = argsList.includes('--coverage');
+const category = argsList.find(a => !a.startsWith('--')) || 'unit';
+
+let testFiles = [];
+
+if (category === 'unit' || category === 'all') {
+  testFiles.push(...findTests(path.join(process.cwd(), 'src')));
+  testFiles.push(...findTests(path.join(process.cwd(), 'tests', 'unit')));
+}
+if (category === 'integration' || category === 'all') {
+  testFiles.push(...findTests(path.join(process.cwd(), 'tests', 'integration')));
+}
+if (category === 'architecture' || category === 'all') {
+  testFiles.push(...findTests(path.join(process.cwd(), 'tests', 'architecture')));
+}
+
+testFiles = testFiles.sort();
+
+if (testFiles.length === 0) {
+  console.error(`No tests found for category: ${category}`);
+  process.exit(1);
+}
 
 const args = ['--import', 'tsx'];
-if (process.env.COVERAGE === '1') {
+if (isCoverage || process.env.COVERAGE === '1') {
   args.push('--experimental-test-coverage');
 }
 args.push('--test', ...testFiles);

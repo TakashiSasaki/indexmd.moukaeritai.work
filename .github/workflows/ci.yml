@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "chatgpt", "jules/*" ]
+    branches: [ "main", "chatgpt", "jules", "jules/*", "codex" ]
   pull_request:
-    branches: [ "main", "chatgpt", "jules/*" ]
+    branches: [ "main" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,33 +13,41 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
-
+    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         cache: 'npm'
-
+        
     - name: Install dependencies
       run: npm ci
-
+      
     - name: Type Check (Lint)
       run: npm run lint
-
+      
     - name: Run Unit Tests
       run: npm run test:unit
-
+      
+    - name: Run Integration Tests
+      run: npm run test:integration
+      
+    - name: Run Architecture Tests
+      run: npm run test:architecture
+      
+    - name: Run Test Coverage
+      run: npm run test:coverage
+      
     - name: Run Contract Validation
       run: npm run validate:contracts
-
+      
     - name: Verify No Schema Mirror
       run: npm run verify:no-schema-mirror
-
+      
     - name: Validate Public Samples (Images)
       run: npm run validate:public-samples:images
-
+      
     - name: Build Production
       run: npm run build

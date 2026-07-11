@@ -4,6 +4,7 @@ import request from 'supertest';
 import { createApp } from './app';
 import { FakeProviderTransport } from './lib/visualAnalysis/fakeProviderTransport';
 import { defaultSampleResolver } from './lib/visualAnalysis/preflight';
+import { RunnerRegistry } from './lib/visualAnalysis/serverJobs/runnerRegistry';
 import { jobStore } from './lib/visualAnalysis/serverJobs/jobStore';
 
 // Mock global fetch
@@ -18,7 +19,8 @@ describe('Analyze Image Endpoint', () => {
     const result = createApp({
       providerTransport: fakeTransport,
       sampleResolver: defaultSampleResolver,
-      jobStore: jobStore
+      jobStore: jobStore,
+      runnerRegistry: new RunnerRegistry()
     });
     app = result.app;
   });
@@ -86,7 +88,8 @@ describe('Batch Jobs Model Gating', () => {
     const result = createApp({
       providerTransport: fakeTransport,
       sampleResolver: defaultSampleResolver,
-      jobStore: jobStore
+      jobStore: jobStore,
+      runnerRegistry: new RunnerRegistry()
     });
     app = result.app;
   });

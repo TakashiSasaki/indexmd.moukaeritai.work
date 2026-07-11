@@ -106,11 +106,7 @@ export function classifyProviderAvailability(finalData: any, status?: number): {
   return { isUnavailable: false };
 }
 
-export const activeRunners = new Map<string, { startedAt: string; abortController?: AbortController }>();
 
-export function isRunnerActive(jobId: string) {
-  return activeRunners.has(jobId);
-}
 
 export async function startVisualBatchJob(
   jobId: string, 
@@ -118,14 +114,15 @@ export async function startVisualBatchJob(
     analyzeFn: (options: any) => Promise<{status: number, body: any}>,
     getSampleMetadata: (sampleId: string) => Promise<any>,
     jobStore?: any,
-    clock?: { now: () => Date }
+    clock?: { now: () => Date },
+    runnerRegistry: import('./runnerRegistry').RunnerRegistry
   }
 ) {
   const { analyzeFn, getSampleMetadata } = deps;
   const store = deps.jobStore || defaultJobStore;
   const clock = deps.clock || { now: () => new Date() };
 
-  if (activeRunners.has(jobId)) {
+  if (deps.runnerRegistry.isActive(jobId)) {
     console.warn(`Runner for job ${jobId} is already active.`);
     return;
   }
@@ -134,7 +131,7 @@ export async function startVisualBatchJob(
   if (!job) return;
 
   const abortController = new AbortController();
-  activeRunners.set(jobId, { startedAt: clock.now().toISOString(), abortController });
+  deps.runnerRegistry.set(jobId, { startedAt: clock.now().toISOString(), abortController });
 
   try {
     store.updateJob(jobId, { 
@@ -641,6 +638,6 @@ export async function startVisualBatchJob(
          }
        });
     }
-    activeRunners.delete(jobId);
+    deps.runnerRegistry.delete(jobId);
   }
 }

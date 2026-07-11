@@ -13,8 +13,11 @@
     "verify:no-schema-mirror": "node scripts/verifyNoSchemaMirror.mjs",
     "validate:public-samples:images": "node --import tsx scripts/validatePublicSamples.ts",
     "generate:efu": "tsx scripts/generate-efu.ts",
-    "test:unit": "node scripts/test-runner.js",
-    "test:coverage": "COVERAGE=1 node scripts/test-runner.js"
+    "test:unit": "node scripts/test-runner.js unit",
+    "test:coverage": "node scripts/test-runner.js all --coverage",
+    "test:integration": "node scripts/test-runner.js integration",
+    "test:architecture": "node scripts/test-runner.js architecture",
+    "test:all": "node scripts/test-runner.js all"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
