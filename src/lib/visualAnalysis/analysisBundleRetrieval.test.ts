@@ -49,3 +49,12 @@ test('cross-origin redirect is rejected', async () => {
   mock(200, JSON.stringify(bundle()), {'content-type':'application/json'}, 'https://evil.example/cookie', true);
   await assert.rejects(fetchAndValidateAnalysisBundle(jobId), (e: any) => e.kind === 'unsafeRedirect');
 });
+
+import { ANALYSIS_BUNDLE_V01 } from './__fixtures__/analysisBundleFixtures';
+import { validateAnalysisBundleObject } from './analysisBundleRetrieval';
+
+test('Analysis Bundle Fixtures', () => {
+    const validated = validateAnalysisBundleObject(ANALYSIS_BUNDLE_V01, "test-job-v0.1");
+    assert.equal(validated.schemaVersion, "0.1.0");
+    assert.equal(validated.jobId, "test-job-v0.1");
+});

@@ -3,7 +3,7 @@ import { getSummaryAnalysisV12ValidationErrors, isControlledVocabularyValidation
 import { normalizeAndRepairSummaryAnalysisV12 } from "./repair";
 import { SummaryAnalysisResultV12 } from "./types";
 import { generateContentWithRetry } from "../gemini";
-import { getModelCapability } from "../modelCapabilities";
+import { getModelCapability, getStructuredExecutionMode } from "../modelCapabilities";
 import { evaluateStructuredSummaryQuality } from "./qualityGate";
 
 async function repairOutputWithLLM(
@@ -30,7 +30,7 @@ ${candidateJson}
 
   const repairConfig = {
     ...configOption,
-    responseSchema: undefined, 
+    responseSchema: undefined,
     systemInstruction: undefined
   };
 
@@ -72,10 +72,10 @@ export async function processStructuredSummaryOutput(
   const result: any = {
     schemaVersion: SCHEMA_VERSION_V12,
     rawText: summaryText,
-    effectiveStructuredExecutionMode: configOption?.effectiveStructuredExecutionMode || cap.structuredExecutionMode,
+    effectiveStructuredExecutionMode: configOption?.effectiveStructuredExecutionMode || getStructuredExecutionMode(targetModel),
     supportsNativeResponseSchema: configOption?.supportsNativeResponseSchema !== undefined ? configOption.supportsNativeResponseSchema : cap.supportsNativeResponseSchema,
     providerFamily: configOption?.providerFamily || cap.providerFamily,
-    responseSchemaEnabled: configOption?.responseSchemaEnabled !== undefined ? configOption.responseSchemaEnabled : (cap.structuredExecutionMode === "nativeSchema")
+    responseSchemaEnabled: configOption?.responseSchemaEnabled !== undefined ? configOption.responseSchemaEnabled : (getStructuredExecutionMode(targetModel) === "nativeSchema")
   };
 
   const trimmed = (summaryText || "").trim();
@@ -111,7 +111,7 @@ export async function processStructuredSummaryOutput(
 
     // Detect Empty Structured Output
     const rootSections = [
-      "summary", "titleInfo", "documentKindInfo", "fileFormatInfo", 
+      "summary", "titleInfo", "documentKindInfo", "fileFormatInfo",
       "subjectAreas", "languageInfo", "indexing", "extractedFacts", "quality"
     ];
     const hasNoSections = !parsed || typeof parsed !== "object" || Object.keys(parsed).length === 0 || rootSections.every(sec => !(sec in parsed));
@@ -157,7 +157,7 @@ export async function processStructuredSummaryOutput(
         const repairedParsed = JSON.parse(repairedText);
         const repairResult = normalizeAndRepairSummaryAnalysisV12(repairedParsed);
         const newValidationErrors = getSummaryAnalysisV12ValidationErrors(repairResult.repaired);
-        
+
         if (newValidationErrors.length === 0) {
           normalized = repairResult.repaired;
           validationErrors = [];

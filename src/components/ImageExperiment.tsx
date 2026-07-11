@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Image as ImageIcon, AlertCircle, AlertTriangle, CheckCircle, RefreshCw, Activity, Check, Copy, Download, ExternalLink, Info, Trash2, Terminal, ChevronDown, ChevronUp, Clock, ArrowRight, HelpCircle, Play, RotateCw, XCircle, Loader2 } from 'lucide-react';
 import { AppConfig } from '../types';
-import { getVisualModelCapability } from '../lib/modelCapabilities';
-import { 
-  compareExpectedImageKind, 
-  compareExpectedCategories, 
-  compareExpectedLabels, 
+import { getVisualModelCapability, getExecutableModels, getModelCapability, getModelRegistry } from '../lib/modelCapabilities';
+import {
+  compareExpectedImageKind,
+  compareExpectedCategories,
+  compareExpectedLabels,
   compareExpectedVisibleText,
   evaluateSampleComparison,
   PublicSampleComparisonSummary
@@ -162,12 +162,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   });
   const [modelSelection, setModelSelection] = useState<string>(() => {
-    return localStorage.getItem("image_experiment_model_selection") || 
+    return localStorage.getItem("image_experiment_model_selection") ||
       `${config.gemini_model || "gemini-3.5-flash"}|${config.json_mode || "prompt_only"}`;
   });
 
-  const [modelName, jsonModeOption] = modelSelection.includes("|") 
-    ? modelSelection.split("|") 
+  const [modelName, jsonModeOption] = modelSelection.includes("|")
+    ? modelSelection.split("|")
     : [modelSelection, config.json_mode || "prompt_only"];
 
   useEffect(() => {
@@ -350,18 +350,54 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   }, [pastBatchRuns]);
 
-  const MATRIX_COLUMNS = [
-    { model: "gemini-3.5-flash", mode: "native_schema", label: "G3.5 Flash (Native)" },
-    { model: "gemini-3.5-flash", mode: "prompt_only", label: "G3.5 Flash (Prompt)" },
-    { model: "gemini-flash-latest", mode: "native_schema", label: "G Flash Lat (Native)" },
-    { model: "gemini-flash-latest", mode: "prompt_only", label: "G Flash Lat (Prompt)" },
-    { model: "gemini-3.1-flash-lite", mode: "native_schema", label: "G3.1 Lite (Native)" },
-    { model: "gemini-3.1-flash-lite", mode: "prompt_only", label: "G3.1 Lite (Prompt)" },
-    { model: "gemini-1.5-pro", mode: "native_schema", label: "G1.5 Pro (Native)" },
-    { model: "gemini-1.5-pro", mode: "prompt_only", label: "G1.5 Pro (Prompt)" },
-    { model: "gemma-4-31b-it", mode: "prompt_only", label: "Gemma4 31B (Prompt)" },
-    { model: "gemma-4-26b-a4b-it", mode: "prompt_only", label: "Gemma4 26B (Prompt)" },
-  ];
+  const MATRIX_COLUMNS = useMemo(() => {
+    const registry = getModelRegistry();
+    return Object.values(registry)
+      .filter(m => m.executionAllowed || m.historicalReadingAllowed)
+      .flatMap(m => {
+        const cols = [];
+        const modeSuffix = m.executionAllowed ? "" : " (History Only)";
+        if (m.supportsNativeResponseSchema) {
+          cols.push({
+            model: m.canonicalModelId,
+            mode: "native_schema",
+            label: `${m.preferredUiLabel}${modeSuffix} (Native)`,
+            executionAllowed: m.executionAllowed
+          });
+        }
+        if (m.supportsPromptedJson) {
+          cols.push({
+            model: m.canonicalModelId,
+            mode: "prompt_only",
+            label: `${m.preferredUiLabel}${modeSuffix} (Prompt)`,
+            executionAllowed: m.executionAllowed
+          });
+        }
+        return cols;
+      });
+  }, []);
+
+  const dynamicModelOptions = useMemo(() => {
+    return getExecutableModels().flatMap(m => {
+      const opts = [];
+      const visCap = getVisualModelCapability(m.canonicalModelId);
+      const recIcon = visCap.recommendation === 'recommended' ? '⭐️' : visCap.recommendation === 'experimental' ? '🧪' : '⚠️';
+
+      if (m.supportsNativeResponseSchema) {
+        opts.push({
+          value: `${m.canonicalModelId}|native_schema`,
+          label: `${recIcon} ⚡️ ${m.preferredUiLabel}`
+        });
+      }
+      if (m.supportsPromptedJson) {
+        opts.push({
+          value: `${m.canonicalModelId}|prompt_only`,
+          label: `${recIcon} 📝 ${m.preferredUiLabel}`
+        });
+      }
+      return opts;
+    });
+  }, []);
 
   const [selectedMatrixCell, setSelectedMatrixCell] = useState<{
     sampleId: string;
@@ -375,9 +411,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const handleRunSingleCell = async (sampleId: string, modelName: string, jsonMode: string) => {
     const key = `${sampleId}|${modelName}|${jsonMode}`;
     if (runningCellKey) return;
+
+    const mCap = getModelCapability(modelName);
+    if (!mCap.executionAllowed) {
+      onAddLog("error", `[Matrix Run] Execution not allowed for discontinued or unsupported model: ${modelName}`);
+      alert(`Execution not allowed for model: ${modelName}. This model has been discontinued.`);
+      return;
+    }
+
     setRunningCellKey(key);
     onAddLog("info", `[Matrix Run] Running single cell test: ${sampleId} with ${modelName} (${jsonMode})...`);
-    
+
     try {
       const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === sampleId);
       const sfResult = await safeFetchWithRetry<any>('/api/visual/public-samples/analyze', {
@@ -394,7 +438,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
       const data = sfResult.data || {};
       const success = sfResult.success && data.success;
-      
+
       let overallStatus: 'pass' | 'warning' | 'fail' | undefined;
       let reviewStatus: 'pass' | 'needsReview' | 'fail' | undefined;
 
@@ -435,7 +479,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       };
 
       handleUpdateMatrixResult(cellResult);
-      
+
       // Update selectedMatrixCell detail view if open for this cell
       setSelectedMatrixCell(prev => {
         if (prev && prev.sampleId === sampleId && prev.model === modelName && prev.mode === jsonMode) {
@@ -463,7 +507,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     try {
       let csv = "Sample ID,Sample Title,";
       csv += MATRIX_COLUMNS.map(col => `"${col.label}"`).join(",") + "\n";
-      
+
       PUBLIC_VISUAL_SAMPLES.forEach(sample => {
         let row = `"${sample.id}","${sample.title}",`;
         const colResults = MATRIX_COLUMNS.map(col => {
@@ -562,7 +606,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   // Load and validate active batch checkpoint on mount or settings change
   useEffect(() => {
     if (samples.length === 0) return;
-    
+
     const checkpoint = loadActiveBatchCheckpoint();
     if (checkpoint && (checkpoint.status === 'running' || checkpoint.status === 'failed')) {
       const currentSettings = {
@@ -571,7 +615,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         customInstructionHash: fnv1a32(customInstruction.trim()),
         availableSampleIds: samples.map(s => s.id)
       };
-      
+
       if (isCheckpointCompatible(checkpoint, currentSettings)) {
         setActiveCheckpoint(checkpoint);
         setHasIncompatibleCheckpoint(false);
@@ -592,15 +636,15 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const [healthCheckError, setHealthCheckError] = useState<string | null>(null);
 
   const analysisBundleReport = useMemo(() => batchSummary ? buildBatchAnalysisBundleForChat(batchSummary) : null, [batchSummary]);
-  
+
   const analysisBundleReportStats = useMemo(() => {
     if (!analysisBundleReport) return null;
     return stringifyJsonArtifact(analysisBundleReport);
   }, [analysisBundleReport]);
-  
+
   // Privacy options
   const [storeRawOutputPreviewInDrive, setStoreRawOutputPreviewInDrive] = useState<boolean>(false);
-  
+
   const selectedSample = samples.find(s => s.id === selectedSampleId) || null;
   const isPublicResult = !!result?.sampleMetadata;
   const isDriveResult = !!result?.metadata;
@@ -754,12 +798,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         maxAttempts: 5,
         delaysMs: [10000, 30000, 60000, 120000],
         onRetry: (event: SafeFetchRetryEvent) => {
-          const reason = event.status === 429 
-            ? "レート制限 (429)" 
-            : event.status 
-              ? `HTTP エラー (${event.status})` 
-              : event.failureKind === "networkError" 
-                ? "ネットワークエラー" 
+          const reason = event.status === 429
+            ? "レート制限 (429)"
+            : event.status
+              ? `HTTP エラー (${event.status})`
+              : event.failureKind === "networkError"
+                ? "ネットワークエラー"
                 : event.htmlTitle || "一時的なエラー";
           onAddLog("warn", `[Image Analysis] リトライが必要なエラーを検出しました (${reason})。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
         }
@@ -934,12 +978,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
              fetchedBundlesRef.current.add(inflightKey);
              // Fetch bundle
              try {
-               const bRes = await fetch(`/api/visual/batch-jobs/${targetJobId}/reports/analysis-bundle`);
-               if (bRes.ok) {
-                 const bundle = await bRes.json();
-                 saveLocalJobBackup(data.job, bundle);
-                 reloadLocalBackups();
-               }
+               const validated = await fetchAndValidateAnalysisBundle(targetJobId);
+               saveLocalJobBackup(data.job, validated.bundle);
+               reloadLocalBackups();
              } catch (err) {
                console.warn("Auto bundle backup fetch failed", err);
              }
@@ -958,8 +999,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
   const reloadLocalBackups = () => {
     setLocalJobBackups(listLocalJobBackups());
   };
-  
-  
+
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (showServerSideJob && serverJobId && serverJobStatus && (serverJobStatus.status === 'running' || serverJobStatus.status === 'queued' || serverJobStatus.status === 'canceling')) {
@@ -979,7 +1020,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         const data = await res.json();
         const jobs = data.jobs || [];
         setServerJobList(jobs);
-        
+
         // Auto-select the active job if one exists and we don't have one selected
         if (!serverJobId) {
           const activeJob = jobs.find((j: any) => j.status === 'queued' || j.status === 'running' || j.status === 'canceling');
@@ -1001,7 +1042,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
   }, [showServerSideJob]);
 
-  
+
   const handleCopyServerJobBundle = async (jobId: string) => {
     try {
       const { jsonText, metadata } = await fetchAndValidateAnalysisBundle(jobId);
@@ -1046,16 +1087,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       const res = await fetch(`/api/visual/batch-jobs/${serverJobStatus.jobId}/summary-data`);
       if (!res.ok) throw new Error(`Failed to fetch summary data: ${res.status}`);
       const summary = await res.json();
-      
+
       setBatchSummary(summary);
-      
+
       // Save to past runs
       try {
         const BATCH_RUNS_KEY = "image_experiment_batch_runs";
         const MAX_STORED_RUNS = 5;
         const storedStr = localStorage.getItem(BATCH_RUNS_KEY);
         let runs: PublicSampleBatchRunSummary[] = storedStr ? JSON.parse(storedStr) : [];
-        
+
         const fullRun: PublicSampleBatchRunSummary = {
           runId: summary.runId,
           timestamp: summary.timestamp,
@@ -1080,12 +1121,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           rateLimitSummary: summary.rateLimitSummary,
           items: summary.items
         };
-        
+
         runs.unshift(fullRun);
         if (runs.length > MAX_STORED_RUNS) {
            runs = runs.slice(0, MAX_STORED_RUNS);
         }
-        
+
         // Strip heavy things to avoid quota errors
         const lightweightRuns = runs.map(run => ({
           ...run,
@@ -1106,12 +1147,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
         localStorage.setItem(BATCH_RUNS_KEY, JSON.stringify(lightweightRuns));
         setPastBatchRuns(lightweightRuns);
-        
+
       } catch (e) {
         console.warn("Could not save imported run to localStorage:", e);
         onAddLog("warn", "Could not save imported run to localStorage (Quota exceeded?).");
       }
-      
+
       onAddLog("success", `Imported server job summary ${serverJobStatus.jobId}`);
     } catch (e: any) {
       onAddLog("error", `Failed to import server job: ${e.message}`);
@@ -1157,12 +1198,24 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           setActiveCheckpoint(checkpointRef.current);
        }
     }, 10000);
+
+    const isResuming = resumeMode && !!activeCheckpoint;
+    const activeModel = isResuming && activeCheckpoint ? activeCheckpoint.modelName : modelName;
+    const mCap = getModelCapability(activeModel);
+    if (!mCap.executionAllowed) {
+      clearInterval(heartbeatTimer);
+      onAddLog("error", `[Batch Run] Execution not allowed for discontinued/unsupported model: ${activeModel}`);
+      alert(`Execution not allowed for model: ${activeModel}. This model has been discontinued.`);
+      setIsBatchRunning(false);
+      return;
+    }
+
     try {
     let targetSamples = samples.filter(s => selectedSampleIds[s.id]);
-    
+
     let isResuming = false;
     let initialCheckpoint: PublicSampleBatchCheckpoint | null = null;
-    
+
     if (resumeMode && activeCheckpoint) {
       isResuming = true;
       initialCheckpoint = activeCheckpoint;
@@ -1195,17 +1248,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
 
     // Initialize or restore state
     let total = isResuming && initialCheckpoint ? initialCheckpoint.targetSampleIds.length : targetSamples.length;
-    let currentProgress = isResuming && initialCheckpoint 
+    let currentProgress = isResuming && initialCheckpoint
       ? (onlyFailed
           ? initialCheckpoint.targetSampleIds.length - initialCheckpoint.failedSampleIds.length
-          : includeFailed 
+          : includeFailed
             ? initialCheckpoint.targetSampleIds.length - (initialCheckpoint.pendingSampleIds.length + initialCheckpoint.failedSampleIds.length)
             : initialCheckpoint.completedSampleIds.length)
       : 0;
     setBatchProgress({ current: currentProgress, total });
 
     let items: PublicSampleBatchRunItem[] = [];
-    
+
     let successCount = 0;
     let failureCount = 0;
     let validCount = 0;
@@ -1228,7 +1281,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       } else {
         items = [...initialCheckpoint.items];
       }
-      
+
       // Re-sum counters from remaining/restored items
       for (const item of items) {
         if (item.success) {
@@ -1236,7 +1289,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           const qStatus = item.record?.evaluation?.qualityStatus || (item as any).qualityStatus;
           if (qStatus === 'valid') validCount++;
           if (qStatus === 'validLowQuality') validLowQualityCount++;
-          
+
           const comp = item.comparison;
           if (comp) {
             if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
@@ -1259,12 +1312,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     }
 
     const newStatuses = { ...sampleStatuses };
-    
+
     let currentCheckpoint: PublicSampleBatchCheckpoint; // replaced by checkpointRef.current // replaced by checkpointRef.current
-    
+
     if (isResuming && initialCheckpoint) {
-       checkpointRef.current = { 
-         ...initialCheckpoint, 
+       checkpointRef.current = {
+         ...initialCheckpoint,
          status: 'running',
          lastEvent: {
            type: 'batchStarted',
@@ -1272,7 +1325,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
            message: `Batch resumed (includeFailed: ${includeFailed}, onlyFailed: ${onlyFailed})`
          },
          ...(includeFailed || onlyFailed ? {
-           pendingSampleIds: onlyFailed 
+           pendingSampleIds: onlyFailed
              ? [...initialCheckpoint.failedSampleIds]
              : [...initialCheckpoint.pendingSampleIds, ...initialCheckpoint.failedSampleIds],
            failedSampleIds: [],
@@ -1361,14 +1414,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         onAddLog("warn", `[Health Check] サーバーウォームアップまたは一時的エラーを検出しました。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
       }
     });
-    
+
     if (!hcResult.success || !hcResult.data?.ok) {
       setIsBatchRunning(false);
       setHealthCheckFailed(true);
       setHealthCheckDiagnostics(hcResult.responseDiagnostics || null);
       setHealthCheckError(hcResult.error || "ヘルスチェック応答が不正です。");
       onAddLog("error", `ヘルスチェックに失敗しました。バッチ処理は開始されません。: ${hcResult.error}`);
-      
+
       checkpointRef.current = {
         ...checkpointRef.current,
         status: 'failed',
@@ -1413,9 +1466,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         const sample = targetSamples[i];
         currentProgress++;
         setBatchProgress({ current: currentProgress, total });
-        
+
         const sampleStartedAt = new Date();
-        
+
         checkpointRef.current = {
           ...checkpointRef.current,
           currentSampleId: sample.id,
@@ -1434,7 +1487,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           console.warn("Failed to save checkpoint at sampleStarted", err);
         }
         setActiveCheckpoint(checkpointRef.current);
-        
+
         checkpointRef.current = {
           ...checkpointRef.current,
           lastEvent: {
@@ -1469,17 +1522,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               maxAttempts: 2,
               delaysMs: [60000],
               onRetry: (event: SafeFetchRetryEvent) => {
-                const reason = event.status === 429 
-                  ? "レート制限 (429)" 
-                  : event.status 
-                    ? `HTTP エラー (${event.status})` 
-                    : event.failureKind === "networkError" 
-                      ? "ネットワークエラー" 
+                const reason = event.status === 429
+                  ? "レート制限 (429)"
+                  : event.status
+                    ? `HTTP エラー (${event.status})`
+                    : event.failureKind === "networkError"
+                      ? "ネットワークエラー"
                       : event.htmlTitle || "一時的なエラー";
                 onAddLog("warn", `[Batch ${sample.id}] リトライが必要なエラーを検出しました (${reason})。${event.delayMs / 1000}秒後にリトライします (Attempt ${event.attempt})...`);
               }
             });
-            
+
             checkpointRef.current = {
               ...checkpointRef.current,
               lastResponseDiagnostics: sfResult.responseDiagnostics,
@@ -1532,7 +1585,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 newStatuses[sample.id] = "success";
                 if (record.evaluation?.qualityStatus === 'valid') validCount++;
                 if (record.evaluation?.qualityStatus === 'validLowQuality') validLowQualityCount++;
-                
+
                 // compute comparison
                 const expectedMetadata = record.evaluation?.expectedMetadata;
                 const comparisonSample = {
@@ -1555,7 +1608,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   expectedMetadata
                 });
                 item.comparison = comp;
-                
+
                 if (comp.overallStatus === 'pass') expectedComparisonPassCount++;
                 if (comp.overallStatus === 'warning') expectedComparisonWarningCount++;
                 if (comp.overallStatus === 'fail') expectedComparisonFailCount++;
@@ -1610,7 +1663,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             source: 'client-batch'
           });
         }
-        
+
         // Update and save checkpoint after each sample
         checkpointRef.current = {
           ...checkpointRef.current,
@@ -1628,7 +1681,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             sampleTitle: sample.title,
             failureKind: item.success ? undefined : item.failureKind,
             error: item.success ? undefined : item.error,
-            message: item.success 
+            message: item.success
               ? `Completed sample: ${sample.title} (${sample.id}) successfully`
               : `Failed sample: ${sample.title} (${sample.id}) - ${item.error || 'Unknown error'}`
           },
@@ -1658,7 +1711,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         }
         setActiveCheckpoint(checkpointRef.current);
     }
-    
+
     const batchCompletedAt = new Date();
     checkpointRef.current = {
       ...checkpointRef.current,
@@ -1697,13 +1750,13 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         reviewFailCount,
         items
     };
-    
+
     setBatchSummary(summary);
-    
+
     // Clear the active checkpoint as the batch has completed normally
     clearActiveBatchCheckpoint();
     setActiveCheckpoint(null);
-    
+
     // Save a compact version to localStorage to prevent quota limits
     const shrinkBatchRunSummaryForLocalStorage = (sum: PublicSampleBatchRunSummary) => {
       return {
@@ -1711,11 +1764,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
         items: sum.items.map(it => {
           const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === it.sampleId);
           const category = (it as any).category ||
-                           matchedSample?.category || 
+                           matchedSample?.category ||
                            ((it as any).responseRaw?.sampleMetadata as any)?.category ||
                            (it.comparison as any)?.category ||
                            "unknown";
-          
+
           let exec: any = undefined;
           if ((it as any).analysisRun?.metadata ?? (it as any).analysisRun) {
             const run = (it as any).analysisRun?.metadata ?? (it as any).analysisRun;
@@ -1859,7 +1912,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     })()}
                   </h3>
                   <p className="text-xs text-amber-700">
-                    {isBatchRunning 
+                    {isBatchRunning
                       ? "バッチ処理を実行しています。以下の診断情報がリアルタイムに更新されます。"
                       : "前回のバッチ実行が途中で中断されました。以下から現在の診断情報と、再開・破棄アクションを選択できます。"}
                     <br/>
@@ -1959,8 +2012,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   <div className="text-slate-400 font-medium">進捗状況</div>
                   <div className="mt-1 flex items-center gap-2">
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-amber-500 h-full transition-all duration-300" 
+                      <div
+                        className="bg-amber-500 h-full transition-all duration-300"
                         style={{ width: `${(activeCheckpoint.completedSampleIds.length / activeCheckpoint.targetSampleIds.length) * 100}%` }}
                       />
                     </div>
@@ -2013,7 +2066,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       <div>
                         <span className="text-slate-400 block text-[10px]">実行中だったサンプル:</span>
                         <span className="font-semibold text-slate-800">
-                          {activeCheckpoint.currentSampleTitle || '名称未設定'} 
+                          {activeCheckpoint.currentSampleTitle || '名称未設定'}
                           <span className="text-[10px] text-slate-500 font-mono ml-1">({activeCheckpoint.currentSampleId})</span>
                         </span>
                       </div>
@@ -2147,7 +2200,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
               </div>
             </div>
           )}
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left side: Inputs */}
             <div className="lg:col-span-12 space-y-4">
@@ -2260,7 +2313,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                   </span>
                                   <span className={`text-[7px] font-bold px-1 py-0.5 rounded-sm shrink-0 uppercase tracking-wider ${
                                     (s.isSynthetic ?? s.source?.provider === "localFixture")
-                                      ? "bg-amber-100 text-amber-700" 
+                                      ? "bg-amber-100 text-amber-700"
                                       : "bg-blue-100 text-blue-700"
                                   }`}>
                                     {(s.isSynthetic ?? s.source?.provider === "localFixture") ? "SYNTHETIC" : "EXTERNAL"}
@@ -2304,16 +2357,11 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                     onChange={(e) => setModelSelection(e.target.value)}
                     className={`w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50 min-w-[220px] h-[38px] ${visualCap.recommendation === 'experimental' ? 'border-amber-300 ring-1 ring-amber-100' : ''}`}
                   >
-                    <option value="gemini-3.5-flash|native_schema">⭐️ ⚡️ Gemini 3.5 Flash</option>
-                    <option value="gemini-3.5-flash|prompt_only">⭐️ 📝 Gemini 3.5 Flash</option>
-                    <option value="gemini-flash-latest|native_schema">⚡️ Gemini Flash Latest</option>
-                    <option value="gemini-flash-latest|prompt_only">📝 Gemini Flash Latest</option>
-                    <option value="gemini-3.1-flash-lite|native_schema">⭐️ ⚡️ Gemini 3.1 Flash Lite</option>
-                    <option value="gemini-3.1-flash-lite|prompt_only">⭐️ 📝 Gemini 3.1 Flash Lite</option>
-                    <option value="gemini-1.5-pro|native_schema">🧪 ⚡️ Gemini 1.5 Pro</option>
-                    <option value="gemini-1.5-pro|prompt_only">🧪 📝 Gemini 1.5 Pro</option>
-                    <option value="gemma-4-31b-it|prompt_only">⚠️ 📝 Gemma 4 31B IT</option>
-                    <option value="gemma-4-26b-a4b-it|prompt_only">⚠️ 📝 Gemma 4 26B</option>
+                    {dynamicModelOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 mt-1 text-[10px] text-slate-500 font-medium">
                     <span className="flex items-center gap-0.5">⭐️推奨</span>
@@ -2327,9 +2375,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
                   <div className="flex items-center gap-1.5 h-auto sm:h-[38px] py-1 sm:py-0 px-2 relative">
                     <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
-                      <input 
-                        type="checkbox" 
-                        checked={includePreview} 
+                      <input
+                        type="checkbox"
+                        checked={includePreview}
                         onChange={(e) => setIncludePreview(e.target.checked)}
                         className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                       />
@@ -2410,14 +2458,14 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             <span className="font-bold text-slate-800 text-base">Server-Side Batch Job (Experimental)</span>
             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-800 uppercase">Beta</span>
           </div>
-          
+
           <div className="space-y-4">
             <p className="text-xs text-slate-500">
-              Starts an experimental batch job on the Node.js server. Unlike the client-side <strong>Run Selected</strong> button (stable), 
-              this job will continue running even if you close the browser tab. 
+              Starts an experimental batch job on the Node.js server. Unlike the client-side <strong>Run Selected</strong> button (stable),
+              this job will continue running even if you close the browser tab.
               Currently, jobs are stored in local disk cache and are not guaranteed to be durable in production.
             </p>
-            
+
             <div className="flex items-center gap-2">
               <button
                 onClick={handleStartServerJob}
@@ -2430,7 +2478,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   ? 'Starting...'
                   : 'Start Server-Side Job'}
               </button>
-              
+
               <div className="flex-1 max-w-xs flex items-center gap-2 ml-4">
                 {serverJobId && (
                   <span className="text-xs text-slate-500 font-mono select-all">
@@ -2447,7 +2495,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </button>
               </div>
             </div>
-            
+
             {serverJobStatus && (
               <div className="bg-slate-50 border rounded p-3 text-xs space-y-2">
                 <div className="flex items-center justify-between">
@@ -2488,7 +2536,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 {serverJobStatus.startedAt && <div><strong>Elapsed Time:</strong> {serverJobStatus.durationMs ? `${(serverJobStatus.durationMs / 1000).toFixed(1)}s` : `${((new Date().getTime() - new Date(serverJobStatus.startedAt).getTime()) / 1000).toFixed(1)}s`}</div>}
                 <div><strong>Last Event:</strong> {serverJobStatus.lastEvent?.message || '-'}</div>
                 <div><strong>Last Heartbeat:</strong> {serverJobStatus.lastHeartbeatAt ? new Date(serverJobStatus.lastHeartbeatAt).toLocaleTimeString() : '-'}</div>
-                
+
                 {serverJobItemsPreview && serverJobItemsPreview.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-slate-200">
                     <strong className="text-[10px] text-slate-500 uppercase">Recent Items:</strong>
@@ -2549,7 +2597,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 </div>
               </div>
             )}
-            
+
             <ServerJobRecovery
               serverJobs={serverJobList}
               localBackups={localJobBackups}
@@ -2569,12 +2617,9 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       return;
                     }
                   }
-                  const bRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
-                  if (bRes.ok) {
-                    const bundle = await bRes.json();
-                    await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
-                    onAddLog("success", "Copied bundle from server");
-                  }
+                  const { jsonText, metadata } = await fetchAndValidateAnalysisBundle(jobId);
+                  await navigator.clipboard.writeText(jsonText);
+                  onAddLog("success", `Copied validated bundle for job ${metadata.jobId}`);
                 } catch (e: any) {
                   onAddLog("error", "Copy failed", e.message);
                 }
@@ -2588,7 +2633,17 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       return;
                     }
                   }
-                  window.location.href = `/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`;
+                  const { jsonText, metadata } = await fetchAndValidateAnalysisBundle(jobId);
+                  const blob = new Blob([jsonText], { type: 'application/json' });
+                  const objectUrl = URL.createObjectURL(blob);
+                  const anchor = document.createElement('a');
+                  anchor.href = objectUrl;
+                  anchor.download = sanitizedAnalysisBundleFilename(metadata.jobId);
+                  document.body.appendChild(anchor);
+                  anchor.click();
+                  anchor.remove();
+                  URL.revokeObjectURL(objectUrl);
+                  onAddLog("success", `Downloaded validated bundle for job ${metadata.jobId}`);
                 } catch (e: any) {
                   onAddLog("error", "Download failed", e.message);
                 }
@@ -2602,13 +2657,12 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   const jobRes = await fetch(`/api/visual/batch-jobs/${jobId}`);
                   if (!jobRes.ok) return;
                   const data = await jobRes.json();
-                  const bundleRes = await fetch(`/api/visual/batch-jobs/${jobId}/reports/analysis-bundle`);
-                  if (bundleRes.ok) {
-                    const bundle = await bundleRes.json();
+                  try {
+                    const { bundle } = await fetchAndValidateAnalysisBundle(jobId);
                     saveLocalJobBackup(data.job, bundle);
                     reloadLocalBackups();
                     onAddLog("success", "Saved local backup");
-                  } else {
+                  } catch (bundleErr) {
                     saveLocalJobBackup(data.job);
                     reloadLocalBackups();
                     onAddLog("warn", "Saved metadata backup only (bundle failed)");
@@ -2657,7 +2711,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   This usually means "/api/..." is being served by the frontend/static fallback instead of the API server.
                 </p>
               )}
-              
+
               <div className="mt-4 space-y-3">
                 <div className="p-3 bg-red-100/50 rounded-lg">
                   <span className="block text-[10px] text-red-500 font-bold uppercase mb-1">Raw Error</span>
@@ -2720,7 +2774,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
             </div>
 
           </div>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-[11px]">
              <div className="p-3 bg-slate-50 rounded border border-slate-100">
                 <span className="block text-slate-400 mb-1">Total Run</span>
@@ -3182,8 +3236,8 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   <div className="space-y-1 w-full font-sans">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-bold text-red-900">
-                        {result.failureKind === "nonJsonResponse" 
-                          ? "Execution Failure: Non-JSON Response Received" 
+                        {result.failureKind === "nonJsonResponse"
+                          ? "Execution Failure: Non-JSON Response Received"
                           : "Execution Failure: Invalid JSON Response Received"}
                       </h3>
                       <button
@@ -3199,7 +3253,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         ? "The API returned a response that is not formatted as JSON. This usually means '/api/...' is being served by the frontend/static fallback instead of the API server."
                         : "The API returned a response that is supposed to be JSON, but cannot be parsed. This usually happens if the backend crashed mid-response, or returned an unexpected truncated stream."}
                     </p>
-                    
+
                     {result.responseDiagnostics && (
                       <div className="mt-4 space-y-3">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -3286,7 +3340,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   )}
                 </div>
               </div>
-              
+
               {(result.record?.analysisRun ?? result.analysisRun) && (
                 <div className="border-t border-slate-200 pt-3 flex flex-wrap gap-x-6 gap-y-2 text-[10px] text-slate-500">
                    <div className="flex items-center gap-1">
@@ -3393,7 +3447,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Expected Visible Text */}
                   {(result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).visibleText && (result.record?.evaluation?.expectedMetadata ?? result.expectedMetadata).visibleText.length > 0 && (
                     <div className="bg-white p-3 rounded-lg border border-indigo-100/80 space-y-1">
@@ -3487,7 +3541,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   <div>
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Caption & Description</h4>
                     <div className="bg-slate-50 rounded-lg p-3 text-sm relative group">
-                      <button 
+                      <button
                         onClick={() => handleCopy(result.visualAnalysis.summary?.caption, 'caption')}
                         className="absolute right-2 top-2 p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"
                       >
@@ -3632,7 +3686,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                   <div>
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center justify-between">
                       <span>Visible Text</span>
-                      <button 
+                      <button
                         onClick={() => handleCopy((result.visualAnalysis.visualInfo?.visibleText || []).map((t: any) => t.text).join("\n"), 'text')}
                         className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                       >
@@ -3681,7 +3735,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <summary className="px-4 py-2 text-xs font-bold text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors flex items-center justify-between">
                   <span>Debug: Request Preview (Opt-in)</span>
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
                       onClick={(e) => { e.preventDefault(); handleCopy(JSON.stringify(result.requestPreview, null, 2), 'preview'); }}
                       className="text-indigo-600 hover:text-indigo-700 p-1 bg-white rounded border border-slate-200"
                     >
@@ -3786,7 +3840,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                         const key = `${sample.id}|${col.model}|${col.mode}`;
                         const cell = matrixResults[key];
                         const isRunning = runningCellKey === key;
-                        
+
                         let cellBg = "bg-white";
                         let cellIcon = null;
                         let cellTooltip = "未実行 (クリックしてクイックテスト)";
@@ -3836,8 +3890,10 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                                 <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                               ) : cellIcon ? (
                                 cellIcon
-                              ) : (
+                              ) : col.executionAllowed ? (
                                 <span className="text-slate-300 group-hover:text-slate-400 font-mono text-[10px]">+</span>
+                              ) : (
+                                <span className="text-slate-300 font-mono text-[10px]">-</span>
                               )}
                             </div>
                           </td>
@@ -3851,83 +3907,127 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
           </div>
 
           {/* Detailed Card for Selected Cell */}
-          {selectedMatrixCell && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm">
-                    セル詳細診断: {PUBLIC_VISUAL_SAMPLES.find(s => s.id === selectedMatrixCell.sampleId)?.title || selectedMatrixCell.sampleId}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    モデル: <span className="font-mono text-slate-600">{selectedMatrixCell.model}</span> ({selectedMatrixCell.mode === 'json_object' ? 'JSON' : 'Prompt'})
-                  </p>
+          {selectedMatrixCell && (() => {
+            const colCap = getModelCapability(selectedMatrixCell.model);
+            return (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      セル詳細診断: {PUBLIC_VISUAL_SAMPLES.find(s => s.id === selectedMatrixCell.sampleId)?.title || selectedMatrixCell.sampleId}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      モデル: <span className="font-mono text-slate-600">{selectedMatrixCell.model}</span> ({selectedMatrixCell.mode === 'json_object' ? 'JSON' : 'Prompt'})
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedMatrixCell(null)}
+                    className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
+                  >
+                    閉じる
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSelectedMatrixCell(null)}
-                  className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
-                >
-                  閉じる
-                </button>
-              </div>
 
-              {selectedMatrixCell.result ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div className="space-y-3">
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-1.5">
-                      <div className="text-slate-400 font-medium">基本メタデータ</div>
-                      <div>
-                        <strong>ステータス:</strong>{" "}
-                        <span className={`font-bold ${selectedMatrixCell.result.success ? "text-emerald-600" : "text-rose-600"}`}>
-                          {selectedMatrixCell.result.success ? "成功" : "失敗"}
-                        </span>
-                      </div>
-                      {selectedMatrixCell.result.overallStatus && (
+                {selectedMatrixCell.result ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-3">
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-1.5">
+                        <div className="text-slate-400 font-medium">基本メタデータ</div>
                         <div>
-                          <strong>評価:</strong>{" "}
-                          <span className={`font-bold uppercase ${
-                            selectedMatrixCell.result.overallStatus === 'pass' ? "text-emerald-600" : 
-                            selectedMatrixCell.result.overallStatus === 'warning' ? "text-amber-600" : "text-rose-600"
-                          }`}>
-                            {selectedMatrixCell.result.overallStatus}
+                          <strong>ステータス:</strong>{" "}
+                          <span className={`font-bold ${selectedMatrixCell.result.success ? "text-emerald-600" : "text-rose-600"}`}>
+                            {selectedMatrixCell.result.success ? "成功" : "失敗"}
                           </span>
                         </div>
+                        {selectedMatrixCell.result.overallStatus && (
+                          <div>
+                            <strong>評価:</strong>{" "}
+                            <span className={`font-bold uppercase ${
+                              selectedMatrixCell.result.overallStatus === 'pass' ? "text-emerald-600" :
+                              selectedMatrixCell.result.overallStatus === 'warning' ? "text-amber-600" : "text-rose-600"
+                            }`}>
+                              {selectedMatrixCell.result.overallStatus}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <strong>実行手段 (Source):</strong>{" "}
+                          <span className="font-mono text-slate-600">{selectedMatrixCell.result.source}</span>
+                        </div>
+                        <div>
+                          <strong>日時:</strong>{" "}
+                          <span className="text-slate-500">{new Date(selectedMatrixCell.result.timestamp).toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      {selectedMatrixCell.result.error && (
+                        <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg text-rose-900 space-y-1">
+                          <div className="font-bold flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4 text-rose-500" />
+                            エラーメッセージ
+                          </div>
+                          <div className="font-mono text-[11px] break-all whitespace-pre-wrap">
+                            {selectedMatrixCell.result.error}
+                          </div>
+                        </div>
                       )}
-                      <div>
-                        <strong>実行手段 (Source):</strong>{" "}
-                        <span className="font-mono text-slate-600">{selectedMatrixCell.result.source}</span>
-                      </div>
-                      <div>
-                        <strong>日時:</strong>{" "}
-                        <span className="text-slate-500">{new Date(selectedMatrixCell.result.timestamp).toLocaleString()}</span>
-                      </div>
                     </div>
 
-                    {selectedMatrixCell.result.error && (
-                      <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg text-rose-900 space-y-1">
-                        <div className="font-bold flex items-center gap-1">
-                          <AlertCircle className="w-4 h-4 text-rose-500" />
-                          エラーメッセージ
-                        </div>
-                        <div className="font-mono text-[11px] break-all whitespace-pre-wrap">
-                          {selectedMatrixCell.result.error}
-                        </div>
+                    <div className="space-y-3 flex flex-col justify-between">
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex-1 space-y-1.5">
+                        <div className="text-slate-400 font-medium">クイックアクション (Quick Actions)</div>
+                        <p className="text-[11px] text-slate-500">
+                          {colCap.executionAllowed
+                            ? "この特定のセル（モデルとサンプルの組み合わせ）に対して、今すぐクライアント（ブラウザ）経由で解析テストを実行し、マトリクスの結果をその場で更新できます。"
+                            : "このモデルは非推奨またはサポート外のため、新しい解析テストを実行できません。過去の解析結果の閲覧のみサポートされています。"}
+                        </p>
                       </div>
-                    )}
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
+                          disabled={!!runningCellKey || !colCap.executionAllowed}
+                          className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                        >
+                          {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" /> 実行中...
+                            </>
+                          ) : !colCap.executionAllowed ? (
+                            <>
+                              <XCircle className="w-4 h-4 text-slate-200" /> 実行不可（Discontinued）
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4" /> 今すぐテスト実行 (Run Test)
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(selectedMatrixCell.result, null, 2));
+                            alert("セルの詳細JSONをコピーしました！");
+                          }}
+                          className="py-2 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-1 shadow-sm"
+                          title="JSONをコピー"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="space-y-3 flex flex-col justify-between">
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex-1 space-y-1.5">
-                      <div className="text-slate-400 font-medium">クイックアクション (Quick Actions)</div>
-                      <p className="text-[11px] text-slate-500">
-                        この特定のセル（モデルとサンプルの組み合わせ）に対して、今すぐクライアント（ブラウザ）経由で解析テストを実行し、マトリクスの結果をその場で更新できます。
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2">
+                ) : (
+                  <div className="bg-slate-50 p-6 rounded-lg text-center border border-dashed text-xs text-slate-500 space-y-3">
+                    <p>
+                      {colCap.executionAllowed
+                        ? "このセルの組み合わせ結果はまだ記録されていません。"
+                        : "このモデルは現在非推奨またはサポート外のため、実行できません。過去の結果もありません。"}
+                    </p>
+                    {colCap.executionAllowed && (
                       <button
                         onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
                         disabled={!!runningCellKey}
-                        className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 text-xs"
                       >
                         {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
                           <>
@@ -3935,45 +4035,16 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                           </>
                         ) : (
                           <>
-                            <Play className="w-4 h-4" /> 今すぐテスト実行 (Run Test)
+                            <Play className="w-3.5 h-3.5" /> 今すぐテスト実行
                           </>
                         )}
                       </button>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(JSON.stringify(selectedMatrixCell.result, null, 2));
-                          alert("セルの詳細JSONをコピーしました！");
-                        }}
-                        className="py-2 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-1 shadow-sm"
-                        title="JSONをコピー"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-slate-50 p-6 rounded-lg text-center border border-dashed text-xs text-slate-500 space-y-3">
-                  <p>このセルの組み合わせ結果はまだ記録されていません。</p>
-                  <button
-                    onClick={() => handleRunSingleCell(selectedMatrixCell.sampleId, selectedMatrixCell.model, selectedMatrixCell.mode)}
-                    disabled={!!runningCellKey}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 text-xs"
-                  >
-                    {runningCellKey === `${selectedMatrixCell.sampleId}|${selectedMatrixCell.model}|${selectedMatrixCell.mode}` ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> 実行中...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5" /> 今すぐテスト実行
-                      </>
                     )}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -4001,11 +4072,11 @@ function MatrixHelpDialog({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -4020,7 +4091,7 @@ function MatrixHelpDialog({ onClose }: { onClose: () => void }) {
               共通実験結果マトリクス (Merged Experiment Matrix) の詳細説明
             </h3>
           </div>
-          <button 
+          <button
             type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"
@@ -4136,11 +4207,11 @@ function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -4155,7 +4226,7 @@ function BatchArtifactHelpDialog({ onClose }: { onClose: () => void }) {
               JSON出力について
             </h3>
           </div>
-          <button 
+          <button
             type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"

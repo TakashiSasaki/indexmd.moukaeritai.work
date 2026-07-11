@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { ProviderFailureKind } from "./visualAnalysis/types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
@@ -25,7 +26,7 @@ export class ProviderError extends Error {
   attempts?: any[];
   retryable?: boolean;
   apiRetryCount?: number;
-  providerFailureKind?: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError";
+  providerFailureKind?: ProviderFailureKind;
   quotaExceeded?: boolean;
   rateLimited?: boolean;
   retryAfterMs?: number;
@@ -189,7 +190,7 @@ export function extractProviderErrorDetails(err: any): {
 } {
   let statusCode = err?.status || err?.response?.status || err?.error?.code;
   let rawMessage = err?.message || "";
-  
+
   if (err?.cause) {
     const cause = err.cause;
     rawMessage += ` | cause: ${cause.name || 'Error'}: ${cause.message || ''}`;
@@ -245,20 +246,20 @@ export function classifyProviderFailureKind(
   providerStatus: string,
   rawMessage: string
 ): {
-  providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError";
+  providerFailureKind: ProviderFailureKind;
   quotaExceeded: boolean;
   rateLimited: boolean;
 } {
-  let providerFailureKind: "providerRateLimited" | "providerQuotaExceeded" | "providerUnavailable" | "providerInvalidArgument" | "providerAuthenticationRequired" | "providerAuthorizationDenied" | "providerGenerationError" | "providerInternalError" = "providerGenerationError";
+  let providerFailureKind: ProviderFailureKind = "providerGenerationError";
   let quotaExceeded = false;
   let rateLimited = false;
 
   const upperMsgStr = rawMessage.toUpperCase();
-  const isTransientTransport = upperMsgStr.includes("ECONNRESET") || 
-                               upperMsgStr.includes("ETIMEDOUT") || 
-                               upperMsgStr.includes("EAI_AGAIN") || 
-                               upperMsgStr.includes("UND_ERR_CONNECT_TIMEOUT") || 
-                               upperMsgStr.includes("UND_ERR_HEADERS_TIMEOUT") || 
+  const isTransientTransport = upperMsgStr.includes("ECONNRESET") ||
+                               upperMsgStr.includes("ETIMEDOUT") ||
+                               upperMsgStr.includes("EAI_AGAIN") ||
+                               upperMsgStr.includes("UND_ERR_CONNECT_TIMEOUT") ||
+                               upperMsgStr.includes("UND_ERR_HEADERS_TIMEOUT") ||
                                upperMsgStr.includes("FETCH FAILED");
 
   if (statusCode === 429) {
@@ -266,11 +267,11 @@ export function classifyProviderFailureKind(
     providerFailureKind = "providerRateLimited";
   }
 
-  const isQuotaStatus = providerStatus === "RESOURCE_EXHAUSTED" || 
-                        providerStatus === "QUOTA_EXCEEDED" || 
-                        upperMsgStr.includes("RESOURCE_EXHAUSTED") || 
-                        upperMsgStr.includes("QUOTA") || 
-                        upperMsgStr.includes("RATE LIMIT") || 
+  const isQuotaStatus = providerStatus === "RESOURCE_EXHAUSTED" ||
+                        providerStatus === "QUOTA_EXCEEDED" ||
+                        upperMsgStr.includes("RESOURCE_EXHAUSTED") ||
+                        upperMsgStr.includes("QUOTA") ||
+                        upperMsgStr.includes("RATE LIMIT") ||
                         upperMsgStr.includes("RATE_LIMIT") ||
                         upperMsgStr.includes("QUOTA_EXCEEDED");
 
@@ -382,16 +383,16 @@ export function extractRetryDelay(err: any, rawMessage: string): { retryAfterMs?
 }
 
 export async function generateContentWithRetry(
-  modelName: string, 
-  contents: any, 
-  maxRetries = 4, 
-  configOption?: { 
-    temperature?: number; 
-    topP?: number; 
-    topK?: number; 
-    systemInstruction?: string; 
-    responseMimeType?: string; 
-    responseSchema?: any; 
+  modelName: string,
+  contents: any,
+  maxRetries = 4,
+  configOption?: {
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    systemInstruction?: string;
+    responseMimeType?: string;
+    responseSchema?: any;
     mediaResolution?: string;
     retryPolicy?: ProviderGenerationRetryPolicy;
   }
@@ -401,7 +402,7 @@ export async function generateContentWithRetry(
   let lastError: any = null;
   const attemptedModels = new Set<string>([currentModel]);
   const attempts: any[] = [];
-  
+
   const policy = configOption?.retryPolicy;
   let resolvedMaxAttempts = maxRetries + 1;
   if (policy && typeof policy.maxAttempts === "number") {
@@ -410,14 +411,14 @@ export async function generateContentWithRetry(
   if (resolvedMaxAttempts < 1) {
     resolvedMaxAttempts = 1;
   }
-  
+
   for (let i = 0; i < resolvedMaxAttempts; i++) {
     try {
       const callParams: any = {
         model: currentModel,
         contents: contents
       };
-      
+
       if (configOption) {
         callParams.config = {};
         if (typeof configOption.temperature === "number" && configOption.temperature !== 0) {
@@ -498,7 +499,7 @@ export async function generateContentWithRetry(
           else notRetriedReason = "nonRetryableProviderStatus";
         }
       }
-      
+
       if (i >= resolvedMaxAttempts - 1 && isRetryable) {
         notRetriedReason = "maxAttemptsReached";
       }
@@ -508,7 +509,7 @@ export async function generateContentWithRetry(
       const maxDelay = policy?.maxDelayMs ?? 300000;
 
       delayMs = Math.pow(2, i + 1) * baseDelay + Math.random() * 1000;
-      
+
       const respectAfter = policy ? (policy.respectRetryAfter !== false) : true;
       if (isRetryable && respectAfter && retryAfterMs !== undefined && retryAfterMs > 0) {
         delayMs = retryAfterMs;
@@ -537,7 +538,7 @@ export async function generateContentWithRetry(
         errorFingerprint: structuredError.errorFingerprint,
         notRetriedReason
       });
-      
+
       lastError = new ProviderError(
         `Generate content failed for model ${currentModel}`,
         statusCode,
@@ -561,15 +562,15 @@ export async function generateContentWithRetry(
       lastError.errorFingerprint = structuredError.errorFingerprint;
       lastError.retryPolicy = policy;
       lastError.notRetriedReason = notRetriedReason;
-      
+
       // Fallback logic for 500 errors with native schema
       if (isRetryable && statusCode === 500 && configOption?.responseSchema) {
         configOption = { ...configOption };
         delete configOption.responseSchema;
         delete configOption.responseMimeType;
-        configOption.systemInstruction = (configOption.systemInstruction || "") + 
+        configOption.systemInstruction = (configOption.systemInstruction || "") +
           "\n\nCRITICAL INSTRUCTION: You MUST return ONLY a valid JSON object. Do NOT wrap the JSON in Markdown formatting (e.g. ```json). Just the raw JSON object.";
-        
+
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }
@@ -588,12 +589,12 @@ export async function generateContentWithRetry(
         i--; // Don't count this as a full retry
         continue;
       }
-      
+
       if (isRetryable && i < resolvedMaxAttempts - 1) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }
-      
+
       break;
     }
   }
