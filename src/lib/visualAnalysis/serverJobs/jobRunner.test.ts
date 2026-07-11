@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startVisualBatchJob, classifyJobQuotaInterruption } from './jobRunner';
 import { RunnerRegistry } from './runnerRegistry';
-import { jobStore } from './jobStore';
+import { InMemoryJobStore } from './InMemoryJobStore';
 import { jobToSummary } from './jobAdapters';
 import { VisualBatchJob } from '../publicSamples/batchTypes';
 
@@ -18,8 +18,8 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function createJob(jobId: string): VisualBatchJob {
-  const now = new Date().toISOString();
+function createJob(jobId: string, clock = { now: () => new Date() }): VisualBatchJob {
+  const now = clock.now().toISOString();
   return {
     jobId,
     status: 'queued',
@@ -56,9 +56,10 @@ function cleanupJob(jobId: string) {
 }
 
 test('startVisualBatchJob blocks dispatch after daily quota while preserving in-flight success and pending samples', async () => {
-  const jobId = `job-runner-quota-${Date.now()}`;
-  cleanupJob(jobId);
-  jobStore.createJob(createJob(jobId));
+  const mockClock = { now: () => new Date('2025-01-01T12:00:00Z') };
+  const store = new InMemoryJobStore(mockClock);
+  const jobId = `job-runner-quota-1`;
+  store.createJob(createJob(jobId, mockClock));
 
   const calls: string[] = [];
   const responses = new Map<string, ReturnType<typeof deferred<{ status: number; body: any }>>>();
@@ -70,9 +71,12 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   };
 
   const runner = startVisualBatchJob(jobId, {
+    jobStore: store,
+    clock: mockClock,
     runnerRegistry: new RunnerRegistry(),
     analyzeFn,
     getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
+    scheduler: { sleep: async () => {} }
   });
 
   // Since execution is sequential, calls will first reach 1 with sample-A
@@ -113,7 +117,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
 
   await runner;
 
-  const blockedJob = jobStore.getJob(jobId)! as VisualBatchJob & { blockedSampleIds?: string[] };
+  const blockedJob = store.getJob(jobId)! as VisualBatchJob & { blockedSampleIds?: string[] };
   // Since sample-B returned daily quota block, the job is blockedByQuota and blockedReason is preserved
   assert.equal(blockedJob.status, 'blockedByQuota');
   assert.equal(blockedJob.blockedReason, 'blockedByQuota');
@@ -126,9 +130,12 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
 
   // Resume processing with a second runner
   const secondRunner = startVisualBatchJob(jobId, {
+    jobStore: store,
+    clock: mockClock,
     runnerRegistry: new RunnerRegistry(),
     analyzeFn,
     getSampleMetadata: async (sampleId) => ({ id: sampleId, title: sampleId }),
+    scheduler: { sleep: async () => {} }
   });
 
   // Second runner will start processing sample-B again
@@ -172,12 +179,13 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   cleanupJob(jobId);
 });
 
-function makeJob(jobId: string, sampleIds = ['sample-transient']): VisualBatchJob {
+function makeJob(jobId: string, sampleIds = ['sample-transient'], clock = { now: () => new Date() }): VisualBatchJob {
+  const nowStr = clock.now().toISOString();
   return {
     jobId,
     status: 'queued',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: nowStr,
+    updatedAt: nowStr,
     modelName: 'gemini-test',
     jsonMode: 'prompt_only',
     customInstructionPreview: '',
@@ -251,12 +259,16 @@ test('classifyJobQuotaInterruption treats capped RetryInfo as quota block', () =
 });
 
 test('startVisualBatchJob persists transient throttle pause state without daily quota block', async () => {
-  const jobId = `job-runner-transient-${Date.now()}`;
-  const jobPath = path.join(process.cwd(), 'cache', 'visual-batch-jobs', `${jobId}.json`);
-  jobStore.createJob(makeJob(jobId));
+  const mockClock = { now: () => new Date('2025-01-01T12:00:00Z') };
+  const store = new InMemoryJobStore(mockClock);
+  const jobId = `job-runner-transient-1`;
+  store.createJob(makeJob(jobId, undefined, mockClock));
 
   let calls = 0;
   await startVisualBatchJob(jobId, {
+    jobStore: store,
+    clock: mockClock,
+    scheduler: { sleep: async () => {} },
     runnerRegistry: new RunnerRegistry(),
     getSampleMetadata: async (sampleId: string) => ({ id: sampleId, title: 'Transient throttle sample' }),
     analyzeFn: async () => {
@@ -279,7 +291,7 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
     },
   });
 
-  const persisted = JSON.parse(fs.readFileSync(jobPath, 'utf-8')) as VisualBatchJob;
+  const persisted = store.getJob(jobId)! as VisualBatchJob;
   assert.strictEqual(calls, 2);
   assert.strictEqual(persisted.status, 'pausedForRateLimit');
   assert.strictEqual(persisted.pauseReason, 'pausedForRateLimit');
@@ -300,17 +312,19 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
   assert.strictEqual(summary.items[0]?.error, 'per-minute throttle');
   assert.strictEqual(summary.items[0]?.pauseReason, 'pausedForRateLimit');
   assert.deepStrictEqual(summary.items[0]?.attemptState, { attempt: 2, maxAttempts: 2, retryExhausted: true });
-
-  fs.rmSync(jobPath, { force: true });
 });
 
 test('startVisualBatchJob transition running -> pausedForProviderUnavailable on HTTP 503', async () => {
-  const jobId = `job-runner-unav-${Date.now()}`;
-  const jobPath = path.join(process.cwd(), 'cache', 'visual-batch-jobs', `${jobId}.json`);
-  jobStore.createJob(makeJob(jobId));
+  const mockClock = { now: () => new Date('2025-01-01T12:00:00Z') };
+  const store = new InMemoryJobStore(mockClock);
+  const jobId = `job-runner-unav-1`;
+  store.createJob(makeJob(jobId, undefined, mockClock));
 
   let calls = 0;
   await startVisualBatchJob(jobId, {
+    jobStore: store,
+    clock: mockClock,
+    scheduler: { sleep: async () => {} },
     runnerRegistry: new RunnerRegistry(),
     getSampleMetadata: async (sampleId: string) => ({ id: sampleId, title: 'Unavailable sample' }),
     analyzeFn: async () => {
@@ -331,12 +345,10 @@ test('startVisualBatchJob transition running -> pausedForProviderUnavailable on 
     },
   });
 
-  const persisted = JSON.parse(fs.readFileSync(jobPath, 'utf-8')) as VisualBatchJob;
+  const persisted = store.getJob(jobId)! as VisualBatchJob;
   assert.strictEqual(calls, 1);
   assert.strictEqual(persisted.status, 'pausedForProviderUnavailable');
   assert.strictEqual(persisted.pauseReason, 'pausedForProviderUnavailable');
   assert.deepStrictEqual(persisted.affectedSampleIds, ['sample-transient']);
-
-  fs.rmSync(jobPath, { force: true });
 });
 

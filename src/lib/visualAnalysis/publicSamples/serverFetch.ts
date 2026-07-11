@@ -12,11 +12,15 @@ const ALLOWED_HOSTS = [
   "upload.wikimedia.org"
 ];
 
-const PROXY_URL = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
-const proxyAgent = PROXY_URL ? new HttpsProxyAgent(PROXY_URL) : undefined;
+function getProxyAgent() {
+  const PROXY_URL = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  if (!PROXY_URL) return undefined;
 
-if (proxyAgent) {
-  console.log(`[serverFetch] Proxy detected and configured: ${PROXY_URL}`);
+  if (!(global as any).__proxyAgentWarned) {
+    console.log(`[serverFetch] Proxy detected and configured: ${PROXY_URL}`);
+    (global as any).__proxyAgentWarned = true;
+  }
+  return new HttpsProxyAgent(PROXY_URL);
 }
 
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -63,13 +67,18 @@ const inMemoryCache = new Map<string, FetchSampleResult>();
 export const PUBLIC_SAMPLE_CACHE_DIR = path.join(process.cwd(), 'cache', 'public_samples');
 const inFlightFetches = new Map<string, Promise<FetchSampleResult>>();
 
-// Ensure cache directory exists
-try {
-  if (!fs.existsSync(PUBLIC_SAMPLE_CACHE_DIR)) {
-    fs.mkdirSync(PUBLIC_SAMPLE_CACHE_DIR, { recursive: true });
+let cacheDirInitialized = false;
+
+function ensureCacheDir() {
+  if (cacheDirInitialized) return;
+  try {
+    if (!fs.existsSync(PUBLIC_SAMPLE_CACHE_DIR)) {
+      fs.mkdirSync(PUBLIC_SAMPLE_CACHE_DIR, { recursive: true });
+    }
+    cacheDirInitialized = true;
+  } catch (e) {
+    console.warn('[serverFetch] Failed to create cache directory:', e);
   }
-} catch (e) {
-  console.warn('[serverFetch] Failed to create cache directory:', e);
 }
 
 export const PUBLIC_SAMPLE_ANALYSIS_IMAGE_POLICY_VERSION = "analysis-image-policy.v0.2.0";
@@ -110,6 +119,7 @@ function readFromDiskCache(sampleId: string, variant: string): FetchSampleResult
 }
 
 function writeToDiskCache(sampleId: string, variant: string, result: FetchSampleResult): void {
+  ensureCacheDir();
   const cacheKey = getCacheKey(sampleId, variant);
   const binPath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.bin`);
   const mimePath = path.join(PUBLIC_SAMPLE_CACHE_DIR, `${cacheKey}.mime`);
@@ -500,7 +510,7 @@ async function fetchExternalImage(url: string, redirectCount: number): Promise<F
               'Host': parsedUrl.hostname
             },
             timeout: FETCH_TIMEOUT_MS,
-            ...(proxyAgent ? { agent: proxyAgent } : {})
+            ...(getProxyAgent() ? { agent: getProxyAgent() } : {})
           };
 
           const req = https.get(options, (res) => {

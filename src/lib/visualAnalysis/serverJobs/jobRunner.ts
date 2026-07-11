@@ -115,7 +115,8 @@ export async function startVisualBatchJob(
     getSampleMetadata: (sampleId: string) => Promise<any>,
     jobStore?: any,
     clock?: { now: () => Date },
-    runnerRegistry: import('./runnerRegistry').RunnerRegistry
+    runnerRegistry: import('./runnerRegistry').RunnerRegistry,
+    scheduler?: { sleep: (ms: number) => Promise<void> }
   }
 ) {
   const { analyzeFn, getSampleMetadata } = deps;
