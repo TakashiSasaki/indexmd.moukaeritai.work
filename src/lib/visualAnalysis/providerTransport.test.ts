@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { preflightVisualExecution } from "./preflight";
-import { FakeProviderTransport } from "./fakeProviderTransport";
+import { FakeProviderTransport } from "../../../tests/support/FakeProviderTransport";
 
 test("Provider Transport - exact pre-SDK assertion", async (t) => {
   await t.test("asserts exact parameters are built and sanitized without metadata leaking", async () => {

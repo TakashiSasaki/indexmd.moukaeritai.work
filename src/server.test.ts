@@ -2,7 +2,7 @@ import { describe, it, after, before } from 'node:test';
 import assert from 'node:assert';
 import request from 'supertest';
 import { createApp } from './app';
-import { FakeProviderTransport } from './lib/visualAnalysis/fakeProviderTransport';
+import { FakeProviderTransport } from '../tests/support/FakeProviderTransport';
 import { defaultSampleResolver } from './lib/visualAnalysis/preflight';
 import { RunnerRegistry } from './lib/visualAnalysis/serverJobs/runnerRegistry';
 import { jobStore } from './lib/visualAnalysis/serverJobs/jobStore';

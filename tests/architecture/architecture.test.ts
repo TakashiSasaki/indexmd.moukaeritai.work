@@ -34,7 +34,7 @@ test("Architecture checks", async (t) => {
   });
 
   await t.test("request descriptions cannot contain inlineData.data", () => {
-    const fakeTs = fs.readFileSync("src/lib/visualAnalysis/fakeProviderTransport.ts", "utf8");
+    const fakeTs = fs.readFileSync("tests/support/FakeProviderTransport.ts", "utf8");
     assert.ok(fakeTs.includes("[SANITIZED_BINARY_DATA]"), "Fake transport should sanitize binary data");
   });
 

@@ -1,4 +1,4 @@
-import { ProviderTransport, ProviderTransportRequest, ProviderTransportResponse } from "./providerTransport";
+import { ProviderTransport, ProviderTransportRequest, ProviderTransportResponse } from "../../src/lib/visualAnalysis/providerTransport";
 
 export class FakeProviderTransport implements ProviderTransport {
   public requests: any[] = [];
