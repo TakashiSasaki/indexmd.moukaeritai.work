@@ -2927,6 +2927,7 @@ app.get("/api/visual/batch-jobs", async (req, res) => {
 
 app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
   try {
+      const clock = dependencies.clock || { now: () => new Date() };
     const store = dependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const job = store.getJob(req.params.jobId);
@@ -2941,7 +2942,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
     let cancelElapsedMs = 0;
     
     if (job.status === 'canceling' && job.cancelRequestedAt) {
-       cancelElapsedMs = Date.now() - new Date(job.cancelRequestedAt).getTime();
+       cancelElapsedMs = clock.now().getTime() - new Date(job.cancelRequestedAt).getTime();
        if (cancelElapsedMs > CANCELING_STALE_AFTER_MS) {
           isCancelingStale = true;
        }
