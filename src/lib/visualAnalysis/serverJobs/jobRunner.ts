@@ -414,7 +414,11 @@ export async function startVisualBatchJob(
         });
 
         // Sleep
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        if (deps.scheduler) {
+          await deps.scheduler.sleep(delayMs);
+        } else {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
       } else {
         // Not a quota error, or exhausted attempts
         if (!success) {
