@@ -11,7 +11,7 @@ function getHeaderValue(headers: any, name: string): string | undefined {
   return headers[name] || headers[name.toLowerCase()];
 }
 
-function extractRetryDelayMs(finalData: any): { retryAfterMs?: number; retryAfterReason?: string } {
+function extractRetryDelayMs(finalData: any, clockNow: number): { retryAfterMs?: number; retryAfterReason?: string } {
   const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
   if (typeof generationDiagnostics?.retryAfterMs === 'number') {
     return { retryAfterMs: generationDiagnostics.retryAfterMs, retryAfterReason: generationDiagnostics.retryAfterReason };
@@ -21,25 +21,26 @@ function extractRetryDelayMs(finalData: any): { retryAfterMs?: number; retryAfte
   if (retryAfterStr) {
     const parsed = parseFloat(retryAfterStr);
     if (!Number.isNaN(parsed) && parsed > 0) return { retryAfterMs: parsed * 1000, retryAfterReason: 'HTTP retry-after header' };
-    const dateDelay = Date.parse(retryAfterStr) - Date.now();
+    const dateDelay = Date.parse(retryAfterStr) - clockNow;
     if (!Number.isNaN(dateDelay) && dateDelay > 0) return { retryAfterMs: dateDelay, retryAfterReason: 'HTTP retry-after date header' };
   }
 
   return {};
 }
 
-export function classifyJobQuotaInterruption(finalData: any, status?: number): {
+export function classifyJobQuotaInterruption(finalData: any, status?: number, clock?: { now: () => Date }): {
   isQuotaOrRateLimit: boolean;
   action?: 'blockedByQuota' | 'pausedForRateLimit';
   retryAfterMs?: number;
   retryAfterReason?: string;
   quotaClassification?: string;
 } {
+  const currentClock = clock || { now: () => new Date() };
   const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
   const quotaClassification = finalData?.quotaClassification ?? generationDiagnostics?.quotaClassification;
   const providerStatus = generationDiagnostics?.providerStatus;
   const failureKind = finalData?.failureKind;
-  const { retryAfterMs, retryAfterReason } = extractRetryDelayMs(finalData);
+  const { retryAfterMs, retryAfterReason } = extractRetryDelayMs(finalData, currentClock.now().getTime());
 
   const isDailyExhausted =
     quotaClassification === 'dailyQuotaExhausted' ||
@@ -84,10 +85,11 @@ export function classifyJobQuotaInterruption(finalData: any, status?: number): {
   };
 }
 
-export function classifyProviderAvailability(finalData: any, status?: number): {
+export function classifyProviderAvailability(finalData: any, status?: number, clock?: { now: () => Date }): {
   isUnavailable: boolean;
   retryAfterMs?: number;
 } {
+  const currentClock = clock || { now: () => new Date() };
   const generationDiagnostics = finalData?.record?.diagnostics?.generation ?? finalData?.generationDiagnostics;
   const providerStatus = generationDiagnostics?.providerStatus;
   const failureKind = finalData?.failureKind || generationDiagnostics?.providerFailureKind;
@@ -102,8 +104,8 @@ export function classifyProviderAvailability(finalData: any, status?: number): {
     
   if (isUnav) {
     let retryMs = 5000; // 5 seconds fixed default
-    const extractedRetryAfter = extractRetryDelayMs(finalData).retryAfterMs;
-    if (extractedRetryAfter) {
+    const extractedRetryAfter = extractRetryDelayMs(finalData, currentClock.now().getTime()).retryAfterMs;
+    if (extractedRetryAfter !== undefined) {
       retryMs = Math.min(extractedRetryAfter, 30_000); // honor Retry-After up to 30 seconds
     }
     return { isUnavailable: true, retryAfterMs: retryMs };
@@ -309,7 +311,7 @@ export function startVisualBatchJob(
         break;
       }
 
-      const providerUnav = classifyProviderAvailability(finalData, res?.status);
+      const providerUnav = classifyProviderAvailability(finalData, res?.status, clock);
       if (providerUnav.isUnavailable) {
         const delayMs = providerUnav.retryAfterMs ?? 5 * 60_000;
         const resumeAfter = new Date(clock.now().getTime() + delayMs).toISOString();
