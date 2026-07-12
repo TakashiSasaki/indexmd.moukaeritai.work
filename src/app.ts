@@ -562,7 +562,8 @@ export async function analyzePublicSample(options: {
       throw err;
     }
 
-    const sample = getPublicSampleById(sampleId);
+    const resolver = options.sampleResolver;
+    const sample = resolver ? resolver.getSample(sampleId) : getPublicSampleById(sampleId);
     if (!sample) return { status: 404, body: { error: "Sample not found" } };
 
     // Fetch Image Bytes
@@ -2381,7 +2382,12 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
 
 app.post("/api/visual/public-samples/analyze", async (req, res) => {
   try {
-    const result = await analyzePublicSample(req.body);
+    const result = await analyzePublicSample({
+      ...req.body,
+      providerTransport: dependencies.providerTransport,
+      sampleResolver: dependencies.sampleResolver,
+      imageFetcher: dependencies.imageFetcher
+    });
     return res.status(result.status).json(result.body);
   } catch (e: any) {
     console.error(e);
@@ -2901,7 +2907,7 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
       analyzeFn: (opts) => analyzePublicSample({ ...opts, providerTransport: transport, sampleResolver: resolver, imageFetcher }),
       getSampleMetadata: async (id) => getPublicSampleById(id),
       jobStore: store
-    }).catch(err => {
+    }).completion.catch(err => {
       console.error("Batch job runner failed:", err);
     });
 

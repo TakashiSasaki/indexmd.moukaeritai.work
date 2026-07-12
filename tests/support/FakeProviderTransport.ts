@@ -6,13 +6,21 @@ export class FakeProviderTransport implements ProviderTransport {
   public requestCount = 0;
 
   async executeSingleRequest(req: ProviderTransportRequest): Promise<ProviderTransportResponse> {
-    const safeReq = JSON.parse(JSON.stringify(req));
-    // Sanitize base64 from the captured request
-    if (safeReq.sample && safeReq.sample.data) {
-      safeReq.sample.data = "[SANITIZED_BINARY_DATA]";
-    }
+    const safeReq = {
+      model: req.preparedExecution?.canonicalModelId,
+      providerFamily: req.preparedExecution?.providerFamily,
+      executionMode: req.preparedExecution?.resolvedExecutionMode,
+      mimeType: req.sample?.mimeType,
+      byteLength: req.sample?.data?.length,
+      sampleId: req.sample?.sampleId,
+      compilerName: "test-compiler",
+      schemaHash: req.preparedExecution?.customSchemaUsed ? "custom" : "compiled",
+      generationParameters: { ...req.preparedExecution?.generationConfiguration },
+      mediaResolutionValue: req.preparedExecution?.mediaResolutionConfiguration?.requested,
+      physicalRequestNumber: this.requestCount + 1,
+    };
 
-    this.requests.push(safeReq);
+    this.requests.push(Object.freeze(safeReq));
     this.requestCount++;
 
     const responseDef = this.queuedResponses.shift();

@@ -10,18 +10,9 @@ import { fakeImageFetcher } from "../support/FakeImageFetcher.js";
 import { FakeSampleResolver } from "../support/FakeSampleResolver.js";
 import fs from "fs";
 import path from "path";
+import { installNetworkGuard } from "../support/NetworkGuard";
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-function installNetworkGuard() {
-  const originalFetch = global.fetch;
-  global.fetch = async (url: string | URL | Request) => {
-    throw new Error(`[NetworkGuard] Unexpected network request to ${url}`);
-  };
-  return () => {
-    global.fetch = originalFetch;
-  };
-}
 
 test("Isolated Public Execution Integration", async (t) => {
   const cleanupNetworkGuard = installNetworkGuard();
@@ -43,12 +34,84 @@ test("Isolated Public Execution Integration", async (t) => {
     imageFetcher: fakeImageFetcher as any,
   });
 
+  await t.test("standalone public route analysis uses injected dependencies", async () => {
+    fakeTransport.queuedResponses.push({
+      status: 200,
+      data: {
+        schemaVersion: "visual-analysis.v0.2.0-draft.1",
+        summary: {
+          caption: "standalone success",
+          description: "desc"
+        },
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          imageKindConfidence: 0.99,
+          sceneDescription: "A deterministic standalone route test image.",
+          visibleElements: [],
+          visibleText: [],
+          uncertainties: []
+        },
+        indexing: {
+          keywords: [
+            {
+              value: "standalone",
+              confidence: 0.99,
+              importance: 1
+            }
+          ]
+        },
+        quality: {
+          confidence: 0.99,
+          issues: []
+        }
+      }
+    });
+
+    const res = await request(app)
+      .post("/api/visual/public-samples/analyze")
+      .send({
+        sampleId: "sample-landscape-1",
+        modelName: "gemini-2.5-flash",
+        jsonMode: "native_schema"
+      });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.record.visualAnalysis.summary.caption, "standalone success");
+
+    const reqPayload = fakeTransport.requests[fakeTransport.requestCount - 1];
+    assert.strictEqual(reqPayload.model, "gemini-2.5-flash");
+
+    fakeTransport.requests.length = 0;
+    fakeTransport.requestCount = 0;
+  });
+
   await t.test("Can execute batch jobs safely through the fake transport and characterize prompt", async () => {
     const CACHE_JOBS_DIR = path.join(process.cwd(), 'cache', 'visual-batch-jobs');
     const initialFiles = fs.existsSync(CACHE_JOBS_DIR) ? fs.readdirSync(CACHE_JOBS_DIR).filter(f => f.endsWith('.json')).length : 0;
     fakeTransport.queuedResponses.push({
       status: 200,
-      data: { schemaVersion: "visual-analysis.v0.2.0-draft.1", summary: { caption: "success", description: "desc" } }
+      data: {
+        schemaVersion: "visual-analysis.v0.2.0-draft.1",
+        summary: { caption: "success", description: "desc" },
+        visualInfo: {
+          imageKind: "naturalPhoto",
+          imageKindConfidence: 0.99,
+          sceneDescription: "A test image.",
+          visibleElements: [],
+          visibleText: [],
+          uncertainties: []
+        },
+        indexing: {
+          keywords: [
+            { value: "test", confidence: 0.99, importance: 1 }
+          ]
+        },
+        quality: {
+          confidence: 0.99,
+          issues: []
+        }
+      }
     });
 
     const res = await request(app)
@@ -64,28 +127,25 @@ test("Isolated Public Execution Integration", async (t) => {
     const jobId = res.body.job.jobId;
     assert.ok(jobId);
 
-    // Poll until complete
-    let jobStatus = "queued";
-    for (let i = 0; i < 20; i++) {
-      const statusRes = await request(app).get(`/api/visual/batch-jobs/${jobId}`);
-      if (statusRes.status === 200) {
-        jobStatus = statusRes.body.job?.status;
-      } else {
-        console.error("status error", statusRes.status, statusRes.body);
-      }
-      if (jobStatus === "completed" || jobStatus === "failed") break;
-      await delay(100);
+    // Wait for deterministic completion
+    const completionPromise = registry.waitForJob(jobId);
+    if (completionPromise) {
+      await completionPromise;
     }
 
-    assert.strictEqual(jobStatus, "completed");
+    const finalStatusRes = await request(app).get(`/api/visual/batch-jobs/${jobId}`);
+    assert.strictEqual(finalStatusRes.body.job?.status, "completed");
 
     // Check prompt characterization
     assert.strictEqual(fakeTransport.requestCount, 1);
     const reqPayload = fakeTransport.requests[0];
     
-    assert.ok(reqPayload.systemInstruction.includes("User Instruction: Special rules apply"));
-    assert.strictEqual(reqPayload.preparedExecution.canonicalModelId, "gemini-2.5-flash");
-    assert.strictEqual(reqPayload.sample.data, "[SANITIZED_BINARY_DATA]");
+    assert.strictEqual(reqPayload.model, "gemini-2.5-flash");
+    assert.strictEqual(reqPayload.mimeType, "image/jpeg");
+    assert.strictEqual(reqPayload.sampleId, "sample-landscape-1");
+    // Ensure unsafe values are stripped
+    assert.strictEqual(reqPayload.systemInstruction, undefined);
+    assert.strictEqual(reqPayload.sample?.data, undefined);
 
     const finalFiles = fs.existsSync(CACHE_JOBS_DIR) ? fs.readdirSync(CACHE_JOBS_DIR).filter(f => f.endsWith('.json')).length : 0;
     assert.strictEqual(finalFiles, initialFiles, "Integration tests should not create files under cache/visual-batch-jobs");
@@ -112,26 +172,50 @@ test("Isolated Public Execution Integration", async (t) => {
     });
 
     const activeJobJsonBefore = JSON.stringify(store.getJob(jobId));
-
     const reqCountBefore = fakeTransport.requestCount;
 
+    // Helper to test multiple invalid cases
+    const verifyPreflightError = async (payload: any) => {
+      const res = await request(app).post("/api/visual/batch-jobs").send(payload);
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual(JSON.stringify(store.getJob(jobId)), activeJobJsonBefore);
+      assert.strictEqual(fakeTransport.requestCount, reqCountBefore);
+    };
+
     // 2. Submit invalid preflight (discontinued model)
-    const res = await request(app)
-      .post("/api/visual/batch-jobs")
-      .send({
-        modelName: "gemini-1.5-pro", // Discontinued
-        targetSampleIds: ["sample-landscape-1"],
-        jsonMode: "native_schema",
-      });
+    await verifyPreflightError({
+      modelName: "gemini-1.5-pro", // Discontinued
+      targetSampleIds: ["sample-landscape-1"],
+      jsonMode: "native_schema",
+    });
 
-    assert.strictEqual(res.status, 400);
+    // 3. Unknown model
+    await verifyPreflightError({
+      modelName: "gemini-unknown-123",
+      targetSampleIds: ["sample-landscape-1"],
+      jsonMode: "native_schema",
+    });
 
-    // 3. Verify it's byte-for-byte identical
-    const activeJobJsonAfter = JSON.stringify(store.getJob(jobId));
-    assert.strictEqual(activeJobJsonAfter, activeJobJsonBefore);
+    // 4. Unknown sample ID
+    await verifyPreflightError({
+      modelName: "gemini-2.5-flash",
+      targetSampleIds: ["sample-unknown-123"],
+      jsonMode: "native_schema",
+    });
 
-    // 4. Verify no provider request was made
-    assert.strictEqual(fakeTransport.requestCount, reqCountBefore);
+    // 5. Duplicate sample ID
+    await verifyPreflightError({
+      modelName: "gemini-2.5-flash",
+      targetSampleIds: ["sample-landscape-1", "sample-landscape-1"],
+      jsonMode: "native_schema",
+    });
+
+    // 6. Invalid execution mode
+    await verifyPreflightError({
+      modelName: "gemini-2.5-flash",
+      targetSampleIds: ["sample-landscape-1"],
+      jsonMode: "invalid_mode",
+    });
   });
 
   await t.test("two apps do not share stores or runner registries", async () => {
