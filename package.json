@@ -17,6 +17,7 @@
     "test:coverage": "node scripts/test-runner.js all --coverage",
     "test:integration": "node scripts/test-runner.js integration",
     "test:architecture": "node scripts/test-runner.js architecture",
+    "test:components": "vitest run",
     "test:all": "node scripts/test-runner.js all"
   },
   "dependencies": {

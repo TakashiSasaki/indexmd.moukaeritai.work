@@ -120,3 +120,4 @@ In addition to the standard system skills, this project defines **workspace-loca
 - When performing repetitive or complex tasks (e.g., testing local API endpoints or SDK features), check the `skills/` directory for established local conventions and boilerplate scripts.
 - For local endpoint and Gemini SDK verification, see `skills/local-testing/SKILL.md`.
 - For repository health maintenance, see `skills/repository-health-maintenance/SKILL.md` and the canonical instructions in `docs/maintenance/repository-health.md`.
+- For stride verification and preventing false-green CI, see `skills/stride-verification/SKILL.md`.
