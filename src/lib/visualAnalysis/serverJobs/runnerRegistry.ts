@@ -1,12 +1,25 @@
+export interface RunnerCompletionResult {
+  jobId: string;
+  finalStatus: string;
+}
+
 export class RunnerRegistry {
-  private activeRunners = new Map<string, { startedAt: string; abortController?: AbortController }>();
+  private activeRunners = new Map<string, { startedAt: string; abortController?: AbortController; completionPromise?: Promise<RunnerCompletionResult> }>();
 
   isActive(jobId: string): boolean {
     return this.activeRunners.has(jobId);
   }
 
-  set(jobId: string, data: { startedAt: string; abortController?: AbortController }) {
+  set(jobId: string, data: { startedAt: string; abortController?: AbortController; completionPromise?: Promise<RunnerCompletionResult> }) {
     this.activeRunners.set(jobId, data);
+  }
+
+  async waitForJob(jobId: string): Promise<RunnerCompletionResult | undefined> {
+    const runner = this.activeRunners.get(jobId);
+    if (!runner?.completionPromise) {
+      return undefined;
+    }
+    return runner.completionPromise;
   }
 
   get(jobId: string) {

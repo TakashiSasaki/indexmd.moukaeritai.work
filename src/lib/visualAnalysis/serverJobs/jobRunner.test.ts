@@ -80,7 +80,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   });
 
   // Since execution is sequential, calls will first reach 1 with sample-A
-  while (calls.length < 1) await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setImmediate(resolve)); // yield to event loop so analysisFn is called
   assert.deepEqual(calls, ['sample-A']);
 
   // Resolve sample-A to allow sequential execution to proceed to sample-B
@@ -95,7 +95,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   });
 
   // Now execution proceeds to sample-B, so calls reaches 2
-  while (calls.length < 2) await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setImmediate(resolve)); // yield to event loop so analysisFn is called
   assert.deepEqual(calls, ['sample-A', 'sample-B']);
 
   // Resolve sample-B with a daily quota exhaustion block
@@ -115,7 +115,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
     },
   });
 
-  await runner;
+  await runner.completion;
 
   const blockedJob = store.getJob(jobId)! as VisualBatchJob & { blockedSampleIds?: string[] };
   // Since sample-B returned daily quota block, the job is blockedByQuota and blockedReason is preserved
@@ -139,7 +139,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   });
 
   // Second runner will start processing sample-B again
-  while (calls.length < 3) await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setImmediate(resolve)); // yield to event loop so analysisFn is called
   assert.deepEqual(calls, ['sample-A', 'sample-B', 'sample-B']);
 
   // Resolve the retried sample-B successfully
@@ -154,7 +154,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
   });
 
   // Sequential execution proceeds to sample-C
-  while (calls.length < 4) await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setImmediate(resolve)); // yield to event loop so analysisFn is called
   assert.deepEqual(calls, ['sample-A', 'sample-B', 'sample-B', 'sample-C']);
 
   // Block sample-C with daily quota block again
@@ -174,7 +174,7 @@ test('startVisualBatchJob blocks dispatch after daily quota while preserving in-
     },
   });
 
-  await secondRunner;
+  await secondRunner.completion;
 
   cleanupJob(jobId);
 });
@@ -265,7 +265,7 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
   store.createJob(makeJob(jobId, undefined, mockClock));
 
   let calls = 0;
-  await startVisualBatchJob(jobId, {
+  const runner = startVisualBatchJob(jobId, {
     jobStore: store,
     clock: mockClock,
     scheduler: { sleep: async () => {} },
@@ -290,6 +290,7 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
       };
     },
   });
+  await runner.completion;
 
   const persisted = store.getJob(jobId)! as VisualBatchJob;
   assert.strictEqual(calls, 2);
@@ -321,7 +322,7 @@ test('startVisualBatchJob transition running -> pausedForProviderUnavailable on 
   store.createJob(makeJob(jobId, undefined, mockClock));
 
   let calls = 0;
-  await startVisualBatchJob(jobId, {
+  const runner = startVisualBatchJob(jobId, {
     jobStore: store,
     clock: mockClock,
     scheduler: { sleep: async () => {} },
@@ -344,6 +345,7 @@ test('startVisualBatchJob transition running -> pausedForProviderUnavailable on 
       };
     },
   });
+  await runner.completion;
 
   const persisted = store.getJob(jobId)! as VisualBatchJob;
   assert.strictEqual(calls, 1);

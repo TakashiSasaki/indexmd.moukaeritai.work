@@ -1,6 +1,5 @@
-import { jobStore as defaultJobStore } from './jobStore';
-let jobStore = defaultJobStore;
 import { VisualBatchJob, VisualBatchJobItem } from '../publicSamples/batchTypes';
+import { JobStore } from './JobStoreInterface';
 import { evaluateSampleComparison } from '../publicSamples/compare';
 
 const SHORT_RETRY_DELAY_MS = 5 * 60_000;
@@ -94,47 +93,63 @@ export function classifyProviderAvailability(finalData: any, status?: number): {
   const failureKind = finalData?.failureKind || generationDiagnostics?.providerFailureKind;
   
   const isUnav =
+    status === 502 ||
     status === 503 ||
     status === 504 ||
     providerStatus === 'UNAVAILABLE' ||
     failureKind === 'providerUnavailable' ||
-    failureKind === 'providerUnavailable';
+    generationDiagnostics?.message?.includes?.("transport-unavailable");
     
   if (isUnav) {
-    return { isUnavailable: true, retryAfterMs: 5 * 60 * 1000 }; // 5 minutes default
+    let retryMs = 5000; // 5 seconds fixed default
+    const extractedRetryAfter = extractRetryDelayMs(finalData).retryAfterMs;
+    if (extractedRetryAfter) {
+      retryMs = Math.min(extractedRetryAfter, 30_000); // honor Retry-After up to 30 seconds
+    }
+    return { isUnavailable: true, retryAfterMs: retryMs };
   }
   return { isUnavailable: false };
 }
 
 
 
-export async function startVisualBatchJob(
+export interface RunnerCompletionResult {
+  jobId: string;
+  finalStatus: string;
+}
+
+export interface RunnerHandle {
+  completion: Promise<RunnerCompletionResult>;
+  abort: () => void;
+}
+
+export function startVisualBatchJob(
   jobId: string, 
   deps: {
     analyzeFn: (options: any) => Promise<{status: number, body: any}>,
     getSampleMetadata: (sampleId: string) => Promise<any>,
-    jobStore?: any,
+    jobStore: JobStore,
     clock?: { now: () => Date },
     runnerRegistry: import('./runnerRegistry').RunnerRegistry,
     scheduler?: { sleep: (ms: number) => Promise<void> }
   }
-) {
+): RunnerHandle {
   const { analyzeFn, getSampleMetadata } = deps;
-  const store = deps.jobStore || defaultJobStore;
+  const store = deps.jobStore;
   const clock = deps.clock || { now: () => new Date() };
 
-  if (deps.runnerRegistry.isActive(jobId)) {
-    console.warn(`Runner for job ${jobId} is already active.`);
-    return;
-  }
-
-  const job = store.getJob(jobId);
-  if (!job) return;
-
   const abortController = new AbortController();
-  deps.runnerRegistry.set(jobId, { startedAt: clock.now().toISOString(), abortController });
 
-  try {
+  const completionPromise = (async (): Promise<RunnerCompletionResult> => {
+    if (deps.runnerRegistry.isActive(jobId)) {
+      console.warn(`Runner for job ${jobId} is already active.`);
+      return { jobId, finalStatus: store.getJob(jobId)?.status || 'unknown' };
+    }
+
+    const job = store.getJob(jobId);
+    if (!job) return { jobId, finalStatus: 'unknown' };
+
+    try {
     store.updateJob(jobId, { 
     status: 'running', 
     startedAt: clock.now().toISOString(),
@@ -644,5 +659,14 @@ export async function startVisualBatchJob(
        });
     }
     deps.runnerRegistry.delete(jobId);
+      return { jobId, finalStatus: store.getJob(jobId)?.status || 'unknown' };
   }
+  })();
+
+  deps.runnerRegistry.set(jobId, { startedAt: clock.now().toISOString(), abortController, completionPromise });
+
+  return {
+    completion: completionPromise,
+    abort: () => abortController.abort()
+  };
 }

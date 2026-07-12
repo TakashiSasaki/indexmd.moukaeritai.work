@@ -26,6 +26,29 @@ test("Architecture checks", async (t) => {
   await t.test("runner does not mutate a global job store", () => {
     const runnerTs = fs.readFileSync("src/lib/visualAnalysis/serverJobs/jobRunner.ts", "utf8");
     assert.ok(!runnerTs.includes("jobStore = deps.jobStore"), "Global jobStore mutation is banned in runner");
+    assert.ok(!runnerTs.includes("let jobStore = defaultJobStore"), "Should not fall back to default singleton in runner module");
+    assert.ok(!runnerTs.includes("import { jobStore as defaultJobStore"), "Runner should not import production jobStore singleton directly");
+  });
+
+  await t.test("integration tests do not import production job store singleton", () => {
+    const files = fs.readdirSync("tests/integration");
+    for (const file of files) {
+      if (file.endsWith(".ts")) {
+        const content = fs.readFileSync(path.join("tests/integration", file), "utf8");
+        assert.ok(!content.includes("import { jobStore } from"), "Integration tests should not import production jobStore directly");
+      }
+    }
+  });
+
+  await t.test("integration tests do not import production network clients directly", () => {
+    const files = fs.readdirSync("tests/integration");
+    for (const file of files) {
+      if (file.endsWith(".ts")) {
+        const content = fs.readFileSync(path.join("tests/integration", file), "utf8");
+        assert.ok(!content.includes("import { GeminiSdkProviderTransport }"), "Integration tests should not import GeminiSdkProviderTransport directly");
+        assert.ok(!content.includes("from '@google/genai'"), "Integration tests should not import @google/genai directly");
+      }
+    }
   });
 
   await t.test("production routes do not directly instantiate Gemini transport", () => {
@@ -35,7 +58,8 @@ test("Architecture checks", async (t) => {
 
   await t.test("request descriptions cannot contain inlineData.data", () => {
     const fakeTs = fs.readFileSync("tests/support/FakeProviderTransport.ts", "utf8");
-    assert.ok(fakeTs.includes("[SANITIZED_BINARY_DATA]"), "Fake transport should sanitize binary data");
+    assert.ok(!fakeTs.includes("this.requests.push(safeReq)"), "Fake transport should not push entire request");
+    assert.ok(fakeTs.includes("req.sample?.mimeType"), "Fake transport should extract specific safe keys instead of cloning");
   });
 
   await t.test("batch preflight precedes destructive cancellation", () => {
