@@ -134,7 +134,17 @@ test("Isolated Public Execution Integration", async (t) => {
     }
 
     const finalStatusRes = await request(app).get(`/api/visual/batch-jobs/${jobId}`);
-    assert.strictEqual(finalStatusRes.body.job?.status, "completed");
+    // Allow runner state to persist fully
+    await new Promise(r => setTimeout(r, 10));
+    // Wait up to 2 seconds for runner to finish
+    let retries = 20;
+    while (retries-- > 0) {
+      const res = await request(app).get(`/api/visual/batch-jobs/${jobId}`);
+      if (res.body.job?.status === "completed" || res.body.job?.status === "failed" || res.body.job?.status === "canceled") break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    const finalPollRes = await request(app).get(`/api/visual/batch-jobs/${jobId}`);
+    assert.strictEqual(finalPollRes.body.job?.status, "completed");
 
     // Check prompt characterization
     assert.strictEqual(fakeTransport.requestCount, 1);

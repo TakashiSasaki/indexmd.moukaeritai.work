@@ -316,12 +316,11 @@ test('startVisualBatchJob persists transient throttle pause state without daily 
 });
 
 test('startVisualBatchJob transition running -> pausedForProviderUnavailable on HTTP 503', async () => {
+  let calls = 0;
   const mockClock = { now: () => new Date('2025-01-01T12:00:00Z') };
   const store = new InMemoryJobStore(mockClock);
   const jobId = `job-runner-unav-1`;
   store.createJob(makeJob(jobId, undefined, mockClock));
-
-  let calls = 0;
   const runner = startVisualBatchJob(jobId, {
     jobStore: store,
     clock: mockClock,
@@ -348,9 +347,120 @@ test('startVisualBatchJob transition running -> pausedForProviderUnavailable on 
   await runner.completion;
 
   const persisted = store.getJob(jobId)! as VisualBatchJob;
-  assert.strictEqual(calls, 1);
+  assert.strictEqual(calls, 2);
   assert.strictEqual(persisted.status, 'pausedForProviderUnavailable');
   assert.strictEqual(persisted.pauseReason, 'pausedForProviderUnavailable');
   assert.deepStrictEqual(persisted.affectedSampleIds, ['sample-transient']);
 });
 
+
+test('startVisualBatchJob cancels execution when abort is called', async () => {
+  let calls = 0;
+  const mockClock = { now: () => new Date('2025-01-01T12:00:00Z') };
+  const store = new InMemoryJobStore(mockClock);
+  const jobId = `job-runner-cancel-1`;
+  store.createJob(makeJob(jobId, undefined, mockClock));
+
+  const runner = startVisualBatchJob(jobId, {
+    jobStore: store,
+    clock: mockClock,
+    scheduler: { sleep: async () => {} },
+    runnerRegistry: new RunnerRegistry(),
+    getSampleMetadata: async (sampleId: string) => ({ id: sampleId, title: 'Cancel sample' }),
+    analyzeFn: async (options, signal) => {
+      calls += 1;
+      // Pretend to be doing some long running work, but instantly resolve when aborted
+      await new Promise((resolve) => {
+         if (signal?.aborted) return resolve(undefined);
+         signal?.addEventListener('abort', () => resolve(undefined));
+      });
+      return {
+        status: 200,
+        body: {
+          success: true,
+          record: {
+            evaluation: { qualityStatus: 'valid' },
+          },
+        },
+      };
+    },
+  });
+
+  // yield to allow initial sample dispatch
+  await new Promise(resolve => setImmediate(resolve));
+
+  // The runner should be running
+  assert.strictEqual(store.getJob(jobId)!.status, 'running');
+
+  // Trigger abort
+  runner.abort();
+
+  await runner.completion;
+
+  const persisted = store.getJob(jobId)! as VisualBatchJob;
+  assert.strictEqual(calls, 1);
+  // The runner correctly stops its loop and marks the job
+  // The loop finishes and runner cleans up, putting it into a canceled state.
+  assert.strictEqual(persisted.status, 'canceled');
+});
+
+
+test('startVisualBatchJob Table-Driven Retry Matrix', async () => {
+  const cases = [
+    { status: 502, diagnostic: 'UNAVAILABLE', expectStatus: 'succeeded', calls: 2 },
+    { status: 503, diagnostic: 'UNAVAILABLE', expectStatus: 'succeeded', calls: 2 },
+    { status: 504, diagnostic: 'UNAVAILABLE', expectStatus: 'succeeded', calls: 2 },
+    { status: 502, failureKind: 'providerUnavailable', diagnostic: 'UNAVAILABLE', expectStatus: 'succeeded', calls: 2 },
+    { status: 503, failureKind: 'providerUnavailable', diagnostic: 'UNAVAILABLE', expectStatus: 'succeeded', calls: 2 },
+    { status: 504, failureKind: 'providerUnavailable', diagnostic: 'UNAVAILABLE', expectStatus: 'succeeded', calls: 2 },
+    { status: 400, failureKind: 'providerInvalidArgument', diagnostic: 'INVALID_ARGUMENT', expectStatus: 'failed', calls: 1 }
+  ];
+
+  for (const c of cases) {
+    const mockClock = { now: () => new Date('2025-01-01T12:00:00Z') };
+    const store = new InMemoryJobStore(mockClock);
+    const jobId = `matrix-${c.status}`;
+    store.createJob(makeJob(jobId, undefined, mockClock));
+
+    let actualCalls = 0;
+    const runner = startVisualBatchJob(jobId, {
+      jobStore: store,
+      clock: mockClock,
+      scheduler: { sleep: async () => {} },
+      runnerRegistry: new RunnerRegistry(),
+      getSampleMetadata: async (sampleId: string) => ({ id: sampleId, title: 'Sample' }),
+      analyzeFn: async () => {
+        actualCalls++;
+        if (actualCalls === 1) {
+          return {
+            status: c.status,
+            body: {
+              success: false,
+              failureKind: c.failureKind || 'providerGenerationError',
+              error: 'matrix error',
+              generationDiagnostics: {
+                statusCode: c.status,
+                providerStatus: c.diagnostic
+              }
+            }
+          };
+        }
+        return {
+          status: 200,
+          body: {
+            success: true,
+            record: { evaluation: { qualityStatus: 'valid' } }
+          }
+        };
+      }
+    });
+
+    await runner.completion;
+
+    const persisted = store.getJob(jobId)! as VisualBatchJob;
+    const finalItem = persisted.items[0];
+
+    assert.strictEqual(actualCalls, c.calls, `Failed calls on status ${c.status} ${c.diagnostic}`);
+    assert.strictEqual(finalItem?.status || persisted.items[0]?.status || persisted.status, c.expectStatus, `Failed status on status ${c.status} ${c.diagnostic}`);
+  }
+});

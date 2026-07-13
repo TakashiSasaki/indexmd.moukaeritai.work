@@ -102,7 +102,7 @@ export function parseGoogleRpcDurationMs(duration: unknown): number | undefined 
   return undefined;
 }
 
-export function extractStructuredProviderError(err: any): {
+export function extractStructuredProviderError(err: any, clock?: { now: () => Date }): {
   statusCode?: number;
   providerStatus: string;
   rawMessage: string;
@@ -151,7 +151,7 @@ export function extractStructuredProviderError(err: any): {
     }
   }
 
-  const retry = extractRetryDelay(err, rawMessage);
+  const retry = extractRetryDelay(err, rawMessage, clock);
   retryAfterMs ??= retry.retryAfterMs;
   retryAfterReason ??= retry.retryAfterReason;
 
@@ -305,7 +305,8 @@ export function classifyProviderFailureKind(
   return { providerFailureKind, quotaExceeded, rateLimited };
 }
 
-export function extractRetryDelay(err: any, rawMessage: string): { retryAfterMs?: number; retryAfterReason?: string } {
+export function extractRetryDelay(err: any, rawMessage: string, clock?: { now: () => Date }): { retryAfterMs?: number; retryAfterReason?: string } {
+  const currentClock = clock || { now: () => new Date() };
   let retryAfterMs: number | undefined = undefined;
   let retryAfterReason: string | undefined = undefined;
 
@@ -364,7 +365,7 @@ export function extractRetryDelay(err: any, rawMessage: string): { retryAfterMs?
         retryAfterMs = secs * 1000;
         retryAfterReason = "HTTP retry-after header";
       } else {
-        const ms = Date.parse(retryAfterHeader) - Date.now();
+        const ms = Date.parse(retryAfterHeader) - currentClock.now().getTime();
         if (!isNaN(ms) && ms > 0) {
           retryAfterMs = ms;
           retryAfterReason = "HTTP retry-after date header";
@@ -395,6 +396,7 @@ export async function generateContentWithRetry(
     responseSchema?: any; 
     mediaResolution?: string;
     retryPolicy?: ProviderGenerationRetryPolicy;
+    clock?: { now: () => Date };
   }
 ) {
   let currentModel = modelName;
@@ -457,7 +459,7 @@ export async function generateContentWithRetry(
 
       return await client.models.generateContent(callParams);
     } catch (err: any) {
-      const structuredError = extractStructuredProviderError(err);
+      const structuredError = extractStructuredProviderError(err, configOption?.clock);
       const { statusCode, providerStatus, rawMessage, providerFailureKind, quotaExceeded, rateLimited, retryAfterMs, retryAfterReason } = structuredError;
 
       const isQuotaExceeded = statusCode === 429 || quotaExceeded || rateLimited;

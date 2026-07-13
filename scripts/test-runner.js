@@ -9,7 +9,7 @@ function findTests(dir, fileList = []) {
     const filePath = path.join(dir, file);
     if (fs.statSync(filePath).isDirectory()) {
       findTests(filePath, fileList);
-    } else if (file.endsWith('.test.ts')) {
+    } else if (file.endsWith('.test.ts') && !file.endsWith('.test.tsx')) {
       fileList.push(filePath);
     }
   }
@@ -47,4 +47,14 @@ if (isCoverage || process.env.COVERAGE === '1') {
 args.push('--test', ...testFiles);
 
 const result = spawnSync('node', args, { stdio: 'inherit' });
-process.exit(result.status ?? 1);
+if (result.status !== 0) {
+  process.exit(result.status ?? 1);
+}
+
+// Run component tests if category is all
+if (category === 'all') {
+  const componentResult = spawnSync('npm', ['run', 'test:components'], { stdio: 'inherit' });
+  process.exit(componentResult.status ?? 1);
+} else {
+  process.exit(0);
+}

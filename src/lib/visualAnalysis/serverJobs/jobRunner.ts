@@ -128,7 +128,7 @@ export interface RunnerHandle {
 export function startVisualBatchJob(
   jobId: string, 
   deps: {
-    analyzeFn: (options: any) => Promise<{status: number, body: any}>,
+    analyzeFn: (options: any, abortSignal?: AbortSignal) => Promise<{status: number, body: any}>,
     getSampleMetadata: (sampleId: string) => Promise<any>,
     jobStore: JobStore,
     clock?: { now: () => Date },
@@ -242,21 +242,24 @@ export function startVisualBatchJob(
         }
       });
 
+      if (abortController.signal.aborted) {
+        success = false;
+        break;
+      }
+
       let res: any = null;
       try {
         res = await analyzeFn({
           sampleId,
           modelName: job.modelName,
           jsonMode: job.jsonMode,
-          customInstruction: job.executionPrivate?.customInstruction || job.customInstructionPreview,
-          providerRetryPolicy: {
-            maxAttempts: 1,
-            retryInternalErrors: false,
-            retryQuotaOrRateLimit: true,
-            retryUnavailable: true,
-            retryInvalidArgument: false,
-          }
-        });
+          customInstruction: job.executionPrivate?.customInstruction || job.customInstructionPreview
+        }, abortController.signal);
+
+        if (abortController.signal.aborted) {
+          success = false;
+          break;
+        }
 
         store.updateJob(jobId, {
           lastEvent: {
@@ -288,6 +291,12 @@ export function startVisualBatchJob(
             expectedMetadata: record?.evaluation?.expectedMetadata
           });
         }
+
+        // Remove pending sample earlier to ensure tests that check queue wait see it empty on completion
+        store.updateJob(jobId, {
+          pendingSampleIds: (store.getJob(jobId)?.pendingSampleIds || []).filter(id => id !== sampleId)
+        });
+
         break; // Success!
       }
 
@@ -312,43 +321,104 @@ export function startVisualBatchJob(
       }
 
       const providerUnav = classifyProviderAvailability(finalData, res?.status, clock);
+      const attemptCompletedAt = clock.now();
+      const attemptDurationMs = attemptCompletedAt.getTime() - attemptStartedAtDate.getTime();
+
       if (providerUnav.isUnavailable) {
-        const delayMs = providerUnav.retryAfterMs ?? 5 * 60_000;
-        const resumeAfter = new Date(clock.now().getTime() + delayMs).toISOString();
-        item.status = 'pausedForProviderUnavailable';
-        item.error = finalData?.error || "Provider Unavailable";
-        item.failureKind = finalData?.failureKind || 'providerUnavailable';
-        item.resumeAfter = resumeAfter;
-        item.pauseReason = 'pausedForProviderUnavailable';
-        item.affectedSampleIds = [sampleId];
-        item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: false };
-        if (finalData?.record) item.record = finalData.record;
-        
-        store.appendItem(jobId, item);
-        store.updateJob(jobId, {
-          status: 'pausedForProviderUnavailable',
-          resumeAfter,
-          pauseReason: 'pausedForProviderUnavailable',
-          affectedSampleIds: [sampleId],
-          attemptState: item.attemptState,
-          lastEvent: {
-            type: 'jobPaused',
-            timestamp: clock.now().toISOString(),
-            sampleId,
-            message: `Provider unavailable while processing ${sampleTitle}. Pausing job.`
-          },
-          lastFailureKind: item.failureKind,
-          lastError: item.error,
-          lastHeartbeatAt: clock.now().toISOString()
-        });
-        break;
+        if (attempt < maxAttemptsPerSample) {
+          // Retry exactly once
+          let delayMs = providerUnav.retryAfterMs ?? 5000; // 5 seconds default
+          if (delayMs > 30000) delayMs = 30000; // Cap at 30 seconds
+
+          const nextRetryAtDate = new Date(clock.now().getTime() + delayMs);
+          const nextRetryAt = nextRetryAtDate.toISOString();
+
+          item.retryHistory = item.retryHistory || [];
+          item.retryHistory.push({
+            attempt,
+            startedAt: attemptStartedAtDate.toISOString(),
+            completedAt: attemptCompletedAt.toISOString(),
+            durationMs: attemptDurationMs,
+            failureKind: finalData?.failureKind || 'providerUnavailable',
+            error: finalData?.error || 'Provider Unavailable',
+            delayBeforeNextAttemptMs: delayMs,
+            nextRetryAt,
+          });
+
+          item.nextRetryAt = nextRetryAt;
+          item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: false };
+
+          store.updateJob(jobId, {
+            lastEvent: {
+              type: 'quotaBackoffWaiting',
+              timestamp: clock.now().toISOString(),
+              sampleId: sampleId,
+              message: `Provider unavailable for ${sampleTitle}. Waiting ${Math.round(delayMs/1000)}s before retry.`
+            },
+            lastHeartbeatAt: clock.now().toISOString()
+          });
+
+          if (deps.scheduler) {
+            await deps.scheduler.sleep(delayMs);
+          } else {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+          if (abortController.signal.aborted) {
+             success = false;
+             break;
+          }
+          continue; // Retry
+        } else {
+          // Retry exhausted for unavailable
+          item.retryExhausted = true;
+          item.retryHistory = item.retryHistory || [];
+          item.retryHistory.push({
+            attempt,
+            startedAt: attemptStartedAtDate.toISOString(),
+            completedAt: attemptCompletedAt.toISOString(),
+            durationMs: attemptDurationMs,
+            failureKind: finalData?.failureKind || 'providerUnavailable',
+            error: finalData?.error || 'Provider Unavailable',
+          });
+
+          const resumeAfter = new Date(clock.now().getTime() + (providerUnav.retryAfterMs ?? 5 * 60_000)).toISOString();
+          item.status = 'pausedForProviderUnavailable';
+          item.error = finalData?.error || "Provider Unavailable";
+          item.failureKind = finalData?.failureKind || 'providerUnavailable';
+          item.resumeAfter = resumeAfter;
+          item.pauseReason = 'pausedForProviderUnavailable';
+          item.affectedSampleIds = [sampleId];
+          item.attemptState = { attempt, maxAttempts: maxAttemptsPerSample, retryExhausted: true };
+          if (finalData?.record) item.record = finalData.record;
+
+          store.appendItem(jobId, item);
+          store.updateJob(jobId, {
+            status: 'pausedForProviderUnavailable',
+            resumeAfter,
+            pauseReason: 'pausedForProviderUnavailable',
+            affectedSampleIds: [sampleId],
+            attemptState: item.attemptState,
+            lastEvent: {
+              type: 'jobPaused',
+              timestamp: clock.now().toISOString(),
+              sampleId,
+              message: `Provider unavailable retry exhausted while processing ${sampleTitle}. Pausing job.`
+            },
+            lastFailureKind: item.failureKind,
+            lastError: item.error,
+            lastHeartbeatAt: clock.now().toISOString()
+          });
+          break;
+        }
       }
 
       const quotaInterruption = classifyJobQuotaInterruption(finalData, res?.status);
       const isQuotaError = quotaInterruption.isQuotaOrRateLimit;
-      
-      const attemptCompletedAt = clock.now();
-      const attemptDurationMs = attemptCompletedAt.getTime() - attemptStartedAtDate.getTime();
+
+      if (abortController.signal.aborted) {
+        success = false;
+        break;
+      }
 
       if (quotaInterruption.action === 'blockedByQuota') {
         const resumeAfter = new Date(clock.now().getTime() + (quotaInterruption.retryAfterMs ?? 24 * 60 * 60_000)).toISOString();
@@ -435,6 +505,10 @@ export function startVisualBatchJob(
           await deps.scheduler.sleep(delayMs);
         } else {
           await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+        if (abortController.signal.aborted) {
+           success = false;
+           break;
         }
       } else {
         // Not a quota error, or exhausted attempts
@@ -624,19 +698,33 @@ export function startVisualBatchJob(
          lastEvent: finalJob.lastEvent
        });
     } else if (finalJob.status === 'running') {
-       completedAt = nowStr;
-       durationMs = nowTime - startTime;
-       const processed = (finalJob.completedSampleIds?.length || 0) + (finalJob.failedSampleIds?.length || 0);
-       store.updateJob(jobId, {
-         status: processed < finalJob.targetSampleIds.length ? 'partiallyCompleted' : 'completed',
-         completedAt,
-         durationMs,
-         lastEvent: {
-           type: 'jobCompleted',
-           timestamp: nowStr,
-           message: `Job ${jobId} completed`
-         }
-       });
+       if (abortController.signal.aborted) {
+          // If aborted, we shouldn't mark it as completed
+          store.updateJob(jobId, {
+            status: 'canceled',
+            canceledAt: nowStr,
+            durationMs: nowTime - startTime,
+            lastEvent: {
+              type: 'jobCanceled',
+              timestamp: nowStr,
+              message: 'Job canceled via abort signal'
+            }
+          });
+       } else {
+         completedAt = nowStr;
+         durationMs = nowTime - startTime;
+         const processed = (finalJob.completedSampleIds?.length || 0) + (finalJob.failedSampleIds?.length || 0);
+         store.updateJob(jobId, {
+           status: processed < finalJob.targetSampleIds.length ? 'partiallyCompleted' : 'completed',
+           completedAt,
+           durationMs,
+           lastEvent: {
+             type: 'jobCompleted',
+             timestamp: nowStr,
+             message: `Job ${jobId} completed`
+           }
+         });
+       }
     } else if (finalJob.status === 'canceled' && !finalJob.durationMs) {
        // if it was canceled during the loop
        completedAt = finalJob.canceledAt || nowStr;
