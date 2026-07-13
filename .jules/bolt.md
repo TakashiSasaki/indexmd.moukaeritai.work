@@ -4,3 +4,7 @@
 ## 2024-07-12 - Date parsing inside JS sort comparator
 **Learning:** Found a performance bottleneck where `sortSavedSummariesByGeneratedAt` in `src/lib/savedSummaryBrowser.ts` repeatedly parsed ISO date strings (`new Date(str).getTime()`) inside a `.sort()` comparator loop, resulting in $O(N \log N)$ date conversions.
 **Action:** Use the Schwartzian transform (map-sort-map) to convert string dates to timestamps only once per item ($O(N)$), saving significant CPU cycles.
+
+## 2026-07-13 - Replace O(N) inline filters with O(1) Map grouping
+**Learning:** Found O(N) array scans via `.filter()` directly inside a React component's render path or derived useMemo in `SavedSummariesBrowser.tsx`. This creates an O(N) bottleneck that re-evaluates unnecessarily, slowing down render time when large directories are selected.
+**Action:** Replaced inline `.filter()` with a pre-calculated O(1) Map lookup in a `useMemo` block to completely eliminate repetitive array scans for derived states.

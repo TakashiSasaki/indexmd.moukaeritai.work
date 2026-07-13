@@ -256,16 +256,21 @@ These notes must also be completely preserved intact!`);
     });
   }, [selectedSummary]);
 
-  // ⚡ Bolt: Pre-calculate file counts per directory to optimize O(N) rendering performance
-  const fileCountsByDir = useMemo(() => {
-    const counts: Record<string, number> = {};
+  // ⚡ Bolt: Group summaries by parent directory to replace O(N) filtering with O(1) Map lookups
+  const summariesByDirId = useMemo(() => {
+    const map = new Map<string, any[]>();
     for (const item of processedSummaries) {
       const parentIdVal = item.parent_id || item.parentId;
       if (parentIdVal) {
-        counts[parentIdVal] = (counts[parentIdVal] || 0) + 1;
+        let list = map.get(parentIdVal);
+        if (!list) {
+          list = [];
+          map.set(parentIdVal, list);
+        }
+        list.push(item);
       }
     }
-    return counts;
+    return map;
   }, [processedSummaries]);
 
   // Directory-wise index.md Auto-Generated code builder (Read-Only Preview)
@@ -275,7 +280,7 @@ These notes must also be completely preserved intact!`);
     const folderName = folder ? (folder.path || folder.name) : 'Selected Directory';
 
     // Filter file summaries belonging to this directory
-    const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
+    const filesInFolder = summariesByDirId.get(selectedDirId) || [];
 
     // Render index.md via our pure deterministic preview helper
     return buildReadOnlyIndexMdPreview({
@@ -444,7 +449,7 @@ These notes must also be completely preserved intact!`);
           >
             <option value="">-- ディレクトリを選択して要約をプレビュー --</option>
             {dirs.map((dir) => {
-              const fileCount = fileCountsByDir[dir.drive_id] || 0;
+              const fileCount = summariesByDirId.get(dir.drive_id)?.length || 0;
               return (
                 <option key={dir.drive_id} value={dir.drive_id}>
                   {dir.path || dir.name} ({fileCount}件の要約ファイル)
@@ -483,7 +488,7 @@ These notes must also be completely preserved intact!`);
                 </div>
                 
                 {(() => {
-                  const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
+                  const filesInFolder = summariesByDirId.get(selectedDirId) || [];
                   return (
                     <div className="space-y-4">
                       <div>
