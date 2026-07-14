@@ -12,8 +12,12 @@
     "validate:contracts": "node scripts/validate-contracts.mjs",
     "verify:no-schema-mirror": "node scripts/verifyNoSchemaMirror.mjs",
     "validate:public-samples:images": "node --import tsx scripts/validatePublicSamples.ts",
-    "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
-    "test:coverage": "node --experimental-test-coverage --import tsx --test \"src/**/*.test.ts\""
+    "generate:efu": "tsx scripts/generate-efu.ts",
+    "test:unit": "node scripts/test-runner.js unit",
+    "test:coverage": "node scripts/test-runner.js all --coverage",
+    "test:integration": "node scripts/test-runner.js integration",
+    "test:architecture": "node scripts/test-runner.js architecture",
+    "test:all": "node scripts/test-runner.js all"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

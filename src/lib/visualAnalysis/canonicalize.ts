@@ -1,7 +1,7 @@
 import { VISUAL_ANALYSIS_SCHEMA_VERSION } from "./schema";
 import { normalizeVisualAnalysis } from "./normalize";
 
-import { GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_NAME, GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_VERSION } from "./providerSchema";
+const GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_NAME = "RecursiveAllowlistCompiler"; const GEMINI_VISUAL_ANALYSIS_RESPONSE_SCHEMA_VERSION = "1.0.0";
 
 export interface CanonicalizationContext {
   providerFamily?: string;
@@ -65,7 +65,7 @@ export function canonicalizeVisualAnalysisProviderOutput(
       from: originalSchemaVersion,
       to: VISUAL_ANALYSIS_SCHEMA_VERSION
     });
-    
+
     normalized.schemaVersion = VISUAL_ANALYSIS_SCHEMA_VERSION;
   }
 

@@ -2,6 +2,16 @@ import { ProviderError } from "../gemini";
 import { GenerationDiagnostics } from "./generationDiagnostics";
 import { VisualAnalysisRunMetadata } from "./runMetadata";
 
+export type VisualPipelineFailureKind =
+  | "generationError"
+  | "providerInvalidArgument"
+  | "providerRateLimited"
+  | "providerQuotaExceeded"
+  | "providerUnavailable"
+  | "jsonParseError"
+  | "schemaValidationError"
+  | "executionError";
+
 export function buildGenerationFailureResponse(args: {
   err: any;
   targetModel: string;
@@ -15,13 +25,36 @@ export function buildGenerationFailureResponse(args: {
 }) {
   const { err, targetModel, providerFamily, runMetadata, outputMode, requestPreview, sampleMetadata, expectedMetadata, inputDiagnostics } = args;
 
-  let failureKind: "generationError" | "providerRateLimited" | "providerQuotaExceeded" = "generationError";
+  let failureKind: VisualPipelineFailureKind = "generationError";
 
-  if (err instanceof ProviderError) {
-    if (err.providerFailureKind === "providerRateLimited") {
-      failureKind = "providerRateLimited";
-    } else if (err.providerFailureKind === "providerQuotaExceeded") {
-      failureKind = "providerQuotaExceeded";
+  const errMsg = String(err?.message || "").toLowerCase();
+  const errCode = err?.statusCode || err?.status;
+  const pFailureKind = err?.providerFailureKind || err?.failureKind;
+
+  if (pFailureKind) {
+    if (["providerInvalidArgument", "providerRateLimited", "providerQuotaExceeded", "providerUnavailable", "jsonParseError", "schemaValidationError", "executionError", "generationError"].includes(pFailureKind)) {
+      failureKind = pFailureKind as VisualPipelineFailureKind;
+    }
+  }
+
+  // Map by status codes / error message patterns
+  if (failureKind === "generationError") {
+    if (errCode === 400 || errMsg.includes("invalid_argument") || errMsg.includes("invalid argument") || errMsg.includes("schema")) {
+      failureKind = "providerInvalidArgument";
+    } else if (errCode === 429) {
+      if (errMsg.includes("quota") || pFailureKind === "providerQuotaExceeded" || errMsg.includes("limit exceeded") || errMsg.includes("exhausted")) {
+        failureKind = "providerQuotaExceeded";
+      } else {
+        failureKind = "providerRateLimited";
+      }
+    } else if (errCode === 503 || errCode === 504 || errMsg.includes("unavailable") || errMsg.includes("timeout") || pFailureKind === "providerUnavailable" || errMsg.includes("service unavailable")) {
+      failureKind = "providerUnavailable";
+    } else if (errMsg.includes("parse") || errMsg.includes("json")) {
+      failureKind = "jsonParseError";
+    } else if (errMsg.includes("validation") || errMsg.includes("mismatch")) {
+      failureKind = "schemaValidationError";
+    } else if (errMsg.includes("execution") || errMsg.includes("failed to execute")) {
+      failureKind = "executionError";
     }
   }
 
@@ -75,7 +108,6 @@ export function buildGenerationFailureResponse(args: {
       diagnostics.rawMessageSummary = "Unknown error";
     }
   }
-
 
   const record = {
     schemaVersion: "image-analysis-record.v0.1.0",
@@ -146,17 +178,7 @@ export function buildGenerationFailureResponse(args: {
     failureKind,
   };
 
-
-
-
-
-
   if (requestPreview) response.requestPreview = requestPreview;
-
-  // Drive API endpoint expects `metadata` instead of sampleMetadata
-  if (!sampleMetadata && !expectedMetadata && !outputMode) {
-     // this looks like we need to handle drive metadata specifically if requested
-  }
 
   return response;
 }

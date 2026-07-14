@@ -199,3 +199,41 @@ test('expanded image input appears in expansion metrics', () => {
   assert.strictEqual(sizes.imageExpansionMetrics.totalBytesIncreased, 1500);
   assert.strictEqual(sizes.imageExpansionMetrics.largestExpandedInputs.length, 1);
 });
+
+test('gemini 500 INTERNAL retries once by default and succeeds', async () => {
+  const geminiModule = await import('../../gemini.ts');
+  const realAi = geminiModule.getGeminiClient("model");
+  const originalGenerateContent = realAi.models.generateContent;
+  let calls = 0;
+  realAi.models.generateContent = async () => {
+    calls++;
+    if (calls === 1) {
+      const err = new Error("INTERNAL") as any;
+      err.status = 500;
+      throw err;
+    }
+    return { text: 'ok' } as any;
+  };
+  try {
+    const result = await geminiModule.generateContentWithRetry("model", "prompt", 1, { retryPolicy: { maxAttempts: 2, baseDelayMs: 1 } });
+    assert.equal((result as any).text, 'ok');
+    assert.equal(calls, 2);
+  } finally {
+    realAi.models.generateContent = originalGenerateContent;
+  }
+});
+
+test('gemini repeated 500 INTERNAL ends in bounded failure', async () => {
+  const geminiModule = await import('../../gemini.ts');
+  const realAi = geminiModule.getGeminiClient("model");
+  const originalGenerateContent = realAi.models.generateContent;
+  realAi.models.generateContent = async () => { const err = new Error("INTERNAL") as any; err.status = 500; throw err; };
+  try {
+    await assert.rejects(
+      geminiModule.generateContentWithRetry("model", "prompt", 3, { retryPolicy: { maxAttempts: 2, baseDelayMs: 1 } }),
+      (e: any) => e.providerFailureKind === 'providerInternalError' && e.attempts.length === 2 && e.notRetriedReason === 'maxAttemptsReached'
+    );
+  } finally {
+    realAi.models.generateContent = originalGenerateContent;
+  }
+});
