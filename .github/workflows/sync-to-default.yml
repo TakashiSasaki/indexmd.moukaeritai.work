@@ -24,7 +24,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: sync-${{ github.event_name == 'workflow_dispatch' && inputs.source_branch || github.ref_name }}-to-default
+  group: sync-source-branches-to-default
   cancel-in-progress: false
 
 jobs:
