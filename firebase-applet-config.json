@@ -6,5 +6,7 @@
   "firestoreDatabaseId": "indexmd-db",
   "storageBucket": "moukaeritaid.firebasestorage.app",
   "messagingSenderId": "1042140630327",
-  "measurementId": ""
+  "measurementId": "",
+  "oAuthClientId": "1042140630327-2qhfiip24i0e5v8chphlocjdfkoqh8fl.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }
