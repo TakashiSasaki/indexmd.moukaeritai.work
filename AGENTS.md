@@ -71,21 +71,17 @@ Build a high-performance, cost-effective Google Drive indexer that generates/upd
 - `docs/maintenance/repository-health.md`: Canonical repository health maintenance instructions.
 - `skills/`: Workspace-local agent skills.
 
-## 🌿 Branch workflow for Google AI Studio and Jules
+## 🌿 Branch workflow
 
-`main` is managed by Google AI Studio and may be force-pushed by that service. Do not use `main` as the durable working branch for ChatGPT-authored changes.
+`indexmd.moukaeritai.work` is the canonical integration branch and the repository default branch.
 
-`chatgpt` is the durable working branch for ChatGPT-authored changes in this project. Use `chatgpt` as the target branch for repository edits unless the user explicitly instructs otherwise.
+The source branches `main`, `chatgpt`, `jules`, and `codex` may contain work produced by Google AI Studio or coding agents. The workflow `.github/workflows/sync-to-default.yml` performs normal, non-force merges from these source branches into `indexmd.moukaeritai.work`.
 
-`jules/integration` is the integration branch used by Jules. The workflow
-`.github/workflows/sync-main-to-jules-integration.yml` may keep integration branches up to date with the current branch workflow.
+Synchronization is strictly one-way toward the default branch. Do not add automation that merges the default branch back into source branches.
 
-Do not remove this workflow as unused or deprecated. It is repository-operation
-infrastructure, not application runtime code.
+The synchronization workflow must not create pull requests or automation-owned conflict branches. If a merge conflicts, it must abort and fail visibly so the conflict can be resolved manually.
 
-The workflow must never reset or force-push `jules/integration`. If a merge conflict occurs, it should isolate conflicts in an automation branch or report them for manual resolution.
-
-See `docs/branch-workflow.md` for the detailed operational contract, but prefer the latest user instruction when branch policy changes.
+Do not reset or force-push any branch as part of synchronization. See `docs/branch-workflow.md` for the detailed operational contract, and prefer the latest explicit user instruction when branch policy changes.
 
 ## 🧹 Maintenance Lane (Repository Health)
 
@@ -120,3 +116,4 @@ In addition to the standard system skills, this project defines **workspace-loca
 - When performing repetitive or complex tasks (e.g., testing local API endpoints or SDK features), check the `skills/` directory for established local conventions and boilerplate scripts.
 - For local endpoint and Gemini SDK verification, see `skills/local-testing/SKILL.md`.
 - For repository health maintenance, see `skills/repository-health-maintenance/SKILL.md` and the canonical instructions in `docs/maintenance/repository-health.md`.
+- For stride verification and preventing false-green CI, see `skills/stride-verification/SKILL.md`.

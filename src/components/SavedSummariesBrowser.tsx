@@ -64,6 +64,18 @@ export const SavedSummariesBrowser: React.FC<SavedSummariesBrowserProps> = ({
     fetchSavedSummaries();
   }, [fetchSavedSummaries]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [localSearchTerm, setLocalSearchTerm] = useState('');
+
+  // ⚡ Bolt: Debounce optimization
+  // Why: Filtering hundreds of summaries synchronously on every keystroke causes noticeable UI lag.
+  // Impact: Reduces heavy O(N) array filtering operations and re-renders to only occur once per 300ms of typing inactivity.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(localSearchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearchTerm]);
+
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
@@ -351,8 +363,8 @@ These notes must also be completely preserved intact!`);
             </span>
             <input
               type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={localSearchTerm}
+              onChange={(e) => setLocalSearchTerm(e.target.value)}
               placeholder="ファイル名、要約内容、モデル..."
               className="w-full bg-slate-50 border border-slate-200 rounded-md pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800"
             />

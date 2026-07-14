@@ -12,7 +12,11 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    name: Build and Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
     - uses: actions/checkout@v4
     
@@ -38,15 +42,24 @@ jobs:
       run: npm run test:architecture
       
     - name: Run Test Coverage
+      if: matrix.os == 'ubuntu-latest'
       run: npm run test:coverage
       
+    - name: Run Component Tests
+      run: npm run test:components
+
+    - name: Run All Tests
+      run: npm run test:all
+
     - name: Run Contract Validation
+      if: matrix.os == 'ubuntu-latest'
       run: npm run validate:contracts
       
     - name: Verify No Schema Mirror
       run: npm run verify:no-schema-mirror
       
     - name: Validate Public Samples (Images)
+      if: matrix.os == 'ubuntu-latest'
       run: npm run validate:public-samples:images
       
     - name: Build Production

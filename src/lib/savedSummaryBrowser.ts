@@ -3,18 +3,16 @@
  */
 
 export function sortSavedSummariesByGeneratedAt(summaries: any[]): any[] {
-  return [...summaries].sort((a, b) => {
-    const genA = a.generated_at || a.generatedAt;
-    const genB = b.generated_at || b.generatedAt;
-    const dateA = genA ? new Date(genA).getTime() : 0;
-    const dateB = genB ? new Date(genB).getTime() : 0;
-    
-    // Fallback if Date parsing fails (NaN check)
-    const timeA = isNaN(dateA) ? 0 : dateA;
-    const timeB = isNaN(dateB) ? 0 : dateB;
-    
-    return timeB - timeA; // Descending order
-  });
+  // ⚡ Bolt: Use Schwartzian transform (map-sort-map) to avoid parsing dates in O(N log N) comparisons.
+  return summaries
+    .map(item => {
+      const gen = item.generated_at || item.generatedAt;
+      let time = gen ? new Date(gen).getTime() : 0;
+      if (isNaN(time)) time = 0;
+      return { item, time };
+    })
+    .sort((a, b) => b.time - a.time) // Descending order
+    .map(mapped => mapped.item);
 }
 
 export function filterSavedSummaries(
