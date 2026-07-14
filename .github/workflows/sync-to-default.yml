@@ -1,0 +1,90 @@
+name: Sync Source Branches to Default
+
+on:
+  push:
+    branches:
+      - main
+      - chatgpt
+      - jules
+      - codex
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: Source branch to merge into the default branch
+        required: true
+        default: jules
+        type: choice
+        options:
+          - main
+          - chatgpt
+          - jules
+          - codex
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-${{ github.event_name == 'workflow_dispatch' && inputs.source_branch || github.ref_name }}-to-default
+  cancel-in-progress: false
+
+jobs:
+  sync-to-default:
+    name: Merge source branch into indexmd.moukaeritai.work
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: indexmd.moukaeritai.work
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge source branch into default branch
+        env:
+          SOURCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.source_branch || github.ref_name }}
+          DEFAULT_BRANCH: indexmd.moukaeritai.work
+        run: |
+          set -euo pipefail
+
+          case "${SOURCE_BRANCH}" in
+            main|chatgpt|jules|codex) ;;
+            *)
+              echo "Unsupported source branch: ${SOURCE_BRANCH}" >&2
+              exit 1
+              ;;
+          esac
+
+          if [ "${SOURCE_BRANCH}" = "${DEFAULT_BRANCH}" ]; then
+            echo "Source and target are identical; nothing to synchronize."
+            exit 0
+          fi
+
+          git fetch origin \
+            "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" \
+            --prune
+
+          git switch -C "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
+          BEFORE_SHA="$(git rev-parse HEAD)"
+
+          if ! git merge --no-edit "origin/${SOURCE_BRANCH}"; then
+            git merge --abort || true
+            echo "Automatic merge from ${SOURCE_BRANCH} into ${DEFAULT_BRANCH} failed because of conflicts." >&2
+            echo "No pull request or automation branch was created. Resolve the conflict manually and rerun this workflow." >&2
+            exit 1
+          fi
+
+          AFTER_SHA="$(git rev-parse HEAD)"
+          if [ "${BEFORE_SHA}" = "${AFTER_SHA}" ]; then
+            echo "${DEFAULT_BRANCH} already contains ${SOURCE_BRANCH}."
+            exit 0
+          fi
+
+          git push origin "HEAD:refs/heads/${DEFAULT_BRANCH}"
+          echo "Merged ${SOURCE_BRANCH} into ${DEFAULT_BRANCH}: ${BEFORE_SHA} -> ${AFTER_SHA}"
