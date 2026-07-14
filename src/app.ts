@@ -1,5 +1,5 @@
 
-import { jobStore as defaultJobStore } from './lib/visualAnalysis/serverJobs/jobStore';
+
 
 import { startVisualBatchJob } from "./lib/visualAnalysis/serverJobs/jobRunner";
 import { RunnerRegistry } from "./lib/visualAnalysis/serverJobs/runnerRegistry";
@@ -21,8 +21,11 @@ import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 
 import { parseOffice } from "officeparser";
-
 import crypto from "crypto";
+import type { SampleResolver } from "./lib/visualAnalysis/preflight";
+
+
+
 
 import { buildScanCacheKeyParts } from "./lib/scanCache";
 
@@ -96,10 +99,7 @@ import { jobToSummary } from './lib/visualAnalysis/serverJobs/jobAdapters';
 
 import { getGeminiKeyInfo } from "./lib/runtime/geminiKeyInfo";
 
-import { preflightVisualExecution, PreflightError, SampleResolver } from "./lib/visualAnalysis/preflight";
-
-import { GeminiSdkProviderTransport } from "./lib/visualAnalysis/providerTransport";
-
+import { preflightVisualExecution, PreflightError } from "./lib/visualAnalysis/preflight";
 
 const CACHE_DIR = path.join(process.cwd(), "cache", "snippets");
 const SUMMARIES_CACHE_DIR = path.join(process.cwd(), "cache", "summaries");
@@ -526,18 +526,18 @@ function extractToken(req: express.Request): string | null {
 const SUMMARY_ANALYSIS_REPAIR_VERSION = "1.0.0";
 
 export async function analyzePublicSample(options: {
+  abortSignal?: AbortSignal;
   sampleId: string;
   modelName?: string;
   includeRequestPreview?: boolean;
   jsonMode?: string;
   customInstruction?: string;
-  providerRetryPolicy?: ProviderGenerationRetryPolicy;
   providerTransport?: any;
   sampleResolver?: SampleResolver;
   imageFetcher?: any;
 }): Promise<{status: number, body: any}> {
   try {
-    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction, providerRetryPolicy } = options;
+    const { sampleId, modelName = "gemini-3.5-flash", includeRequestPreview = false, jsonMode, customInstruction, abortSignal } = options;
 
     if (!sampleId) return { status: 400, body: { error: "sampleId is required" } };
 
@@ -562,7 +562,8 @@ export async function analyzePublicSample(options: {
       throw err;
     }
 
-    const sample = getPublicSampleById(sampleId);
+    const resolver = options.sampleResolver;
+    const sample = resolver ? resolver.getSample(sampleId) : getPublicSampleById(sampleId);
     if (!sample) return { status: 404, body: { error: "Sample not found" } };
 
     // Fetch Image Bytes
@@ -657,7 +658,8 @@ export async function analyzePublicSample(options: {
     const response = await transport.executeSingleRequest({
       preparedExecution,
       sample: transportSample,
-      systemInstruction
+      systemInstruction,
+      abortSignal
     });
 
     if (!response.success) {
@@ -723,7 +725,8 @@ export async function analyzePublicSample(options: {
         const retryResponse = await transport.executeSingleRequest({
           preparedExecution,
           sample: transportSample,
-          systemInstruction: systemInstruction + `\n\n${retryPrompt}`
+          systemInstruction: systemInstruction + `\n\n${retryPrompt}`,
+          abortSignal
         });
         
         retryCount++;
@@ -930,7 +933,8 @@ export async function analyzePublicSample(options: {
         const retryResponse = await transport.executeSingleRequest({
           preparedExecution,
           sample: transportSample,
-          systemInstruction: systemInstruction + `\n\n${retryPrompt}`
+          systemInstruction: systemInstruction + `\n\n${retryPrompt}`,
+          abortSignal
         });
 
         schemaValidationRetryCount++;
@@ -1107,14 +1111,26 @@ export interface AppDependencies {
   runnerRegistry?: RunnerRegistry;
 }
 
-export function createApp(dependencies: AppDependencies = {}) {
-  const runnerRegistry = dependencies.runnerRegistry || new RunnerRegistry();
+
+import { defaultSampleResolver } from "./lib/visualAnalysis/preflight";
+import { jobStore as globalJobStore } from "./lib/visualAnalysis/serverJobs/jobStore";
+
+export function createApp(rawDependencies: AppDependencies = {}) {
+  // Construct one fully resolved dependency object
+  const resolvedDependencies = {
+    jobStore: rawDependencies.jobStore || globalJobStore,
+    providerTransport: rawDependencies.providerTransport,
+    sampleResolver: rawDependencies.sampleResolver || defaultSampleResolver,
+    idGenerator: rawDependencies.idGenerator || (() => crypto.randomUUID()),
+    clock: rawDependencies.clock || { now: () => new Date() },
+    imageFetcher: rawDependencies.imageFetcher,
+    runnerRegistry: rawDependencies.runnerRegistry || new RunnerRegistry()
+  };
+
   const app = express();
   
-  // Apply JSON parsing middleware
+  // Apply JSON parsing middleware (only once)
   app.use(express.json());
-
-app.use(express.json());
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
@@ -2381,7 +2397,12 @@ app.get("/api/visual/public-samples/:sampleId/image", async (req, res) => {
 
 app.post("/api/visual/public-samples/analyze", async (req, res) => {
   try {
-    const result = await analyzePublicSample(req.body);
+    const result = await analyzePublicSample({
+      ...req.body,
+      providerTransport: resolvedDependencies.providerTransport,
+      sampleResolver: resolvedDependencies.sampleResolver,
+      imageFetcher: resolvedDependencies.imageFetcher
+    });
     return res.status(result.status).json(result.body);
   } catch (e: any) {
     console.error(e);
@@ -2802,15 +2823,15 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
   try {
     const { modelName = "gemini-3.5-flash", jsonMode = "json_object", customInstruction, targetSampleIds } = req.body;
 
-    const store = dependencies.jobStore;
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
-    const transport = dependencies.providerTransport;
+    const transport = resolvedDependencies.providerTransport;
       if (!transport) throw new Error("Missing providerTransport in dependencies");
-    const resolver = dependencies.sampleResolver;
-    const imageFetcher = dependencies.imageFetcher;
-    const idGenerator = dependencies.idGenerator || (() => crypto.randomUUID());
-    const clock = dependencies.clock || { now: () => new Date() };
-    const runnerRegistry = dependencies.runnerRegistry;
+    const resolver = resolvedDependencies.sampleResolver;
+    const imageFetcher = resolvedDependencies.imageFetcher;
+    const idGenerator = resolvedDependencies.idGenerator || (() => crypto.randomUUID());
+    const clock = resolvedDependencies.clock;
+    const runnerRegistry = resolvedDependencies.runnerRegistry;
     if (!runnerRegistry) throw new Error("Missing runnerRegistry in dependencies");
 
     let preflightResult;
@@ -2849,8 +2870,8 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
         }
       });
       try {
-        runnerRegistry.get(activeJob.jobId)?.abortController?.abort();
-        runnerRegistry.delete(activeJob.jobId);
+        resolvedDependencies.runnerRegistry.get(activeJob.jobId)?.abortController?.abort();
+        resolvedDependencies.runnerRegistry.delete(activeJob.jobId);
       } catch(e){}
     }
 
@@ -2897,11 +2918,11 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
     // Start async execution
     startVisualBatchJob(jobId, {
       clock,
-      runnerRegistry,
-      analyzeFn: (opts) => analyzePublicSample({ ...opts, providerTransport: transport, sampleResolver: resolver, imageFetcher }),
+      runnerRegistry: resolvedDependencies.runnerRegistry,
+      analyzeFn: (opts, signal) => analyzePublicSample({ ...opts, abortSignal: signal, providerTransport: transport, sampleResolver: resolver, imageFetcher }),
       getSampleMetadata: async (id) => getPublicSampleById(id),
       jobStore: store
-    }).catch(err => {
+    }).completion.catch(err => {
       console.error("Batch job runner failed:", err);
     });
 
@@ -2913,7 +2934,7 @@ app.post("/api/visual/batch-jobs", async (req, res) => {
 
 app.get("/api/visual/batch-jobs", async (req, res) => {
   try {
-    const store = dependencies.jobStore;
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const jobs = store.listJobs().map(j => {
       const { items, executionPrivate, ...summary } = j;
@@ -2927,13 +2948,14 @@ app.get("/api/visual/batch-jobs", async (req, res) => {
 
 app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
   try {
-    const store = dependencies.jobStore;
+      const clock = resolvedDependencies.clock || { now: () => new Date() };
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const job = store.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
 
     // computedState
-    const isActiveRunnerKnown = runnerRegistry.isActive(job.jobId);
+    const isActiveRunnerKnown = resolvedDependencies.runnerRegistry.isActive(job.jobId);
     const isStale = (job.status === 'running' || job.status === 'canceling') && !isActiveRunnerKnown;
     
     const CANCELING_STALE_AFTER_MS = 120_000;
@@ -2941,7 +2963,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
     let cancelElapsedMs = 0;
     
     if (job.status === 'canceling' && job.cancelRequestedAt) {
-       cancelElapsedMs = Date.now() - new Date(job.cancelRequestedAt).getTime();
+       cancelElapsedMs = clock.now().getTime() - new Date(job.cancelRequestedAt).getTime();
        if (cancelElapsedMs > CANCELING_STALE_AFTER_MS) {
           isCancelingStale = true;
        }
@@ -3001,7 +3023,7 @@ app.get("/api/visual/batch-jobs/:jobId", async (req, res) => {
 
 app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
   try {
-    const store = dependencies.jobStore;
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const job = store.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
@@ -3038,7 +3060,7 @@ app.get("/api/visual/batch-jobs/:jobId/items", async (req, res) => {
 
 app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
   try {
-    const store = dependencies.jobStore;
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const job = store.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
@@ -3065,7 +3087,7 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
       });
       // Best effort abort
       try {
-        runnerRegistry.get(job.jobId)?.abortController?.abort();
+        resolvedDependencies.runnerRegistry.get(job.jobId)?.abortController?.abort();
       } catch(e){}
     }
     return res.status(200).json({ success: true, job: store.getJob(job.jobId) });
@@ -3076,7 +3098,7 @@ app.post("/api/visual/batch-jobs/:jobId/cancel", async (req, res) => {
 
 app.get("/api/visual/batch-jobs/:jobId/summary-data", async (req, res) => {
   try {
-    const store = dependencies.jobStore;
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const job = store.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
@@ -3090,7 +3112,7 @@ app.get("/api/visual/batch-jobs/:jobId/summary-data", async (req, res) => {
 
 app.post("/api/visual/batch-jobs/:jobId/force-cancel", async (req, res) => {
   try {
-    const store = dependencies.jobStore;
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const job = store.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
@@ -3110,8 +3132,8 @@ app.post("/api/visual/batch-jobs/:jobId/force-cancel", async (req, res) => {
        });
        
        try {
-         runnerRegistry.get(job.jobId)?.abortController?.abort();
-         runnerRegistry.delete(job.jobId);
+         resolvedDependencies.runnerRegistry.get(job.jobId)?.abortController?.abort();
+         resolvedDependencies.runnerRegistry.delete(job.jobId);
        } catch(e){}
     }
     
@@ -3123,7 +3145,7 @@ app.post("/api/visual/batch-jobs/:jobId/force-cancel", async (req, res) => {
 
 app.get("/api/visual/batch-jobs/:jobId/reports/analysis-bundle", async (req, res) => {
   try {
-    const store = dependencies.jobStore;
+    const store = resolvedDependencies.jobStore;
       if (!store) throw new Error("Missing jobStore in dependencies");
     const job = store.getJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });

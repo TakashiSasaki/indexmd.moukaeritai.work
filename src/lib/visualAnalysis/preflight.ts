@@ -37,9 +37,12 @@ export class PreflightError extends Error {
   }
 }
 
+import { PublicVisualSample } from './publicSamples/types';
+
 export interface SampleResolver {
   hasSample(sampleId: string): boolean;
   isExternalDescriptor(sampleId: string): boolean;
+  getSample?(sampleId: string): PublicVisualSample | null;
 }
 
 export class DefaultSampleResolver implements SampleResolver {

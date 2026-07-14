@@ -51,12 +51,12 @@ test("Provider Transport - exact pre-SDK assertion", async (t) => {
     assert.strictEqual(transport.requests.length, 1);
     const capturedReq = transport.requests[0];
 
-    assert.strictEqual(capturedReq.preparedExecution.canonicalModelId, "gemini-2.5-flash");
-    assert.strictEqual(capturedReq.preparedExecution.generationConfiguration.temperature, 0.2);
-    assert.strictEqual(capturedReq.preparedExecution.generationConfiguration.topP, 0.9);
-    assert.strictEqual(capturedReq.preparedExecution.mediaResolutionConfiguration.requested, "high");
+    assert.strictEqual(capturedReq.model, "gemini-2.5-flash");
+    assert.strictEqual(capturedReq.generationParameters.temperature, 0.2);
+    assert.strictEqual(capturedReq.generationParameters.topP, 0.9);
+    assert.strictEqual(capturedReq.mediaResolutionValue, "high");
 
     // - absence of raw base64 data in metadata/snapshots
-    assert.strictEqual(capturedReq.sample.data, "[SANITIZED_BINARY_DATA]");
+    assert.strictEqual(capturedReq.sample?.data, undefined);
   });
 });
