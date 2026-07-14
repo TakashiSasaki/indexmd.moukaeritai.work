@@ -36,6 +36,17 @@ export async function runIndexingJob(
   const sortedDirs = [...directories].sort((a, b) => b.depth - a.depth);
   setIndexingProgress({ current: 0, total: sortedDirs.length });
 
+  // Pre-calculate children by parent_id to avoid O(N^2) filter inside the loop
+  const childrenMap = new Map<string, DirectoryMetadata[]>();
+  for (const dir of directories) {
+    if (dir.parent_id) {
+      if (!childrenMap.has(dir.parent_id)) {
+        childrenMap.set(dir.parent_id, []);
+      }
+      childrenMap.get(dir.parent_id)!.push(dir);
+    }
+  }
+
   let successCount = 0;
   let skipCount = 0;
 
@@ -58,7 +69,7 @@ export async function runIndexingJob(
       await updateDoc(itemRef, { index_status: "processing" });
 
       // Children summaries
-      const childDirs = directories.filter(d => d.parent_id === item.drive_id);
+      const childDirs = childrenMap.get(item.drive_id) || [];
       const subdirsWithSummaries = childDirs.map(child => ({
         id: child.drive_id,
         name: (child.path || "").split("/").pop() || "",
