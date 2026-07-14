@@ -1,102 +1,89 @@
-# Branch Synchronization Workflow (`main` &leftrightarrow; `jules/integration`)
+# Branch Synchronization Workflow
 
-This document outlines the operational design, roles, and validation procedures for the automated branch synchronization system in the `indexmd` repository.
+This document defines the repository's branch synchronization policy.
 
----
+## Default branch
 
-## 🌿 Architectural Roles of Branches
+The canonical integration and default branch is:
 
-1. **`main` (Source of Truth for Google AI Studio)**
-   - Owned and operated directly by **Google AI Studio** and associated automated code agents.
-   - All browser-based prompt generations, edits, and deployments are written and pushed directly to `main`.
-   - **Never rename or delete this branch.**
+`indexmd.moukaeritai.work`
 
-2. **`chatgpt` (Durable Working Branch for ChatGPT-Authored Changes)**
-   - The primary durable working branch for ChatGPT-authored changes in this project.
-   - Use `chatgpt` as the target branch for repository edits unless the user or project instructions explicitly dictate otherwise.
+Repository automation may write directly to this branch for the synchronization workflow described below.
 
-3. **`jules/integration` (Jules Workspace & Integration Target)**
-   - Owned and operated by **Jules** for localized development, external merges, and full-stack integration tests.
-   - Automatically synchronized from `main` to ensure Jules' changes always build on top of Google AI Studio's latest generations.
-   - **Important Constraint**: This branch is **never** reset or force-pushed by automation, preserving Jules' unpushed history.
+## Source branches
 
-4. **`automation/sync-main-to-jules-integration` (Conflict Isolation Branch)**
-   - Owned by the synchronization runner.
-   - Used exclusively to build conflict pull requests into `jules/integration` when automatic direct merging fails.
-   - **Force-pushes are permitted on this branch only.**
+The following branches may contain work produced by external tools or coding agents:
 
----
+- `main`
+- `chatgpt`
+- `jules`
+- `codex`
 
-## 🔄 Automatic Sync Mechanism
+These branches are synchronization sources. Automation does not merge the default branch back into them.
 
-The automation runs on GitHub Actions, defined in:
-`.github/workflows/sync-main-to-jules-integration.yml`
+## One-way synchronization
 
-### 1. Trigger Conditions
-- Triggers on every `push` directly to `main`.
-- Can be run manually via `workflow_dispatch`.
+The only branch synchronization workflow is:
 
-### 2. Execution Flow
+`.github/workflows/sync-to-default.yml`
 
-```
-                Push to 'main' / Manual Dispatch
-                              │
-                    Fetch latest history
-                              │
-                Is 'jules/integration' absent?
-                    ├── Yes ──> Create from 'main' & exit
-                    └── No
-                              │
-               Switch to 'jules/integration'
-                              │
-              Attempt 'git merge origin/main'
-                    ├── Success (Clean Merge)
-                    │        ├── Push to 'jules/integration'
-                    │        └── Close any open conflict PR (if present)
-                    │
-                    └── Failure (Merge Conflict)
-                             ├── Abort merge ('git merge --abort')
-                             ├── Switch to 'automation/sync-main-to-jules-integration' from 'main'
-                             ├── Force-push to remote conflict branch
-                             └── Open or update PR targeting 'jules/integration'
+Its direction is strictly:
+
+```text
+main ───────┐
+chatgpt ────┤
+jules ──────┼──> indexmd.moukaeritai.work
+codex ──────┘
 ```
 
-### 3. Permissions & Tokens
-- By default, uses the built-in repository `github.token` with explicit write permissions:
-  ```yaml
-  permissions:
-    contents: write
-    pull-requests: write
-  ```
-- If advanced repository restrictions (e.g., branch protections) block the default `GITHUB_TOKEN`, a repository secret named **`SYNC_TOKEN`** (a Personal Access Token with minimal `repo` scopes) should be configured. The workflow automatically falls back to `SYNC_TOKEN` when defined.
+The workflow runs after a push to one of the source branches and can also be invoked manually with `workflow_dispatch`.
 
----
+For each run it:
 
-## ⚠️ Merging and Conflict Resolution Guidelines
+1. checks out the latest `indexmd.moukaeritai.work` branch;
+2. fetches the selected source branch;
+3. performs a normal non-force merge of the source into the default branch;
+4. pushes the resulting merge to `indexmd.moukaeritai.work` when the merge succeeds;
+5. exits without a push when the default branch already contains the source changes.
 
-If the sync workflow triggers a **Merge Conflict PR**:
-1. Do **not** attempt to merge the conflict branch via GitHub's standard merge button unless you are confident it won't introduce regressive code.
-2. The recommended approach is to check out `jules/integration` locally, merge `main`, resolve conflicts locally, test, and push directly to `jules/integration`:
-   ```bash
-   git checkout jules/integration
-   git pull origin jules/integration
-   git merge origin/main
-   # [Resolve conflicts manually in your editor]
-   # [Verify with local test suite]
-   npm run lint
-   npm run test:unit
-   npm run build
-   # [Commit and Push]
-   git commit -am "merge: resolve conflicts with main"
-   git push origin jules/integration
-   ```
-3. Once pushed, the next automated sync run will detect that `jules/integration` is up to date and will automatically **close** the stale conflict PR and delete the temporary automation branch.
+## Conflict policy
 
----
+If Git reports a merge conflict, automation:
 
-## 🔒 Hard Safeguards & Restrictions
+- aborts the merge;
+- fails the workflow run;
+- does not create a pull request;
+- does not create or force-update an automation branch;
+- does not reset or force-push any branch.
 
-- **Never** alter or delete the `.github/workflows/sync-main-to-jules-integration.yml` file under the assumption that it is "unused" or "deprecated".
-- **Never** use `git reset --hard` or `git push --force` on the `jules/integration` branch from the automation script.
-- Maintain the Firestore security rules and database setup (`indexmd-db`). Never restore default relational configurations unless explicitly instructed.
-- Never store Google Drive access or refresh tokens in local storage or repository logs.
+Conflicts must be resolved manually and the synchronization workflow can then be rerun.
+
+## Removed automation
+
+The former bidirectional automation has been removed:
+
+- automatic synchronization from `main` into `chatgpt`, `jules`, and `codex`;
+- automatic pull-request creation from agent branches into `main`;
+- conflict pull-request creation and automation-owned conflict branches.
+
+Pull requests may still be created manually when review is desired, but no workflow creates them automatically.
+
+## Permissions and token
+
+The synchronization workflow requests only:
+
+```yaml
+permissions:
+  contents: write
+```
+
+It uses `SYNC_TOKEN` when configured and otherwise uses the repository-provided `github.token`.
+
+## Safety rules
+
+- Synchronization is always toward `indexmd.moukaeritai.work`.
+- Do not add reverse synchronization from the default branch to source branches.
+- Do not add automatic pull-request creation to the synchronization workflow.
+- Do not use `git reset --hard` or force-push for synchronization.
+- A conflict must remain visible as a failed workflow run until manually resolved.
+- Preserve Firestore security rules and never commit Google Drive access tokens, refresh tokens, Gemini API keys, or credential-bearing URLs.
