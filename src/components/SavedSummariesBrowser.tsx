@@ -256,17 +256,29 @@ These notes must also be completely preserved intact!`);
     });
   }, [selectedSummary]);
 
-  // ⚡ Bolt: Pre-calculate file counts per directory to optimize O(N) rendering performance
-  const fileCountsByDir = useMemo(() => {
-    const counts: Record<string, number> = {};
+  // ⚡ Bolt: Pre-calculate files grouped by directory to optimize O(N) filtering to O(1) lookup
+  const filesByParentId = useMemo(() => {
+    const groups: Record<string, any[]> = {};
     for (const item of processedSummaries) {
       const parentIdVal = item.parent_id || item.parentId;
       if (parentIdVal) {
-        counts[parentIdVal] = (counts[parentIdVal] || 0) + 1;
+        if (!groups[parentIdVal]) {
+          groups[parentIdVal] = [];
+        }
+        groups[parentIdVal].push(item);
       }
     }
-    return counts;
+    return groups;
   }, [processedSummaries]);
+
+  // ⚡ Bolt: Pre-calculate file counts per directory to optimize O(N) rendering performance
+  const fileCountsByDir = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const [parentId, files] of Object.entries(filesByParentId)) {
+      counts[parentId] = files.length;
+    }
+    return counts;
+  }, [filesByParentId]);
 
   // Directory-wise index.md Auto-Generated code builder (Read-Only Preview)
   const generatedIndexMd = useMemo(() => {
@@ -275,7 +287,7 @@ These notes must also be completely preserved intact!`);
     const folderName = folder ? (folder.path || folder.name) : 'Selected Directory';
 
     // Filter file summaries belonging to this directory
-    const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
+    const filesInFolder = filesByParentId[selectedDirId] || [];
 
     // Render index.md via our pure deterministic preview helper
     return buildReadOnlyIndexMdPreview({
@@ -483,7 +495,7 @@ These notes must also be completely preserved intact!`);
                 </div>
                 
                 {(() => {
-                  const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
+                  const filesInFolder = filesByParentId[selectedDirId] || [];
                   return (
                     <div className="space-y-4">
                       <div>
