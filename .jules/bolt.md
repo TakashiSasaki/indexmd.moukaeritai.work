@@ -4,3 +4,6 @@
 ## 2024-07-12 - Date parsing inside JS sort comparator
 **Learning:** Found a performance bottleneck where `sortSavedSummariesByGeneratedAt` in `src/lib/savedSummaryBrowser.ts` repeatedly parsed ISO date strings (`new Date(str).getTime()`) inside a `.sort()` comparator loop, resulting in $O(N \log N)$ date conversions.
 **Action:** Use the Schwartzian transform (map-sort-map) to convert string dates to timestamps only once per item ($O(N)$), saving significant CPU cycles.
+## 2025-02-17 - Pre-calculate dictionary to avoid O(N) filters on render
+**Learning:** Found a performance bottleneck where `.filter()` was being repeatedly run inside components like `SavedSummariesBrowser` to group items by directory for every render and sub-component lookup. Since `processedSummaries` can grow large, doing an O(N) scan inside rendering or dependent `useMemo` blocks degrades main thread performance.
+**Action:** When filtering a large collection by an ID property, use `useMemo` to construct a grouped `Map` or dictionary object (e.g. `filesByParentId`) once. Then use O(1) dictionary lookups (`filesByParentId[id] || []`) to fetch the subsets, avoiding redundant N scans.
