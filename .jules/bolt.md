@@ -4,3 +4,7 @@
 ## 2024-07-12 - Date parsing inside JS sort comparator
 **Learning:** Found a performance bottleneck where `sortSavedSummariesByGeneratedAt` in `src/lib/savedSummaryBrowser.ts` repeatedly parsed ISO date strings (`new Date(str).getTime()`) inside a `.sort()` comparator loop, resulting in $O(N \log N)$ date conversions.
 **Action:** Use the Schwartzian transform (map-sort-map) to convert string dates to timestamps only once per item ($O(N)$), saving significant CPU cycles.
+
+## 2026-07-21 - Pre-calculate nested filters in React render
+**Learning:** Found an O(N) array scan via `.filter()` happening directly inside a React component render path (`SavedSummariesBrowser.tsx`). When selecting a directory or typing, recalculations trigger full O(N) array filtering. This degrades performance as dataset size grows.
+**Action:** When finding a `.filter()` inside a React render function or `useMemo` that filters over the entire data set repeatedly, pre-calculate the data into a grouped `Record` (Map) grouped by key for O(1) lookups to avoid O(N) arrays filtering blockages in rendering.
