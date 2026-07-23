@@ -1868,107 +1868,100 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
         </div>
 
         {/* Model Info Detail */}
-        {MODELS.find((m) => m.id === modelName) && (
-          <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 space-y-3">
-            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                      正式モデルID:
-                    </span>
-                    <code className="text-[10px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-700 font-mono">
-                      {MODELS.find((m) => m.id === modelName)?.apiIdentifier}
-                    </code>
+        {(() => {
+          // ⚡ Bolt: Cache the selected model to avoid multiple O(N) array scans during rendering
+          const currentModelInfo = MODELS.find((m) => m.id === modelName);
+          if (!currentModelInfo) return null;
+          return (
+            <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 space-y-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div className="flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                        正式モデルID:
+                      </span>
+                      <code className="text-[10px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-700 font-mono">
+                        {currentModelInfo.apiIdentifier}
+                      </code>
+                    </div>
+                    {currentModelInfo.knowledgeCutOff && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                          学習データ締切:
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-700">
+                          {currentModelInfo.knowledgeCutOff}
+                        </span>
+                      </div>
+                    )}
+                    {currentModelInfo.releaseDate && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                          リリース日:
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-700">
+                          {currentModelInfo.releaseDate}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  {MODELS.find((m) => m.id === modelName)?.knowledgeCutOff && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                        学習データ締切:
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-700">
-                        {
-                          MODELS.find((m) => m.id === modelName)
-                            ?.knowledgeCutOff
-                        }
-                      </span>
-                    </div>
-                  )}
-                  {MODELS.find((m) => m.id === modelName)?.releaseDate && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                        リリース日:
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-700">
-                        {MODELS.find((m) => m.id === modelName)?.releaseDate}
-                      </span>
-                    </div>
-                  )}
-                </div>
 
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">
+                      価格体系 (Paid Tier)
+                    </span>
+                    <div className="flex gap-4">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">
+                          入力 (1M tkn)
+                        </span>
+                        <span className="text-xs font-mono font-bold text-slate-700">
+                          {currentModelInfo.pricing.inputPrice}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">
+                          出力 (1M tkn)
+                        </span>
+                        <span className="text-xs font-mono font-bold text-slate-700">
+                          {currentModelInfo.pricing.outputPrice}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">
+                          Free Tier
+                        </span>
+                        <span
+                          className={`text-xs font-bold ${currentModelInfo.pricing.freeTier ? "text-emerald-600" : "text-rose-600"}`}
+                        >
+                          {currentModelInfo.pricing.freeTier ? "あり" : "なし"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">
-                    価格体系 (Paid Tier)
+                    対応モーダル
                   </span>
-                  <div className="flex gap-4">
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">
-                        入力 (1M tkn)
-                      </span>
-                      <span className="text-xs font-mono font-bold text-slate-700">
-                        {
-                          MODELS.find((m) => m.id === modelName)?.pricing
-                            .inputPrice
-                        }
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">
-                        出力 (1M tkn)
-                      </span>
-                      <span className="text-xs font-mono font-bold text-slate-700">
-                        {
-                          MODELS.find((m) => m.id === modelName)?.pricing
-                            .outputPrice
-                        }
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">
-                        Free Tier
-                      </span>
-                      <span
-                        className={`text-xs font-bold ${MODELS.find((m) => m.id === modelName)?.pricing.freeTier ? "text-emerald-600" : "text-rose-600"}`}
-                      >
-                        {MODELS.find((m) => m.id === modelName)?.pricing
-                          .freeTier
-                          ? "あり"
-                          : "なし"}
-                      </span>
-                    </div>
+                  <div className="flex flex-wrap gap-1">
+                    {currentModelInfo.modalities.map(
+                      (mod, i) => (
+                        <span
+                          key={i}
+                          className="text-[9px] px-1.5 py-0.5 bg-white border border-slate-200 text-slate-600 rounded"
+                        >
+                          {mod}
+                        </span>
+                      ),
+                    )}
                   </div>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">
-                  対応モーダル
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {MODELS.find((m) => m.id === modelName)?.modalities.map(
-                    (mod, i) => (
-                      <span
-                        key={i}
-                        className="text-[9px] px-1.5 py-0.5 bg-white border border-slate-200 text-slate-600 rounded"
-                      >
-                        {mod}
-                      </span>
-                    ),
-                  )}
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {samples.length === 0 ? (
           <div className="pt-2">
