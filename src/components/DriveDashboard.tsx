@@ -1112,6 +1112,15 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     });
   }, [filteredDirs, rootLastTraversedAt, rootNextPageToken]);
 
+  // ⚡ Bolt: Pre-calculate a Map for O(1) directory lookups instead of O(N) array scans inside loops.
+  const dirsMap = useMemo(() => {
+    const map = new Map<string, Directory>();
+    for (const d of dirs) {
+      map.set(d.drive_id, d);
+    }
+    return map;
+  }, [dirs]);
+
   const buildBreadcrumbPath = (dirId: string): { id: string, name: string }[] => {
     let currentId: string | null = dirId;
     const breadcrumb: { id: string, name: string }[] = [];
@@ -1120,7 +1129,7 @@ Firestore Path: users/${userId}/directories/${lastDebugFolder.drive_id}`;
     
     while (currentId && !visited.has(currentId)) {
       visited.add(currentId);
-      const dir = dirs.find(d => d.drive_id === currentId);
+      const dir = dirsMap.get(currentId);
       if (dir) {
         const pathStr = dir.path || "";
         const parts = pathStr.replace(/\/$/, '').split('/');
