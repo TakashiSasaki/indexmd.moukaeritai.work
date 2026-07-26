@@ -786,6 +786,8 @@ export const SummaryDebugger: React.FC<SummaryDebuggerProps> = ({
     }
   });
 
+  const selectedModelInfo = useMemo(() => MODELS.find((m) => m.id === modelName), [modelName]);
+
   const handleJsonModeChange = (mode: "prompt_only" | "native_schema") => {
     setJsonMode(mode);
     try {
@@ -1868,7 +1870,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
         </div>
 
         {/* Model Info Detail */}
-        {MODELS.find((m) => m.id === modelName) && (
+        {selectedModelInfo && (
           <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
               <div className="flex-1 space-y-2">
@@ -1878,29 +1880,28 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                       正式モデルID:
                     </span>
                     <code className="text-[10px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-700 font-mono">
-                      {MODELS.find((m) => m.id === modelName)?.apiIdentifier}
+                      {selectedModelInfo.apiIdentifier}
                     </code>
                   </div>
-                  {MODELS.find((m) => m.id === modelName)?.knowledgeCutOff && (
+                  {selectedModelInfo.knowledgeCutOff && (
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                         学習データ締切:
                       </span>
                       <span className="text-[10px] font-bold text-slate-700">
                         {
-                          MODELS.find((m) => m.id === modelName)
-                            ?.knowledgeCutOff
+                          selectedModelInfo.knowledgeCutOff
                         }
                       </span>
                     </div>
                   )}
-                  {MODELS.find((m) => m.id === modelName)?.releaseDate && (
+                  {selectedModelInfo.releaseDate && (
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                         リリース日:
                       </span>
                       <span className="text-[10px] font-bold text-slate-700">
-                        {MODELS.find((m) => m.id === modelName)?.releaseDate}
+                        {selectedModelInfo.releaseDate}
                       </span>
                     </div>
                   )}
@@ -1917,7 +1918,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                       </span>
                       <span className="text-xs font-mono font-bold text-slate-700">
                         {
-                          MODELS.find((m) => m.id === modelName)?.pricing
+                          selectedModelInfo.pricing
                             .inputPrice
                         }
                       </span>
@@ -1928,7 +1929,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                       </span>
                       <span className="text-xs font-mono font-bold text-slate-700">
                         {
-                          MODELS.find((m) => m.id === modelName)?.pricing
+                          selectedModelInfo.pricing
                             .outputPrice
                         }
                       </span>
@@ -1938,9 +1939,9 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                         Free Tier
                       </span>
                       <span
-                        className={`text-xs font-bold ${MODELS.find((m) => m.id === modelName)?.pricing.freeTier ? "text-emerald-600" : "text-rose-600"}`}
+                        className={`text-xs font-bold ${selectedModelInfo.pricing.freeTier ? "text-emerald-600" : "text-rose-600"}`}
                       >
-                        {MODELS.find((m) => m.id === modelName)?.pricing
+                        {selectedModelInfo.pricing
                           .freeTier
                           ? "あり"
                           : "なし"}
@@ -1954,7 +1955,7 @@ ${responseTitle ? `Page Title: ${responseTitle}\n` : ""}${refinedErrorText ? `Re
                   対応モーダル
                 </span>
                 <div className="flex flex-wrap gap-1">
-                  {MODELS.find((m) => m.id === modelName)?.modalities.map(
+                  {selectedModelInfo.modalities.map(
                     (mod, i) => (
                       <span
                         key={i}
