@@ -268,23 +268,26 @@ These notes must also be completely preserved intact!`);
     return counts;
   }, [processedSummaries]);
 
+  // ⚡ Bolt: Memoize the filtered files for the selected directory to avoid recalculating it multiple times across the render body
+  const filesInSelectedFolder = useMemo(() => {
+    if (!selectedDirId) return [];
+    return processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
+  }, [processedSummaries, selectedDirId]);
+
   // Directory-wise index.md Auto-Generated code builder (Read-Only Preview)
   const generatedIndexMd = useMemo(() => {
     if (!selectedDirId) return '';
     const folder = dirs.find(d => d.drive_id === selectedDirId);
     const folderName = folder ? (folder.path || folder.name) : 'Selected Directory';
 
-    // Filter file summaries belonging to this directory
-    const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
-
     // Render index.md via our pure deterministic preview helper
     return buildReadOnlyIndexMdPreview({
       folderName,
-      filesInFolder,
+      filesInFolder: filesInSelectedFolder,
       nowIso: new Date().toISOString(),
       promptVersion: SUMMARY_ANALYSIS_PROMPT_VERSION
     });
-  }, [selectedDirId, dirs, processedSummaries]);
+  }, [selectedDirId, dirs, filesInSelectedFolder]);
 
   const handleCopyIndexMd = async () => {
     if (!generatedIndexMd) return;
@@ -483,7 +486,6 @@ These notes must also be completely preserved intact!`);
                 </div>
                 
                 {(() => {
-                  const filesInFolder = processedSummaries.filter(item => (item.parent_id || item.parentId) === selectedDirId);
                   return (
                     <div className="space-y-4">
                       <div>
@@ -491,8 +493,8 @@ These notes must also be completely preserved intact!`);
                           AI Summary
                         </h2>
                         <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                          {filesInFolder.length > 0 
-                            ? `このディレクトリには ${filesInFolder.length} 件の要約済み重要ドキュメントが配置されています。主要テーマは ${Array.from(new Set(filesInFolder.flatMap(f => f.structured?.topics || []))).slice(0, 5).join('、') || '一般事務'} です。`
+                          {filesInSelectedFolder.length > 0
+                            ? `このディレクトリには ${filesInSelectedFolder.length} 件の要約済み重要ドキュメントが配置されています。主要テーマは ${Array.from(new Set(filesInSelectedFolder.flatMap(f => f.structured?.topics || []))).slice(0, 5).join('、') || '一般事務'} です。`
                             : "保存されている要約ファイルはありません。"}
                         </p>
                       </div>
@@ -501,9 +503,9 @@ These notes must also be completely preserved intact!`);
                         <h2 className="text-xs font-extrabold text-slate-900 border-b border-slate-100 pb-1 uppercase tracking-wider">
                           Files
                         </h2>
-                        {filesInFolder.length > 0 ? (
+                        {filesInSelectedFolder.length > 0 ? (
                           <ul className="space-y-2 mt-2 list-none pl-0">
-                            {filesInFolder.map(file => {
+                            {filesInSelectedFolder.map(file => {
                               let badgeText = "";
                               let badgeColor = "bg-slate-100 text-slate-600";
                               if (file.computedStatus === "stale-schema") {
