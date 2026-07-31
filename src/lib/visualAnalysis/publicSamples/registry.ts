@@ -802,9 +802,11 @@ export const PUBLIC_VISUAL_SAMPLES: PublicVisualSample[] = [
 ];
 
 export function getPublicSampleById(id: string): PublicVisualSample | undefined {
-  return PUBLIC_VISUAL_SAMPLES.find(s => s.id === id);
+  return PUBLIC_VISUAL_SAMPLES_MAP.get(id);
 }
 
 export function getAllPublicSamples(): PublicVisualSample[] {
   return PUBLIC_VISUAL_SAMPLES;
 }
+
+export const PUBLIC_VISUAL_SAMPLES_MAP = new Map(PUBLIC_VISUAL_SAMPLES.map(s => [s.id, s]));
