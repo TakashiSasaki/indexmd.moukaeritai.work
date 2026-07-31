@@ -10,7 +10,7 @@ import {
   evaluateSampleComparison,
   PublicSampleComparisonSummary
 } from '../lib/visualAnalysis/publicSamples/compare';
-import { PUBLIC_VISUAL_SAMPLES } from '../lib/visualAnalysis/publicSamples/registry';
+import { PUBLIC_VISUAL_SAMPLES, PUBLIC_VISUAL_SAMPLES_MAP } from '../lib/visualAnalysis/publicSamples/registry';
 import { PublicSampleBatchRunSummary, PublicSampleBatchRunItem, VisualBatchJobEvent } from '../lib/visualAnalysis/publicSamples/batchTypes';
 import {
   PublicSampleBatchCheckpoint,
@@ -423,7 +423,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
     onAddLog("info", `[Matrix Run] Running single cell test: ${sampleId} with ${modelName} (${jsonMode})...`);
     
     try {
-      const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === sampleId);
+      const matchedSample = PUBLIC_VISUAL_SAMPLES_MAP.get(sampleId);
       const sfResult = await safeFetchWithRetry<any>('/api/visual/public-samples/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1762,7 +1762,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
       return {
         ...sum,
         items: sum.items.map(it => {
-          const matchedSample = PUBLIC_VISUAL_SAMPLES.find(s => s.id === it.sampleId);
+          const matchedSample = PUBLIC_VISUAL_SAMPLES_MAP.get(it.sampleId);
           const category = (it as any).category ||
                            matchedSample?.category || 
                            ((it as any).responseRaw?.sampleMetadata as any)?.category ||
@@ -3914,7 +3914,7 @@ export default function ImageExperiment({ token, config, onAddLog, onSessionExpi
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>
                     <h4 className="font-bold text-slate-800 text-sm">
-                      セル詳細診断: {PUBLIC_VISUAL_SAMPLES.find(s => s.id === selectedMatrixCell.sampleId)?.title || selectedMatrixCell.sampleId}
+                      セル詳細診断: {PUBLIC_VISUAL_SAMPLES_MAP.get(selectedMatrixCell.sampleId)?.title || selectedMatrixCell.sampleId}
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
                       モデル: <span className="font-mono text-slate-600">{selectedMatrixCell.model}</span> ({selectedMatrixCell.mode === 'json_object' ? 'JSON' : 'Prompt'})

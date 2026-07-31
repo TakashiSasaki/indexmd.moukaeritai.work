@@ -4,3 +4,6 @@
 ## 2024-07-12 - Date parsing inside JS sort comparator
 **Learning:** Found a performance bottleneck where `sortSavedSummariesByGeneratedAt` in `src/lib/savedSummaryBrowser.ts` repeatedly parsed ISO date strings (`new Date(str).getTime()`) inside a `.sort()` comparator loop, resulting in $O(N \log N)$ date conversions.
 **Action:** Use the Schwartzian transform (map-sort-map) to convert string dates to timestamps only once per item ($O(N)$), saving significant CPU cycles.
+## 2024-05-18 - [Optimizing registry lookup for Visual Analysis]
+**Learning:** React components (like `ImageExperiment`) and batch processors heavily rely on mapping item `sampleId`s to static sample data stored in `PUBLIC_VISUAL_SAMPLES`. Finding samples by ID across large sets using O(N) `Array.prototype.find()` on every map/filter inside loops can cause main thread blocking, specifically during comparison report building and matrix rendering.
+**Action:** Exported a precomputed `Map` from `registry.ts` named `PUBLIC_VISUAL_SAMPLES_MAP` to replace `find` loops with O(1) `.get(id)` lookups. This follows the established pattern of pre-calculating data into a `Map` or `Record` for O(1) lookups to avoid synchronous blocking during component rendering paths and reports.
