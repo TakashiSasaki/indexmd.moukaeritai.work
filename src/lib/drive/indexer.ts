@@ -39,6 +39,15 @@ export async function runIndexingJob(
   let successCount = 0;
   let skipCount = 0;
 
+  // ⚡ Bolt: Group directories by parent_id beforehand to avoid O(N^2) `.filter()` lookups inside the loop below.
+  const childrenByParentId = new Map<string, DirectoryMetadata[]>();
+  for (const d of directories) {
+    if (!d.parent_id) continue;
+    const existing = childrenByParentId.get(d.parent_id) || [];
+    existing.push(d);
+    childrenByParentId.set(d.parent_id, existing);
+  }
+
   try {
     for (let i = 0; i < sortedDirs.length; i++) {
       if (!indexActiveRef.current) {
@@ -58,7 +67,8 @@ export async function runIndexingJob(
       await updateDoc(itemRef, { index_status: "processing" });
 
       // Children summaries
-      const childDirs = directories.filter(d => d.parent_id === item.drive_id);
+      // ⚡ Bolt: O(1) lookup to grab children, changing overall time complexity from O(N^2) to O(N).
+      const childDirs = childrenByParentId.get(item.drive_id) || [];
       const subdirsWithSummaries = childDirs.map(child => ({
         id: child.drive_id,
         name: (child.path || "").split("/").pop() || "",
