@@ -4,3 +4,6 @@
 ## 2024-07-12 - Date parsing inside JS sort comparator
 **Learning:** Found a performance bottleneck where `sortSavedSummariesByGeneratedAt` in `src/lib/savedSummaryBrowser.ts` repeatedly parsed ISO date strings (`new Date(str).getTime()`) inside a `.sort()` comparator loop, resulting in $O(N \log N)$ date conversions.
 **Action:** Use the Schwartzian transform (map-sort-map) to convert string dates to timestamps only once per item ($O(N)$), saving significant CPU cycles.
+## 2025-08-02 - [O(1) Dictionary Lookup Replacing Nested O(N) Array Filter in Render Loop]
+**Learning:** In React apps where array filtering (like finding files belonging to a selected directory) is performed inside the render loop, it creates an O(N) bottleneck that scales poorly with many items. Previously, the `SavedSummariesBrowser` pre-calculated counts per directory but still relied on a `.filter()` method (O(N) search) over a large list on every render.
+**Action:** Always prefer structuring data into O(1) hash maps or grouping objects using `useMemo` so that rendering operations map directly to quick lookups (e.g. `filesByDir[selectedDirId] || []`) rather than iterative array filtering. This avoids blocking the main thread during repetitive rendering cycles and component re-evaluations.
