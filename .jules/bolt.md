@@ -4,3 +4,6 @@
 ## 2024-07-12 - Date parsing inside JS sort comparator
 **Learning:** Found a performance bottleneck where `sortSavedSummariesByGeneratedAt` in `src/lib/savedSummaryBrowser.ts` repeatedly parsed ISO date strings (`new Date(str).getTime()`) inside a `.sort()` comparator loop, resulting in $O(N \log N)$ date conversions.
 **Action:** Use the Schwartzian transform (map-sort-map) to convert string dates to timestamps only once per item ($O(N)$), saving significant CPU cycles.
+## 2024-10-27 - Memoize redundant array lookups in React renders
+**Learning:** Found an O(N) array scan via `.find()` repeated multiple times inside the render method of a large React component (`SummaryDebugger.tsx`). During each re-render, the app evaluated `MODELS.find((m) => m.id === modelName)` 11 times. While the array (`MODELS`) isn't massive, repeated linear searches on the main thread cause unnecessary CPU overhead and GC pressure.
+**Action:** Extract the lookup and wrap it with `useMemo` (`const selectedModel = useMemo(() => MODELS.find(...), [modelName])`). This caches the result between renders, reducing the lookup cost from 11 * O(N) to O(1) across the JSX body, improving component render speed and maintainability.
